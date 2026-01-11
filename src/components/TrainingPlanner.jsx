@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
-import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, ProgressBar, Divider } from "@tremor/react";
+import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
+import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon } from "@heroicons/react/24/solid";
+import { BoltIcon } from "@heroicons/react/24/outline";
 import ModelSelector from './ModelSelector';
 
 const TrainingPlanner = ({ activities }) => {
@@ -428,19 +430,28 @@ const TrainingPlanner = ({ activities }) => {
     };
 
     return (
-        <div className="mb-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <Title className="text-xl uppercase tracking-widest flex items-center gap-2">
-                    <span className="text-2xl">🤖</span> Entrenador AI
-                </Title>
-                <ModelSelector
-                    provider={provider}
-                    setProvider={setProvider}
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
-                    showLabel={false}
-                />
-            </div>
+        <div className="space-y-6">
+            {/* Header Section */}
+            <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 rounded-xl">
+                            <span className="text-2xl">🤖</span>
+                        </div>
+                        <div>
+                            <Title className="text-xl font-bold text-slate-900">Entrenador AI</Title>
+                            <Text className="text-slate-500 text-sm">Genera planes de entrenamiento personalizados</Text>
+                        </div>
+                    </div>
+                    <ModelSelector
+                        provider={provider}
+                        setProvider={setProvider}
+                        selectedModel={selectedModel}
+                        setSelectedModel={setSelectedModel}
+                        showLabel={false}
+                    />
+                </div>
+            </Card>
 
             <Card className="mb-8 p-6 ring-1 ring-slate-200 shadow-sm bg-white dark:bg-slate-900 dark:ring-slate-800">
                 <form onSubmit={generateAIPlan} className="space-y-6">
@@ -525,17 +536,29 @@ const TrainingPlanner = ({ activities }) => {
                             )}
                         </div>
 
-                        {plan.stats && plan.stats.distribution && (
-                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                                <Text className="text-xs font-bold uppercase text-slate-400 mb-3">Distribución de Intensidad (80/20)</Text>
-                                <ProgressBar value={plan.stats.distribution.easy} color="emerald" className="mt-2" />
-                                <div className="flex justify-between mt-2 text-xs text-slate-500 font-medium">
-                                    <span className="text-emerald-600">Suave (Z1-2): {plan.stats.distribution.easy}%</span>
-                                    <span className="text-amber-500">Umbral (Z3): {plan.stats.distribution.moderate}%</span>
-                                    <span className="text-rose-500">Intenso (Z4-5): {plan.stats.distribution.hard}%</span>
-                                </div>
+                        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                            <Text className="text-xs font-bold uppercase text-slate-400 mb-3">Distribución de Intensidad (Modelo 80/20)</Text>
+                            <div className="flex flex-col sm:flex-row items-center gap-6">
+                                <DonutChart
+                                    data={[
+                                        { name: 'Suave (Z1-2)', value: plan.stats.distribution.easy },
+                                        { name: 'Umbral (Z3)', value: plan.stats.distribution.moderate },
+                                        { name: 'Intenso (Z4-5)', value: plan.stats.distribution.hard },
+                                    ]}
+                                    category="value"
+                                    index="name"
+                                    colors={["emerald", "amber", "rose"]}
+                                    variant="pie"
+                                    className="w-32 h-32"
+                                    showAnimation={true}
+                                />
+                                <Legend
+                                    categories={["Suave (Z1-2)", "Umbral (Z3)", "Intenso (Z4-5)"]}
+                                    colors={["emerald", "amber", "rose"]}
+                                    className="max-w-xs"
+                                />
                             </div>
-                        )}
+                        </div>
                     </Card>
 
                     <div className="space-y-4">
@@ -565,40 +588,121 @@ const TrainingPlanner = ({ activities }) => {
 
                                         <Text className="text-slate-600 dark:text-slate-400 mb-4">{day.summary}</Text>
 
-                                        {day.structured_workout && day.structured_workout.length > 0 && (
-                                            <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-800">
-                                                <Text className="text-xs font-bold uppercase text-slate-400 mb-2">Estructura</Text>
-                                                <div className="space-y-2">
-                                                    {day.structured_workout.map((step, sIdx) => (
-                                                        <div key={sIdx} className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-slate-800 pb-2 last:border-0 last:pb-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{step.phase}</span>
-                                                                <span className="text-slate-500 text-xs truncate max-w-[200px] hidden sm:block">- {step.description}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <Badge size="xs" color={step.intensity >= 4 ? 'rose' : step.intensity === 3 ? 'amber' : 'emerald'}>Z{step.intensity}</Badge>
-                                                                <span className="font-mono font-bold dark:text-slate-300">{step.duration_min}'</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                        {day.structured_workout && day.structured_workout.length > 0 && (() => {
+                                            const getTremorColor = (intensity) => {
+                                                if (intensity >= 5) return 'rose';
+                                                if (intensity === 4) return 'orange';
+                                                if (intensity === 3) return 'amber';
+                                                if (intensity === 2) return 'emerald';
+                                                return 'blue';
+                                            };
+
+                                            const categoryBarValues = day.structured_workout.map(s => s.duration_min);
+                                            const categoryBarColors = day.structured_workout.map(s => getTremorColor(s.intensity));
+
+                                            return (
+                                                <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-100 dark:border-slate-800">
+                                                    <Text className="text-xs font-bold uppercase text-slate-400 mb-4 tracking-wider">Estructura del Entrenamiento</Text>
+
+                                                    {/* Visual Timeline Bar */}
+                                                    <div className="mb-8 px-1">
+                                                        <CategoryBar
+                                                            values={categoryBarValues}
+                                                            colors={categoryBarColors}
+                                                            className="h-2.5 rounded-full ring-1 ring-slate-900/5 dark:ring-white/10"
+                                                            showLabels={false}
+                                                        />
+                                                    </div>
+
+                                                    {/* Modern Vertical Timeline Steps */}
+                                                    <div className="relative space-y-0 pl-2">
+                                                        {/* Vertical connector line */}
+                                                        <div className="absolute left-[19px] top-4 bottom-10 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-transparent dark:from-slate-700 dark:via-slate-700"></div>
+
+                                                        {day.structured_workout.map((step, sIdx) => {
+                                                            // Icons & Styles based on intensity/phase
+                                                            let StepIcon = PlayCircleIcon;
+                                                            let iconColor = "text-emerald-500 bg-emerald-50 ring-emerald-100 dark:bg-emerald-900/30 dark:ring-emerald-900/50";
+                                                            let cardBorder = "border-l-4 border-l-emerald-400 dark:border-l-emerald-500";
+
+                                                            if (step.intensity >= 4) {
+                                                                StepIcon = FireIcon;
+                                                                iconColor = "text-rose-500 bg-rose-50 ring-rose-100 dark:bg-rose-900/30 dark:ring-rose-900/50";
+                                                                cardBorder = "border-l-4 border-l-rose-500";
+                                                            } else if (step.intensity === 3) {
+                                                                StepIcon = BoltIcon;
+                                                                iconColor = "text-amber-500 bg-amber-50 ring-amber-100 dark:bg-amber-900/30 dark:ring-amber-900/50";
+                                                                cardBorder = "border-l-4 border-l-amber-400 dark:border-l-amber-500";
+                                                            } else if (step.phase.toLowerCase().includes('enfriami')) {
+                                                                StepIcon = HandRaisedIcon;
+                                                                iconColor = "text-sky-500 bg-sky-50 ring-sky-100 dark:bg-sky-900/30 dark:ring-sky-900/50";
+                                                                cardBorder = "border-l-4 border-l-sky-400 dark:border-l-sky-500";
+                                                            }
+
+                                                            return (
+                                                                <div key={sIdx} className="relative pl-12 pb-8 last:pb-0 group">
+                                                                    {/* Timeline Node Icon */}
+                                                                    <div className={`absolute left-0 top-0 w-10 h-10 rounded-full border-4 border-white dark:border-slate-900 shadow-sm flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${iconColor}`}>
+                                                                        <StepIcon className="w-5 h-5" />
+                                                                    </div>
+
+                                                                    {/* Step Card */}
+                                                                    <div className={`bg-white dark:bg-slate-800 rounded-xl p-4 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all ${cardBorder}`}>
+                                                                        <div className="flex justify-between items-start mb-2 gap-4">
+                                                                            <div>
+                                                                                <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm md:text-base">{step.phase}</h4>
+                                                                                <div className="flex items-center gap-2 mt-1.5">
+                                                                                    <Badge size="xs" color={getTremorColor(step.intensity)} icon={step.intensity >= 4 ? FireIcon : undefined}>
+                                                                                        Zona {step.intensity}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex flex-col items-end shrink-0">
+                                                                                <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-md ring-1 ring-slate-200 dark:ring-slate-700/50">
+                                                                                    <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                                                    <span className="font-mono font-bold text-sm tracking-tight">{step.duration_min}'</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                                            {step.description}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end items-center gap-2 text-slate-400">
+                                                        <FlagIcon className="w-4 h-4" />
+                                                        <Text className="text-xs font-medium uppercase tracking-widest">
+                                                            Tiempo Total: <span className="text-slate-700 dark:text-slate-200 font-bold text-sm">{day.structured_workout.reduce((acc, s) => acc + s.duration_min, 0)} min</span>
+                                                        </Text>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 </Card>
                             );
                         })}
                     </div>
                 </div>
-            )}
+            )
+            }
 
-            {!plan && !loading && (
-                <div className="text-center py-20 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl mt-8">
-                    <span className="text-4xl block mb-2">🧠</span>
-                    <Text className="text-slate-400">Configura tu objetivo para generar un plan de élite.</Text>
-                </div>
-            )}
-        </div>
+            {
+                !plan && !loading && (
+                    <Card className="p-8 ring-1 ring-slate-200 shadow-sm bg-white">
+                        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
+                            <span className="text-4xl block mb-3">🧠</span>
+                            <Text className="text-slate-500">Configura tu objetivo para generar un plan de entrenamiento de élite.</Text>
+                        </div>
+                    </Card>
+                )
+            }
+        </div >
     );
 };
 

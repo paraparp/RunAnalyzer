@@ -12,8 +12,7 @@ import {
     Button,
     Callout,
     BarList,
-    Icon,
-    Subtitle
+    Icon
 } from "@tremor/react";
 import { CalculatorIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import ModelSelector from './ModelSelector';
@@ -203,63 +202,78 @@ const RacePredictor = ({ activities }) => {
     };
 
     return (
-        <Card className="space-y-6">
-            <Flex justifyContent="between" alignItems="center" className="flex-wrap gap-4">
-                <Flex justifyContent="start" alignItems="center" className="gap-2">
-                    <Icon icon={SparklesIcon} size="lg" color="indigo" variant="solid" tooltip="Predictor AI" />
-                    <Title>Predictor Biométrico AI</Title>
-                </Flex>
-                <ModelSelector
-                    provider={provider}
-                    setProvider={setProvider}
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
-                    showLabel={false}
-                />
-            </Flex>
+        <div className="space-y-6">
+            {/* Header Section */}
+            <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 rounded-xl">
+                            <Icon icon={SparklesIcon} size="lg" color="indigo" variant="light" />
+                        </div>
+                        <div>
+                            <Title className="text-xl font-bold text-slate-900">Predictor Biométrico AI</Title>
+                            <Text className="text-slate-500 text-sm">Predice tus marcas potenciales en carrera</Text>
+                        </div>
+                    </div>
+                    <ModelSelector
+                        provider={provider}
+                        setProvider={setProvider}
+                        selectedModel={selectedModel}
+                        setSelectedModel={setSelectedModel}
+                        showLabel={false}
+                    />
+                </div>
+            </Card>
 
             {/* Generate Button */}
             {!predictions && !loading && (
-                <div className="mt-8 text-center p-8 border border-dashed border-slate-300 rounded-lg">
-                    <Text className="mb-4">Analiza tus últimas carreras con IA para predecir marcas.</Text>
-                    <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={!currentApiKey}>
-                        Generar Predicción
-                    </Button>
-                    {error && <Text color="red" className="mt-4">{error}</Text>}
-                </div>
+                <Card className="p-8 ring-1 ring-slate-200 shadow-sm bg-white">
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
+                        <span className="text-4xl block mb-3">🎯</span>
+                        <Text className="text-slate-500 mb-6">Analiza tus últimas carreras con IA para predecir marcas en llano.</Text>
+                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={!currentApiKey} color="indigo">
+                            Generar Predicción Inteligente
+                        </Button>
+                        {error && <Callout title="Error" color="rose" className="mt-6">{error}</Callout>}
+                    </div>
+                </Card>
             )}
 
             {loading && (
-                <div className="mt-8 text-center p-12">
-                    <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <Subtitle>Analizando biomecánica y fatiga...</Subtitle>
-                </div>
+                <Card className="p-8 ring-1 ring-slate-200 shadow-sm bg-white">
+                    <div className="text-center py-12">
+                        <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <Text className="text-slate-600 font-medium">Analizando biomecánica y fatiga...</Text>
+                    </div>
+                </Card>
             )}
 
             {/* Results Grid */}
             {predictions && (
-                <div className="mt-6 space-y-6 animate-fadeIn">
+                <div className="space-y-6 fade-in">
                     {analysis && (
-                        <Callout title="Análisis del Entrenador AI" icon={SparklesIcon} color="indigo">
-                            {analysis}
-                        </Callout>
+                        <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
+                            <Callout title="Análisis del Entrenador AI" icon={SparklesIcon} color="indigo">
+                                {analysis}
+                            </Callout>
+                        </Card>
                     )}
 
                     <Grid numItems={1} numItemsSm={2} className="gap-4">
                         {predictions.map((pred, idx) => (
-                            <Card key={idx} decoration="top" decorationColor={pred.confidence === 'Alta' ? 'emerald' : 'amber'}>
+                            <Card key={idx} decoration="top" decorationColor={pred.confidence === 'Alta' ? 'emerald' : 'amber'} className="p-4 ring-1 ring-slate-200 shadow-sm">
                                 <Flex justifyContent="between" alignItems="start">
-                                    <Text>{pred.label}</Text>
+                                    <Text className="font-semibold text-slate-700">{pred.label}</Text>
                                     <Badge color={pred.confidence === 'Alta' ? 'emerald' : 'amber'} size="xs">{pred.confidence}</Badge>
                                 </Flex>
-                                <Metric className="mt-2">{pred.time}</Metric>
+                                <Metric className="mt-2 text-slate-900">{pred.time}</Metric>
                                 <Text className="font-mono mt-1 text-slate-500">{pred.pace} /km</Text>
                             </Card>
                         ))}
                     </Grid>
 
-                    <Card>
-                        <Title>Comparativa de Ritmos (min/km)</Title>
+                    <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
+                        <Title className="text-lg font-semibold text-slate-900">Comparativa de Ritmos (min/km)</Title>
                         <BarList
                             data={predictions.map(p => {
                                 const [min, sec] = p.pace.split(':').map(Number);
@@ -275,10 +289,10 @@ const RacePredictor = ({ activities }) => {
                         />
                     </Card>
 
-                    <Button variant="secondary" onClick={generateAIPrediction} className="w-full mt-4">Recalcular</Button>
+                    <Button variant="secondary" onClick={generateAIPrediction} className="w-full" color="indigo">Recalcular Predicción</Button>
                 </div>
             )}
-        </Card>
+        </div>
     );
 };
 

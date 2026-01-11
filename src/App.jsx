@@ -10,8 +10,9 @@ import TrainingPlanner from './components/TrainingPlanner';
 import RacePredictor from './components/RacePredictor';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
+import LandingPage from './components/LandingPage';
 import { getActivities, getStravaAuthUrl } from './services/strava';
-import { Card, Grid, Metric, Text, Flex, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, Title, Button } from "@tremor/react";
+import { Card, Grid, Metric, Text, Flex, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, Title, Button, TabGroup, TabList, Tab, TabPanels, TabPanel } from "@tremor/react";
 
 const Dashboard = ({ user, handleLogout }) => {
   const [stravaData, setStravaData] = useState(null);
@@ -20,6 +21,8 @@ const Dashboard = ({ user, handleLogout }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'planner'
+  const [selectedChartIndex, setSelectedChartIndex] = useState(0); // 0: distance, 1: time, 2: elevation
+  const chartMetrics = ['distance', 'time', 'elevation'];
 
 
   useEffect(() => {
@@ -162,57 +165,61 @@ const Dashboard = ({ user, handleLogout }) => {
 
   return (
     <div className="dashboard">
-      <header className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm mb-6 sticky top-2 z-50 border border-slate-200">
-        <div className="flex items-center gap-2">
-          <Logo />
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-sky-500">RunAnalyzer</h1>
-        </div>
-
-        <button className="md:hidden text-2xl p-2 text-slate-700 hover:bg-slate-100 rounded-lg" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-          {mobileMenuOpen ? '✕' : '☰'}
-        </button>
-
-        <nav className={`${mobileMenuOpen ? 'flex' : 'hidden'} md:flex absolute md:relative top-full left-0 right-0 md:top-auto bg-white md:bg-transparent flex-col md:flex-row p-4 md:p-0 gap-1 md:gap-2 shadow-lg md:shadow-none border-b md:border-0 border-slate-200 md:bg-none z-40 rounded-b-xl md:rounded-none`}>
-          <button
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'dashboard' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-            onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'planner' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-            onClick={() => { setCurrentView('planner'); setMobileMenuOpen(false); }}
-          >
-            Entrenador
-          </button>
-          <button
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'predictor' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-            onClick={() => { setCurrentView('predictor'); setMobileMenuOpen(false); }}
-          >
-            Predictor
-          </button>
-        </nav>
-
-        <div className="relative">
-          <button onClick={() => setShowUserMenu(!showUserMenu)} className="block rounded-full ring-2 ring-transparent hover:ring-indigo-100 transition-all p-0.5">
-            <img src={user.picture} alt={user.name} className="w-9 h-9 rounded-full bg-slate-200 block" />
-          </button>
-
-          {showUserMenu && (
-            <div className="absolute top-12 right-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 z-50 animate-fadeIn">
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg mb-2">
-                <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full bg-slate-200" />
-                <div className="overflow-hidden min-w-0">
-                  <h4 className="font-bold text-sm truncate text-slate-900">{user.name}</h4>
-                  <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                </div>
-              </div>
-              <button onClick={handleLogout} className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
-                Cerrar Sesión
-              </button>
+      <header className="sticky top-4 z-50 mb-8">
+        <Card className="p-3 ring-1 ring-slate-200 shadow-sm bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3 pl-2">
+              <Logo />
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 tracking-tight">RunAnalyzer</h1>
             </div>
-          )}
-        </div>
+
+            <button className="md:hidden text-2xl p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+
+            <nav className={`${mobileMenuOpen ? 'flex' : 'hidden'} md:flex absolute md:relative top-full left-0 right-0 md:top-auto bg-white md:bg-transparent flex-col md:flex-row p-4 md:p-0 gap-1 md:gap-2 shadow-xl md:shadow-none border-b md:border-0 border-slate-200 md:bg-none z-40 rounded-b-xl md:rounded-none mt-2 md:mt-0 ring-1 md:ring-0 ring-slate-200`}>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'dashboard' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 shadow-sm' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}
+              >
+                Dashboard
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'planner' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 shadow-sm' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                onClick={() => { setCurrentView('planner'); setMobileMenuOpen(false); }}
+              >
+                Entrenador AI
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'predictor' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 shadow-sm' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                onClick={() => { setCurrentView('predictor'); setMobileMenuOpen(false); }}
+              >
+                Predictor AI
+              </button>
+            </nav>
+
+            <div className="relative pr-2">
+              <button onClick={() => setShowUserMenu(!showUserMenu)} className="block rounded-full ring-2 ring-transparent hover:ring-indigo-100 transition-all p-0.5 focus:outline-none focus:ring-indigo-200">
+                <img src={user.picture} alt={user.name} className="w-9 h-9 rounded-full bg-slate-200 block border border-slate-100" />
+              </button>
+
+              {showUserMenu && (
+                <div className="absolute top-12 right-0 w-64 bg-white ring-1 ring-slate-200 rounded-xl shadow-xl p-2 z-50 animate-in fade-in zoom-in duration-200">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg mb-2">
+                    <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full bg-slate-200" />
+                    <div className="overflow-hidden min-w-0">
+                      <h4 className="font-bold text-sm truncate text-slate-900">{user.name}</h4>
+                      <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2">
+                    <span>🚪</span> Cerrar Sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
       </header>
 
 
@@ -233,13 +240,15 @@ const Dashboard = ({ user, handleLogout }) => {
               <div className="dashboard-view fade-in">
 
                 <div className="flex justify-end items-center gap-3 mb-6">
-                  <Text className="font-semibold text-slate-700">Año:</Text>
-                  <Select value={selectedYear} onValueChange={setSelectedYear} className="w-40">
-                    <SelectItem value="All">Todos</SelectItem>
-                    {availableYears.map(year => (
-                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                    ))}
-                  </Select>
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg ring-1 ring-slate-200 shadow-sm">
+                    <Text className="font-semibold text-slate-600 text-sm">Año:</Text>
+                    <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-32 min-w-[120px]">
+                      <SelectItem value="All">Todos</SelectItem>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                      ))}
+                    </Select>
+                  </div>
                 </div>
 
                 <CollapsibleSection title="Estadísticas de Strava">
@@ -298,7 +307,14 @@ const Dashboard = ({ user, handleLogout }) => {
                     </CollapsibleSection>
 
                     <CollapsibleSection title="📊 Progreso Mensual">
-                      <MonthlyChart activities={sortedActivities} />
+                      <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
+                        <TabList variant="solid" className="mb-4">
+                          <Tab>Distancia</Tab>
+                          <Tab>Tiempo</Tab>
+                          <Tab>Desnivel</Tab>
+                        </TabList>
+                        <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} />
+                      </TabGroup>
                     </CollapsibleSection>
 
                     <CollapsibleSection title="🏁 Últimas Carreras">
@@ -453,28 +469,7 @@ function App() {
         } />
         <Route path="/" element={
           !user ? (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-              <Card className="max-w-md w-full p-8 text-center ring-1 ring-slate-200 shadow-xl bg-white">
-                <div className="mb-6 flex flex-col items-center">
-                  <div className="mb-4 p-3 bg-indigo-50 rounded-full">
-                    <span className="text-4xl">🏃</span>
-                  </div>
-                  <Title className="text-3xl font-bold text-slate-900 mb-2">Bienvenido</Title>
-                  <Text className="text-slate-500">Inicia sesión con Google para acceder a RunAnalyzer</Text>
-                </div>
-
-                <div className="flex justify-center w-full">
-                  <GoogleLogin
-                    onSuccess={handleLoginSuccess}
-                    onError={handleLoginError}
-                    theme="filled_black"
-                    shape="pill"
-                    size="large"
-                    width="100%"
-                  />
-                </div>
-              </Card>
-            </div>
+            <LandingPage onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
           ) : (
             <Dashboard user={user} handleLogout={handleLogout} />
           )
