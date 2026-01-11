@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import {
@@ -10,33 +10,22 @@ import {
     Badge,
     Flex,
     Button,
-    TextInput,
-    Select,
-    SelectItem,
-    TabGroup,
-    TabList,
-    Tab,
     Callout,
     BarList,
     Icon,
     Subtitle
 } from "@tremor/react";
-import {
-    CalculatorIcon,
-    SparklesIcon,
-    BoltIcon,
-    CheckCircleIcon
-} from "@heroicons/react/24/solid";
+import { CalculatorIcon, SparklesIcon } from "@heroicons/react/24/solid";
+import ModelSelector from './ModelSelector';
 
 const RacePredictor = ({ activities }) => {
     const [provider, setProvider] = useState('groq');
 
-    const [apiKeys, setApiKeys] = useState(() => {
-        return {
-            gemini: localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '',
-            groq: localStorage.getItem('groq_api_key') || import.meta.env.VITE_GROQ_API_KEY || ''
-        };
-    });
+    // API keys from environment variables
+    const apiKeys = {
+        gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
+        groq: import.meta.env.VITE_GROQ_API_KEY || ''
+    };
 
     const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
     const [loading, setLoading] = useState(false);
@@ -44,23 +33,10 @@ const RacePredictor = ({ activities }) => {
     const [error, setError] = useState('');
     const [analysis, setAnalysis] = useState('');
 
-    useEffect(() => {
-        if (apiKeys.gemini) localStorage.setItem('gemini_api_key', apiKeys.gemini);
-        else localStorage.removeItem('gemini_api_key');
-        if (apiKeys.groq) localStorage.setItem('groq_api_key', apiKeys.groq);
-        else localStorage.removeItem('groq_api_key');
-    }, [apiKeys]);
-
-    useEffect(() => {
-        if (provider === 'groq') setSelectedModel('llama-3.1-8b-instant');
-        else setSelectedModel('gemini-2.5-flash-lite');
-    }, [provider]);
-
-    const handleApiKeyChange = (val) => {
-        setApiKeys(prev => ({ ...prev, [provider]: val }));
-    };
+    // Model reset is handled by ModelSelector component
 
     const currentApiKey = apiKeys[provider];
+
 
     const getRecentActivitiesSummary = () => {
         if (!activities || activities.length === 0) return "No hay historial.";
@@ -233,51 +209,14 @@ const RacePredictor = ({ activities }) => {
                     <Icon icon={SparklesIcon} size="lg" color="indigo" variant="solid" tooltip="Predictor AI" />
                     <Title>Predictor Biométrico AI</Title>
                 </Flex>
-                <TabGroup index={provider === 'groq' ? 0 : 1} onIndexChange={(index) => setProvider(index === 0 ? 'groq' : 'gemini')}>
-                    <TabList variant="solid">
-                        <Tab icon={BoltIcon}>Groq</Tab>
-                        <Tab icon={SparklesIcon}>Gemini</Tab>
-                    </TabList>
-                </TabGroup>
+                <ModelSelector
+                    provider={provider}
+                    setProvider={setProvider}
+                    selectedModel={selectedModel}
+                    setSelectedModel={setSelectedModel}
+                    showLabel={false}
+                />
             </Flex>
-
-            {/* API Key Section */}
-            {!currentApiKey ? (
-                <div className="mt-4">
-                    <Text className="mb-2">API Key ({provider === 'groq' ? 'Groq Cloud' : 'Google AI Studio'})</Text>
-                    <TextInput
-                        type="password"
-                        placeholder={`Pegar API Key de ${provider}`}
-                        value={currentApiKey}
-                        onChange={(e) => handleApiKeyChange(e.target.value)}
-                    />
-                    <Text className="mt-2 text-xs text-slate-500">
-                        {provider === 'groq'
-                            ? <span>Consigue tu key gratis en <a href="https://console.groq.com/keys" target="_blank" className="underline text-indigo-500">console.groq.com</a></span>
-                            : <span>Consigue tu key en <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-indigo-500">aistudio.google.com</a></span>}
-                    </Text>
-                </div>
-            ) : (
-                <Callout title="API Key Activa" color="emerald" icon={CheckCircleIcon} className="mt-4">
-                    Tu llave de acceso está configurada. <button className="underline ml-2 font-bold" onClick={() => handleApiKeyChange('')}>Cambiar</button>
-                </Callout>
-            )}
-
-            {/* Model Selection */}
-            <div className="mt-4">
-                <Text className="mb-2 font-bold">Modelo Inteligente</Text>
-                <Select value={selectedModel} onValueChange={setSelectedModel} enableClear={false}>
-                    {provider === 'groq' ? [
-                        <SelectItem key="l1" value="llama-3.1-8b-instant">Llama 3.1 8B (Ultra Rápido)</SelectItem>,
-                        <SelectItem key="l2" value="llama-3.3-70b-versatile">Llama 3.3 70B (Alta Precisión)</SelectItem>,
-                        <SelectItem key="m1" value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
-                    ] : [
-                        <SelectItem key="g1" value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</SelectItem>,
-                        <SelectItem key="g2" value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>,
-                        <SelectItem key="g3" value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-                    ]}
-                </Select>
-            </div>
 
             {/* Generate Button */}
             {!predictions && !loading && (

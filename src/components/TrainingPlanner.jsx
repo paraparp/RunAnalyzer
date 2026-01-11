@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
-import { Card, Grid, Title, Text, Metric, Button, TextInput, NumberInput, Select, SelectItem, TabGroup, TabList, Tab, Badge, Callout, ProgressBar, Divider } from "@tremor/react";
+import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, ProgressBar, Divider } from "@tremor/react";
+import ModelSelector from './ModelSelector';
 
 const TrainingPlanner = ({ activities }) => {
     const [goalDist, setGoalDist] = useState('10k');
@@ -35,36 +36,18 @@ const TrainingPlanner = ({ activities }) => {
     // Provider state: 'gemini' or 'groq'
     const [provider, setProvider] = useState('groq');
 
-    /* Logic to avoid getting stuck with the placeholder key in localStorage */
-    const [apiKeys, setApiKeys] = useState(() => {
-        return {
-            gemini: localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '',
-            groq: localStorage.getItem('groq_api_key') || import.meta.env.VITE_GROQ_API_KEY || ''
-        };
-    });
+    // API keys from environment variables
+    const apiKeys = {
+        gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
+        groq: import.meta.env.VITE_GROQ_API_KEY || ''
+    };
 
     const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
     const [loading, setLoading] = useState(false);
     const [plan, setPlan] = useState(null);
     const [error, setError] = useState('');
 
-    useEffect(() => {
-        if (apiKeys.gemini) localStorage.setItem('gemini_api_key', apiKeys.gemini);
-        else localStorage.removeItem('gemini_api_key');
-
-        if (apiKeys.groq) localStorage.setItem('groq_api_key', apiKeys.groq);
-        else localStorage.removeItem('groq_api_key');
-    }, [apiKeys]);
-
-    // Reset model when provider changes
-    useEffect(() => {
-        if (provider === 'groq') setSelectedModel('llama-3.1-8b-instant');
-        else setSelectedModel('gemini-2.5-flash-lite');
-    }, [provider]);
-
-    const handleApiKeyChange = (val) => {
-        setApiKeys(prev => ({ ...prev, [provider]: val }));
-    };
+    // Model reset is handled by ModelSelector component
 
     const currentApiKey = apiKeys[provider];
 
@@ -447,33 +430,16 @@ const TrainingPlanner = ({ activities }) => {
     return (
         <div className="mb-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div className="flex items-center gap-4">
-                    <Title className="text-xl uppercase tracking-widest flex items-center gap-2">
-                        <span className="text-2xl">🤖</span> Entrenador AI
-                    </Title>
-                    <TabGroup index={provider === 'groq' ? 0 : 1} onIndexChange={(i) => setProvider(i === 0 ? 'groq' : 'gemini')}>
-                        <TabList variant="solid" className="bg-slate-100 dark:bg-slate-800">
-                            <Tab>Groq ⚡</Tab>
-                            <Tab>Gemini 🧠</Tab>
-                        </TabList>
-                    </TabGroup>
-                </div>
-
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    {!currentApiKey ? (
-                        <TextInput
-                            type="password"
-                            placeholder={provider === 'groq' ? "API Key Groq..." : "API Key Gemini..."}
-                            value={currentApiKey}
-                            onChange={e => handleApiKeyChange(e.target.value)}
-                            className="max-w-xs"
-                        />
-                    ) : (
-                        <Badge color="emerald" size="xs" className="cursor-pointer" onClick={() => handleApiKeyChange('')}>
-                            ✅ API Key Activa (Cambiar)
-                        </Badge>
-                    )}
-                </div>
+                <Title className="text-xl uppercase tracking-widest flex items-center gap-2">
+                    <span className="text-2xl">🤖</span> Entrenador AI
+                </Title>
+                <ModelSelector
+                    provider={provider}
+                    setProvider={setProvider}
+                    selectedModel={selectedModel}
+                    setSelectedModel={setSelectedModel}
+                    showLabel={false}
+                />
             </div>
 
             <Card className="mb-8 p-6 ring-1 ring-slate-200 shadow-sm bg-white dark:bg-slate-900 dark:ring-slate-800">
@@ -525,25 +491,6 @@ const TrainingPlanner = ({ activities }) => {
                     </div>
 
                     <div className="pt-2">
-                        <div className="mb-4">
-                            <Text className="mb-1 font-bold text-xs uppercase text-slate-400">Modelo AI</Text>
-                            <Select value={selectedModel} onValueChange={setSelectedModel} className="max-w-sm">
-                                {provider === 'groq' ? (
-                                    <>
-                                        <SelectItem value="llama-3.1-8b-instant">⚡ Llama 3.1 8B Instant</SelectItem>
-                                        <SelectItem value="llama-3.3-70b-versatile">🧠 Llama 3.3 70B</SelectItem>
-                                        <SelectItem value="mixtral-8x7b-32768">🌀 Mixtral 8x7B</SelectItem>
-                                    </>
-                                ) : (
-                                    <>
-                                        <SelectItem value="gemini-2.5-flash-lite">🆕 Gemini 2.5 Flash Lite</SelectItem>
-                                        <SelectItem value="gemini-2.5-flash">⚡ Gemini 2.5 Flash</SelectItem>
-                                        <SelectItem value="gemini-2.0-flash">🚀 Gemini 2.0 Flash</SelectItem>
-                                    </>
-                                )}
-                            </Select>
-                        </div>
-
                         <Button size="xl" className="w-full font-bold" loading={loading} type="submit" variant="primary" color="indigo">
                             {loading ? 'Analizando Historial y Diseñando Plan...' : 'Generar Plan Estratégico'}
                         </Button>
