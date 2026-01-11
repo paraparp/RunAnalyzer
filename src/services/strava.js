@@ -1,7 +1,7 @@
 export const STRAVA_CONFIG = {
     clientId: import.meta.env.VITE_STRAVA_CLIENT_ID,
     clientSecret: import.meta.env.VITE_STRAVA_CLIENT_SECRET,
-    redirectUri: "http://localhost:5173/strava-callback",
+    redirectUri: import.meta.env.VITE_STRAVA_REDIRECT_URI,
     authUrl: "https://www.strava.com/oauth/authorize",
     tokenUrl: "https://www.strava.com/oauth/token",
     scope: "read,activity:read_all,profile:read_all"
