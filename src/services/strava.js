@@ -1,0 +1,92 @@
+export const STRAVA_CONFIG = {
+    clientId: import.meta.env.VITE_STRAVA_CLIENT_ID,
+    clientSecret: import.meta.env.VITE_STRAVA_CLIENT_SECRET,
+    redirectUri: "http://localhost:5173/strava-callback",
+    authUrl: "https://www.strava.com/oauth/authorize",
+    tokenUrl: "https://www.strava.com/oauth/token",
+    scope: "read,activity:read_all,profile:read_all"
+};
+
+export const getStravaAuthUrl = () => {
+    const params = new URLSearchParams({
+        client_id: STRAVA_CONFIG.clientId,
+        redirect_uri: STRAVA_CONFIG.redirectUri,
+        response_type: 'code',
+        approval_prompt: 'force',
+        scope: STRAVA_CONFIG.scope
+    });
+    return `${STRAVA_CONFIG.authUrl}?${params.toString()}`;
+};
+
+export const exchangeToken = async (code) => {
+    const response = await fetch(STRAVA_CONFIG.tokenUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            client_id: STRAVA_CONFIG.clientId,
+            client_secret: STRAVA_CONFIG.clientSecret,
+            code: code,
+            grant_type: 'authorization_code',
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to exchange token');
+    }
+    return response.json();
+};
+
+export const getAthleteStats = async (accessToken, athleteId) => {
+    const response = await fetch(`https://www.strava.com/api/v3/athletes/${athleteId}/stats`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch stats');
+    }
+    return response.json();
+};
+
+export const getAthleteProfile = async (accessToken) => {
+    const response = await fetch(`https://www.strava.com/api/v3/athlete`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch profile');
+    }
+    return response.json();
+};
+
+export const getActivities = async (accessToken, count = 10) => {
+    let allActivities = [];
+    let page = 1;
+    const perPage = 200; // Strava max per_page
+
+    while (allActivities.length < count) {
+        const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}&page=${page}`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch activities');
+        }
+
+        const activities = await response.json();
+
+        if (activities.length === 0) {
+            break;
+        }
+
+        allActivities = [...allActivities, ...activities];
+        page++;
+    }
+
+    return allActivities.slice(0, count);
+};
