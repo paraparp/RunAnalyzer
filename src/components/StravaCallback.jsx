@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { exchangeToken, getActivities, getAthleteStats } from '../services/strava';
+import { Card, Title, Text, Flex } from "@tremor/react";
 
 const StravaCallback = ({ onConnect }) => {
     const [searchParams] = useSearchParams();
@@ -41,11 +42,14 @@ const StravaCallback = ({ onConnect }) => {
     }, [code, navigate, onConnect]);
 
     return (
-        <div className="strava-callback-container">
-            <div className="loading-card">
-                <div className="spinner"></div>
-                <p>{status}</p>
-            </div>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+            <Card className="max-w-md mx-auto p-8 text-center ring-1 ring-slate-200 shadow-lg">
+                <Flex flexDirection="col" className="items-center gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                    <Title className="text-xl text-slate-800">Conectando...</Title>
+                    <Text className="text-slate-500">{status}</Text>
+                </Flex>
+            </Card>
         </div>
     );
 };

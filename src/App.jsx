@@ -11,6 +11,7 @@ import RacePredictor from './components/RacePredictor';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import { getActivities, getStravaAuthUrl } from './services/strava';
+import { Card, Grid, Metric, Text, Flex, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, Title, Button } from "@tremor/react";
 
 const Dashboard = ({ user, handleLogout }) => {
   const [stravaData, setStravaData] = useState(null);
@@ -161,59 +162,52 @@ const Dashboard = ({ user, handleLogout }) => {
 
   return (
     <div className="dashboard">
-      <header className="main-header">
-        <div className="brand">
+      <header className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm mb-6 sticky top-2 z-50 border border-slate-200">
+        <div className="flex items-center gap-2">
           <Logo />
-          <h1>RunAnalyzer</h1>
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-sky-500">RunAnalyzer</h1>
         </div>
 
-        <button className="menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+        <button className="md:hidden text-2xl p-2 text-slate-700 hover:bg-slate-100 rounded-lg" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
           {mobileMenuOpen ? '✕' : '☰'}
         </button>
 
-        <nav className={`header-nav ${mobileMenuOpen ? 'open' : ''}`}>
+        <nav className={`${mobileMenuOpen ? 'flex' : 'hidden'} md:flex absolute md:relative top-full left-0 right-0 md:top-auto bg-white md:bg-transparent flex-col md:flex-row p-4 md:p-0 gap-1 md:gap-2 shadow-lg md:shadow-none border-b md:border-0 border-slate-200 md:bg-none z-40 rounded-b-xl md:rounded-none`}>
           <button
-            className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'dashboard' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
             onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}
           >
             Dashboard
           </button>
           <button
-            className={`nav-link ${currentView === 'planner' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'planner' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
             onClick={() => { setCurrentView('planner'); setMobileMenuOpen(false); }}
           >
             Entrenador
           </button>
           <button
-            className={`nav-link ${currentView === 'predictor' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'predictor' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
             onClick={() => { setCurrentView('predictor'); setMobileMenuOpen(false); }}
           >
             Predictor
           </button>
         </nav>
 
-        <div className="user-menu-container">
-          <button onClick={() => setShowUserMenu(!showUserMenu)} className="avatar-btn">
-            <img src={user.picture} alt={user.name} className="header-avatar" />
+        <div className="relative">
+          <button onClick={() => setShowUserMenu(!showUserMenu)} className="block rounded-full ring-2 ring-transparent hover:ring-indigo-100 transition-all p-0.5">
+            <img src={user.picture} alt={user.name} className="w-9 h-9 rounded-full bg-slate-200 block" />
           </button>
 
           {showUserMenu && (
-            <div className="user-dropdown">
-              <div className="dropdown-user-info">
-                <img src={user.picture} alt={user.name} className="dropdown-avatar" />
-                <div>
-                  <h4>{user.name}</h4>
-                  <p>{user.email}</p>
+            <div className="absolute top-12 right-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 z-50 animate-fadeIn">
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg mb-2">
+                <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full bg-slate-200" />
+                <div className="overflow-hidden min-w-0">
+                  <h4 className="font-bold text-sm truncate text-slate-900">{user.name}</h4>
+                  <p className="text-xs text-slate-500 truncate">{user.email}</p>
                 </div>
               </div>
-              <div className="dropdown-divider"></div>
-              <div className="dropdown-details">
-                <div className="dropdown-item">
-                  <span>ID Google:</span> <span className="mono">{user.sub.slice(0, 8)}...</span>
-                </div>
-              </div>
-              <div className="dropdown-divider"></div>
-              <button onClick={handleLogout} className="dropdown-logout-btn">
+              <button onClick={handleLogout} className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
                 Cerrar Sesión
               </button>
             </div>
@@ -224,94 +218,77 @@ const Dashboard = ({ user, handleLogout }) => {
 
       <div className="content-container">
         {!stravaData ? (
-          <div className="strava-connect-card">
-            <h3>Conecta tus estadísticas</h3>
-            <p>Vincula tu cuenta de Strava para ver tu rendimiento.</p>
-            <button onClick={connectToStrava} className="strava-connect-btn">
-              Conectar con Strava
-            </button>
+          <div className="flex justify-center items-center h-[50vh]">
+            <Card className="max-w-md mx-auto p-8 text-center ring-1 ring-slate-200 shadow-lg">
+              <Title className="text-2xl mb-2 text-indigo-600">Conecta tus estadísticas</Title>
+              <Text className="text-slate-600 mb-6">Vincula tu cuenta de Strava para visualizar y analizar tu rendimiento de manera profesional.</Text>
+              <Button size="xl" onClick={connectToStrava} className="w-full font-bold bg-[#fc4c02] hover:bg-[#e34402] border-none text-white">
+                Conectar con Strava
+              </Button>
+            </Card>
           </div>
         ) : (
           <>
             {currentView === 'dashboard' && (
               <div className="dashboard-view fade-in">
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem', alignItems: 'center', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Año:</label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
-                    style={{
-                      padding: '0.3rem 2rem 0.3rem 1rem',
-                      borderRadius: '6px',
-                      border: 'var(--border-light)',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-primary)',
-                      fontWeight: '600',
-                      fontSize: '0.9rem',
-                      cursor: 'pointer',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    <option value="All">Todos</option>
+                <div className="flex justify-end items-center gap-3 mb-6">
+                  <Text className="font-semibold text-slate-700">Año:</Text>
+                  <Select value={selectedYear} onValueChange={setSelectedYear} className="w-40">
+                    <SelectItem value="All">Todos</SelectItem>
                     {availableYears.map(year => (
-                      <option key={year} value={year}>{year}</option>
+                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
                     ))}
-                  </select>
+                  </Select>
                 </div>
 
                 <CollapsibleSection title="Estadísticas de Strava">
-                  <div className="stats-grid">
-                    <div className="stat-card">
-                      <span className="stat-label">Distancia Total</span>
-                      <span className="stat-value">
-                        {Math.round(stats.distance / 1000)} km
-                      </span>
-                      <span className="stat-sub">Corriendo</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">Actividades</span>
-                      <span className="stat-value">
-                        {stats.count}
-                      </span>
-                      <span className="stat-sub">Carreras</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">Tiempo en Movimiento</span>
-                      <span className="stat-value">
-                        {Math.floor(stats.moving_time / 3600)}h
-                      </span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">Ritmo Medio</span>
-                      <span className="stat-value">
-                        {calculatePace(stats.distance > 0 ? stats.distance / stats.moving_time : 0)}
-                      </span>
-                      <span className="stat-sub">/km</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label" title="Grade Adjusted Pace - Ritmo ajustado por desnivel">GAP Promedio</span>
-                      <span className="stat-value" style={{ color: 'var(--accent-secondary)' }}>
-                        {(() => {
-                          const d = stats.distance / 1000;
-                          if (d <= 0) return '0:00';
-                          const p = (stats.moving_time / 60) / d;
-                          const e = stats.elevation_gain / d;
-                          const g = Math.max(p - ((e / 10) * 8 / 60), p * 0.8);
-                          const m = Math.floor(g);
-                          const s = Math.round((g - m) * 60);
-                          return `${m}:${s.toString().padStart(2, '0')}`;
-                        })()}
-                      </span>
-                      <span className="stat-sub">⚡ /km</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">Elevación Ganada</span>
-                      <span className="stat-value">
-                        {Math.round(stats.elevation_gain)} m
-                      </span>
-                    </div>
-                  </div>
+                  <Grid numItems={2} numItemsSm={3} numItemsLg={6} className="gap-3">
+                    <Card decoration="top" decorationColor="indigo" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Text className="truncate font-medium text-slate-500">Distancia</Text>
+                      <Metric className="text-2xl text-slate-900 mt-1">{Math.round(stats.distance / 1000)} km</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="indigo" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Text className="truncate font-medium text-slate-500">Actividades</Text>
+                      <Metric className="text-2xl text-slate-900 mt-1">{stats.count}</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="indigo" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Text className="truncate font-medium text-slate-500">Tiempo</Text>
+                      <Metric className="text-2xl text-slate-900 mt-1">{Math.floor(stats.moving_time / 3600)}h</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="cyan" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Text className="truncate font-medium text-slate-500">Ritmo Medio</Text>
+                      <Flex justifyContent="start" alignItems="baseline" className="gap-1 mt-1">
+                        <Metric className="text-2xl text-slate-900">{calculatePace(stats.distance > 0 ? stats.distance / stats.moving_time : 0)}</Metric>
+                        <Text className="text-xs text-slate-400">/km</Text>
+                      </Flex>
+                    </Card>
+                    <Card decoration="top" decorationColor="fuchsia" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Flex justifyContent="start" className="gap-1">
+                        <Text className="truncate font-medium text-slate-500">GAP</Text>
+                        <Badge size="xs" color="amber">⚡</Badge>
+                      </Flex>
+                      <Flex justifyContent="start" alignItems="baseline" className="gap-1 mt-1">
+                        <Metric className="text-2xl text-slate-900">
+                          {(() => {
+                            const d = stats.distance / 1000;
+                            if (d <= 0) return '0:00';
+                            const p = (stats.moving_time / 60) / d;
+                            const e = stats.elevation_gain / d;
+                            const g = Math.max(p - ((e / 10) * 8 / 60), p * 0.8);
+                            const m = Math.floor(g);
+                            const s = Math.round((g - m) * 60);
+                            return `${m}:${s.toString().padStart(2, '0')}`;
+                          })()}
+                        </Metric>
+                        <Text className="text-xs text-slate-400">/km</Text>
+                      </Flex>
+                    </Card>
+                    <Card decoration="top" decorationColor="indigo" className="p-4 ring-1 ring-slate-200 shadow-sm">
+                      <Text className="truncate font-medium text-slate-500">Elevación</Text>
+                      <Metric className="text-2xl text-slate-900 mt-1">{Math.round(stats.elevation_gain)} m</Metric>
+                    </Card>
+                  </Grid>
                 </CollapsibleSection>
 
                 {stravaData.activities && stravaData.activities.length > 0 && (
@@ -325,95 +302,88 @@ const Dashboard = ({ user, handleLogout }) => {
                     </CollapsibleSection>
 
                     <CollapsibleSection title="🏁 Últimas Carreras">
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                        <input
-                          type="text"
-                          placeholder="Buscar carrera..."
+                      <div className="flex justify-end mb-4">
+                        <TextInput
+                          placeholder="🔍 Buscar carrera..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
-                            border: 'var(--border-light)',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            width: '200px',
-                            boxShadow: 'var(--shadow-sm)'
-                          }}
+                          className="max-w-xs"
                         />
                       </div>
-                      <div className="table-container">
-                        <table className="activities-table">
-                          <thead>
-                            <tr>
-                              <th onClick={() => handleSort('date')}>Fecha {getSortIcon('date')}</th>
-                              <th>Nombre</th>
-                              <th onClick={() => handleSort('distance')} className="text-right">Dist (km) {getSortIcon('distance')}</th>
-                              <th onClick={() => handleSort('time')} className="text-right">Tiempo (min) {getSortIcon('time')}</th>
-                              <th onClick={() => handleSort('pace')} className="text-right">Ritmo (/km) {getSortIcon('pace')}</th>
-                              <th onClick={() => handleSort('gap')} className="text-right" title="Grade Adjusted Pace - Ritmo ajustado por desnivel">GAP (/km) ⚡ {getSortIcon('gap')}</th>
-                              <th onClick={() => handleSort('elevation')} className="text-right">Desnivel (m) {getSortIcon('elevation')}</th>
-                              <th onClick={() => handleSort('gradient')} className="text-right">Pendiente (%) {getSortIcon('gradient')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sortedActivities.map(activity => {
-                              // Calculate GAP for this activity
-                              const distKm = activity.distance / 1000;
-                              const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
-                              const rawPaceMinKm = (activity.moving_time / 60) / distKm;
-                              const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
-                              const gapAdjustment = gapAdjustmentSeconds / 60;
-                              const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
-                              const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
+                      <Table className="mt-4">
+                        <TableHead>
+                          <TableRow>
+                            <TableHeaderCell onClick={() => handleSort('date')} className="cursor-pointer hover:text-indigo-600 transition-colors">
+                              Fecha {getSortIcon('date')}
+                            </TableHeaderCell>
+                            <TableHeaderCell>Nombre</TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('distance')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
+                              Dist (km) {getSortIcon('distance')}
+                            </TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('time')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
+                              Tiempo (min) {getSortIcon('time')}
+                            </TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
+                              Ritmo (/km) {getSortIcon('pace')}
+                            </TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('gap')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors" title="Grade Adjusted Pace">
+                              GAP ⚡ {getSortIcon('gap')}
+                            </TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('elevation')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
+                              Desnivel (m) {getSortIcon('elevation')}
+                            </TableHeaderCell>
+                            <TableHeaderCell onClick={() => handleSort('gradient')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
+                              Pendiente (%) {getSortIcon('gradient')}
+                            </TableHeaderCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {sortedActivities.map(activity => {
+                            const distKm = activity.distance / 1000;
+                            const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
+                            const rawPaceMinKm = (activity.moving_time / 60) / distKm;
+                            const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
+                            const gapAdjustment = gapAdjustmentSeconds / 60;
+                            const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
+                            const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
 
-                              const formatPace = (paceMinKm) => {
-                                const minutes = Math.floor(paceMinKm);
-                                const seconds = Math.round((paceMinKm % 1) * 60);
-                                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                              };
+                            const formatPace = (paceMinKm) => {
+                              const minutes = Math.floor(paceMinKm);
+                              const seconds = Math.round((paceMinKm % 1) * 60);
+                              return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                            };
 
-                              return (
-                                <tr key={activity.id}>
-                                  <td>{new Date(activity.start_date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}</td>
-                                  <td className="activity-name">
-                                    <a
-                                      href={`https://www.strava.com/activities/${activity.id}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{ color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}
-                                      onMouseEnter={(e) => e.target.style.color = '#3b82f6'}
-                                      onMouseLeave={(e) => e.target.style.color = 'inherit'}
-                                    >
+                            return (
+                              <TableRow key={activity.id}>
+                                <TableCell>
+                                  <Text>{new Date(activity.start_date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}</Text>
+                                </TableCell>
+                                <TableCell>
+                                  <Text className="truncate max-w-xs font-medium">
+                                    <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-indigo-600">
                                       {activity.name}
                                     </a>
-                                  </td>
-                                  <td className="text-right">{(activity.distance / 1000).toFixed(2)}</td>
-                                  <td className="text-right">{Math.floor(activity.moving_time / 60)}</td>
-                                  <td className="text-right">{calculatePace(activity.average_speed)}</td>
-                                  <td className="text-right" style={{
-                                    color: hasSignificantAdjustment ? '#10b981' : 'inherit',
-                                    fontWeight: hasSignificantAdjustment ? 'bold' : 'normal'
-                                  }}>
-                                    {formatPace(adjustedPace)}
-                                    {hasSignificantAdjustment && (
-                                      <span style={{ fontSize: '0.7em', marginLeft: '0.25rem', opacity: 0.8 }}>
-                                        (-{Math.round(gapAdjustmentSeconds)}s)
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="text-right">{Math.round(activity.total_elevation_gain)}</td>
-                                  <td className="text-right">
-                                    {activity.distance > 0
-                                      ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1)
-                                      : '0.0'}%
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                  </Text>
+                                </TableCell>
+                                <TableCell className="text-right"><Text>{(activity.distance / 1000).toFixed(2)}</Text></TableCell>
+                                <TableCell className="text-right"><Text>{Math.floor(activity.moving_time / 60)}</Text></TableCell>
+                                <TableCell className="text-right"><Text>{calculatePace(activity.average_speed)}</Text></TableCell>
+                                <TableCell className="text-right">
+                                  {hasSignificantAdjustment ? (
+                                    <Badge color="emerald" size="xs">{formatPace(adjustedPace)}</Badge>
+                                  ) : (
+                                    <Text>{formatPace(adjustedPace)}</Text>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right"><Text>{Math.round(activity.total_elevation_gain)}</Text></TableCell>
+                                <TableCell className="text-right">
+                                  <Text>{activity.distance > 0 ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1) : '0.0'}%</Text>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </CollapsibleSection>
                   </div>
                 )}
@@ -483,20 +453,27 @@ function App() {
         } />
         <Route path="/" element={
           !user ? (
-            <div className="login-card">
-              <div className="login-header">
-                <h1>Bienvenido</h1>
-                <p>Inicia sesión con Google para continuar</p>
-              </div>
-              <div className="google-btn-wrapper">
-                <GoogleLogin
-                  onSuccess={handleLoginSuccess}
-                  onError={handleLoginError}
-                  theme="filled_black"
-                  shape="pill"
-                  size="large"
-                />
-              </div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+              <Card className="max-w-md w-full p-8 text-center ring-1 ring-slate-200 shadow-xl bg-white">
+                <div className="mb-6 flex flex-col items-center">
+                  <div className="mb-4 p-3 bg-indigo-50 rounded-full">
+                    <span className="text-4xl">🏃</span>
+                  </div>
+                  <Title className="text-3xl font-bold text-slate-900 mb-2">Bienvenido</Title>
+                  <Text className="text-slate-500">Inicia sesión con Google para acceder a RunAnalyzer</Text>
+                </div>
+
+                <div className="flex justify-center w-full">
+                  <GoogleLogin
+                    onSuccess={handleLoginSuccess}
+                    onError={handleLoginError}
+                    theme="filled_black"
+                    shape="pill"
+                    size="large"
+                    width="100%"
+                  />
+                </div>
+              </Card>
             </div>
           ) : (
             <Dashboard user={user} handleLogout={handleLogout} />

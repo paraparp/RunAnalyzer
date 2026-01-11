@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
+import { Card, Grid, Title, Text, Metric, Button, TextInput, NumberInput, Select, SelectItem, TabGroup, TabList, Tab, Badge, Callout, ProgressBar, Divider } from "@tremor/react";
 
 const TrainingPlanner = ({ activities }) => {
     const [goalDist, setGoalDist] = useState('10k');
@@ -444,774 +445,213 @@ const TrainingPlanner = ({ activities }) => {
     };
 
     return (
-        <div className="planner-container" style={{ marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <h3 className="section-title">🤖 Entrenador AI</h3>
-
-                    {/* Provider Selector Switch */}
-                    <div style={{ display: 'flex', background: 'var(--bg-card)', borderRadius: '20px', padding: '2px', border: '1px solid var(--border-color)' }}>
-                        <button
-                            onClick={() => setProvider('groq')}
-                            style={{
-                                padding: '0.25rem 0.75rem',
-                                borderRadius: '18px',
-                                border: 'none',
-                                background: provider === 'groq' ? '#f97316' : 'transparent', // Orange for Groq
-                                color: provider === 'groq' ? 'white' : 'var(--text-secondary)',
-                                fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.3s'
-                            }}
-                        >
-                            Groq ⚡
-                        </button>
-                        <button
-                            onClick={() => setProvider('gemini')}
-                            style={{
-                                padding: '0.25rem 0.75rem',
-                                borderRadius: '18px',
-                                border: 'none',
-                                background: provider === 'gemini' ? '#3b82f6' : 'transparent', // Blue for Gemini
-                                color: provider === 'gemini' ? 'white' : 'var(--text-secondary)',
-                                fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.3s'
-                            }}
-                        >
-                            Gemini 🧠
-                        </button>
-                    </div>
+        <div className="mb-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div className="flex items-center gap-4">
+                    <Title className="text-xl uppercase tracking-widest flex items-center gap-2">
+                        <span className="text-2xl">🤖</span> Entrenador AI
+                    </Title>
+                    <TabGroup index={provider === 'groq' ? 0 : 1} onIndexChange={(i) => setProvider(i === 0 ? 'groq' : 'gemini')}>
+                        <TabList variant="solid" className="bg-slate-100 dark:bg-slate-800">
+                            <Tab>Groq ⚡</Tab>
+                            <Tab>Gemini 🧠</Tab>
+                        </TabList>
+                    </TabGroup>
                 </div>
 
-                {currentApiKey ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 'bold' }}>✅ API Key activa</span>
-                        <button
-                            onClick={() => handleApiKeyChange('')}
-                            style={{ fontSize: '0.7rem', textDecoration: 'underline', color: 'var(--text-muted)' }}
-                        >
-                            Cambiar
-                        </button>
-                    </div>
-                ) : (
-                    <input
-                        type="password"
-                        placeholder={provider === 'groq' ? "Pegar API Key de Groq" : "Pegar API Key de Gemini"}
-                        value={currentApiKey}
-                        onChange={e => handleApiKeyChange(e.target.value)}
-                        style={{ width: '200px', fontSize: '0.7rem' }}
-                    />
-                )}
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    {!currentApiKey ? (
+                        <TextInput
+                            type="password"
+                            placeholder={provider === 'groq' ? "API Key Groq..." : "API Key Gemini..."}
+                            value={currentApiKey}
+                            onChange={e => handleApiKeyChange(e.target.value)}
+                            className="max-w-xs"
+                        />
+                    ) : (
+                        <Badge color="emerald" size="xs" className="cursor-pointer" onClick={() => handleApiKeyChange('')}>
+                            ✅ API Key Activa (Cambiar)
+                        </Badge>
+                    )}
+                </div>
             </div>
 
-            {!currentApiKey && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', fontStyle: 'italic' }}>
-                    {provider === 'groq'
-                        ? <span>* Consigue tu API Key (14k req/día) en <a href="https://console.groq.com/keys" target="_blank" style={{ textDecoration: 'underline', color: '#f97316' }}>Groq Console</a>.</span>
-                        : <span>* Consigue tu API Key en <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{ textDecoration: 'underline' }}>Google AI Studio</a>.</span>
-                    }
+            <Card className="mb-8 p-6 ring-1 ring-slate-200 shadow-sm bg-white dark:bg-slate-900 dark:ring-slate-800">
+                <form onSubmit={generateAIPlan} className="space-y-6">
+                    <Grid numItems={1} numItemsSm={3} className="gap-6">
+                        <div>
+                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Objetivo</Text>
+                            <Select value={goalDist} onValueChange={setGoalDist} enableClear={false}>
+                                <SelectItem value="5k">5K</SelectItem>
+                                <SelectItem value="10k">10K</SelectItem>
+                                <SelectItem value="hm">Media Maratón</SelectItem>
+                                <SelectItem value="fm">Maratón</SelectItem>
+                            </Select>
+                        </div>
+                        <div>
+                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Tiempo Objetivo (min)</Text>
+                            <NumberInput value={goalTime} onValueChange={setGoalTime} placeholder="ej. 45" min={15} />
+                        </div>
+                        <div>
+                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Duración del Plan</Text>
+                            <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))} enableClear={false}>
+                                <SelectItem value="3">3 Semanas</SelectItem>
+                                <SelectItem value="4">4 Semanas</SelectItem>
+                                <SelectItem value="6">6 Semanas</SelectItem>
+                                <SelectItem value="8">8 Semanas</SelectItem>
+                                <SelectItem value="12">12 Semanas</SelectItem>
+                                <SelectItem value="16">16 Semanas</SelectItem>
+                            </Select>
+                        </div>
+                    </Grid>
+
+                    <div>
+                        <Text className="mb-2 font-bold text-xs uppercase text-slate-500">Días de Entrenamiento</Text>
+                        <div className="flex flex-wrap gap-2">
+                            {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(day => (
+                                <Badge
+                                    key={day}
+                                    size="lg"
+                                    className={`cursor-pointer select-none px-4 py-1.5 transition-all ${selectedDays.includes(day) ? 'ring-2 ring-indigo-500 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}
+                                    color={selectedDays.includes(day) ? 'indigo' : 'slate'}
+                                    onClick={() => {
+                                        setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+                                    }}
+                                >
+                                    {day}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pt-2">
+                        <div className="mb-4">
+                            <Text className="mb-1 font-bold text-xs uppercase text-slate-400">Modelo AI</Text>
+                            <Select value={selectedModel} onValueChange={setSelectedModel} className="max-w-sm">
+                                {provider === 'groq' ? (
+                                    <>
+                                        <SelectItem value="llama-3.1-8b-instant">⚡ Llama 3.1 8B Instant</SelectItem>
+                                        <SelectItem value="llama-3.3-70b-versatile">🧠 Llama 3.3 70B</SelectItem>
+                                        <SelectItem value="mixtral-8x7b-32768">🌀 Mixtral 8x7B</SelectItem>
+                                    </>
+                                ) : (
+                                    <>
+                                        <SelectItem value="gemini-2.5-flash-lite">🆕 Gemini 2.5 Flash Lite</SelectItem>
+                                        <SelectItem value="gemini-2.5-flash">⚡ Gemini 2.5 Flash</SelectItem>
+                                        <SelectItem value="gemini-2.0-flash">🚀 Gemini 2.0 Flash</SelectItem>
+                                    </>
+                                )}
+                            </Select>
+                        </div>
+
+                        <Button size="xl" className="w-full font-bold" loading={loading} type="submit" variant="primary" color="indigo">
+                            {loading ? 'Analizando Historial y Diseñando Plan...' : 'Generar Plan Estratégico'}
+                        </Button>
+                    </div>
+                </form>
+                {error && <Callout title="Error generando plan" color="rose" className="mt-4">{error}</Callout>}
+            </Card>
+
+            {plan && (
+                <div className="space-y-6 fade-in">
+                    <Card decoration="left" decorationColor="indigo" className="bg-slate-50 border-indigo-100 dark:bg-slate-900 dark:border-slate-800">
+                        <div className="flex flex-col md:flex-row gap-6">
+                            <div className="flex-1">
+                                <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider mb-2">Estrategia Semanal</Text>
+                                <Title className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-4">{plan.weekly_summary}</Title>
+                                <Text className="leading-relaxed text-slate-600 dark:text-slate-400 italic border-l-4 border-indigo-200 pl-4 py-1">{plan.analysis}</Text>
+                            </div>
+                            {plan.stats && (
+                                <div className="w-full md:w-64 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <Text className="text-xs uppercase text-slate-400">Volumen</Text>
+                                            <Metric>{plan.stats.total_dist_km} km</Metric>
+                                        </div>
+                                        <Divider />
+                                        <div>
+                                            <Text className="text-xs uppercase text-slate-400">Tiempo</Text>
+                                            <Metric>{Math.floor(plan.stats.total_time_min / 60)}h {plan.stats.total_time_min % 60}m</Metric>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {plan.stats && plan.stats.distribution && (
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                                <Text className="text-xs font-bold uppercase text-slate-400 mb-3">Distribución de Intensidad (80/20)</Text>
+                                <ProgressBar value={plan.stats.distribution.easy} color="emerald" className="mt-2" />
+                                <div className="flex justify-between mt-2 text-xs text-slate-500 font-medium">
+                                    <span className="text-emerald-600">Suave (Z1-2): {plan.stats.distribution.easy}%</span>
+                                    <span className="text-amber-500">Umbral (Z3): {plan.stats.distribution.moderate}%</span>
+                                    <span className="text-rose-500">Intenso (Z4-5): {plan.stats.distribution.hard}%</span>
+                                </div>
+                            </div>
+                        )}
+                    </Card>
+
+                    <div className="space-y-4">
+                        <Title>Calendario de Sesiones</Title>
+                        {plan.schedule.map((day, idx) => {
+                            const typeLower = day.type.toLowerCase();
+                            let decorationColor = "blue";
+                            if (typeLower.includes('series') || typeLower.includes('velocidad')) decorationColor = "amber";
+                            else if (typeLower.includes('recup') || typeLower.includes('suave')) decorationColor = "emerald";
+                            else if (typeLower.includes('descanso')) decorationColor = "slate";
+
+                            return (
+                                <Card key={idx} decoration="left" decorationColor={decorationColor} className={`p-0 overflow-hidden ring-1 ring-slate-200 shadow-sm ${typeLower.includes('descanso') ? 'opacity-75 bg-slate-50 dark:bg-slate-900' : 'bg-white dark:bg-slate-800'}`}>
+                                    <div className="p-5">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <Title className="text-lg">{day.day}</Title>
+                                                <Badge size="xs" color={decorationColor} className="mt-1">{day.type}</Badge>
+                                            </div>
+                                            {!typeLower.includes('descanso') && day.daily_stats && (
+                                                <div className="text-right">
+                                                    <Metric className="text-xl">{day.daily_stats.dist}</Metric>
+                                                    <Text className="text-xs">{day.daily_stats.time}</Text>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <Text className="text-slate-600 dark:text-slate-400 mb-4">{day.summary}</Text>
+
+                                        {day.structured_workout && day.structured_workout.length > 0 && (
+                                            <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-800">
+                                                <Text className="text-xs font-bold uppercase text-slate-400 mb-2">Estructura</Text>
+                                                <div className="space-y-2">
+                                                    {day.structured_workout.map((step, sIdx) => (
+                                                        <div key={sIdx} className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-slate-800 pb-2 last:border-0 last:pb-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{step.phase}</span>
+                                                                <span className="text-slate-500 text-xs truncate max-w-[200px] hidden sm:block">- {step.description}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Badge size="xs" color={step.intensity >= 4 ? 'rose' : step.intensity === 3 ? 'amber' : 'emerald'}>Z{step.intensity}</Badge>
+                                                                <span className="font-mono font-bold dark:text-slate-300">{step.duration_min}'</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
-            {/* Model Selector Settings */}
-            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ flexGrow: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>MODELO INTELIGENTE ({provider.toUpperCase()})</label>
-                    <select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                        style={{
-                            padding: '0.5rem',
-                            borderRadius: '8px',
-                            border: 'var(--border-light)',
-                            background: 'white',
-                            color: 'var(--text-primary)',
-                            width: '100%',
-                            maxWidth: '300px',
-                            fontSize: '0.85rem'
-                        }}
-                    >
-                        {provider === 'groq' ? (
-                            <>
-                                <option value="llama-3.1-8b-instant">⚡ Llama 3.1 8B Instant (Ultra Rápido - 14k reqs)</option>
-                                <option value="llama-3.3-70b-versatile">🧠 Llama 3.3 70B (Más Inteligente)</option>
-                                <option value="mixtral-8x7b-32768">🌀 Mixtral 8x7B</option>
-                                <option value="gemma2-9b-it">💎 Gemma 2 9B</option>
-                            </>
-                        ) : (
-                            <>
-                                <option value="gemini-2.5-flash-lite">🆕 Gemini 2.5 Flash Lite (Nuevo + Ahorro)</option>
-                                <option value="gemini-2.5-flash">⚡ Gemini 2.5 Flash (Más Rápido)</option>
-                                <option value="gemini-2.0-flash-lite-001">🛡️ Gemini 2.0 Flash Lite (Estable)</option>
-                                <option value="gemini-2.0-flash">🚀 Gemini 2.0 Flash (Equilibrado)</option>
-                                <option value="gemini-2.5-pro">🧠 Gemini 2.5 Pro (Máximo Razonamiento)</option>
-                            </>
-                        )}
-                    </select>
+            {!plan && !loading && (
+                <div className="text-center py-20 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl mt-8">
+                    <span className="text-4xl block mb-2">🧠</span>
+                    <Text className="text-slate-400">Configura tu objetivo para generar un plan de élite.</Text>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '400px', lineHeight: '1.4' }}>
-                    {provider === 'groq'
-                        ? `ℹ️ Groq es increíblemente rápido. El modelo 8B tiene un límite gratuito masivo (14,400/día).`
-                        : `ℹ️ Gemini es multimodal y tiene gran ventana de contexto. Flash Lite es ideal para ahorrar cuota.`
-                    }
-                </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                {/* Form - Now at the top */}
-                <div className="planner-form-card" style={{
-                    background: 'var(--bg-card)',
-                    padding: '1.5rem',
-                    borderRadius: '12px',
-                    border: 'var(--border-light)',
-                    boxShadow: 'var(--shadow-sm)'
-                }}>
-                    <form onSubmit={generateAIPlan} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {/* Compact Grid for all inputs */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', alignItems: 'end' }}>
-                            <div>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.15rem', display: 'block' }}>OBJETIVO</label>
-                                <select
-                                    value={goalDist}
-                                    onChange={e => setGoalDist(e.target.value)}
-                                    style={{ width: '100%', padding: '0.25rem', fontSize: '0.8rem', borderRadius: '4px', border: 'var(--border-light)', background: 'var(--bg-main)', color: 'var(--text-primary)' }}
-                                >
-                                    <option value="5k">5K</option>
-                                    <option value="10k">10K</option>
-                                    <option value="hm">Media Maratón</option>
-                                    <option value="fm">Maratón</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.15rem', display: 'block' }}>TIEMPO (min)</label>
-                                <input
-                                    type="number"
-                                    value={goalTime}
-                                    onChange={e => setGoalTime(e.target.value)}
-                                    placeholder="ej. 45"
-                                    style={{ width: '100%', padding: '0.25rem', fontSize: '0.8rem', borderRadius: '4px', border: 'var(--border-light)', background: 'var(--bg-main)', color: 'var(--text-primary)' }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.15rem', display: 'block' }}>PLAZO</label>
-                                <select
-                                    value={weeks}
-                                    onChange={e => setWeeks(Number(e.target.value))}
-                                    style={{ width: '100%', padding: '0.25rem', fontSize: '0.8rem', borderRadius: '4px', border: 'var(--border-light)', background: 'var(--bg-main)', color: 'var(--text-primary)' }}
-                                >
-                                    <option value={3}>3 Semanas</option>
-                                    <option value={4}>4 Semanas</option>
-                                    <option value={6}>6 Semanas</option>
-                                    <option value={8}>8 Semanas</option>
-                                    <option value={12}>12 Semanas</option>
-                                    <option value={16}>16 Semanas</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Weekdays - Super compact */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>DÍAS:</label>
-                            <div style={{ display: 'flex', gap: '0.25rem', flex: 1 }}>
-                                {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(day => (
-                                    <button
-                                        key={day}
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedDays(prev =>
-                                                prev.includes(day)
-                                                    ? prev.filter(d => d !== day)
-                                                    : [...prev, day]
-                                            );
-                                        }}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.25rem 0',
-                                            borderRadius: '4px',
-                                            background: selectedDays.includes(day) ? 'var(--accent-primary)' : 'var(--bg-main)',
-                                            color: selectedDays.includes(day) ? 'white' : 'var(--text-secondary)',
-                                            border: selectedDays.includes(day) ? 'none' : '1px solid transparent',
-                                            fontSize: '0.7rem',
-                                            fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.1s'
-                                        }}
-                                    >
-                                        {day}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading || !goalTime}
-                            style={{
-                                padding: '0.4rem',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: loading ? '#9ca3af' : 'var(--accent-primary)',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                fontSize: '0.85rem',
-                                cursor: loading ? 'not-allowed' : 'pointer',
-                                transition: 'background 0.2s',
-                                width: '100%',
-                                marginTop: '0.2rem'
-                            }}
-                        >
-                            {loading ? 'Analizando...' : 'Generar Plan'}
-                        </button>
-                    </form>
-                    {error && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '1rem' }}>{error}</div>}
-                </div>
-
-                {/* Goal Feasibility Analysis */}
-                {goalDist && goalTime && (() => {
-                    const analysis = getGoalFeasibility();
-                    if (!analysis) return null;
-
-                    return (
-                        <div style={{
-                            marginTop: '0',
-                            background: 'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(249,250,251,0.9))',
-                            borderRadius: '10px',
-                            padding: '0.75rem',
-                            border: `1px solid ${analysis.color}`,
-                            boxShadow: `0 2px 8px ${analysis.color}20`
-                        }}>
-                            {/* Header Row: Icon + Title + Status */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                                <div style={{ fontSize: '1.25rem' }}>
-                                    {analysis.feasibility === 'easy' ? '🎯' :
-                                        analysis.feasibility === 'realistic' ? '✅' :
-                                            analysis.feasibility === 'challenging' ? '💪' : '⚠️'}
-                                </div>
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                                    <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                                        {analysis.feasibility === 'easy' ? 'Fácilmente Alcanzable' :
-                                            analysis.feasibility === 'realistic' ? 'Objetivo Realista' :
-                                                analysis.feasibility === 'challenging' ? 'Desafiante' : 'Muy Ambicioso'}
-                                    </h3>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Análisis de Factibilidad</span>
-                                </div>
-                            </div>
-
-                            {/* Paces Row - No Cards, Just Data */}
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                background: 'white',
-                                padding: '0.5rem 0.75rem',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-color)',
-                                marginBottom: '0.75rem'
-                            }}>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actual (GAP)</div>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'monospace', color: '#6366f1' }}>
-                                        {Math.floor(analysis.currentPace)}:{String(Math.round((analysis.currentPace % 1) * 60)).padStart(2, '0')}
-                                    </div>
-                                    <div style={{ fontSize: '0.6rem', color: '#f59e0b' }}>
-                                        {analysis.gapAdjusted ? '⚡ Corregido' : 'Sin ajuste'}
-                                    </div>
-                                </div>
-                                <div style={{ width: '1px', background: 'var(--border-color)' }}></div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Objetivo</div>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'monospace', color: analysis.color }}>
-                                        {Math.floor(analysis.targetPace)}:{String(Math.round((analysis.targetPace % 1) * 60)).padStart(2, '0')}
-                                    </div>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{goalTime}min</div>
-                                </div>
-                                <div style={{ width: '1px', background: 'var(--border-color)' }}></div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Diferencia</div>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'monospace', color: analysis.gap <= 0 ? '#10b981' : '#ef4444' }}>
-                                        {analysis.gap <= 0 ? '-' : '+'}{Math.abs(analysis.gapPercent).toFixed(1)}%
-                                    </div>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
-                                        {Math.abs(analysis.gap * 60).toFixed(0)}s/km
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Minimalist Bar */}
-                            <div style={{ marginBottom: '0.5rem', position: 'relative', height: '14px' }}>
-                                <div style={{
-                                    height: '6px',
-                                    marginTop: '4px',
-                                    background: 'linear-gradient(90deg, #10b981 0%, #10b981 25%, #3b82f6  25%, #3b82f6 50%, #f59e0b 50%, #f59e0b 75%, #ef4444 75%, #ef4444 100%)',
-                                    borderRadius: '3px',
-                                    opacity: 0.8
-                                }}></div>
-                                {/* Dot Marker */}
-                                <div style={{
-                                    position: 'absolute',
-                                    left: `${Math.max(0, Math.min(100, 50 + (analysis.gapPercent * 0.5)))}%`,
-                                    top: '0',
-                                    transform: 'translateX(-50%)',
-                                    background: 'white',
-                                    border: `2px solid ${analysis.color}`,
-                                    borderRadius: '50%',
-                                    width: '14px',
-                                    height: '14px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                                }}></div>
-                            </div>
-
-                            {/* Combined Info & Recommendation Row */}
-                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'start' }}>
-                                <div style={{ flex: 1, fontSize: '0.65rem', padding: '0.4rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
-                                    <strong>Última:</strong> {analysis.lastRunDate} ({analysis.lastRunDist}km a {Math.floor(analysis.lastRunRawPace)}:{String(Math.round((analysis.lastRunRawPace % 1) * 60)).padStart(2, '0')})
-                                    {analysis.gapAdjusted && <span style={{ color: '#10b981', marginLeft: '0.3rem' }}>⚡ GAP: {Math.floor(analysis.lastRunPace)}:{String(Math.round((analysis.lastRunPace % 1) * 60)).padStart(2, '0')}</span>}
-                                </div>
-                                <div style={{ flex: 1.5, fontSize: '0.65rem', borderLeft: `2px solid ${analysis.color}`, paddingLeft: '0.5rem', color: 'var(--text-primary)', fontStyle: 'italic' }}>
-                                    "{analysis.recommendation}"
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })()}
-
-                {/* Result */}
-                <div className="planner-results">
-                    {!plan && !loading && (
-                        <div style={{
-                            height: '300px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-muted)',
-                            border: '2px dashed var(--border-color)',
-                            borderRadius: '12px',
-                            fontSize: '0.9rem',
-                            textAlign: 'center',
-                            padding: '2rem'
-                        }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🧠</div>
-                            <div>Define tu objetivo y la IA diseñará tu semana perfecta.</div>
-                        </div>
-                    )}
-
-                    {loading && (
-                        <div style={{
-                            height: '300px',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            color: 'var(--accent-primary)'
-                        }}>
-                            Generando estrategia personalizada...
-                        </div>
-                    )}
-
-                    {plan && (
-                        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {/* Analysis Card */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%)',
-                                padding: '1.5rem',
-                                borderRadius: '16px',
-                                color: 'white',
-                                boxShadow: 'var(--shadow-md)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '1.25rem'
-                            }}>
-                                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                                    <div style={{ fontSize: '2.5rem', background: 'rgba(255,255,255,0.1)', borderRadius: '12px', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        ⚡
-                                    </div>
-                                    <div style={{ flexGrow: 1 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 'bold', fontSize: '0.8rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Estrategia Semanal</div>
-                                                <div style={{ fontSize: '1.25rem', fontWeight: '800', lineHeight: '1.3' }}>{plan.weekly_summary}</div>
-                                            </div>
-                                            {plan.stats && (
-                                                <div style={{ display: 'flex', gap: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.5rem 1rem', borderRadius: '8px' }}>
-                                                    <div style={{ textAlign: 'center' }}>
-                                                        <div style={{ fontSize: '0.7rem', opacity: 0.7, textTransform: 'uppercase' }}>Distancia</div>
-                                                        <div style={{ fontSize: '1.1rem', fontWeight: '800', fontFamily: 'monospace' }}>{plan.stats.total_dist_km} km</div>
-                                                    </div>
-                                                    <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
-                                                    <div style={{ textAlign: 'center' }}>
-                                                        <div style={{ fontSize: '0.7rem', opacity: 0.7, textTransform: 'uppercase' }}>Tiempo</div>
-                                                        <div style={{ fontSize: '1.1rem', fontWeight: '800', fontFamily: 'monospace' }}>
-                                                            {Math.floor(plan.stats.total_time_min / 60)}h {plan.stats.total_time_min % 60}m
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div style={{ fontSize: '0.9rem', opacity: 0.9, lineHeight: '1.6', marginTop: '0.75rem' }}>{plan.analysis}</div>
-                                    </div>
-                                </div>
-
-                                {/* Enhanced Stats Grid */}
-                                {plan.stats && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
-                                        {/* Average Pace */}
-                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <div style={{ fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Ritmo Promedio</div>
-                                            <div style={{ fontSize: '1rem', fontWeight: '800', fontFamily: 'monospace' }}>
-                                                {plan.stats.total_dist_km && plan.stats.total_time_min
-                                                    ? `${Math.floor(plan.stats.total_time_min / plan.stats.total_dist_km)}:${String(Math.round((plan.stats.total_time_min / plan.stats.total_dist_km % 1) * 60)).padStart(2, '0')} /km`
-                                                    : 'N/A'
-                                                }
-                                            </div>
-                                        </div>
-
-                                        {/* Sessions Count */}
-                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <div style={{ fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Sesiones</div>
-                                            <div style={{ fontSize: '1rem', fontWeight: '800' }}>
-                                                {plan.schedule ? `${plan.schedule.filter(d => !d.type.toLowerCase().includes('descanso')).length} entrenamientos` : 'N/A'}
-                                            </div>
-                                        </div>
-
-                                        {/* Estimated TSS */}
-                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <div style={{ fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Carga TSS (est.)</div>
-                                            <div style={{ fontSize: '1rem', fontWeight: '800' }}>
-                                                {plan.stats.total_time_min
-                                                    ? Math.round((plan.stats.distribution.easy * plan.stats.total_time_min * 0.6 / 100) +
-                                                        (plan.stats.distribution.moderate * plan.stats.total_time_min * 1.0 / 100) +
-                                                        (plan.stats.distribution.hard * plan.stats.total_time_min * 1.4 / 100))
-                                                    : 'N/A'
-                                                }
-                                            </div>
-                                        </div>
-
-                                        {/* Avg Session Duration */}
-                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <div style={{ fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Sesión Media</div>
-                                            <div style={{ fontSize: '1rem', fontWeight: '800' }}>
-                                                {plan.schedule && plan.stats.total_time_min
-                                                    ? `${Math.round(plan.stats.total_time_min / plan.schedule.filter(d => !d.type.toLowerCase().includes('descanso')).length)} min`
-                                                    : 'N/A'
-                                                }
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Distribution Chart */}
-                                {plan.stats && plan.stats.distribution && (
-                                    <div style={{ marginTop: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '12px' }}>
-                                        <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.75rem', opacity: 0.8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span>Distribución de Intensidad (Modelo 80/20)</span>
-                                            <span style={{
-                                                padding: '0.25rem 0.75rem',
-                                                borderRadius: '12px',
-                                                fontSize: '0.7rem',
-                                                background: plan.stats.distribution.easy >= 75 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(251, 191, 36, 0.2)',
-                                                color: plan.stats.distribution.easy >= 75 ? '#10b981' : '#fbbf24',
-                                                fontWeight: 'bold'
-                                            }}>
-                                                {plan.stats.distribution.easy >= 75 ? '✅ Óptimo' : '⚠️ Revisar'}
-                                            </span>
-                                        </div>
-
-                                        {/* Visual Bar */}
-                                        <div style={{ height: '24px', width: '100%', display: 'flex', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-                                            <div style={{ width: `${plan.stats.distribution.easy}%`, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', transition: 'width 1s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 'bold', color: 'white' }} title={`Suave: ${plan.stats.distribution.easy}%`}>
-                                                {plan.stats.distribution.easy >= 15 && `${plan.stats.distribution.easy}%`}
-                                            </div>
-                                            <div style={{ width: `${plan.stats.distribution.moderate}%`, background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', transition: 'width 1s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 'bold', color: 'white' }} title={`Moderado: ${plan.stats.distribution.moderate}%`}>
-                                                {plan.stats.distribution.moderate >= 10 && `${plan.stats.distribution.moderate}%`}
-                                            </div>
-                                            <div style={{ width: `${plan.stats.distribution.hard}%`, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', transition: 'width 1s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 'bold', color: 'white' }} title={`Intenso: ${plan.stats.distribution.hard}%`}>
-                                                {plan.stats.distribution.hard >= 10 && `${plan.stats.distribution.hard}%`}
-                                            </div>
-                                        </div>
-
-                                        {/* Legend with percentages and time breakdown */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', fontSize: '0.75rem' }}>
-                                            <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></div>
-                                                    <span style={{ opacity: 0.9, fontWeight: 'bold' }}>Zona 1-2 (Aeróbico)</span>
-                                                </div>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#10b981' }}>{plan.stats.distribution.easy}%</div>
-                                                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                                                    ≈{Math.round(plan.stats.total_time_min * plan.stats.distribution.easy / 100)} min
-                                                </div>
-                                            </div>
-                                            <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }}></div>
-                                                    <span style={{ opacity: 0.9, fontWeight: 'bold' }}>Zona 3 (Umbral)</span>
-                                                </div>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#f59e0b' }}>{plan.stats.distribution.moderate}%</div>
-                                                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                                                    ≈{Math.round(plan.stats.total_time_min * plan.stats.distribution.moderate / 100)} min
-                                                </div>
-                                            </div>
-                                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></div>
-                                                    <span style={{ opacity: 0.9, fontWeight: 'bold' }}>Zona 4-5 (VO2max)</span>
-                                                </div>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#ef4444' }}>{plan.stats.distribution.hard}%</div>
-                                                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                                                    ≈{Math.round(plan.stats.total_time_min * plan.stats.distribution.hard / 100)} min
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Scientific Reference */}
-                                        <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)', fontSize: '0.7rem', lineHeight: '1.4' }}>
-                                            <strong style={{ color: '#60a5fa' }}>💡 Principio 80/20 (Stephen Seiler):</strong> Los atletas de élite entrenan 75-80% en zona aeróbica y solo 20-25% en alta intensidad. Esta distribución polarizada maximiza adaptaciones y minimiza lesiones.
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Schedule Grid */}
-                            <div className="plan-schedule" style={{ display: 'grid', gap: '1.25rem' }}>
-                                {plan.schedule.map((day, idx) => {
-                                    // Determine icon and color based on type
-                                    let icon = '🏃';
-                                    let color = 'var(--text-primary)';
-                                    let bgColor = 'var(--bg-card)';
-
-                                    const typeLower = day.type.toLowerCase();
-                                    if (typeLower.includes('series') || typeLower.includes('velocidad') || typeLower.includes('intervals')) {
-                                        icon = '🔥';
-                                        color = '#f59e0b'; // Amber
-                                    } else if (typeLower.includes('larga') || typeLower.includes('fondo')) {
-                                        icon = '🛣️';
-                                        color = '#3b82f6'; // Blue
-                                    } else if (typeLower.includes('recup') || typeLower.includes('suave')) {
-                                        icon = '🔋';
-                                        color = '#10b981'; // Emerald
-                                    } else if (typeLower.includes('descanso')) {
-                                        icon = '💤';
-                                        color = '#94a3b8'; // Slate
-                                        bgColor = '#f8fafc';
-                                    }
-
-                                    return (
-                                        <div key={idx} style={{
-                                            background: bgColor,
-                                            borderRadius: '16px',
-                                            border: '1px solid var(--border-color)',
-                                            boxShadow: 'var(--shadow-sm)',
-                                            overflow: 'hidden'
-                                        }}>
-                                            {/* Header */}
-                                            <div style={{
-                                                padding: '1rem 1.25rem',
-                                                borderBottom: '1px solid var(--border-color)',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                background: typeLower.includes('descanso') ? 'transparent' : 'rgba(255,255,255,0.5)'
-                                            }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{
-                                                        background: typeLower.includes('descanso') ? '#e2e8f0' : `${color}20`,
-                                                        color: color,
-                                                        width: '36px', height: '36px',
-                                                        borderRadius: '10px',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        fontSize: '1.2rem'
-                                                    }}>
-                                                        {icon}
-                                                    </div>
-                                                    <div>
-                                                        <h4 style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>{day.day}</h4>
-                                                        <span style={{ fontSize: '0.8rem', color: color, fontWeight: '700', textTransform: 'uppercase' }}>{day.type}</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Daily Stats Badge */}
-                                                {!typeLower.includes('descanso') && day.daily_stats && (
-                                                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-primary)' }}>{day.daily_stats.dist}</div>
-                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{day.daily_stats.time}</div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Body */}
-                                            {!typeLower.includes('descanso') && (
-                                                <div style={{ padding: '1.25rem' }}>
-                                                    <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-                                                        {day.summary}
-                                                    </div>
-
-                                                    {/* Graphical Workout Visualization */}
-                                                    {day.structured_workout && day.structured_workout.length > 0 ? (
-                                                        <div style={{ marginTop: '1rem', background: 'rgba(0,0,0,0.02)', padding: '1rem', borderRadius: '12px' }}>
-                                                            {/* Title */}
-                                                            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                <span>📊 Estructura del Entrenamiento</span>
-                                                                <span style={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
-                                                                    {day.structured_workout.reduce((acc, s) => acc + s.duration_min, 0)} min total
-                                                                </span>
-                                                            </div>
-
-                                                            {/* Enhanced Bars Graph with Labels */}
-                                                            <div style={{
-                                                                display: 'flex',
-                                                                flexDirection: 'column',
-                                                                gap: '0.75rem',
-                                                                marginBottom: '1rem'
-                                                            }}>
-                                                                {/* Intensity Scale Reference */}
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', paddingLeft: '140px' }}>
-                                                                    <span>Zona 1-2</span>
-                                                                    <span>Zona 3</span>
-                                                                    <span>Zona 4-5</span>
-                                                                </div>
-
-                                                                {/* Bars Container */}
-                                                                <div style={{
-                                                                    position: 'relative'
-                                                                }}>
-                                                                    {day.structured_workout.map((step, sIdx) => {
-                                                                        // Calculate total duration for percentage
-                                                                        const totalDuration = day.structured_workout.reduce((acc, s) => acc + s.duration_min, 0);
-                                                                        const widthPercent = (step.duration_min / totalDuration) * 100;
-
-                                                                        // Intensity to height mapping
-                                                                        const heightPercent = Math.max(25, Math.min(100, step.intensity * 20));
-
-                                                                        // Color and zone based on intensity
-                                                                        let barGradient = 'linear-gradient(135deg, #10b981, #059669)';
-                                                                        let borderColor = '#10b981';
-                                                                        let zoneName = 'Z1-2';
-                                                                        let zoneDescription = 'Aeróbico';
-
-                                                                        if (step.intensity >= 4) {
-                                                                            barGradient = 'linear-gradient(135deg, #ef4444, #dc2626)';
-                                                                            borderColor = '#ef4444';
-                                                                            zoneName = 'Z4-5';
-                                                                            zoneDescription = 'Alta Intensidad';
-                                                                        } else if (step.intensity === 3) {
-                                                                            barGradient = 'linear-gradient(135deg, #f59e0b, #d97706)';
-                                                                            borderColor = '#f59e0b';
-                                                                            zoneName = 'Z3';
-                                                                            zoneDescription = 'Umbral';
-                                                                        } else if (step.intensity === 2) {
-                                                                            barGradient = 'linear-gradient(135deg, #3b82f6, #2563eb)';
-                                                                            borderColor = '#3b82f6';
-                                                                            zoneName = 'Z2';
-                                                                            zoneDescription = 'Moderado';
-                                                                        }
-
-                                                                        return (
-                                                                            <div key={sIdx} style={{
-                                                                                display: 'flex',
-                                                                                flexDirection: 'column',
-                                                                                alignItems: 'stretch',
-                                                                                gap: '0.25rem',
-                                                                                marginBottom: sIdx < day.structured_workout.length - 1 ? '0.5rem' : 0,
-                                                                                animation: 'fadeIn 0.5s ease-in-out',
-                                                                                animationDelay: `${sIdx * 100}ms`,
-                                                                                animationFillMode: 'backwards'
-                                                                            }}>
-                                                                                {/* Header: Phase | Duration | Zone */}
-                                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.25rem' }}>
-                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                                        <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--text-primary)' }}>{step.phase}</span>
-                                                                                        <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'white', background: borderColor, padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{zoneName}</span>
-                                                                                    </div>
-                                                                                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--text-primary)' }}>{step.duration_min}'</span>
-                                                                                </div>
-
-                                                                                {/* Bar with animation */}
-                                                                                <div style={{
-                                                                                    width: '100%',
-                                                                                    height: '8px',
-                                                                                    background: 'rgba(0,0,0,0.05)',
-                                                                                    borderRadius: '4px',
-                                                                                    marginTop: '0.1rem',
-                                                                                    overflow: 'hidden'
-                                                                                }}>
-                                                                                    <div style={{
-                                                                                        width: `${widthPercent}%`,
-                                                                                        height: '100%',
-                                                                                        background: barGradient,
-                                                                                        borderRadius: '6px',
-                                                                                        position: 'relative',
-                                                                                        transition: 'width 1s ease-out',
-                                                                                        display: 'flex',
-                                                                                        alignItems: 'center',
-                                                                                        padding: '0 0.75rem',
-                                                                                        justifyContent: 'space-between',
-                                                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                                                        cursor: 'help'
-                                                                                    }}
-                                                                                        title={`${step.phase}: ${step.duration_min} min - ${step.description}`}>
-
-                                                                                        {/* Interval Dividers if detected (e.g. "2x15") */}
-                                                                                        {(() => {
-                                                                                            const intervalMatch = step.description.match(/(\d+)\s*x\s*/i) || step.phase.match(/(\d+)\s*x\s*/i);
-                                                                                            const intervalCount = intervalMatch ? parseInt(intervalMatch[1]) : 1;
-                                                                                            if (intervalCount <= 1) return null;
-
-                                                                                            return Array.from({ length: intervalCount - 1 }).map((_, i) => (
-                                                                                                <div key={i} style={{
-                                                                                                    position: 'absolute',
-                                                                                                    left: `${(100 / intervalCount) * (i + 1)}%`,
-                                                                                                    top: 0,
-                                                                                                    bottom: 0,
-                                                                                                    width: '1px',
-                                                                                                    background: 'rgba(255,255,255,0.6)',
-                                                                                                    boxShadow: '1px 0 2px rgba(0,0,0,0.1)',
-                                                                                                    zIndex: 2
-                                                                                                }} />
-                                                                                            ));
-                                                                                        })()}
-
-
-
-
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {/* Description inline */}
-                                                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.3', padding: '0 0.25rem' }}>
-                                                                                    {step.description}
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </div>
-
-
-
-                                                            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', fontSize: '0.7rem', color: 'var(--text-secondary)', flexWrap: 'wrap', opacity: 0.8 }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div><span>Z1-2 Fácil</span></div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }}></div><span>Z2 Moderado</span></div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }}></div><span>Z3 Umbral</span></div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></div><span>Z4-5 Max</span></div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        /* Fallback text if no structured data (old plans) */
-                                                        <div style={{ fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Detalles visuales no disponibles.</div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {typeLower.includes('descanso') && (
-                                                <div style={{ padding: '1.25rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>
-                                                    {day.summary || "Día de recuperación total."}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div >
+            )}
+        </div>
     );
 };
 

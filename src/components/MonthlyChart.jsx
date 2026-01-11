@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart } from '@tremor/react';
 
 const MonthlyChart = ({ activities }) => {
     const chartData = useMemo(() => {
@@ -28,7 +28,6 @@ const MonthlyChart = ({ activities }) => {
         const sortedData = Object.values(grouped).sort((a, b) => a.date - b.date);
 
         // 3. Take last 12 months for better visualization
-        // If you want all history, remove .slice(-12)
         return sortedData.slice(-12).map(item => ({
             name: item.monthLabel,
             distance: Math.round(item.distance / 1000), // Convert to km
@@ -36,40 +35,24 @@ const MonthlyChart = ({ activities }) => {
         }));
     }, [activities]);
 
-    if (chartData.length === 0) return null;
+    const dataFormatter = (number) => {
+        return `${Intl.NumberFormat("es-ES").format(number)} km`;
+    };
+
+    if (!chartData || chartData.length === 0) return null;
 
     return (
-        <div className="chart-container" style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-                <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                    <XAxis
-                        dataKey="name"
-                        stroke="#94a3b8"
-                        tick={{ fill: '#94a3b8', fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                    />
-                    <YAxis
-                        stroke="#94a3b8"
-                        tick={{ fill: '#94a3b8', fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                        unit=" km"
-                    />
-                    <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                        itemStyle={{ color: '#f8fafc' }}
-                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                    />
-                    <Bar dataKey="distance" name="Distancia" radius={[4, 4, 0, 0]}>
-                        {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.distance > 0 ? '#3b82f6' : '#1e293b'} />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
+        <BarChart
+            className="mt-2 h-72"
+            data={chartData}
+            index="name"
+            categories={["distance"]}
+            colors={["indigo"]}
+            valueFormatter={dataFormatter}
+            yAxisWidth={48}
+            showLegend={false}
+            showAnimation={true}
+        />
     );
 };
 

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Card, Grid, Text, Metric, Badge, Flex } from "@tremor/react";
 
 const PersonalBests = ({ activities }) => {
     const bests = useMemo(() => {
@@ -50,34 +51,29 @@ const PersonalBests = ({ activities }) => {
     };
 
     return (
-        <div className="pbs-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <Grid numItems={2} numItemsSm={3} numItemsLg={5} className="gap-3">
             {Object.values(bests).map((record) => (
-                <a
+                <Card
                     key={record.name}
-                    href={`https://www.strava.com/activities/${record.activity.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="pb-card"
-                    style={{ flex: '1 1 150px', maxWidth: '220px' }}
+                    decoration="top"
+                    decorationColor="amber"
+                    className="cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 p-4 ring-1 ring-slate-200 shadow-sm"
+                    onClick={() => window.open(`https://www.strava.com/activities/${record.activity.id}`, '_blank')}
                 >
-                    <div className="pb-card-title">
-                        {record.name}
-                    </div>
-                    <div className="pb-card-time">
-                        {formatTime(record.activity.moving_time)}
-                    </div>
-                    <div className="pb-card-pace">
-                        {calculatePace(record.activity.average_speed)} <span>/km</span>
-                    </div>
-                    <div className="pb-card-date">
-                        {new Date(record.activity.start_date).toLocaleDateString()}
-                    </div>
-                    <div className="pb-card-activity">
-                        {record.activity.name}
-                    </div>
-                </a>
+                    <Flex justifyContent="between" alignItems="start">
+                        <Text className="truncate font-medium text-slate-500">{record.name}</Text>
+                        <Badge color="cyan" size="xs">{new Date(record.activity.start_date).getFullYear()}</Badge>
+                    </Flex>
+                    <Metric className="mt-2 text-2xl text-slate-900">{formatTime(record.activity.moving_time)}</Metric>
+                    <Flex className="mt-2 pt-2 border-t border-slate-100" justifyContent="between">
+                        <Text className="text-xs text-slate-400">Ritmo</Text>
+                        <Text className="font-mono text-slate-700 font-medium text-sm">
+                            {calculatePace(record.activity.average_speed)} /km
+                        </Text>
+                    </Flex>
+                </Card>
             ))}
-        </div>
+        </Grid>
     );
 };
 
