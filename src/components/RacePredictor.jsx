@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import Groq from 'groq-sdk';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import {
     Card,
     Title,
@@ -17,13 +20,25 @@ import {
 import { CalculatorIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import ModelSelector from './ModelSelector';
 
+// Define the schema for race predictions
+const PredictionSchema = z.object({
+    analysis: z.string().describe("Breve párrafo (max 30 palabras) sobre el estado de forma actual del corredor."),
+    predictions: z.array(z.object({
+        label: z.string().describe("Distancia de la carrera (ej: 5K, 10K)."),
+        time: z.string().describe("Tiempo estimado en formato MM:SS o H:MM:SS."),
+        pace: z.string().describe("Ritmo estimado en formato M:SS /km."),
+        confidence: z.enum(['Alta', 'Media', 'Baja']).describe("Nivel de confianza en la predicción."),
+    })).describe("Lista de predicciones para distancias estándar.")
+});
+
 const RacePredictor = ({ activities }) => {
     const [provider, setProvider] = useState('groq');
 
     // API keys from environment variables
     const apiKeys = {
         gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-        groq: import.meta.env.VITE_GROQ_API_KEY || ''
+        groq: import.meta.env.VITE_GROQ_API_KEY || '',
+        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     };
 
     const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
@@ -60,6 +75,7 @@ const RacePredictor = ({ activities }) => {
 
     const checkAvailableModels = async (key) => {
         if (provider === 'groq') return "Groq Models: llama-3.1-8b, llama-3.3-70b...";
+        if (provider === 'anthropic') return "Claude Models: 3.5 Sonnet, 3.5 Haiku...";
         try {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
             const data = await response.json();
@@ -75,7 +91,7 @@ const RacePredictor = ({ activities }) => {
         const activeKey = apiKeys[provider];
 
         if (!activeKey) {
-            setError(`Por favor, introduce una API Key de ${provider === 'groq' ? 'Groq' : 'Google Gemini'}.`);
+            setError(`Por favor, introduce una API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
             return;
         }
 
@@ -93,6 +109,22 @@ const RacePredictor = ({ activities }) => {
         }
 
         try {
+            // Initialize Provider
+            let model;
+            if (provider === 'groq') {
+                const groq = createOpenAI({
+                    baseURL: 'https://api.groq.com/openai/v1',
+                    apiKey: activeKey,
+                });
+                model = groq(selectedModel);
+            } else if (provider === 'anthropic') {
+                const anthropic = createAnthropic({ apiKey: activeKey });
+                model = anthropic(selectedModel);
+            } else {
+                const google = createGoogleGenerativeAI({ apiKey: activeKey });
+                model = google(selectedModel);
+            }
+
             const prompt = `
                 Actúa como un experto fisiólogo deportivo y entrenador de running.
                 Analiza el siguiente historial de entrenamiento de los últimos 3 meses de un corredor:
@@ -109,74 +141,17 @@ const RacePredictor = ({ activities }) => {
 
                 Usa fórmulas como Riegel pero ajústalas según la fatiga, consistencia, volumen semanal aparente y datos de frecuencia cardíaca si los hay.
                 Diferencia entre "Mejor Marca Teórica" y "Predicción Realista Actual". Danos la Realista en llano.
-
-                FORMATO DE RESPUESTA JSON (SÓLO JSON):
-                {
-                    "analysis": "Breve párrafo (max 30 palabras) sobre su estado de forma actual.",
-                    "predictions": [
-                        { "label": "5K", "time": "MM:SS", "pace": "M:SS", "confidence": "Alta/Media/Baja" },
-                        { "label": "10K", "time": "MM:SS", "pace": "M:SS", "confidence": "Alta/Media/Baja" },
-                        { "label": "Media Maratón", "time": "H:MM:SS", "pace": "M:SS", "confidence": "Alta/Media/Baja" },
-                        { "label": "Maratón", "time": "H:MM:SS", "pace": "M:SS", "confidence": "Alta/Media/Baja" }
-                    ]
-                }
             `;
 
-            let jsonString = '';
+            const { object } = await generateObject({
+                model: model,
+                schema: PredictionSchema,
+                prompt: prompt,
+                temperature: 0.5, // Slightly lower temp for more consistent predictions
+            });
 
-            // --- GROQ EXECUTION ---
-            if (provider === 'groq') {
-                const groq = new Groq({ apiKey: activeKey, dangerouslyAllowBrowser: true });
-                const completion = await groq.chat.completions.create({
-                    messages: [
-                        { role: "system", content: "Eres un API que devuelve solo JSON." },
-                        { role: "user", content: prompt }
-                    ],
-                    model: selectedModel,
-                    temperature: 0.7,
-                    max_tokens: 1024,
-                    response_format: { type: "json_object" }
-                });
-                jsonString = completion.choices[0]?.message?.content || '';
-            }
-            // --- GEMINI EXECUTION ---
-            else {
-                const modelsToTry = selectedModel ? [selectedModel] : [
-                    "gemini-2.5-flash-lite",
-                    "gemini-2.5-flash",
-                    "gemini-2.0-flash",
-                    "gemini-2.0-flash-lite",
-                    "gemini-1.5-flash"
-                ];
-                let lastError = null;
-                let success = false;
-
-                for (const modelName of modelsToTry) {
-                    try {
-                        console.log(`Intentando con modelo: ${modelName}`);
-                        const genAI = new GoogleGenerativeAI(activeKey);
-                        const model = genAI.getGenerativeModel({ model: modelName });
-
-                        const result = await model.generateContent(prompt);
-                        const response = await result.response;
-                        jsonString = response.text();
-                        success = true;
-                        break;
-                    } catch (err) {
-                        console.warn(`Fallo con modelo ${modelName}:`, err);
-                        lastError = err;
-                    }
-                }
-
-                if (!success) throw lastError || new Error("Todos los modelos de Gemini fallaron.");
-            }
-
-            // --- COMMON PARSING ---
-            const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-            const data = JSON.parse(cleanJson);
-
-            setPredictions(data.predictions);
-            setAnalysis(data.analysis);
+            setPredictions(object.predictions);
+            setAnalysis(object.analysis);
             setLoading(false);
 
         } catch (err) {
@@ -188,7 +163,7 @@ const RacePredictor = ({ activities }) => {
             }
 
             let errorMessage = err.message || "Error desconocido";
-            if (errorMessage.includes('404')) {
+            if (errorMessage.includes('404') || errorMessage.includes('401')) {
                 errorMessage = "La API Key no es válida o no tiene permisos. " + debugInfo;
             } else if (errorMessage.includes('429')) {
                 errorMessage = "Has excedido la cuota (429). Prueba otro modelo o Groq.";

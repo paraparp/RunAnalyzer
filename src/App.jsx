@@ -8,6 +8,8 @@ import MonthlyChart from './components/MonthlyChart';
 import PersonalBests from './components/PersonalBests';
 import TrainingPlanner from './components/TrainingPlanner';
 import RacePredictor from './components/RacePredictor';
+import RunQA from './components/RunQA';
+import DataExporter from './components/DataExporter';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
@@ -20,7 +22,7 @@ const Dashboard = ({ user, handleLogout }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'planner'
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'planner', 'predictor', 'qa', 'export'
   const [selectedChartIndex, setSelectedChartIndex] = useState(0); // 0: distance, 1: time, 2: elevation
   const chartMetrics = ['distance', 'time', 'elevation'];
 
@@ -195,6 +197,18 @@ const Dashboard = ({ user, handleLogout }) => {
                 onClick={() => { setCurrentView('predictor'); setMobileMenuOpen(false); }}
               >
                 Predictor AI
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'qa' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 shadow-sm' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                onClick={() => { setCurrentView('qa'); setMobileMenuOpen(false); }}
+              >
+                Preguntas AI
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentView === 'export' ? 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 shadow-sm' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                onClick={() => { setCurrentView('export'); setMobileMenuOpen(false); }}
+              >
+                Exportar
               </button>
             </nav>
 
@@ -415,6 +429,18 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'predictor' && (
               <div className="predictor-view fade-in">
                 <RacePredictor activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'qa' && (
+              <div className="qa-view fade-in">
+                <RunQA activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'export' && (
+              <div className="export-view fade-in">
+                <DataExporter activities={runningActivities} />
               </div>
             )}
           </>

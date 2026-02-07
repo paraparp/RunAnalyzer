@@ -1,13 +1,48 @@
 import React, { useState } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import Groq from 'groq-sdk';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon } from "@heroicons/react/24/solid";
 import { BoltIcon } from "@heroicons/react/24/outline";
 import ModelSelector from './ModelSelector';
 
+// Define the schema for the training plan
+const PlanSchema = z.object({
+    analysis: z.string().describe("Análisis breve (max 60 palabras) del estado del corredor."),
+    weekly_summary: z.string().describe("Enfoque de esta semana según periodización."),
+    stats: z.object({
+        total_dist_km: z.number().describe("Distancia total estimada en km."),
+        total_time_min: z.number().describe("Tiempo total estimado en minutos."),
+        distribution: z.object({
+            easy: z.number().describe("Porcentaje Zona 1-2 aeróbico (>75)."),
+            moderate: z.number().describe("Porcentaje Zona 3 umbral/tempo (~10-15)."),
+            hard: z.number().describe("Porcentaje Zona 4-5 VO2max/velocidad (~5-10)."),
+        }),
+    }),
+    schedule: z.array(z.object({
+        day: z.string().describe("Nombre del día (ej: 'Lunes')."),
+        type: z.string().describe("Categoría de la sesión."),
+        daily_stats: z.object({
+            dist: z.string().describe("Distancia (ej: '12 km')."),
+            time: z.string().describe("Tiempo estimado (ej: '65 min')."),
+        }).optional(),
+        summary: z.string().describe("Objetivo de la sesión y zonas de trabajo."),
+        structured_workout: z.array(z.object({
+            phase: z.string().describe("Fase del entrenamiento (Calentamiento, Bloque Principal, etc)."),
+            duration_min: z.number().describe("Duración en minutos."),
+            intensity: z.number().min(1).max(5).describe("Intensidad (1-5)."),
+            description: z.string().describe("Descripción detallada del ejercicio."),
+        })).optional().describe("Detalle de la estructura del entrenamiento."),
+    })),
+});
+
 const TrainingPlanner = ({ activities }) => {
-    const [goalDist, setGoalDist] = useState('10k');
+    const [goalDist, setGoalDist] = useState('21k');
 
     // Calculate suggested time based on recent runs (slightly faster than current pace)
     const calculateSuggestedTime = () => {
@@ -24,9 +59,9 @@ const TrainingPlanner = ({ activities }) => {
             return acc + ((run.moving_time / 60) / (run.distance / 1000));
         }, 0) / recentRuns.length;
 
-        // Suggested time: 5% faster than current average for 10k
-        const targetPaceMinKm = avgPaceMinKm * 0.95;
-        const suggestedTime = Math.round(targetPaceMinKm * 10);
+        // Suggested time: 5% faster than current average for 21k
+        const targetPaceMinKm = avgPaceMinKm * 0.90;
+        const suggestedTime = Math.round(targetPaceMinKm * 21);
         return suggestedTime.toString();
     };
 
@@ -35,13 +70,14 @@ const TrainingPlanner = ({ activities }) => {
     const [weeks, setWeeks] = useState(4);
     const [selectedDays, setSelectedDays] = useState(['Mi', 'Sa']); // Miércoles y Sábado por defecto
 
-    // Provider state: 'gemini' or 'groq'
+    // Provider state: 'gemini', 'groq' or 'anthropic'
     const [provider, setProvider] = useState('groq');
 
     // API keys from environment variables
     const apiKeys = {
         gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-        groq: import.meta.env.VITE_GROQ_API_KEY || ''
+        groq: import.meta.env.VITE_GROQ_API_KEY || '',
+        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     };
 
     const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
@@ -136,8 +172,8 @@ const TrainingPlanner = ({ activities }) => {
         const distances = {
             '5k': 5,
             '10k': 10,
-            'hm': 21.097,
-            'fm': 42.195
+            '21k': 21.097,
+            '42k': 42.195
         };
         const targetDistanceKm = distances[goalDist];
         const targetPaceMinKm = goalTime / targetDistanceKm;
@@ -192,6 +228,7 @@ const TrainingPlanner = ({ activities }) => {
 
     const checkAvailableModels = async (key) => {
         if (provider === 'groq') return "Groq Models: llama-3.1-8b, llama-3.3-70b...";
+        if (provider === 'anthropic') return "Claude Models: 3.5 Sonnet, 3.5 Haiku...";
         try {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
             const data = await response.json();
@@ -209,7 +246,7 @@ const TrainingPlanner = ({ activities }) => {
         const activeKey = apiKeys[provider];
 
         if (!activeKey) {
-            setError(`Por favor, introduce una API Key de ${provider === 'groq' ? 'Groq' : 'Google Gemini'}.`);
+            setError(`Por favor, introduce una API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
             return;
         }
 
@@ -219,191 +256,57 @@ const TrainingPlanner = ({ activities }) => {
 
         try {
             const activityLog = getRecentActivitiesSummary();
-
             const daysCount = selectedDays.length;
             const daysStr = selectedDays.join(', ');
 
+            // Initialize Provider using AI SDK
+            let model;
+            if (provider === 'groq') {
+                const groq = createOpenAI({
+                    baseURL: 'https://api.groq.com/openai/v1',
+                    apiKey: activeKey,
+                });
+                model = groq(selectedModel);
+            } else if (provider === 'anthropic') {
+                const anthropic = createAnthropic({ apiKey: activeKey });
+                model = anthropic(selectedModel);
+            } else {
+                const google = createGoogleGenerativeAI({
+                    apiKey: activeKey,
+                });
+                // Ensure model name is correct for Google provider
+                // Note: The selectedModel state might have prefixes or be raw, but @ai-sdk/google handles 'gemini-1.5-flash' etc.
+                model = google(selectedModel);
+            }
+
             const prompt = `
-            Actúa como un fisiólogo deportivo de élite y entrenador de running profesional con conocimiento profundo de las metodologías más avanzadas y contrastadas.
+            Actúa como un fisiólogo deportivo de élite y entrenador de running profesional.
             
             HISTORIAL DE ENTRENAMIENTO RECIENTE (Últimos 3 meses):
             ${activityLog}
 
-            DATOS CLAVE A ANALIZAR:
-            1. **Frecuencia Cardíaca**: Analiza las zonas de FC para determinar distribución de intensidad real.
-            2. **Desnivel Acumulado**: Ajusta GAP (Grade Adjusted Pace) - los entrenamientos en montaña desarrollan fuerza pero ritmos más lentos.
-            3. **Carga y Fatiga**: Evalúa volumen reciente, consistencia, y señales de sobreentrenamiento.
-            4. **Progresión**: Identifica tendencias de mejora o estancamiento.
-            
             OBJETIVO DEL CORREDOR:
-            - Meta: Correr ${goalDist === 'fm' ? 'Maratón (42.195km)' : goalDist === 'hm' ? 'Media Maratón (21.097km)' : goalDist === '10k' ? '10 Kilómetros' : '5 Kilómetros'} en ${goalTime} minutos.
+            - Meta: Correr ${goalDist === '42k' ? 'Maratón (42.195km)' : goalDist === '21k' ? 'Media Maratón (21.097km)' : goalDist === '10k' ? '10 Kilómetros' : '5 Kilómetros'} en ${goalTime} minutos.
             - Fecha actual: ${new Date().toLocaleDateString()}.
-            - Fecha objetivo de carrera: ${targetDate || 'No definida - Enfoque en mejora general de forma'}.
             - Disponibilidad semanal: ${daysCount} días de entrenamiento (${daysStr}).
             
             METODOLOGÍA Y PRINCIPIOS CIENTÍFICOS A APLICAR:
+            1. **PRINCIPIO 80/20**: 80% del volumen total en Zona 2 (aeróbico).
+            2. **ENTRENAMIENTO POLARIZADO**: Sesiones diferenciadas (Muy Fácil vs Muy Intenso).
+            3. **PERIODIZACIÓN INTELIGENTE**: Basada en VDOT y capacidad actual.
             
-            1. **PRINCIPIO 80/20 (Stephen Seiler - Fisiólogo del Deporte)**:
-               - Mínimo 75-80% del volumen total en Zona 2 (aeróbico conversacional, 60-75% FCmáx).
-               - Máximo 20-25% en intensidad (Zona 4-5: Umbral y VO2max).
-               - EVITA la "zona gris" (Zona 3 - tempo moderado) salvo sesiones específicas de umbral.
-            
-            2. **ENTRENAMIENTO POLARIZADO (Modelo Noruego - Ingebrigtsen, Warholm)**:
-               - Sesiones claramente diferenciadas: MUY FÁCIL o MUY INTENSO.
-               - Recuperación activa fundamental entre sesiones de calidad.
-               - No más de 2-3 sesiones de alta intensidad por semana.
-            
-            3. **PERIODIZACIÓN INTELIGENTE (Jack Daniels VDOT)**:
-               - Define zonas según capacidad actual (VDOT basado en tiempos recientes).
-               - R (Recovery): Más lento que ritmo maratón +90s/km.
-               - E (Easy): Ritmo maratón +60-90s/km, conversacional.
-               - M (Marathon pace): Ritmo objetivo de maratón.
-               - T (Threshold): Ritmo sostenible ~50-60min, aprox. ritmo 10K +15-20s/km.
-               - I (Interval/VO2max): Ritmo 3K-5K, esfuerzo muy alto, bloques cortos.
-               - R (Repetition): Ritmo 800m-1500m, desarrollo de velocidad pura.
-            
-            4. **CONSTRUCCIÓN DE BASE AERÓBICA (Arthur Lydiard)**:
-               - Si faltan >12 semanas: Prioriza volumen en Zona 2 con pendientes suaves.
-               - Si faltan 8-12 semanas: Introduce trabajo de umbral (Tempo runs).
-               - Si faltan 4-8 semanas: Trabajo específico de ritmo de carrera + intervalos VO2max.
-               - Si faltan <4 semanas: Afinamiento - reducir volumen, mantener intensidad, priorizar frescura.
-            
-            5. **TRABAJO ESPECÍFICO DE CARRERA (Renato Canova)**:
-               - Para maratón: Long runs con finish a ritmo maratón (last 30-40% del rodaje).
-               - Para 10K/HM: Bloques largos a ritmo objetivo (ej: 3x3km a ritmo HM).
-               - Simulación de condiciones de carrera en entrenamientos clave.
-            
-            6. **RECUPERACIÓN Y PREVENCIÓN (Tom Schwartz - Fisioterapeuta Elite)**:
-               - Días de descanso activo con movilidad/core/técnica en lugar de sentarte.
-               - Post-intensidad: Siempre 48h antes de otra sesión de calidad.
-               - Escucha las señales: FC matinal elevada = necesitas descanso extra.
-            
-            7. **PROGRESIÓN CONSERVADORA (Regla del 10%)**:
-               - Incrementa volumen máximo 10% semanal.
-               - Semanas de descarga (60-70% volumen) cada 3-4 semanas.
-            
-            ESTRUCTURA DE SESIONES RECOMENDADAS:
-            
-            - **Rodaje Fácil (Easy Run)**: Base aeróbica, Zona 2, ritmo conversacional. Nunca forzar.
-            - **Rodaje Largo (Long Run)**: Zona 2 mayormente, puede incluir finish a objetivo. Clave para resistencia.
-            - **Tempo/Umbral (Threshold)**: Bloques 15-40min a ritmo 10K+15-20s. Mejora eficiencia lactato.
-            - **Intervalos VO2max**: 3-5min intensos (ritmo 3K-5K) con recuperación igual o mayor. Máximo rendimiento.
-            - **Series de Velocidad**: 200m-1K a ritmo muy rápido. Economía de carrera y explosividad.
-            - **Fartlek**: Variaciones de ritmo orgánicas. Mental y físicamente adaptativo.
-            - **Rodaje Recuperación**: Muy muy suave, 20-40min. Activa circulación sin fatiga.
-            
-            IMPORTANTE: Devuelve SOLO un objeto JSON válido (sin markdown, sin bloques de código) con esta estructura:
-            {
-              "analysis": "Análisis breve (max 60 palabras) de su estado: base aeróbica, fatiga acumulada, fortalezas/debilidades detectadas",
-              "weekly_summary": "Enfoque de esta semana según periodización (ej: 'Semana de base aeróbica con introducción de trabajo de umbral')",
-              "stats": {
-                "total_dist_km": "Distancia total estimada (número, ej: 52)",
-                "total_time_min": "Tiempo total estimado (número, ej: 300)",
-                "distribution": {
-                    "easy": "Porcentaje Zona 1-2 aeróbico (número, objetivo >75)",
-                    "moderate": "Porcentaje Zona 3 umbral/tempo (número, ~10-15)",
-                    "hard": "Porcentaje Zona 4-5 VO2max/velocidad (número, ~5-10)"
-                }
-              },
-              "schedule": [
-                {
-                  "day": "Nombre del día (ej: 'Lunes')",
-                  "type": "Categoría (Rodaje Fácil / Rodaje Largo / Tempo / Intervalos / Series / Descanso / Recuperación)",
-                  "daily_stats": {
-                    "dist": "Distancia (ej: '12 km')",
-                    "time": "Tiempo estimado (ej: '65 min')"
-                  },
-                  "summary": "Objetivo de la sesión y zonas de trabajo (ej: 'Rodaje aeróbico Zona 2, fortalecer base')",
-                  "structured_workout": [
-                    { 
-                        "phase": "Calentamiento", 
-                        "duration_min": 10, 
-                        "intensity": 1, 
-                        "description": "Trote progresivo Zona 1-2" 
-                    },
-                    { 
-                        "phase": "Bloque Principal", 
-                        "duration_min": 20, 
-                        "intensity": 4, 
-                        "description": "4x5min Zona 4 (ritmo 5K) con 3min trote recuperación" 
-                    },
-                    { 
-                        "phase": "Enfriamiento", 
-                        "duration_min": 10, 
-                        "intensity": 1, 
-                        "description": "Trote suave + estiramientos" 
-                    }
-                  ]
-                }
-              ] 
-              
-              GENERA EXACTAMENTE ${daysCount} SESIONES para los días ${daysStr}. Los días NO seleccionados NO deben aparecer o márcados como Descanso.
-              
-              CRITICAL: Respeta distribución 80/20. No sobreentrenes. Prioriza calidad sobre cantidad. Periodiza correctamente según tiempo hasta objetivo.
-            }
-          `;
+            GENERA EXACTAMENTE ${daysCount} SESIONES para los días ${daysStr}. Los días NO seleccionados NO deben aparecer.
+            CRITICAL: Respeta distribución 80/20. No sobreentrenes. Prioriza calidad sobre cantidad.
+            `;
 
-            let jsonString = '';
+            const { object } = await generateObject({
+                model: model,
+                schema: PlanSchema,
+                prompt: prompt,
+                temperature: 0.7,
+            });
 
-            // --- GROQ EXECUTION ---
-            if (provider === 'groq') {
-                const groq = new Groq({ apiKey: activeKey, dangerouslyAllowBrowser: true });
-                const completion = await groq.chat.completions.create({
-                    messages: [
-                        { role: "system", content: "Eres un API que devuelve solo JSON." },
-                        { role: "user", content: prompt }
-                    ],
-                    model: selectedModel,
-                    temperature: 0.7,
-                    max_tokens: 2048,
-                    response_format: { type: "json_object" } // Force JSON mode for models that support it
-                });
-                jsonString = completion.choices[0]?.message?.content || '';
-            }
-            // --- GEMINI EXECUTION ---
-            else {
-                // Models supported for content generation
-                const availableModels = [
-                    "gemini-2.0-flash",
-                    "gemini-2.0-flash-lite-preview-02-05",
-                    "gemini-2.0-flash-lite",
-                    "gemini-2.0-flash-exp",
-                    "gemini-2.0-pro-exp-02-05",
-                    "gemini-2.5-flash",
-                    "gemini-2.5-pro",
-                    "gemini-1.5-flash",
-                    "gemini-1.5-pro"
-                ];
-
-                const modelsToTry = selectedModel ? [selectedModel] : availableModels;
-                let lastError = null;
-                let success = false;
-
-                for (const modelName of modelsToTry) {
-                    try {
-                        console.log(`Intentando con modelo: ${modelName}`);
-                        const genAI = new GoogleGenerativeAI(activeKey);
-                        const model = genAI.getGenerativeModel({ model: modelName });
-
-                        const result = await model.generateContent(prompt);
-                        const response = await result.response;
-                        jsonString = response.text();
-                        success = true;
-                        break;
-                    } catch (err) {
-                        console.warn(`Fallo con modelo ${modelName}:`, err);
-                        lastError = err;
-                    }
-                }
-
-                if (!success) throw lastError || new Error("Todos los modelos de Gemini fallaron.");
-            }
-
-            // --- COMMON PARSING ---
-            const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-            const planData = JSON.parse(cleanJson);
-
-            setPlan(planData);
+            setPlan(object);
             setLoading(false);
 
         } catch (err) {
@@ -411,6 +314,7 @@ const TrainingPlanner = ({ activities }) => {
 
             // Check what's actually available to give a helpful error
             let debugInfo = '';
+            // Only check manually for Google if we suspect key issues, though AI SDK handles errors well.
             if (provider === 'gemini') {
                 debugInfo = await checkAvailableModels(activeKey);
             }
@@ -427,6 +331,94 @@ const TrainingPlanner = ({ activities }) => {
             setError(errorMessage);
             setLoading(false);
         }
+    };
+
+    const exportToPDF = (plan) => {
+        const doc = new jsPDF();
+
+        // Colors
+        const primaryColor = [79, 70, 229]; // Indigo 600
+        const secondaryColor = [100, 116, 139]; // Slate 500
+
+        // Header
+        doc.setFillColor(...primaryColor);
+        doc.rect(0, 0, 210, 20, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Plan de Entrenamiento - Entrenador AI', 15, 13);
+
+        // Weekly Summary
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Estrategia Semanal', 15, 30);
+
+        // Ensure valid string before splitTextToSize to prevent errors
+        const summaryText = typeof plan.weekly_summary === 'string' ? plan.weekly_summary : 'Resumen no disponible.';
+        const analysisText = typeof plan.analysis === 'string' ? plan.analysis : 'Análisis no disponible.';
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...secondaryColor);
+        const splitSummary = doc.splitTextToSize(summaryText, 180);
+        doc.text(splitSummary, 15, 38);
+
+        let yPos = 38 + (splitSummary.length * 5) + 5;
+
+        // Analysis
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        const splitAnalysis = doc.splitTextToSize(analysisText, 180);
+        doc.text(splitAnalysis, 15, yPos);
+
+        yPos += (splitAnalysis.length * 5) + 10;
+
+        // Stats
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Resumen de Volumen', 15, yPos);
+        yPos += 7;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Distancia Total: ${plan.stats.total_dist_km} km`, 15, yPos);
+        doc.text(`Tiempo Total: ${Math.floor(plan.stats.total_time_min / 60)}h ${plan.stats.total_time_min % 60}m`, 80, yPos);
+        yPos += 10;
+
+        // Schedule Table
+        const tableData = plan.schedule.map(day => {
+            let details = day.summary;
+            if (day.structured_workout && day.structured_workout.length > 0) {
+                const steps = day.structured_workout.map(s => `• ${s.phase} (${s.duration_min}'): ${s.description}`).join('\n');
+                details += '\n\n' + steps;
+            }
+            return [
+                day.day,
+                day.type,
+                day.daily_stats ? `${day.daily_stats.dist}\n${day.daily_stats.time}` : '-',
+                details
+            ];
+        });
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Día', 'Tipo', 'Volumen', 'Detalle de la Sesión']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+            columnStyles: {
+                0: { cellWidth: 20, fontStyle: 'bold' },
+                1: { cellWidth: 25, fontStyle: 'bold' },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 'auto' }
+            },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        doc.save('plan-entrenamiento.pdf');
     };
 
     return (
@@ -461,8 +453,8 @@ const TrainingPlanner = ({ activities }) => {
                             <Select value={goalDist} onValueChange={setGoalDist} enableClear={false}>
                                 <SelectItem value="5k">5K</SelectItem>
                                 <SelectItem value="10k">10K</SelectItem>
-                                <SelectItem value="hm">Media Maratón</SelectItem>
-                                <SelectItem value="fm">Maratón</SelectItem>
+                                <SelectItem value="21k">Media Maratón</SelectItem>
+                                <SelectItem value="42k">Maratón</SelectItem>
                             </Select>
                         </div>
                         <div>
@@ -531,6 +523,10 @@ const TrainingPlanner = ({ activities }) => {
                                             <Text className="text-xs uppercase text-slate-400">Tiempo</Text>
                                             <Metric>{Math.floor(plan.stats.total_time_min / 60)}h {plan.stats.total_time_min % 60}m</Metric>
                                         </div>
+                                        <Divider />
+                                        <Button size="xs" variant="secondary" color="slate" onClick={() => exportToPDF(plan)} className="w-full">
+                                            📄 Exportar PDF
+                                        </Button>
                                     </div>
                                 </div>
                             )}
