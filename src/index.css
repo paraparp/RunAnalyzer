@@ -4,19 +4,17 @@
 
 :root {
   --bg-main: #f8fafc;
-  /* Slate-50 */
   --bg-card: #ffffff;
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --accent-primary: #6366f1;
-  /* Indigo-500 */
   --accent-secondary: #0ea5e9;
-  /* Sky-500 */
   --border-light: 1px solid #e2e8f0;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --font-main: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --sidebar-width: 260px;
 }
 
 body {
@@ -26,87 +24,59 @@ body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1.5rem;
+  min-height: 100vh;
 }
 
 /* Animations */
 .fade-in {
-  animation: fadeIn 0.4s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Legacy Styles for Login/Auth (Pending Migration) */
-.login-card,
-.strava-connect-card {
-  background: var(--bg-card);
-  border: var(--border-light);
-  padding: 3rem;
-  border-radius: 1rem;
-  box-shadow: var(--shadow-md);
-  text-align: center;
-  max-width: 400px;
-  margin: 4rem auto;
-}
-
-.login-header h1 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.strava-connect-card {
-  background: #ff4400;
-  color: white;
-  border: none;
-}
-
-.strava-connect-card h3,
-.strava-connect-card p {
-  color: white;
-}
-
-.strava-connect-btn {
-  background: white;
-  color: #ff4400;
-  font-weight: bold;
-  padding: 0.75rem 2rem;
-  border-radius: 9999px;
-  display: inline-block;
-  margin-top: 1rem;
-  cursor: pointer;
-}
-
-/* Mobile Toggle Helper */
-.menu-toggle {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .menu-toggle {
-    display: block;
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
   }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.sidebar-enter {
+  animation: slideInLeft 0.25s ease-out forwards;
+}
+
+.sidebar-exit {
+  animation: slideOutLeft 0.2s ease-in forwards;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -115,22 +85,20 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Custom Animations for Landing Page */
+/* Landing Page Animations */
 @keyframes pulse-slow {
-
   0%,
   100% {
     opacity: 0.4;
     transform: scale(1);
   }
-
   50% {
     opacity: 0.7;
     transform: scale(1.1);
@@ -142,12 +110,10 @@ body {
 }
 
 @keyframes gradient-x {
-
   0%,
   100% {
     background-position: 0% 50%;
   }
-
   50% {
     background-position: 100% 50%;
   }
@@ -160,4 +126,28 @@ body {
 
 .perspective-1000 {
   perspective: 1000px;
+}
+
+/* Tremor overrides for cleaner look */
+.tremor-TableRow-row:hover {
+  background-color: #f8fafc !important;
+}
+
+.tremor-TableHeaderCell-tableHeaderCell {
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #64748b !important;
+}
+
+/* Tabular numbers for data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Overlay for mobile sidebar */
+.sidebar-overlay {
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
 }

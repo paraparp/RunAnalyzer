@@ -17,12 +17,18 @@ const StravaCallback = ({ onConnect }) => {
             }
 
             try {
+                setStatus('Validando credenciales...');
                 const tokenData = await exchangeToken(code);
-                // Execute parallel fetches for stats and activities
-                const [stats, activities] = await Promise.all([
-                    getAthleteStats(tokenData.access_token, tokenData.athlete.id),
-                    getActivities(tokenData.access_token, 1000)
-                ]);
+
+                setStatus('Obteniendo estadísticas del atleta...');
+                const stats = await getAthleteStats(tokenData.access_token, tokenData.athlete.id);
+
+                setStatus('Descargando actividades (0/1000)...');
+                const activities = await getActivities(tokenData.access_token, 1000, (current, total) => {
+                    setStatus(`Descargando actividades (${current}/${total})...`);
+                });
+
+                setStatus('Guardando datos...');
 
                 onConnect({
                     athlete: tokenData.athlete,
@@ -36,7 +42,7 @@ const StravaCallback = ({ onConnect }) => {
                 navigate('/'); // Go back to dashboard
             } catch (error) {
                 console.error(error);
-                setStatus('Error al conectar con Strava. Revisa tu Client ID/Secret.');
+                setStatus(`Error al conectar con Strava: ${error.message}`);
             }
         };
 

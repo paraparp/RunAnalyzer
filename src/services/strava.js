@@ -82,7 +82,25 @@ export const getAthleteProfile = async (accessToken) => {
     return response.json();
 };
 
-export const getActivities = async (accessToken, count = 10) => {
+export const getActivity = async (accessToken, activityId) => {
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch activity details: ' + response.status);
+    }
+    const data = await response.json();
+    console.log(`Fetched details for activity ${activityId}:`, data);
+    if (!data.splits_metric) {
+        console.warn('No splits_metric found in response', data);
+    }
+    return data;
+};
+
+export const getActivities = async (accessToken, count = 10, onProgress) => {
     let allActivities = [];
     let page = 1;
     const perPage = 200; // Strava max per_page
@@ -95,7 +113,7 @@ export const getActivities = async (accessToken, count = 10) => {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch activities');
+            throw new Error('Failed to fetch activities: ' + response.status);
         }
 
         const activities = await response.json();
@@ -105,6 +123,9 @@ export const getActivities = async (accessToken, count = 10) => {
         }
 
         allActivities = [...allActivities, ...activities];
+        if (onProgress) {
+            onProgress(Math.min(allActivities.length, count), count);
+        }
         page++;
     }
 
