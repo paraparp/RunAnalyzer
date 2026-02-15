@@ -13,7 +13,7 @@ import DataExporter from './components/DataExporter';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
-import { getActivities, getStravaAuthUrl } from './services/strava';
+import { getActivities, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Card, Grid, Metric, Text, Flex, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, Title, Button, TabGroup, TabList, Tab, TabPanels, TabPanel } from "@tremor/react";
 
 const Dashboard = ({ user, handleLogout }) => {
@@ -34,19 +34,71 @@ const Dashboard = ({ user, handleLogout }) => {
       const parsed = JSON.parse(savedStrava);
       setStravaData(parsed);
 
-      // Update data in background to ensure we have up to 1000 activities
-      if (parsed.accessToken) {
-        getActivities(parsed.accessToken, 1000).then(activities => {
-          const updated = { ...parsed, activities };
-          // Only update if data changed (naive check by length or id for performance, but straightforward set is simpler for now)
-          if (JSON.stringify(updated.activities) !== JSON.stringify(parsed.activities)) {
+      const checkAndRefreshData = async () => {
+        try {
+          const now = Date.now() / 1000;
+          let accessToken = parsed.accessToken;
+          let needsRefresh = false;
+
+          // Check token expiration if expiresAt is available
+          if (parsed.expiresAt && now >= parsed.expiresAt) {
+            console.log("Token expired, attempting to refresh...");
+            if (parsed.refreshToken) {
+              const newTokens = await refreshAccessToken(parsed.refreshToken);
+              // Update tokens in memory and storage
+              parsed.accessToken = newTokens.access_token;
+              parsed.refreshToken = newTokens.refresh_token;
+              parsed.expiresAt = newTokens.expires_at;
+              accessToken = newTokens.access_token;
+
+              // Helper to save partial updates
+              const updatedTokens = {
+                ...parsed,
+                accessToken: newTokens.access_token,
+                refreshToken: newTokens.refresh_token,
+                expiresAt: newTokens.expires_at
+              };
+              setStravaData(updatedTokens);
+              localStorage.setItem('stravaData', JSON.stringify(updatedTokens));
+
+              needsRefresh = true;
+            } else {
+              console.warn("Token expired but no refresh token available. Please reconnect.");
+            }
+          }
+
+          // Check if data is from a previous day
+          const lastFetchDate = parsed.lastFetchDate;
+          const today = new Date().toDateString();
+
+          // Fetch if checking freshly (no last date) or if date changed or if we just refreshed token
+          if (!lastFetchDate || lastFetchDate !== today || needsRefresh) {
+            console.log("Data is stale or token refreshed. Updating Strava data...");
+            // We use the (potentially new) accessToken
+            const activities = await getActivities(accessToken, 1000);
+
+            const updated = {
+              ...parsed,
+              activities,
+              lastFetchDate: today
+            };
+
             setStravaData(updated);
             localStorage.setItem('stravaData', JSON.stringify(updated));
+            console.log("Data updated successfully.");
+          } else {
+            console.log("Data is up to date (fetched today).");
           }
-        }).catch(err => {
-          console.error("Failed to refresh activities", err);
-        });
-      }
+        } catch (err) {
+          console.error("Failed to refresh Strava data:", err);
+          if (err.message.includes('refresh') || err.message.includes('401')) {
+            // Optionally handle logout or prompt to reconnect
+            console.log("Please reconnect to Strava");
+          }
+        }
+      };
+
+      checkAndRefreshData();
     }
   }, []);
 
@@ -117,9 +169,20 @@ const Dashboard = ({ user, handleLogout }) => {
           aValue = a.moving_time;
           bValue = b.moving_time;
           break;
+        case 'real_pace':
+          // Sort by elapsed pace (min/km)
+          const aDist = a.distance / 1000;
+          const bDist = b.distance / 1000;
+          aValue = aDist > 0 ? (a.elapsed_time / 60) / aDist : 0;
+          bValue = bDist > 0 ? (b.elapsed_time / 60) / bDist : 0;
+          break;
         case 'elevation':
           aValue = a.total_elevation_gain;
           bValue = b.total_elevation_gain;
+          break;
+        case 'heartrate':
+          aValue = a.average_heartrate || 0;
+          bValue = b.average_heartrate || 0;
           break;
         case 'pace':
           aValue = a.average_speed;
@@ -340,80 +403,92 @@ const Dashboard = ({ user, handleLogout }) => {
                           className="max-w-xs"
                         />
                       </div>
-                      <Table className="mt-4">
-                        <TableHead>
-                          <TableRow>
-                            <TableHeaderCell onClick={() => handleSort('date')} className="cursor-pointer hover:text-indigo-600 transition-colors">
-                              Fecha {getSortIcon('date')}
-                            </TableHeaderCell>
-                            <TableHeaderCell>Nombre</TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('distance')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
-                              Dist (km) {getSortIcon('distance')}
-                            </TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('time')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
-                              Tiempo (min) {getSortIcon('time')}
-                            </TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
-                              Ritmo (/km) {getSortIcon('pace')}
-                            </TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('gap')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors" title="Grade Adjusted Pace">
-                              GAP ⚡ {getSortIcon('gap')}
-                            </TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('elevation')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
-                              Desnivel (m) {getSortIcon('elevation')}
-                            </TableHeaderCell>
-                            <TableHeaderCell onClick={() => handleSort('gradient')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors">
-                              Pendiente (%) {getSortIcon('gradient')}
-                            </TableHeaderCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {sortedActivities.map(activity => {
-                            const distKm = activity.distance / 1000;
-                            const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
-                            const rawPaceMinKm = (activity.moving_time / 60) / distKm;
-                            const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
-                            const gapAdjustment = gapAdjustmentSeconds / 60;
-                            const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
-                            const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
+                      <div className="overflow-x-auto">
+                        <Table className="mt-4">
+                          <TableHead>
+                            <TableRow>
+                              <TableHeaderCell onClick={() => handleSort('date')} className="cursor-pointer hover:text-indigo-600 transition-colors px-2">
+                                Fecha {getSortIcon('date')}
+                              </TableHeaderCell>
+                              <TableHeaderCell className="px-2">Nombre</TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('distance')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                Dist {getSortIcon('distance')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('time')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                Tiempo {getSortIcon('time')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('real_pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                R. Real {getSortIcon('real_pace')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                Ritmo {getSortIcon('pace')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('gap')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2" title="Grade Adjusted Pace">
+                                GAP ⚡ {getSortIcon('gap')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('heartrate')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                FC {getSortIcon('heartrate')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('elevation')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                Elev. {getSortIcon('elevation')}
+                              </TableHeaderCell>
+                              <TableHeaderCell onClick={() => handleSort('gradient')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2">
+                                % {getSortIcon('gradient')}
+                              </TableHeaderCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {sortedActivities.map(activity => {
+                              const distKm = activity.distance / 1000;
+                              const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
+                              const rawPaceMinKm = (activity.moving_time / 60) / distKm;
+                              const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
+                              const gapAdjustment = gapAdjustmentSeconds / 60;
+                              const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
+                              const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
 
-                            const formatPace = (paceMinKm) => {
-                              const minutes = Math.floor(paceMinKm);
-                              const seconds = Math.round((paceMinKm % 1) * 60);
-                              return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                            };
+                              const formatPace = (paceMinKm) => {
+                                const minutes = Math.floor(paceMinKm);
+                                const seconds = Math.round((paceMinKm % 1) * 60);
+                                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                              };
 
-                            return (
-                              <TableRow key={activity.id}>
-                                <TableCell>
-                                  <Text>{new Date(activity.start_date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}</Text>
-                                </TableCell>
-                                <TableCell>
-                                  <Text className="truncate max-w-xs font-medium">
-                                    <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-indigo-600">
-                                      {activity.name}
-                                    </a>
-                                  </Text>
-                                </TableCell>
-                                <TableCell className="text-right"><Text>{(activity.distance / 1000).toFixed(2)}</Text></TableCell>
-                                <TableCell className="text-right"><Text>{Math.floor(activity.moving_time / 60)}</Text></TableCell>
-                                <TableCell className="text-right"><Text>{calculatePace(activity.average_speed)}</Text></TableCell>
-                                <TableCell className="text-right">
-                                  {hasSignificantAdjustment ? (
-                                    <Badge color="emerald" size="xs">{formatPace(adjustedPace)}</Badge>
-                                  ) : (
-                                    <Text>{formatPace(adjustedPace)}</Text>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right"><Text>{Math.round(activity.total_elevation_gain)}</Text></TableCell>
-                                <TableCell className="text-right">
-                                  <Text>{activity.distance > 0 ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1) : '0.0'}%</Text>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                              return (
+                                <TableRow key={activity.id}>
+                                  <TableCell>
+                                    <Text>{new Date(activity.start_date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}</Text>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Text className="truncate max-w-[160px] font-medium">
+                                      <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-indigo-600">
+                                        {activity.name}
+                                      </a>
+                                    </Text>
+                                  </TableCell>
+                                  <TableCell className="text-right"><Text>{(activity.distance / 1000).toFixed(2)}</Text></TableCell>
+                                  <TableCell className="text-right"><Text>{Math.floor(activity.moving_time / 60)}</Text></TableCell>
+                                  <TableCell className="text-right"><Text>{calculatePace(activity.distance / activity.elapsed_time)}</Text></TableCell>
+                                  <TableCell className="text-right"><Text>{calculatePace(activity.average_speed)}</Text></TableCell>
+                                  <TableCell className="text-right">
+                                    {hasSignificantAdjustment ? (
+                                      <Badge color="emerald" size="xs">{formatPace(adjustedPace)}</Badge>
+                                    ) : (
+                                      <Text>{formatPace(adjustedPace)}</Text>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Text>{activity.average_heartrate ? Math.round(activity.average_heartrate) : '-'}</Text>
+                                  </TableCell>
+                                  <TableCell className="text-right"><Text>{Math.round(activity.total_elevation_gain)}</Text></TableCell>
+                                  <TableCell className="text-right">
+                                    <Text>{activity.distance > 0 ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1) : '0.0'}%</Text>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </CollapsibleSection>
                   </div>
                 )}
@@ -480,7 +555,8 @@ function App() {
 
   const handleStravaConnected = (data) => {
     // Save data and redirect
-    localStorage.setItem('stravaData', JSON.stringify(data));
+    const dataWithDate = { ...data, lastFetchDate: new Date().toDateString() };
+    localStorage.setItem('stravaData', JSON.stringify(dataWithDate));
     // We can't easily update Dashboard state from here without Context or moving state up
     // But since we navigate to '/', and Dashboard reads from localStorage on mount, it might work if we force re-render or if Dashboard is mounted newly.
     navigate('/');

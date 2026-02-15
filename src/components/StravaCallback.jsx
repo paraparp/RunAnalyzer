@@ -27,6 +27,8 @@ const StravaCallback = ({ onConnect }) => {
                 onConnect({
                     athlete: tokenData.athlete,
                     accessToken: tokenData.access_token,
+                    refreshToken: tokenData.refresh_token,
+                    expiresAt: tokenData.expires_at,
                     stats: stats,
                     activities: activities
                 });

@@ -38,6 +38,26 @@ export const exchangeToken = async (code) => {
     return response.json();
 };
 
+export const refreshAccessToken = async (refreshToken) => {
+    const response = await fetch(STRAVA_CONFIG.tokenUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            client_id: STRAVA_CONFIG.clientId,
+            client_secret: STRAVA_CONFIG.clientSecret,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to refresh token');
+    }
+    return response.json();
+};
+
 export const getAthleteStats = async (accessToken, athleteId) => {
     const response = await fetch(`https://www.strava.com/api/v3/athletes/${athleteId}/stats`, {
         headers: {
