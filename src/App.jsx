@@ -14,6 +14,7 @@ import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
+import HRAnalysis from './components/HRAnalysis';
 import { getActivities, getActivity, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
@@ -39,6 +40,7 @@ import {
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: Squares2X2Icon },
+  { id: 'hranalysis', label: 'Análisis FC', icon: HeartIcon },
   { id: 'planner', label: 'Entrenador AI', icon: SparklesIcon },
   { id: 'predictor', label: 'Predictor AI', icon: ArrowTrendingUpIcon },
   { id: 'qa', label: 'Preguntas AI', icon: ChatBubbleLeftRightIcon },
@@ -53,7 +55,7 @@ const Dashboard = ({ user, handleLogout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedChartIndex, setSelectedChartIndex] = useState(0);
-  const chartMetrics = ['distance', 'time', 'elevation'];
+  const chartMetrics = ['distance', 'time', 'elevation', 'load'];
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   const handleFetchDetails = async (activityId) => {
@@ -65,11 +67,13 @@ const Dashboard = ({ user, handleLogout }) => {
     try {
       const accessToken = stravaData.accessToken;
       const detailedActivity = await getActivity(accessToken, activityId);
-      const updatedActivities = [...stravaData.activities];
-      updatedActivities[activityIndex] = detailedActivity;
-      const updatedData = { ...stravaData, activities: updatedActivities };
-      setStravaData(updatedData);
-      localStorage.setItem('stravaData', JSON.stringify(updatedData));
+      setStravaData(prev => {
+        const updatedActivities = [...prev.activities];
+        updatedActivities[activityIndex] = detailedActivity;
+        const updatedData = { ...prev, activities: updatedActivities };
+        localStorage.setItem('stravaData', JSON.stringify(updatedData));
+        return updatedData;
+      });
     } catch (err) {
       console.error("Failed to fetch activity details", err);
     }
@@ -511,6 +515,7 @@ const Dashboard = ({ user, handleLogout }) => {
                           <Tab>Distancia</Tab>
                           <Tab>Tiempo</Tab>
                           <Tab>Desnivel</Tab>
+                          <Tab>Carga</Tab>
                         </TabList>
                         <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} />
                       </TabGroup>
@@ -668,6 +673,15 @@ const Dashboard = ({ user, handleLogout }) => {
                     </CollapsibleSection>
                   </div>
                 )}
+              </div>
+            )}
+
+            {currentView === 'hranalysis' && (
+              <div className="fade-in">
+                <HRAnalysis
+                  activities={runningActivities}
+                  onEnrichActivity={handleFetchDetails}
+                />
               </div>
             )}
 

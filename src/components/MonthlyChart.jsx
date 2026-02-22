@@ -17,13 +17,15 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance' }) => {
                     distance: 0,
                     time: 0,
                     elevation: 0,
+                    load: 0,
                     count: 0
                 };
             }
 
-            acc[monthKey].distance += activity.distance;
-            acc[monthKey].time += activity.moving_time;
-            acc[monthKey].elevation += activity.total_elevation_gain;
+            acc[monthKey].distance += activity.distance || 0;
+            acc[monthKey].time += activity.moving_time || 0;
+            acc[monthKey].elevation += activity.total_elevation_gain || 0;
+            acc[monthKey].load += activity.suffer_score || 0;
             acc[monthKey].count += 1;
             return acc;
         }, {});
@@ -37,6 +39,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance' }) => {
             distance: Math.round(item.distance / 1000),
             time: Number((item.time / 3600).toFixed(1)), // Hours with 1 decimal
             elevation: Math.round(item.elevation),
+            load: Math.round(item.load),
             count: item.count
         }));
     }, [activities]);
@@ -44,7 +47,8 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance' }) => {
     const metricsConfig = {
         distance: { label: "Distancia", color: "indigo", unit: "km" },
         time: { label: "Tiempo", color: "cyan", unit: "h" },
-        elevation: { label: "Desnivel", color: "emerald", unit: "m" }
+        elevation: { label: "Desnivel", color: "emerald", unit: "m" },
+        load: { label: "Carga", color: "rose", unit: "" }
     };
 
     const currentMetric = metricsConfig[selectedMetric] || metricsConfig.distance;
