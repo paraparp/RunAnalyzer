@@ -15,6 +15,13 @@ import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
 import HRAnalysis from './components/HRAnalysis';
+import FitnessFatigue from './components/FitnessFatigue';
+import TechniqueAnalysis from './components/TechniqueAnalysis';
+import GlobalHeatmap from './components/GlobalHeatmap';
+import TrainingZones from './components/TrainingZones';
+import ConsistencyHeatmap from './components/ConsistencyHeatmap';
+import VDOTEstimator from './components/VDOTEstimator';
+import GearTracker from './components/GearTracker';
 import { getActivities, getActivity, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
@@ -37,15 +44,35 @@ import {
   MapPinIcon,
   ChartBarIcon,
   HeartIcon,
+  ChartPieIcon,
+  MapIcon,
+  SignalIcon,
+  CalendarDaysIcon,
+  BeakerIcon,
+  StarIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: Squares2X2Icon },
   { id: 'hranalysis', label: 'Análisis FC', icon: HeartIcon },
+  { id: 'fitness', label: 'Fitness & Fatiga', icon: ChartPieIcon },
+  { id: 'technique', label: 'Técnica', icon: FireIcon },
+  { id: 'zones', label: 'Zonas FC', icon: SignalIcon },
+  { id: 'heatmap', label: 'Heatmap Global', icon: MapIcon },
+  { id: 'consistency', label: 'Consistencia', icon: CalendarDaysIcon },
+  { id: 'vdot', label: 'VDOT', icon: BeakerIcon },
+  { id: 'gear', label: 'Zapatillas', icon: StarIcon },
   { id: 'planner', label: 'Entrenador AI', icon: SparklesIcon },
   { id: 'predictor', label: 'Predictor AI', icon: ArrowTrendingUpIcon },
   { id: 'qa', label: 'Preguntas AI', icon: ChatBubbleLeftRightIcon },
   { id: 'export', label: 'Exportar', icon: ArrowDownTrayIcon },
+];
+
+const NAV_CATEGORIES = [
+  { title: '📊 Analítica', itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
+  { title: '🗺️ Mapas', itemIds: ['heatmap'] },
+  { title: '✨ Herramientas AI', itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
+  { title: '⚙️ Sistema', itemIds: ['export'] }
 ];
 
 const Dashboard = ({ user, handleLogout }) => {
@@ -374,29 +401,37 @@ const Dashboard = ({ user, handleLogout }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
-        <p className="px-3 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Menu</p>
-        {NAV_ITEMS.map(item => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => { setCurrentView(item.id); setMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 group
-                ${isActive
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-            >
-              <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-              {item.label}
-              {item.id !== 'dashboard' && item.id !== 'export' && (
-                <span className={`ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>AI</span>
-              )}
-            </button>
-          );
-        })}
+      <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto mt-1 custom-scrollbar">
+        {NAV_CATEGORIES.map(category => (
+          <div key={category.title}>
+            <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category.title}</p>
+            <div className="space-y-0.5">
+              {category.itemIds.map(id => {
+                const item = NAV_ITEMS.find(i => i.id === id);
+                if (!item) return null;
+                const Icon = item.icon;
+                const isActive = currentView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setCurrentView(item.id); setMobileMenuOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 group
+                      ${isActive
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                  >
+                    <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    {item.label}
+                    {['planner', 'predictor', 'qa'].includes(item.id) && (
+                      <span className={`ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>AI</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* User section */}
@@ -954,6 +989,48 @@ const Dashboard = ({ user, handleLogout }) => {
                   activities={runningActivities}
                   onEnrichActivity={handleFetchDetails}
                 />
+              </div>
+            )}
+
+            {currentView === 'fitness' && (
+              <div className="fade-in">
+                <FitnessFatigue activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'technique' && (
+              <div className="fade-in">
+                <TechniqueAnalysis activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'zones' && (
+              <div className="fade-in">
+                <TrainingZones activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'heatmap' && (
+              <div className="fade-in">
+                <GlobalHeatmap activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'consistency' && (
+              <div className="fade-in">
+                <ConsistencyHeatmap activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'vdot' && (
+              <div className="fade-in">
+                <VDOTEstimator activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'gear' && (
+              <div className="fade-in">
+                <GearTracker activities={runningActivities} />
               </div>
             )}
 
