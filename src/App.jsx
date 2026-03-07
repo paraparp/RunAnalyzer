@@ -18,6 +18,7 @@ import HRAnalysis from './components/HRAnalysis';
 import { getActivities, getActivity, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
+  AdjustmentsHorizontalIcon,
   ArrowPathIcon,
   ChevronRightIcon,
   ChevronDownIcon,
@@ -53,8 +54,13 @@ const Dashboard = ({ user, handleLogout }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [distanceRange, setDistanceRange] = useState({ min: '', max: '' });
+  const [elevationRange, setElevationRange] = useState({ min: '', max: '' });
+  const [paceRange, setPaceRange] = useState({ min: '', max: '' });
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedChartIndex, setSelectedChartIndex] = useState(0);
+  const [chartGroupBy, setChartGroupBy] = useState('month');
   const chartMetrics = ['distance', 'time', 'elevation', 'load'];
   const [expandedRows, setExpandedRows] = useState(new Set());
 
@@ -236,8 +242,72 @@ const Dashboard = ({ user, handleLogout }) => {
     setSortConfig({ key, direction });
   };
 
+  // Compute min/max bounds for distance and elevation range filters
+  const distanceBounds = useMemo(() => {
+    if (!filteredActivities.length) return { min: 0, max: 100 };
+    const dists = filteredActivities.map(a => a.distance / 1000);
+    return { min: Math.floor(Math.min(...dists)), max: Math.ceil(Math.max(...dists)) };
+  }, [filteredActivities]);
+
+  const elevationBounds = useMemo(() => {
+    if (!filteredActivities.length) return { min: 0, max: 1000 };
+    const elevs = filteredActivities.map(a => a.total_elevation_gain || 0);
+    return { min: Math.floor(Math.min(...elevs)), max: Math.ceil(Math.max(...elevs)) };
+  }, [filteredActivities]);
+
+  // Pace bounds in min/km (lower = faster)
+  const paceBounds = useMemo(() => {
+    if (!filteredActivities.length) return { min: '3:00', max: '10:00' };
+    const paces = filteredActivities
+      .filter(a => a.average_speed > 0)
+      .map(a => 16.6667 / a.average_speed); // min/km
+    if (!paces.length) return { min: '3:00', max: '10:00' };
+    const minPace = Math.min(...paces);
+    const maxPace = Math.max(...paces);
+    const formatP = (p) => `${Math.floor(p)}:${Math.floor((p % 1) * 60).toString().padStart(2, '0')}`;
+    return { min: formatP(minPace), max: formatP(maxPace) };
+  }, [filteredActivities]);
+
+  // Helper: parse "M:SS" pace string to decimal minutes
+  const parsePaceToMinutes = (paceStr) => {
+    if (!paceStr || paceStr === '') return null;
+    if (paceStr.includes(':')) {
+      const [m, s] = paceStr.split(':').map(Number);
+      return m + (s || 0) / 60;
+    }
+    return parseFloat(paceStr);
+  };
+
+  const activeFilterCount = [distanceRange.min, distanceRange.max, elevationRange.min, elevationRange.max, paceRange.min, paceRange.max].filter(v => v !== '').length;
+
+  const clearFilters = () => {
+    setDistanceRange({ min: '', max: '' });
+    setElevationRange({ min: '', max: '' });
+    setPaceRange({ min: '', max: '' });
+  };
+
   const sortedActivities = [...filteredActivities]
-    .filter(activity => activity.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(activity => {
+      // Text search
+      if (searchQuery && !activity.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      // Distance range filter (in km)
+      const distKm = activity.distance / 1000;
+      if (distanceRange.min !== '' && distKm < parseFloat(distanceRange.min)) return false;
+      if (distanceRange.max !== '' && distKm > parseFloat(distanceRange.max)) return false;
+      // Elevation range filter (in m)
+      const elev = activity.total_elevation_gain || 0;
+      if (elevationRange.min !== '' && elev < parseFloat(elevationRange.min)) return false;
+      if (elevationRange.max !== '' && elev > parseFloat(elevationRange.max)) return false;
+      // Pace range filter (min/km) — note: higher pace value = slower
+      if (paceRange.min !== '' || paceRange.max !== '') {
+        const paceMinKm = activity.average_speed > 0 ? 16.6667 / activity.average_speed : Infinity;
+        const paceMinVal = parsePaceToMinutes(paceRange.min);
+        const paceMaxVal = parsePaceToMinutes(paceRange.max);
+        if (paceMinVal !== null && paceMinKm < paceMinVal) return false;
+        if (paceMaxVal !== null && paceMinKm > paceMaxVal) return false;
+      }
+      return true;
+    })
     .sort((a, b) => {
       let aValue, bValue;
       switch (sortConfig.key) {
@@ -404,28 +474,51 @@ const Dashboard = ({ user, handleLogout }) => {
           <div className="flex-1" />
 
           {currentView === 'dashboard' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={syncData}
                 disabled={isSyncing}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200
                   ${isSyncing
-                    ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300'
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm hover:shadow'
                   }`}
               >
                 <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                 {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
               </button>
 
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Ano</span>
-                <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-24 min-w-[90px] [&>button]:!border-0 [&>button]:!shadow-none [&>button]:!ring-0 [&>button]:!py-0 [&>button]:!px-1 [&>button]:!text-xs [&>button]:!font-semibold">
-                  <SelectItem value="All">Todos</SelectItem>
-                  {availableYears.map(year => (
-                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                  ))}
-                </Select>
+              <div className="hidden sm:flex items-center gap-1 p-1 rounded-lg bg-slate-100/80">
+                <button
+                  onClick={() => setSelectedYear('All')}
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
+                    ${selectedYear === 'All'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                  Todo
+                </button>
+                {availableYears.slice(0, 4).map(year => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(String(year))}
+                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
+                      ${selectedYear === String(year)
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+                {availableYears.length > 4 && (
+                  <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-16 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:!ring-0 [&>button]:!py-0.5 [&>button]:!px-1.5 [&>button]:!text-[11px] [&>button]:!font-semibold [&>button]:!bg-transparent [&>button]:!text-slate-500 [&>button]:!rounded-md hover:[&>button]:!text-slate-700">
+                    {availableYears.slice(4).map(year => (
+                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                    ))}
+                  </Select>
+                )}
               </div>
             </div>
           )}
@@ -510,30 +603,209 @@ const Dashboard = ({ user, handleLogout }) => {
                     </CollapsibleSection>
 
                     <CollapsibleSection title="Progreso Mensual">
-                      <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
-                        <TabList variant="solid" className="mb-4 w-fit">
-                          <Tab>Distancia</Tab>
-                          <Tab>Tiempo</Tab>
-                          <Tab>Desnivel</Tab>
-                          <Tab>Carga</Tab>
-                        </TabList>
-                        <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} />
-                      </TabGroup>
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
+                          <TabList variant="solid" className="w-fit">
+                            <Tab>Distancia</Tab>
+                            <Tab>Tiempo</Tab>
+                            <Tab>Desnivel</Tab>
+                            <Tab>Carga</Tab>
+                          </TabList>
+                        </TabGroup>
+                        <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80">
+                          <button
+                            onClick={() => setChartGroupBy('month')}
+                            className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
+                              ${chartGroupBy === 'month'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                              }`}
+                          >
+                            Mensual
+                          </button>
+                          <button
+                            onClick={() => setChartGroupBy('year')}
+                            className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
+                              ${chartGroupBy === 'year'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                              }`}
+                          >
+                            Anual
+                          </button>
+                        </div>
+                      </div>
+                      <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
                     </CollapsibleSection>
 
                     <CollapsibleSection title="Actividades">
-                      <div className="flex items-center justify-between gap-3 mb-4">
-                        <p className="text-xs text-slate-400 font-medium">{sortedActivities.length} carreras</p>
-                        <div className="relative max-w-[240px] w-full">
-                          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="Buscar..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder:text-slate-400"
-                          />
+                      <div className="space-y-3 mb-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-slate-400 font-medium">{sortedActivities.length} carreras</p>
+                            {activeFilterCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold">
+                                {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''} activo{activeFilterCount > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setShowFilters(!showFilters)}
+                              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200
+                                ${showFilters || activeFilterCount > 0
+                                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 hover:bg-indigo-700'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 hover:shadow-sm'
+                                }`}
+                            >
+                              <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+                              Filtros
+                            </button>
+                            <div className="relative max-w-[220px] w-full">
+                              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                              <input
+                                type="text"
+                                placeholder="Buscar..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder:text-slate-400"
+                              />
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Range Filters Panel */}
+                        {showFilters && (
+                          <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/50 shadow-sm overflow-hidden">
+                            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Filtros de rango</span>
+                              </div>
+                              {activeFilterCount > 0 && (
+                                <button
+                                  onClick={clearFilters}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                                >
+                                  <XMarkIcon className="w-3 h-3" />
+                                  Limpiar
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                              {/* Distance filter card */}
+                              <div className="p-4 space-y-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                                    <MapPinIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-700 leading-none">Distancia</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{distanceBounds.min} – {distanceBounds.max} km</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="number"
+                                      placeholder="Min"
+                                      value={distanceRange.min}
+                                      onChange={(e) => setDistanceRange(prev => ({ ...prev, min: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                      step="0.1"
+                                      min="0"
+                                    />
+                                  </div>
+                                  <div className="w-4 h-px bg-slate-300 shrink-0"></div>
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="number"
+                                      placeholder="Max"
+                                      value={distanceRange.max}
+                                      onChange={(e) => setDistanceRange(prev => ({ ...prev, max: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                      step="0.1"
+                                      min="0"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-medium text-slate-400 shrink-0">km</span>
+                                </div>
+                              </div>
+                              {/* Elevation filter card */}
+                              <div className="p-4 space-y-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center shrink-0">
+                                    <ArrowTrendingUpIcon className="w-3.5 h-3.5 text-rose-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-700 leading-none">Desnivel</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{elevationBounds.min} – {elevationBounds.max} m</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="number"
+                                      placeholder="Min"
+                                      value={elevationRange.min}
+                                      onChange={(e) => setElevationRange(prev => ({ ...prev, min: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                      step="1"
+                                      min="0"
+                                    />
+                                  </div>
+                                  <div className="w-4 h-px bg-slate-300 shrink-0"></div>
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="number"
+                                      placeholder="Max"
+                                      value={elevationRange.max}
+                                      onChange={(e) => setElevationRange(prev => ({ ...prev, max: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                      step="1"
+                                      min="0"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-medium text-slate-400 shrink-0">m</span>
+                                </div>
+                              </div>
+                              {/* Pace filter card */}
+                              <div className="p-4 space-y-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                                    <BoltIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-700 leading-none">Ritmo</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{paceBounds.min} – {paceBounds.max} /km</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="text"
+                                      placeholder={paceBounds.min}
+                                      value={paceRange.min}
+                                      onChange={(e) => setPaceRange(prev => ({ ...prev, min: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                    />
+                                  </div>
+                                  <div className="w-4 h-px bg-slate-300 shrink-0"></div>
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="text"
+                                      placeholder={paceBounds.max}
+                                      value={paceRange.max}
+                                      onChange={(e) => setPaceRange(prev => ({ ...prev, max: e.target.value }))}
+                                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 focus:bg-white transition-all placeholder:text-slate-400 tabular-nums"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-medium text-slate-400 shrink-0">/km</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="overflow-x-auto -mx-6 px-6">
                         <Table>

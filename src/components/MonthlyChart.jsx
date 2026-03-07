@@ -1,11 +1,48 @@
 import React, { useMemo } from 'react';
 import { BarChart } from '@tremor/react';
 
-const MonthlyChart = ({ activities, selectedMetric = 'distance' }) => {
+const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'month' }) => {
     const chartData = useMemo(() => {
         if (!activities || activities.length === 0) return [];
 
-        // 1. Group by Month (YYYY-MM)
+        if (groupBy === 'year') {
+            // Group by Year
+            const grouped = activities.reduce((acc, activity) => {
+                const date = new Date(activity.start_date);
+                const yearKey = `${date.getFullYear()}`;
+
+                if (!acc[yearKey]) {
+                    acc[yearKey] = {
+                        year: date.getFullYear(),
+                        distance: 0,
+                        time: 0,
+                        elevation: 0,
+                        load: 0,
+                        count: 0
+                    };
+                }
+
+                acc[yearKey].distance += activity.distance || 0;
+                acc[yearKey].time += activity.moving_time || 0;
+                acc[yearKey].elevation += activity.total_elevation_gain || 0;
+                acc[yearKey].load += activity.suffer_score || 0;
+                acc[yearKey].count += 1;
+                return acc;
+            }, {});
+
+            return Object.values(grouped)
+                .sort((a, b) => a.year - b.year)
+                .map(item => ({
+                    name: String(item.year),
+                    distance: Math.round(item.distance / 1000),
+                    time: Number((item.time / 3600).toFixed(1)),
+                    elevation: Math.round(item.elevation),
+                    load: Math.round(item.load),
+                    count: item.count
+                }));
+        }
+
+        // Group by Month (YYYY-MM)
         const grouped = activities.reduce((acc, activity) => {
             const date = new Date(activity.start_date);
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -30,19 +67,19 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance' }) => {
             return acc;
         }, {});
 
-        // 2. Convert to array and sort chronologically
+        // Convert to array and sort chronologically
         const sortedData = Object.values(grouped).sort((a, b) => a.date - b.date);
 
-        // 3. Take last 12 months
+        // Take last 12 months
         return sortedData.slice(-12).map(item => ({
             name: item.monthLabel,
             distance: Math.round(item.distance / 1000),
-            time: Number((item.time / 3600).toFixed(1)), // Hours with 1 decimal
+            time: Number((item.time / 3600).toFixed(1)),
             elevation: Math.round(item.elevation),
             load: Math.round(item.load),
             count: item.count
         }));
-    }, [activities]);
+    }, [activities, groupBy]);
 
     const metricsConfig = {
         distance: { label: "Distancia", color: "indigo", unit: "km" },

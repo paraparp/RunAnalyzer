@@ -140,6 +140,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
     const [hiddenMonths, setHiddenMonths] = useState(new Set());
     const [hiddenDriftRuns, setHiddenDriftRuns] = useState(new Set());
     const [driftView, setDriftView] = useState("hr"); // "hr" or "eff"
+    const [effMetric, setEffMetric] = useState("hre"); // "hre" or "ratio"
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState(0);
 
@@ -336,11 +337,15 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             });
 
         // Efficiency data: HR/speed ratio for flat runs (<2.5% gradient, GAP < 7:00/km)
+        // Two metrics:
+        //   ratio = FC / velocidad GAP (bpm/(m/s)) — lower = better (inverse of TrainingPeaks EF)
+        //   hre = FC × pace GAP (beats/km) — lower = better (Heart Rate Efficiency, per arXiv/ResearchGate)
         const efficiencyData = withHR
             .filter(r => r.elevPerKm < 25 && r.km >= 3.5 && r.gapMinKm > 0 && r.gapMinKm < 7)
             .map(r => ({
                 ...r,
                 ratio: r.avgHr / (r.gapSpeed || r.speedMs),
+                hre: r.avgHr * r.gapMinKm, // beats per km (FC × min/km)
                 efficiency: (r.gapSpeed || r.speedMs) / r.avgHr * 1000,
             }));
 
@@ -952,10 +957,36 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             {activeTab === "efficiency" && (
                 <div className="space-y-5">
                     <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                        <h3 className="text-sm font-bold text-slate-800 mb-0.5">Eficiencia Cardíaca (FC/Velocidad)</h3>
-                        <p className="text-[11px] text-slate-400 mb-4">
-                            Ratio FC/velocidad en carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km). Menor = más eficiente.
-                        </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 mb-0.5">Eficiencia Cardíaca</h3>
+                                <p className="text-[11px] text-slate-400">
+                                    Carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km). Menor = más eficiente.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80 shrink-0">
+                                <button
+                                    onClick={() => setEffMetric("hre")}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150
+                                        ${effMetric === "hre"
+                                            ? "bg-white text-slate-900 shadow-sm"
+                                            : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                >
+                                    HRE (lat/km)
+                                </button>
+                                <button
+                                    onClick={() => setEffMetric("ratio")}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150
+                                        ${effMetric === "ratio"
+                                            ? "bg-white text-slate-900 shadow-sm"
+                                            : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                >
+                                    Ratio (bpm/m·s⁻¹)
+                                </button>
+                            </div>
+                        </div>
                         {efficiencyData.length > 0 ? (
                             <>
                                 <ResponsiveContainer width="100%" height={280}>
@@ -969,7 +1000,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                         <YAxis
                                             domain={["auto", "auto"]}
                                             tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: "FC/Velocidad", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            label={{ value: effMetric === "hre" ? "Latidos/km" : "FC/Velocidad", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
                                         />
                                         <Tooltip content={({ active, payload }) => {
                                             if (active && payload?.[0]) {
@@ -980,6 +1011,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                                         <div className="text-slate-400">{d.dateFormatted} · {d.km.toFixed(1)}km</div>
                                                         <div className="text-rose-400">FC: {Math.round(d.avgHr)} bpm</div>
                                                         <div className="text-emerald-400">GAP: {d.gap}/km (real: {d.rawPace}/km)</div>
+                                                        <div className="text-cyan-400">HRE: {Math.round(d.hre)} lat/km</div>
                                                         <div className="text-violet-400">Ratio: {d.ratio.toFixed(1)} bpm/(m/s)</div>
                                                         <div className="text-amber-400">Elev: {Math.round(d.elev)}m D+</div>
                                                         <div className="text-indigo-400 text-[11px] mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
@@ -990,16 +1022,16 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                         }} />
                                         <Area
                                             type="monotone"
-                                            dataKey="ratio"
-                                            stroke="#8b5cf6"
-                                            fill="#8b5cf6"
+                                            dataKey={effMetric}
+                                            stroke={effMetric === "hre" ? "#0891b2" : "#8b5cf6"}
+                                            fill={effMetric === "hre" ? "#0891b2" : "#8b5cf6"}
                                             fillOpacity={0.08}
                                             strokeWidth={0}
                                         />
                                         <Line
                                             type="monotone"
-                                            dataKey="ratio"
-                                            stroke="#8b5cf6"
+                                            dataKey={effMetric}
+                                            stroke={effMetric === "hre" ? "#0891b2" : "#8b5cf6"}
                                             strokeWidth={2.5}
                                             activeDot={{ onClick: (e, payload) => openStrava(payload?.payload?.id), cursor: 'pointer' }}
                                             dot={(props) => {
@@ -1025,14 +1057,17 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                 {/* Efficiency summary cards */}
                                 <div className="grid grid-cols-3 gap-3 mt-4">
                                     {(() => {
-                                        const ratios = efficiencyData.map(e => e.ratio);
-                                        const bestRun = efficiencyData.reduce((best, r) => r.ratio < best.ratio ? r : best, efficiencyData[0]);
-                                        const worstRun = efficiencyData.reduce((worst, r) => r.ratio > worst.ratio ? r : worst, efficiencyData[0]);
-                                        const avgRatio = ratios.reduce((s, r) => s + r, 0) / ratios.length;
+                                        const key = effMetric;
+                                        const vals = efficiencyData.map(e => e[key]);
+                                        const bestRun = efficiencyData.reduce((best, r) => r[key] < best[key] ? r : best, efficiencyData[0]);
+                                        const worstRun = efficiencyData.reduce((worst, r) => r[key] > worst[key] ? r : worst, efficiencyData[0]);
+                                        const avg = vals.reduce((s, r) => s + r, 0) / vals.length;
+                                        const unit = key === "hre" ? "lat/km" : "bpm/(m/s)";
+                                        const fmt = (v) => key === "hre" ? Math.round(v) : v.toFixed(1);
                                         return [
-                                            { label: "Mejor Eficiencia", value: bestRun.ratio.toFixed(1), sub: bestRun.dateFormatted, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
-                                            { label: "Media", value: avgRatio.toFixed(1), sub: "bpm/(m/s)", color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200" },
-                                            { label: "Peor Eficiencia", value: worstRun.ratio.toFixed(1), sub: worstRun.dateFormatted, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" },
+                                            { label: "Mejor Eficiencia", value: fmt(bestRun[key]), sub: bestRun.dateFormatted, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
+                                            { label: "Media", value: fmt(avg), sub: unit, color: key === "hre" ? "text-cyan-600" : "text-violet-600", bg: key === "hre" ? "bg-cyan-50" : "bg-violet-50", border: key === "hre" ? "border-cyan-200" : "border-violet-200" },
+                                            { label: "Peor Eficiencia", value: fmt(worstRun[key]), sub: worstRun.dateFormatted, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" },
                                         ];
                                     })().map((card, i) => (
                                         <div key={i} className={`${card.bg} rounded-xl p-3.5 border ${card.border}`}>
@@ -1049,7 +1084,11 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                     </div>
 
                     <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 text-[13px] leading-relaxed text-slate-600">
-                        <strong className="text-violet-600">🧠 Cómo interpretar:</strong> El ratio FC/velocidad (bpm por m/s) te dice cuántos latidos "gastas" por unidad de velocidad. Un ratio decreciente indica que tu corazón es más eficiente (mejor forma). Si sube, puede indicar fatiga, calor, deshidratación o pérdida de forma.
+                        {effMetric === "hre" ? (
+                            <><strong className="text-cyan-600">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-[11px] bg-white/60 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
+                        ) : (
+                            <><strong className="text-violet-600">🧠 Ratio FC/Velocidad:</strong> El inverso del <em>Efficiency Factor</em> de TrainingPeaks (<code className="text-[11px] bg-white/60 px-1 rounded">FC / velocidad GAP</code>). Un ratio <strong>decreciente</strong> indica que tu corazón es más eficiente. Si sube, puede indicar fatiga, calor, deshidratación o pérdida de forma.</>
+                        )}
                     </div>
                 </div>
             )}
