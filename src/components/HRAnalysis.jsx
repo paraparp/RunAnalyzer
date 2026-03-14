@@ -349,6 +349,35 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 efficiency: (r.gapSpeed || r.speedMs) / r.avgHr * 1000,
             }));
 
+        // Pace at 150 BPM (before km 7, on flat terrain)
+        // Helps track aerobic fitness over long runs without cardiac drift
+        const pace150Data = withHR
+            .filter(r => r.km >= 6 && r.elevPerKm < 25 && r.splits && r.splits.length >= 6)
+            .map(r => {
+                const validSplits = r.splits.slice(0, 6).filter(s => s.average_speed > 0 && s.average_heartrate > 0);
+                if (validSplits.length === 0) return null;
+                
+                const avgSpeed = validSplits.reduce((acc, s) => acc + s.average_speed, 0) / validSplits.length;
+                const avgHr = validSplits.reduce((acc, s) => acc + s.average_heartrate, 0) / validSplits.length;
+                
+                // Estimate speed at 150 BPM linearly
+                const speed150 = avgSpeed * (150 / avgHr);
+                const paceMinKm = 1000 / (speed150 * 60);
+                
+                const mins = Math.floor(paceMinKm);
+                const secs = Math.round((paceMinKm - mins) * 60);
+                const pace150Str = `${mins}:${secs.toString().padStart(2, '0')}`;
+                
+                return {
+                    ...r,
+                    avgEarlyHr: avgHr,
+                    avgEarlySpeed: avgSpeed,
+                    pace150: paceMinKm,
+                    pace150Str
+                };
+            })
+            .filter(Boolean);
+
         // Stats
         const avgHrAll = withHR.reduce((s, r) => s + r.avgHr, 0) / withHR.length;
         const maxHrEver = Math.max(...withHR.map(r => r.maxHr));
@@ -393,6 +422,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             monthlyVolume,
             driftRuns,
             efficiencyData,
+            pace150Data,
             uniqueMonths,
             stats: { avgHrAll, maxHrEver, lowestAvgHr, highestAvgHr, medianHr },
             diagnosis: {
@@ -424,7 +454,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         { id: "diagnosis", label: "Diagnóstico" },
     ];
 
-    const { timeline, scatterData, monthlyVolume, driftRuns, efficiencyData, uniqueMonths, stats, diagnosis } = processedData;
+    const { timeline, scatterData, monthlyVolume, driftRuns, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
 
     return (
         <div className="space-y-5">
@@ -1088,6 +1118,86 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                             <><strong className="text-cyan-600">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-[11px] bg-white/60 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
                         ) : (
                             <><strong className="text-violet-600">🧠 Ratio FC/Velocidad:</strong> El inverso del <em>Efficiency Factor</em> de TrainingPeaks (<code className="text-[11px] bg-white/60 px-1 rounded">FC / velocidad GAP</code>). Un ratio <strong>decreciente</strong> indica que tu corazón es más eficiente. Si sube, puede indicar fatiga, calor, deshidratación o pérdida de forma.</>
+                        )}
+                    </div>
+
+                    {/* Pace at 150 BPM Chart */}
+                    <div className="bg-white rounded-xl border border-slate-200/80 p-5 mt-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 mb-0.5">Ritmo a 150 BPM (Fase Base)</h3>
+                                <p className="text-[11px] text-slate-400">
+                                    En tiradas llanas (&gt;6km). Muestra el rendimiento aeróbico sin deriva cardíaca (km 1-6). Menor tiempo = mejor forma.
+                                </p>
+                            </div>
+                        </div>
+                        {pace150Data && pace150Data.length > 0 ? (
+                            <>
+                                <ResponsiveContainer width="100%" height={280}>
+                                    <ComposedChart data={pace150Data}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+                                        <XAxis
+                                            dataKey="dateShort"
+                                            tick={{ fontSize: 10, fill: "#94a3b8" }}
+                                            interval={Math.max(0, Math.floor(pace150Data.length / 10))}
+                                        />
+                                        <YAxis
+                                            domain={["auto", "auto"]}
+                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                            tickFormatter={(val) => {
+                                                const m = Math.floor(val);
+                                                const s = Math.round((val - m) * 60);
+                                                return `${m}:${s.toString().padStart(2, '0')}`;
+                                            }}
+                                            reversed={true}
+                                            label={{ value: "Ritmo (min/km)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                        />
+                                        <Tooltip content={({ active, payload }) => {
+                                            if (active && payload?.[0]) {
+                                                const d = payload[0].payload;
+                                                return (
+                                                    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-[13px] shadow-xl">
+                                                        <div className="font-bold text-white">{d.name}</div>
+                                                        <div className="text-slate-400">{d.dateFormatted} · {d.km.toFixed(1)}km total</div>
+                                                        <div className="text-emerald-400 font-bold mt-1">Ritmo @ 150 bpm: {d.pace150Str}/km</div>
+                                                        <div className="text-rose-400">Datos reales (km 1-6): {Math.round(d.avgEarlyHr)} bpm @ {formatPaceFromSpeed(d.avgEarlySpeed)}/km</div>
+                                                        <div className="text-indigo-400 text-[11px] mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }} />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="pace150"
+                                            stroke="#10b981"
+                                            strokeWidth={2.5}
+                                            activeDot={{ onClick: (e, payload) => openStrava(payload?.payload?.id), cursor: 'pointer' }}
+                                            dot={(props) => {
+                                                const { cx, cy, payload } = props;
+                                                return (
+                                                    <circle
+                                                        key={payload.id}
+                                                        cx={cx}
+                                                        cy={cy}
+                                                        r={4}
+                                                        fill={payload.color || "#10b981"}
+                                                        stroke="white"
+                                                        strokeWidth={1.5}
+                                                        style={{ cursor: 'pointer' }}
+                                                        onClick={() => openStrava(payload.id)}
+                                                    />
+                                                );
+                                            }}
+                                        />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-4 text-[13px] leading-relaxed text-slate-600">
+                                    <strong className="text-emerald-600">📈 Ritmo a 150 BPM:</strong> Calcula a qué ritmo correrías a 150 pulsaciones exactamente, aislando la deriva cardíaca (fatiga) al medir solo los primeros 6 km. Una línea descendente significa que puedes correr más rápido con el mismo pulso.
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-sm text-slate-400 text-center py-8">No hay suficientes tiradas llanas con datos por parciales para calcular el ritmo a 150 BPM.</p>
                         )}
                     </div>
                 </div>

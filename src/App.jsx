@@ -22,6 +22,12 @@ import TrainingZones from './components/TrainingZones';
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import VDOTEstimator from './components/VDOTEstimator';
 import GearTracker from './components/GearTracker';
+import WeeklyProgression from './components/WeeklyProgression';
+import SplitAnalysis from './components/SplitAnalysis';
+import RaceDetector from './components/RaceDetector';
+import CardiacDecoupling from './components/CardiacDecoupling';
+import InjuryRisk from './components/InjuryRisk';
+import VO2MaxTracker from './components/VO2MaxTracker';
 import { getActivities, getActivity, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
@@ -50,6 +56,7 @@ import {
   CalendarDaysIcon,
   BeakerIcon,
   StarIcon,
+  ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -65,6 +72,12 @@ const NAV_ITEMS = [
   { id: 'planner', label: 'Entrenador AI', icon: SparklesIcon },
   { id: 'predictor', label: 'Predictor AI', icon: ArrowTrendingUpIcon },
   { id: 'qa', label: 'Preguntas AI', icon: ChatBubbleLeftRightIcon },
+  { id: 'weekly', label: 'Volumen Semanal', icon: ChartBarIcon },
+  { id: 'splits', label: 'Parciales', icon: BoltIcon },
+  { id: 'races', label: 'Carreras', icon: FireIcon },
+  { id: 'decoupling', label: 'Decoupling', icon: SignalIcon },
+  { id: 'injury', label: 'Riesgo Lesión', icon: ShieldExclamationIcon },
+  { id: 'vo2tracker', label: 'VO2max Tracker', icon: ArrowTrendingUpIcon },
   { id: 'export', label: 'Exportar', icon: ArrowDownTrayIcon },
 ];
 
@@ -72,6 +85,7 @@ const NAV_CATEGORIES = [
   { title: '📊 Analítica', itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
   { title: '🗺️ Mapas', itemIds: ['heatmap'] },
   { title: '✨ Herramientas AI', itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
+  { title: '🏃 Rendimiento', itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker'] },
   { title: '⚙️ Sistema', itemIds: ['export'] }
 ];
 
@@ -1049,6 +1063,42 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'qa' && (
               <div className="fade-in">
                 <RunQA activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'weekly' && (
+              <div className="fade-in">
+                <WeeklyProgression activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'splits' && (
+              <div className="fade-in">
+                <SplitAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />
+              </div>
+            )}
+
+            {currentView === 'races' && (
+              <div className="fade-in">
+                <RaceDetector activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'decoupling' && (
+              <div className="fade-in">
+                <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />
+              </div>
+            )}
+
+            {currentView === 'injury' && (
+              <div className="fade-in">
+                <InjuryRisk activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'vo2tracker' && (
+              <div className="fade-in">
+                <VO2MaxTracker activities={runningActivities} />
               </div>
             )}
 

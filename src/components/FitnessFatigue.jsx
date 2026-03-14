@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ComposedChart, Area, BarChart, Bar, Line, ScatterChart, Scatter, ZAxis, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, ReferenceLine, Brush
+  ResponsiveContainer, ReferenceLine, ReferenceArea, Brush
 } from 'recharts';
 
 const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -24,6 +24,7 @@ export default function FitnessFatigue({ activities }) {
     if (!activities || activities.length === 0) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     const dailySS = {};
+    const daily10kPace = {};
     let minDate = Infinity;
 
     activities.forEach(a => {
@@ -33,6 +34,16 @@ export default function FitnessFatigue({ activities }) {
 
       const ss = a.suffer_score || (a.moving_time / 60) * 0.5;
       dailySS[dateStr] = (dailySS[dateStr] || 0) + ss;
+
+      // Best 10k pace per day
+      if (a.distance >= 9500 && a.distance <= 10500 && a.average_speed > 0) {
+        const p = 16.6667 / a.average_speed;
+        if (p > 2.5 && p < 10) {
+          if (!daily10kPace[dateStr] || p < daily10kPace[dateStr].pace) {
+            daily10kPace[dateStr] = { pace: p, id: a.id, name: a.name };
+          }
+        }
+      }
     });
 
     if (minDate === Infinity) return { chartData: [], current: null, weeklyLoad: [], rampRate: null };
@@ -66,6 +77,8 @@ export default function FitnessFatigue({ activities }) {
       if (ctl > peakCTL) { peakCTL = ctl; peakCTLDate = dateStr; }
       if (tsb < lowestTSB) { lowestTSB = tsb; lowestTSBDate = dateStr; }
 
+      const best10k = daily10kPace[dateStr];
+
       data.push({
         date: dateStr,
         Fitness: Math.round(ctl * 10) / 10,
@@ -73,6 +86,8 @@ export default function FitnessFatigue({ activities }) {
         Forma: Math.round(tsb * 10) / 10,
         ACWR: Math.round(acwr * 100) / 100,
         load: tss,
+        Pace10k: best10k ? Math.round(best10k.pace * 100) / 100 : null,
+        Pace10kName: best10k ? best10k.name : null,
       });
 
       // Weekly load
@@ -225,15 +240,23 @@ export default function FitnessFatigue({ activities }) {
       return (
         <div className="bg-white/95 backdrop-blur-md p-4 border border-slate-200 shadow-2xl rounded-2xl min-w-[220px]">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">{formattedDate}</p>
-          {payload.map((entry, i) => (
-            <div key={i} className="flex items-center justify-between gap-6 mb-2 last:mb-0">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-sm shadow-sm" style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} />
-                <span className="text-[13px] font-medium text-slate-600">{entry.name}</span>
+          {payload.map((entry, i) => {
+            let val = entry.value;
+            if (entry.dataKey === 'Pace10k') {
+              const m = Math.floor(entry.value);
+              const s = Math.round((entry.value - m) * 60);
+              val = `${m}:${s.toString().padStart(2, '0')}`;
+            }
+            return (
+              <div key={i} className="flex items-center justify-between gap-6 mb-2 last:mb-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-sm shadow-sm" style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} />
+                  <span className="text-[13px] font-medium text-slate-600">{entry.name}</span>
+                </div>
+                <span className="text-[13px] font-bold text-slate-900 tabular-nums bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{val}</span>
               </div>
-              <span className="text-[13px] font-bold text-slate-900 tabular-nums bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{entry.value}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -431,41 +454,51 @@ export default function FitnessFatigue({ activities }) {
             <ComposedChart data={filteredChartData} margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
               <defs>
                 <linearGradient id="gradFitness" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.0} />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              
               <XAxis
                 dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }}
                 tickFormatter={v => { const d = new Date(v); return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`; }}
                 interval={Math.max(Math.floor(filteredChartData.length / 10), 1)}
               />
-              {/* Left axis: CTL / ATL */}
+              {/* Left axis: CTL / ATL / Load */}
               <YAxis
                 yAxisId="load" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={32}
-                domain={[0, 'auto']}
+                domain={[0, dataMax => Math.round(dataMax * 1.1)]}
               />
               {/* Right axis: TSB */}
               <YAxis
                 yAxisId="form" orientation="right" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={32}
-                domain={['auto', 'auto']}
+                domain={[-80, 80]}
               />
-              <ReferenceLine yAxisId="form" y={0} stroke="#cbd5e1" strokeWidth={1} />
+              <YAxis yAxisId="pace" orientation="left" hide={true} domain={['auto', 'auto']} reversed={true} />
+              
+              <ReferenceLine yAxisId="form" y={0} stroke="#94a3b8" strokeDasharray="3 3" strokeWidth={1} />
               <RechartsTooltip content={<PMCTooltip />} />
-              {/* Daily load as subtle bars */}
-              <Bar yAxisId="load" dataKey="load" name="Carga Diaria" fill="#e2e8f0" barSize={2} isAnimationActive={false} radius={[2,2,0,0]} />
-              {/* TSB as colored bars */}
-              <Bar yAxisId="form" dataKey="Forma" name="TSB (Forma)" barSize={3} isAnimationActive={false} radius={[1,1,1,1]}>
+              
+              {/* Daily load as subtle thin bars */}
+              <Bar yAxisId="load" dataKey="load" name="Carga Diaria" fill="#e2e8f0" barSize={2} isAnimationActive={false} />
+              
+              {/* TSB (Form) as colored bars */}
+              <Bar yAxisId="form" dataKey="Forma" name="TSB (Forma)" barSize={3} isAnimationActive={false} radius={[2,2,2,2]}>
                 {filteredChartData.map((entry, i) => (
-                  <rect key={i} fill={entry.Forma > 5 ? '#10b981' : entry.Forma > -10 ? '#6366f1' : entry.Forma > -20 ? '#f59e0b' : '#ef4444'} fillOpacity={0.7} />
+                  <Cell key={i} fill={entry.Forma >= 0 ? '#10b981' : '#f43f5e'} fillOpacity={0.5} />
                 ))}
               </Bar>
-              {/* CTL area */}
-              <Area yAxisId="load" type="monotone" dataKey="Fitness" name="CTL (Fitness)" stroke="#6366f1" strokeWidth={3} fill="url(#gradFitness)" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }} />
-              {/* ATL line */}
-              <Line yAxisId="load" type="monotone" dataKey="Fatiga" name="ATL (Fatiga)" stroke="#f43f5e" strokeWidth={2} dot={false} strokeDasharray="5 5" isAnimationActive={false} activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
+
+              {/* CTL (Fitness) Area */}
+              <Area yAxisId="load" type="monotone" dataKey="Fitness" name="CTL (Fitness)" stroke="#3b82f6" strokeWidth={3} fill="url(#gradFitness)" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-md" />
               
+              {/* ATL (Fatigue) Line */}
+              <Line yAxisId="load" type="monotone" dataKey="Fatiga" name="ATL (Fatiga)" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: '#ec4899', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-sm" />
+              
+              {/* 10k best paces as scattered yellow dots */}
+              <Line yAxisId="pace" type="monotone" dataKey="Pace10k" name="Ritmo 10k" stroke="none" isAnimationActive={false} dot={{ r: 5, fill: '#eab308', stroke: '#fff', strokeWidth: 1.5 }} activeDot={{ r: 7, fill: '#eab308', stroke: '#fff', strokeWidth: 2 }} connectNulls={false} />
+
               <Brush dataKey="date" height={25} stroke="#cbd5e1" fill="#f8fafc" tickFormatter={() => ''} travellerWidth={8} className="mt-8" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -473,24 +506,28 @@ export default function FitnessFatigue({ activities }) {
         {/* Inline legend */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3">
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[3px] rounded-full bg-indigo-500" />
+            <div className="w-5 h-[3px] rounded-full bg-[#3b82f6]" />
             <span className="text-[10px] text-slate-500 font-medium">CTL (Fitness)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[2px] rounded-full bg-rose-500" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f43f5e 0 4px, transparent 4px 7px)' }} />
+            <div className="w-5 h-[2px] rounded-full bg-[#ec4899]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #ec4899 0 4px, transparent 4px 7px)' }} />
             <span className="text-[10px] text-slate-500 font-medium">ATL (Fatiga)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-emerald-400/50" />
-            <span className="text-[10px] text-slate-500 font-medium">TSB + (fresco)</span>
+            <span className="text-[10px] text-slate-500 font-medium">TSB +</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-amber-400/50" />
-            <span className="text-[10px] text-slate-500 font-medium">TSB − (cargado)</span>
+            <div className="w-3 h-3 rounded-sm bg-rose-400/50" />
+            <span className="text-[10px] text-slate-500 font-medium">TSB −</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-slate-200" />
             <span className="text-[10px] text-slate-500 font-medium">Carga diaria</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 border border-white" />
+            <span className="text-[10px] text-slate-500 font-medium">Ritmo 10k</span>
           </div>
         </div>
       </Card>
