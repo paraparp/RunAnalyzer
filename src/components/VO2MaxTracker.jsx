@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
-  ComposedChart, Area, Line, ScatterChart, Scatter, Cell, ZAxis,
+  ComposedChart, AreaChart, Area, Line, ScatterChart, Scatter, Cell, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
@@ -104,9 +104,9 @@ function firstbeatRegression(splits, hrMax, hrRest) {
 
   for (const sp of splits) {
     const speed = sp.average_speed;
-    const hr = sp.average_heartrate;
+    const hr = sp.hr_corrected || sp.average_heartrate;
     if (!speed || speed < 1.5 || !hr || hr < 90) continue;
-    if (sp.distance < 500) continue;
+    if (sp.distance < 400) continue;
 
     const vKmh = speed * 3.6;
     const vo2 = oxygenCostLeger(vKmh);
@@ -117,9 +117,8 @@ function firstbeatRegression(splits, hrMax, hrRest) {
     // Reliability weight based on segment duration
     const dur = sp.moving_time || sp.elapsed_time || 300;
     const weight = dur >= 300 ? 1.0 :
-      dur >= 240 ? 0.8 :
-        dur >= 180 ? 0.5 :
-          dur >= 120 ? 0.25 : 0.05;
+      dur >= 180 ? 0.7 :
+        dur >= 120 ? 0.4 : 0.1;
 
     points.push({ hr, vo2, weight });
   }
@@ -129,7 +128,7 @@ function firstbeatRegression(splits, hrMax, hrRest) {
   // Need some HR range variation for reliable regression
   const hrs = points.map(p => p.hr);
   const hrRange = Math.max(...hrs) - Math.min(...hrs);
-  if (hrRange < 8) return null;
+  if (hrRange < 5) return null; // Relaxed from 8 to capture more steady runs
 
   // Weighted linear regression: vo2 = slope * hr + intercept
   let sumW = 0, sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
@@ -318,6 +317,98 @@ export default function VO2MaxTracker({ activities }) {
   const [monthsToShow, setMonthsToShow] = useState('12');
   const [smoothing, setSmoothing] = useState('7');
 
+  // Garmin fetch states
+  const [garminSyncState, setGarminSyncState] = useState({ loading: false, error: null, success: false });
+  const [garminCredentials, setGarminCredentials] = useState({ email: '', password: '' });
+  const [garminRestHR, setGarminRestHR] = useState(() => {
+    const saved = localStorage.getItem('garminRestHR');
+    return saved ? parseInt(saved) : null;
+  });
+  const [garminHistory, setGarminHistory] = useState(() => {
+    const saved = localStorage.getItem('garminHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [garminMaxHR, setGarminMaxHR] = useState(() => {
+    const saved = localStorage.getItem('garminMaxHR');
+    return saved ? parseInt(saved) : null;
+  });
+  const [garminOfficialVO2, setGarminOfficialVO2] = useState(() => {
+    const saved = localStorage.getItem('garminOfficialVO2');
+    return saved ? parseFloat(saved) : null;
+  });
+  const [syncProgress, setSyncProgress] = useState('');
+
+  const handleGarminSync = async () => {
+    if (!garminCredentials.email || !garminCredentials.password) return;
+    setGarminSyncState({ loading: true, error: null, success: false });
+
+    const daysToSync = Math.min(parseInt(monthsToShow) * 30, 365); // Cap at 1 year for safety
+
+    try {
+      const response = await fetch('http://localhost:3001/api/garmin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: garminCredentials.email,
+          password: garminCredentials.password,
+          days: daysToSync
+        })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep last incomplete line
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.message) setSyncProgress(data.message);
+
+            if (data.status === 'complete') {
+              if (data.success && data.restingHR) {
+                setGarminRestHR(data.restingHR);
+                localStorage.setItem('garminRestHR', data.restingHR);
+
+                if (data.maxHR) {
+                  setGarminMaxHR(data.maxHR);
+                  localStorage.setItem('garminMaxHR', data.maxHR);
+                }
+
+                if (data.officialVO2Max) {
+                  setGarminOfficialVO2(data.officialVO2Max);
+                  localStorage.setItem('garminOfficialVO2', data.officialVO2Max);
+                }
+
+                if (data.history) {
+                  setGarminHistory(data.history);
+                  localStorage.setItem('garminHistory', JSON.stringify(data.history));
+                }
+                setGarminSyncState({ loading: false, error: null, success: true });
+                setGarminCredentials({ email: '', password: '' });
+              }
+            } else if (data.status === 'error') {
+              throw new Error(data.error || 'Error en la sincronización');
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setGarminSyncState({ loading: false, error: err.message, success: false });
+    } finally {
+      setSyncProgress('');
+    }
+  };
+
   const { trendData, weeklyData, stats, efficiencyData } = useMemo(() => {
     if (!activities || activities.length === 0)
       return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
@@ -330,10 +421,15 @@ export default function VO2MaxTracker({ activities }) {
       .filter(hr => hr > 100 && hr < 220)
       .sort((a, b) => b - a);
 
-    const detectedMaxHR = sortedMaxHR.length > 3 ? sortedMaxHR[2] : (sortedMaxHR[0] || 190);
+    const detectedMaxHRFromSession = sortedMaxHR.length > 3 ? sortedMaxHR[2] : (sortedMaxHR[0] || 190);
 
-    // --- Estimate resting HR from multi-run regression ---
-    const estimatedRestHR = estimateRestHR(activities, detectedMaxHR);
+    // Use Garmin HRmax if available, as detected HR (208) is likely sensor noise
+    const activeMaxHR = garminMaxHR || detectedMaxHRFromSession;
+
+    // --- Resting HR ---
+    // Use Garmin actual if available, else estimate
+    const estimatedRestHR = estimateRestHR(activities, activeMaxHR);
+    const activeRestHR = garminRestHR || estimatedRestHR;
 
     const months = parseInt(monthsToShow);
     const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
@@ -348,7 +444,7 @@ export default function VO2MaxTracker({ activities }) {
         return true;
       })
       .map(a => {
-        const result = estimateVO2maxMultiMethod(a, detectedMaxHR, estimatedRestHR);
+        const result = estimateVO2maxMultiMethod(a, activeMaxHR, activeRestHR);
         if (!result) return null;
 
         const pace = 16.6667 / a.average_speed;
@@ -483,13 +579,17 @@ export default function VO2MaxTracker({ activities }) {
         trendDir: Math.round(trendDir * 10) / 10,
         category,
         totalSessions: validRuns.length,
-        detectedMaxHR,
-        estimatedRestHR,
-        avgConfidence: Math.round(avgConf * 100),
+        detectedMaxHR: detectedMaxHRFromSession,
         methodCounts,
+        avgConfidence: Math.round(avgConf * 100),
+        activeRestHR,
+        isRestHREstimated: !garminRestHR,
+        activeMaxHR,
+        isMaxHREstimated: !garminMaxHR,
+        officialVO2: garminOfficialVO2
       },
     };
-  }, [activities, monthsToShow, smoothing]);
+  }, [activities, monthsToShow, smoothing, garminRestHR, garminMaxHR, garminOfficialVO2]);
 
   if (!stats || trendData.length === 0) {
     return (
@@ -545,6 +645,15 @@ export default function VO2MaxTracker({ activities }) {
             <span className="text-white text-xs font-semibold">{stats.category.label}</span>
             <span className="text-violet-200 text-[10px]">(P{stats.category.percentile})</span>
           </div>
+
+          {stats.officialVO2 && (
+            <div className="mt-2 bg-emerald-400/20 px-2 py-1 rounded-lg border border-emerald-400/10">
+              <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-widest">
+                Perfil Garmin: <span className="text-white">{stats.officialVO2}</span>
+              </p>
+            </div>
+          )}
+
           <p className={`text-xs mt-2 font-semibold ${stats.trendDir > 0 ? 'text-emerald-300' : stats.trendDir < -1 ? 'text-rose-300' : 'text-violet-300'}`}>
             {stats.trendDir > 0 ? '↑' : stats.trendDir < -1 ? '↓' : '→'} {stats.trendDir > 0 ? '+' : ''}{stats.trendDir} tendencia
           </p>
@@ -573,14 +682,27 @@ export default function VO2MaxTracker({ activities }) {
             <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">FC máx detectada</p>
-            <p className="text-2xl font-bold text-rose-600 tabular-nums">{stats.detectedMaxHR}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">bpm</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              {stats.isMaxHREstimated ? 'FC máx detectada' : 'FC máx Garmin'}
+            </p>
+            <p className="text-2xl font-bold text-rose-600 tabular-nums">{stats.activeMaxHR}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {stats.isMaxHREstimated ? 'bpm (filtro de ruido)' : 'bpm (perfil oficial)'}
+            </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">FC reposo estimada</p>
-            <p className="text-2xl font-bold text-sky-600 tabular-nums">{stats.estimatedRestHR}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">bpm (regresión)</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              {stats.isRestHREstimated ? 'FC reposo estimada' : 'FC reposo Garmin'}
+            </p>
+            <p className="text-2xl font-bold text-sky-600 tabular-nums">{stats.activeRestHR}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {stats.isRestHREstimated ? 'bpm (regresión en carreras)' : (
+                <span className="flex items-center gap-1 justify-center sm:justify-start">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  bpm (sincronizado exacto)
+                </span>
+              )}
+            </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sesiones</p>
@@ -606,6 +728,124 @@ export default function VO2MaxTracker({ activities }) {
         ))}
       </div>
 
+      {/* Garmin Sync Module */}
+      <div className={`rounded-xl border p-4 ${garminRestHR ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200 shadow-sm'}`}>
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div>
+            <h4 className="font-bold text-sm text-slate-800 mb-1 flex items-center gap-2">
+              {garminRestHR ? '✅ Sincronizado con Garmin Connect' : '🔌 Conectar con Garmin Connect (Experimental)'}
+            </h4>
+            <p className="text-xs text-slate-500 max-w-xl">
+              {garminRestHR
+                ? `La aplicación está utilizando tu frecuencia cardíaca en reposo real (${garminRestHR} bpm). Esto garantiza que el cálculo de VO2Max sea idéntico al algoritmo Firstbeat/Garmin.`
+                : 'El modelo matemático actual está "adivinando" tu frecuencia cardíaca en reposo. Para obtener un VO2Max totalmente preciso y parejo al de tu reloj, introduce tus credenciales de Garmin para extraer tu pulso basal real. (Solo se usa de forma local y no se almacena).'
+              }
+            </p>
+          </div>
+
+          {!garminRestHR && (
+            <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+              <input
+                type="email"
+                placeholder="Email Garmin"
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                value={garminCredentials.email}
+                onChange={e => setGarminCredentials({ ...garminCredentials, email: e.target.value })}
+              />
+              <input
+                type="password"
+                placeholder="Contraseña"
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                value={garminCredentials.password}
+                onChange={e => setGarminCredentials({ ...garminCredentials, password: e.target.value })}
+              />
+              <button
+                onClick={handleGarminSync}
+                disabled={garminSyncState.loading}
+                className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+              >
+                {garminSyncState.loading ? (syncProgress || 'Conectando...') : 'Sincronizar Bio-Garmin'}
+              </button>
+            </div>
+          )}
+
+          {garminRestHR && (
+            <button
+              onClick={() => {
+                setGarminRestHR(null);
+                localStorage.removeItem('garminRestHR');
+                setGarminHistory([]);
+                localStorage.removeItem('garminHistory');
+                setGarminMaxHR(null);
+                localStorage.removeItem('garminMaxHR');
+                setGarminOfficialVO2(null);
+                localStorage.removeItem('garminOfficialVO2');
+              }}
+              className="text-xs font-semibold text-rose-500 hover:text-rose-700 underline"
+            >
+              Desconectar
+            </button>
+          )}
+        </div>
+        {garminSyncState.error && (
+          <p className="text-xs text-rose-500 mt-2 font-medium bg-rose-50 p-2 rounded">Error: {garminSyncState.error}</p>
+        )}
+      </div>
+
+      {/* Garmin Resting HR History Chart - MOVED UP for visibility */}
+      {garminHistory && garminHistory.length > 0 && (
+        <Card className="shadow-lg border-sky-100 bg-sky-50/20">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <Title className="text-slate-800 font-bold mb-1">📈 Historial de FC Reposo (Garmin)</Title>
+              <Text className="text-slate-500 text-sm">Tus latidos basales detectados al dormir en el rango seleccionado ({monthsToShow === '60' ? 'histórico' : `${monthsToShow} meses`}).</Text>
+            </div>
+            <div className="bg-sky-100 px-3 py-1 rounded-full border border-sky-200">
+              <p className="text-sky-700 text-xs font-bold">Media: {Math.round(garminHistory.reduce((s, i) => s + i.rhr, 0) / garminHistory.length)} bpm</p>
+            </div>
+          </div>
+          <div className="h-[200px] w-full min-h-[200px]">
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+              <AreaChart data={garminHistory}>
+                <defs>
+                  <linearGradient id="colorRHR" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: '#64748b' }}
+                  tickFormatter={(str) => {
+                    const d = new Date(str);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                  }}
+                />
+                <YAxis
+                  hide={false}
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  tick={{ fontSize: 9, fill: '#64748b' }}
+                />
+                <RechartsTooltip
+                  contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  labelFormatter={(str) => new Date(str).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="rhr"
+                  stroke="#0ea5e9"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorRHR)"
+                  name="Pulsaciones (bpm)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
       {/* Controls */}
       <div className="flex gap-3">
         <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
@@ -629,8 +869,8 @@ export default function VO2MaxTracker({ activities }) {
         <Text className="text-slate-500 text-sm mb-4">
           Multi-método: HRR + regresión Firstbeat + %FCmax con pesos de fiabilidad y corrección de drift
         </Text>
-        <div className="h-[360px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[360px] w-full min-h-[360px]">
+          <ResponsiveContainer width="100%" height="100%" minHeight={360}>
             <ComposedChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
@@ -668,13 +908,16 @@ export default function VO2MaxTracker({ activities }) {
         </div>
       </Card>
 
+
+
+
       {/* Weekly breakdown */}
       {weeklyData.length > 2 && (
         <Card className="shadow-lg border-slate-200">
           <Title className="text-slate-800 font-bold mb-1">VO2max Semanal</Title>
           <Text className="text-slate-500 text-sm mb-4">Media ponderada por confianza y mejor estimación por semana</Text>
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[280px] w-full min-h-[280px]">
+            <ResponsiveContainer width="100%" height="100%" minHeight={280}>
               <ComposedChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} />
@@ -712,8 +955,8 @@ export default function VO2MaxTracker({ activities }) {
         <Text className="text-slate-500 text-sm mb-4">
           Ritmo vs FC — puntos más abajo y a la izquierda = más eficiente
         </Text>
-        <div className="h-[320px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[320px] w-full min-h-[320px]">
+          <ResponsiveContainer width="100%" height="100%" minHeight={320}>
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
