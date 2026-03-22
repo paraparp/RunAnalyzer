@@ -28,7 +28,7 @@ import RaceDetector from './components/RaceDetector';
 import CardiacDecoupling from './components/CardiacDecoupling';
 import InjuryRisk from './components/InjuryRisk';
 import VO2MaxTracker from './components/VO2MaxTracker';
-import { getActivities, getActivity, getStravaAuthUrl, refreshAccessToken } from './services/strava';
+import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
   AdjustmentsHorizontalIcon,
@@ -109,11 +109,32 @@ const Dashboard = ({ user, handleLogout }) => {
     if (!stravaData || !stravaData.activities) return;
     const activityIndex = stravaData.activities.findIndex(a => a.id === activityId);
     if (activityIndex === -1) return;
-    if (stravaData.activities[activityIndex].splits_metric) return;
+    const activity = stravaData.activities[activityIndex];
+    if (activity.laps && activity.laps.length > 0 && activity.laps[0].elevation_difference !== undefined) return;
 
     try {
       const accessToken = stravaData.accessToken;
       const detailedActivity = await getActivity(accessToken, activityId);
+      
+      // Enriquecer laps con desnivel real usando streams si es posible
+      if (detailedActivity.laps && detailedActivity.laps.length > 0) {
+        try {
+          const streams = await getActivityStreams(accessToken, activityId);
+          if (streams && streams.altitude) {
+            detailedActivity.laps = detailedActivity.laps.map(lap => {
+              const startAlt = streams.altitude.data[lap.start_index];
+              const endAlt = streams.altitude.data[lap.end_index];
+              return {
+                ...lap,
+                elevation_difference: endAlt - startAlt
+              };
+            });
+          }
+        } catch (streamErr) {
+          console.warn("Could not fetch streams for elevation calculation", streamErr);
+        }
+      }
+
       setStravaData(prev => {
         const updatedActivities = [...prev.activities];
         updatedActivities[activityIndex] = detailedActivity;
@@ -980,7 +1001,7 @@ const Dashboard = ({ user, handleLogout }) => {
                                     <TableRow>
                                       <TableCell colSpan={12} className="!p-0">
                                         <div className="bg-slate-50/70 border-y border-slate-100 px-4 py-3">
-                                          <ActivitySplits splits={activity.splits_metric} />
+                                          <ActivitySplits splits={activity.laps} globalMaxHR={Math.max(...runningActivities.map(a => a.max_heartrate || 0).filter(Boolean))} />
                                         </div>
                                       </TableCell>
                                     </TableRow>

@@ -100,6 +100,19 @@ export const getActivity = async (accessToken, activityId) => {
     return data;
 };
 
+export const getActivityStreams = async (accessToken, activityId) => {
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=altitude&key_by_type=true`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch activity streams: ' + response.status);
+    }
+    return response.json();
+};
+
 export const getActivities = async (accessToken, count = 10, onProgress) => {
     let allActivities = [];
     let page = 1;

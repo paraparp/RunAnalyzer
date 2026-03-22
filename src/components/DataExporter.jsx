@@ -69,7 +69,22 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 type: a.type,
                 avg_speed: a.average_speed,
                 kudos: a.kudos_count,
-                splits: a.splits_metric || [] // Include splits if available
+                laps: (a.laps || []).map(l => ({
+                    name: l.name,
+                    lap_index: l.lap_index,
+                    distance: l.distance,
+                    moving_time: l.moving_time,
+                    elapsed_time: l.elapsed_time,
+                    average_speed: l.average_speed,
+                    max_speed: l.max_speed,
+                    total_elevation_gain: l.total_elevation_gain,
+                    elevation_difference: l.elevation_difference,
+                    average_heartrate: l.average_heartrate,
+                    max_heartrate: l.max_heartrate,
+                    average_cadence: l.average_cadence,
+                    average_watts: l.average_watts,
+                    pace_zone: l.pace_zone
+                }))
             }));
             dataStr = JSON.stringify(cleanData, null, 2);
         } else if (format === 'csv') {
@@ -93,9 +108,9 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
 
                 let line = `• ${new Date(a.start_date).toLocaleDateString()} - ${a.name}: ${dist}km in ${time}min, HR: ${hr}, Elev: ${a.total_elevation_gain}m`;
 
-                if (a.splits_metric && a.splits_metric.length > 0) {
-                    const splits = a.splits_metric.map(s => `[Km ${s.split}: ${calculatePace(s.average_speed)}]`).join(' ');
-                    line += `\n    ${splits}`;
+                if (a.laps && a.laps.length > 0) {
+                    const laps = a.laps.map(l => `[Lap ${l.lap_index}: ${calculatePace(l.average_speed)}]`).join(' ');
+                    line += `\n    ${laps}`;
                 }
                 return line;
             }).join('\n');
@@ -115,8 +130,8 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         setEnriching(true);
         setEnrichProgress(0);
 
-        // Find activities that need enrichment (no splits)
-        const toEnrich = filteredActivities.filter(a => !a.splits_metric);
+        // Find activities that need enrichment (no detailed data)
+        const toEnrich = filteredActivities.filter(a => !a.laps);
         let completed = 0;
 
         // If all already enriched, just finish
@@ -138,7 +153,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         setEnrichProgress(0);
     };
 
-    const missingSplitsCount = filteredActivities.filter(a => !a.splits_metric).length;
+    const missingLapsCount = filteredActivities.filter(a => !a.laps).length;
 
     return (
         <div className="space-y-6">
@@ -187,9 +202,9 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
 
                 <div className="flex justify-between items-center mb-2">
                     <Text className="font-bold text-slate-700">Vista Previa</Text>
-                    {missingSplitsCount > 0 && onEnrichActivity && (
+                    {missingLapsCount > 0 && onEnrichActivity && (
                         <div className="flex items-center gap-2">
-                            <Text className="text-xs text-slate-500">{missingSplitsCount} actividades sin parciales</Text>
+                            <Text className="text-xs text-slate-500">{missingLapsCount} actividades sin datos de vueltas</Text>
                             <Button
                                 size="xs"
                                 variant="light"
