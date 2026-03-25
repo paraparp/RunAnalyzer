@@ -182,8 +182,8 @@ const RacePredictor = ({ activities }) => {
             <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 rounded-xl">
-                            <Icon icon={SparklesIcon} size="lg" color="indigo" variant="light" />
+                        <div className="p-2 bg-blue-100 rounded-xl">
+                            <Icon icon={SparklesIcon} size="lg" color="blue" variant="light" />
                         </div>
                         <div>
                             <Title className="text-xl font-bold text-slate-900">Predictor Biométrico AI</Title>
@@ -206,7 +206,7 @@ const RacePredictor = ({ activities }) => {
                     <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
                         <span className="text-4xl block mb-3">🎯</span>
                         <Text className="text-slate-500 mb-6">Analiza tus últimas carreras con IA para predecir marcas en llano.</Text>
-                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={!currentApiKey} color="indigo">
+                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={!currentApiKey} color="blue">
                             Generar Predicción Inteligente
                         </Button>
                         {error && <Callout title="Error" color="rose" className="mt-6">{error}</Callout>}
@@ -217,7 +217,7 @@ const RacePredictor = ({ activities }) => {
             {loading && (
                 <Card className="p-8 ring-1 ring-slate-200 shadow-sm bg-white">
                     <div className="text-center py-12">
-                        <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                         <Text className="text-slate-600 font-medium">Analizando biomecánica y fatiga...</Text>
                     </div>
                 </Card>
@@ -228,7 +228,7 @@ const RacePredictor = ({ activities }) => {
                 <div className="space-y-6 fade-in">
                     {analysis && (
                         <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
-                            <Callout title="Análisis del Entrenador AI" icon={SparklesIcon} color="indigo">
+                            <Callout title="Análisis del Entrenador AI" icon={SparklesIcon} color="blue">
                                 {analysis}
                             </Callout>
                         </Card>
@@ -259,12 +259,12 @@ const RacePredictor = ({ activities }) => {
                                 };
                             })}
                             valueFormatter={(val) => `${Math.floor(val / 60)}:${(val % 60).toString().padStart(2, '0')}`}
-                            color="indigo"
+                            color="blue"
                             className="mt-4"
                         />
                     </Card>
 
-                    <Button variant="secondary" onClick={generateAIPrediction} className="w-full" color="indigo">Recalcular Predicción</Button>
+                    <Button variant="secondary" onClick={generateAIPrediction} className="w-full" color="blue">Recalcular Predicción</Button>
                 </div>
             )}
         </div>

@@ -82,7 +82,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
     }, [activities, groupBy]);
 
     const metricsConfig = {
-        distance: { label: "Distancia", color: "indigo", unit: "km" },
+        distance: { label: "Distancia", color: "blue", unit: "km" },
         time: { label: "Tiempo", color: "cyan", unit: "h" },
         elevation: { label: "Desnivel", color: "emerald", unit: "m" },
         load: { label: "Carga", color: "rose", unit: "" }
@@ -96,19 +96,32 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
 
     if (!chartData || chartData.length === 0) return null;
 
+    // Find the maximum value to calculate heights relative to it
+    const maxValue = Math.max(...chartData.map(d => d[selectedMetric])) || 1;
+
     return (
-        <BarChart
-            className="mt-4 h-72"
-            data={chartData}
-            index="name"
-            categories={[selectedMetric]}
-            colors={[currentMetric.color]}
-            valueFormatter={dataFormatter}
-            yAxisWidth={48}
-            showLegend={false}
-            showAnimation={true}
-            autoMinValue={true}
-        />
+        <div className="h-64 flex items-end justify-between space-x-2 px-2 mt-4">
+            {chartData.map((item, index) => {
+                const heightPercentage = Math.max((item[selectedMetric] / maxValue) * 100, 5); // Add 5% minimum height for visibility
+                const formattedName = item.name.split(' ')[0].substring(0, 3).toUpperCase(); // Shorten month labels
+                
+                return (
+                    <div key={index} className="w-full bg-blue-100/40 rounded-t-lg relative group h-full flex items-end">
+                        <div
+                            className="absolute inset-x-0 bottom-0 rounded-t-lg transition-all"
+                            style={{ height: `${heightPercentage}%`, backgroundColor: '#2563eb' }}
+                        ></div>
+                        {/* Custom hover tooltip */}
+                        <div className="opacity-0 group-hover:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap transition-opacity z-10">
+                            {dataFormatter(item[selectedMetric])}
+                        </div>
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
+                            {formattedName}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
     );
 };
 

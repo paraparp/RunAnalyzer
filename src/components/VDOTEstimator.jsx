@@ -124,7 +124,7 @@ const DISTANCE_RANGES = [
   { name: '5K', minKm: 4.9, maxKm: 5.2, distM: 5000, color: '#ef4444' },
   { name: '10K', minKm: 9.9, maxKm: 10.5, distM: 10000, color: '#f59e0b' },
   { name: 'Media Maratón', minKm: 21.0, maxKm: 21.5, distM: 21097.5, color: '#10b981' },
-  { name: 'Maratón', minKm: 42.0, maxKm: 43.0, distM: 42195, color: '#6366f1' },
+  { name: 'Maratón', minKm: 42.0, maxKm: 43.0, distM: 42195, color: '#2563eb' },
 ];
 
 // ============================================================
@@ -328,13 +328,13 @@ export default function VDOTEstimator({ activities }) {
         {bestVDOT ? (
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Big VDOT number */}
-            <div className="bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl p-8 text-center min-w-[160px] shadow-lg shadow-indigo-200 flex flex-col justify-center">
-              <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest mb-1">Tu VDOT</p>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-8 text-center min-w-[160px] shadow-lg shadow-blue-200 flex flex-col justify-center">
+              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mb-1">Tu VDOT</p>
               <p className="text-5xl font-black text-white tabular-nums">{bestVDOT.vdot}</p>
               <div className="mt-3 space-y-1.5 flex flex-col items-center">
-                <p className="text-indigo-200 text-[11px] leading-tight">Basado en {bestVDOT.distance}</p>
+                <p className="text-blue-200 text-[11px] leading-tight">Basado en {bestVDOT.distance}</p>
                 <div className="bg-white/10 px-2 py-1 rounded w-fit border border-white/10 mt-1">
-                  <p className="text-[10px] text-indigo-50 leading-tight">
+                  <p className="text-[10px] text-blue-50 leading-tight">
                     <span className="opacity-80">Rendimiento (VO₂): </span>
                     <span className="font-bold">{bestVDOT.vdot} ml/kg/min</span>
                   </p>
@@ -351,7 +351,7 @@ export default function VDOTEstimator({ activities }) {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{range.name}</p>
                     {est ? (
                       <>
-                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-1">{est.vdot}</p>
+                        <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{est.vdot}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{formatTime(est.normalizedTime)}</p>
                         <p className="text-[10px] text-slate-400">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                       </>
@@ -376,7 +376,7 @@ export default function VDOTEstimator({ activities }) {
           <Title className="text-slate-800 font-bold mb-1">Evolución del VDOT</Title>
           <Text className="text-slate-500 text-sm mb-4">
             Tu progresión de VDOT a lo largo del tiempo. 
-            <span className="font-semibold text-indigo-500 ml-1">Haz clic en la leyenda</span> para filtrar distancias o <span className="font-semibold text-indigo-500">clic en un punto</span> para ir a la actividad en Strava.
+            <span className="font-semibold text-blue-500 ml-1">Haz clic en la leyenda</span> para filtrar distancias o <span className="font-semibold text-blue-500">clic en un punto</span> para ir a la actividad en Strava.
           </Text>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -522,7 +522,7 @@ export default function VDOTEstimator({ activities }) {
                       <p className="text-[10px] text-slate-400 tabular-nums">{formatPace(p.pace / 60)} /km</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-indigo-600 tabular-nums">{formatTime(p.time)}</p>
+                      <p className="text-lg font-black text-blue-600 tabular-nums">{formatTime(p.time)}</p>
                       {actual && (
                         <p className="text-[10px] text-slate-400">
                           Actual: {formatTime(actual.normalizedTime)}

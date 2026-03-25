@@ -139,7 +139,7 @@ export default function WeeklyProgression({ activities }) {
     return (
       <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
         <p className="font-bold text-slate-700 mb-1">{d.label} (S{d.week})</p>
-        <p className="text-indigo-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
+        <p className="text-blue-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
         <p className="text-slate-500">Sesiones: {d.sessions} | Desnivel: {Math.round(d.elevation)}m</p>
         <p className="text-slate-500">Media 4 sem: {d.avg4w} km</p>
         {d.change !== 0 && (
@@ -157,30 +157,30 @@ export default function WeeklyProgression({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Semana actual</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.currentKm.toFixed(1)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Semana actual</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.currentKm.toFixed(1)}</p>
           <p className={`text-[10px] mt-0.5 font-semibold ${stats.currentChange > 10 ? 'text-rose-500' : stats.currentChange > 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
             {stats.currentChange > 0 ? '+' : ''}{stats.currentChange}% vs anterior
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media 4 semanas</p>
-          <p className="text-2xl font-bold text-indigo-600 tabular-nums">{stats.avg4weeks.toFixed(1)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media 4 semanas</p>
+          <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.avg4weeks.toFixed(1)}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">km/semana</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Racha activa</p>
-          <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.streak}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Racha activa</p>
+          <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.streak}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">semanas consecutivas</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Semana pico</p>
-          <p className="text-2xl font-bold text-amber-600 tabular-nums">{stats.maxWeek.toFixed(1)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Semana pico</p>
+          <p className="text-2xl font-black text-amber-600 tabular-nums">{stats.maxWeek.toFixed(1)}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">{stats.maxWeekLabel}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alertas +10%</p>
-          <p className={`text-2xl font-bold tabular-nums ${stats.exceedCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{stats.exceedCount}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Alertas +10%</p>
+          <p className={`text-2xl font-black tabular-nums ${stats.exceedCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{stats.exceedCount}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">de {stats.totalWeeks} semanas</p>
         </div>
       </div>
@@ -215,7 +215,7 @@ export default function WeeklyProgression({ activities }) {
                 {weeklyData.map((entry, idx) => (
                   <Cell
                     key={idx}
-                    fill={entry.exceeds10 ? '#f43f5e' : entry.km === 0 ? '#e2e8f0' : '#818cf8'}
+                    fill={entry.exceeds10 ? '#f43f5e' : entry.km === 0 ? '#e2e8f0' : '#3b82f6'}
                     fillOpacity={entry.exceeds10 ? 0.85 : 0.7}
                   />
                 ))}
@@ -223,7 +223,7 @@ export default function WeeklyProgression({ activities }) {
               <Line
                 type="monotone"
                 dataKey="avg4w"
-                stroke="#4f46e5"
+                stroke="#1d4ed8"
                 strokeWidth={2}
                 dot={false}
                 strokeDasharray="5 3"
@@ -238,7 +238,7 @@ export default function WeeklyProgression({ activities }) {
         <Title className="text-slate-800 font-bold mb-3">Regla del 10%</Title>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-slate-600">
           <div className="flex items-start gap-2">
-            <div className="w-3 h-3 rounded-sm bg-indigo-400 mt-0.5 shrink-0" />
+            <div className="w-3 h-3 rounded-sm bg-blue-400 mt-0.5 shrink-0" />
             <p>Las barras muestran el volumen semanal en km. La línea punteada es la media móvil de 4 semanas.</p>
           </div>
           <div className="flex items-start gap-2">

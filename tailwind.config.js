@@ -11,33 +11,84 @@ export default {
         current: "currentColor",
         extend: {
             colors: {
+                "on-secondary-container": "#5000d2",
+                "primary-container": "#809bff",
+                "background": "#f8f5ff",
+                "primary-dim": "#0041c7",
+                "primary-fixed-dim": "#6c8cff",
+                "secondary-fixed": "#d8caff",
+                "inverse-on-surface": "#9999c6",
+                "on-primary": "#f2f1ff",
+                "on-tertiary-container": "#004d57",
+                "tertiary-dim": "#005863",
+                "surface-variant": "#dbd9ff",
+                "tertiary-container": "#00e3fd",
+                "error-dim": "#a70138",
+                "on-secondary": "#f7f0ff",
+                "tertiary": "#006571",
+                "surface-container": "#e8e6ff",
+                "error": "#b41340",
+                "surface-container-lowest": "#ffffff",
+                "surface-dim": "#d1d0ff",
+                "surface-tint": "#004be2",
+                "outline-variant": "#a9a9d7",
+                "on-primary-container": "#001b61",
+                "secondary": "#652fe7",
+                "on-tertiary-fixed": "#003840",
+                "on-primary-fixed": "#000000",
+                "on-primary-fixed-variant": "#002376",
+                "surface-container-low": "#f2efff",
+                "outline": "#72739e",
+                "on-error": "#ffefef",
+                "error-container": "#f74b6d",
+                "on-surface-variant": "#575881",
+                "surface-bright": "#f8f5ff",
+                "primary-fixed": "#809bff",
+                "on-background": "#2a2b51",
+                "inverse-surface": "#08082f",
+                "surface-container-highest": "#dbd9ff",
+                "surface": "#f8f5ff",
+                "secondary-container": "#d8caff",
+                "on-secondary-fixed-variant": "#591bdc",
+                "secondary-dim": "#5819db",
+                "tertiary-fixed-dim": "#00d4ec",
+                "on-error-container": "#510017",
+                "primary": "#004be2",
+                "on-secondary-fixed": "#3b00a0",
+                "surface-container-high": "#e1e0ff",
+                "on-surface": "#2a2b51",
+                "secondary-fixed-dim": "#cabaff",
+                "tertiary-fixed": "#00e3fd",
+                "inverse-primary": "#6889ff",
+                "on-tertiary-fixed-variant": "#005762",
+                "on-tertiary": "#d8f8ff",
                 tremor: {
                     brand: {
-                        faint: "#eff6ff",
-                        muted: "#bfdbfe",
-                        subtle: "#60a5fa",
-                        DEFAULT: "#3b82f6",
-                        emphasis: "#1d4ed8",
-                        inverted: "#ffffff",
+                        faint: "#e8e6ff", // surface-container
+                        muted: "#d8caff", // secondary-container
+                        subtle: "#809bff", // primary-container
+                        DEFAULT: "#004be2", // primary
+                        emphasis: "#001b61", // on-primary-container
+                        inverted: "#ffffff", // surface-container-lowest
                     },
                     background: {
-                        muted: "#f9fafb",
-                        subtle: "#f3f4f6",
-                        DEFAULT: "#ffffff",
-                        emphasis: "#374151",
+                        muted: "#f8f5ff", // background
+                        subtle: "#f2efff", // surface-container-low
+                        DEFAULT: "#ffffff", // surface-container-lowest
+                        emphasis: "#575881", // on-surface-variant
                     },
                     border: {
-                        DEFAULT: "#e5e7eb",
+                        DEFAULT: "transparent", // remove borders to match UI
                     },
                     ring: {
-                        DEFAULT: "#e5e7eb",
+                        DEFAULT: "#809bff", // primary-container
                     },
                     content: {
-                        subtle: "#9ca3af",
-                        DEFAULT: "#6b7280",
-                        emphasis: "#374151",
-                        strong: "#111827",
-                        inverted: "#ffffff",
+                        subtle: "#9999c6", // inverse-on-surface
+                        DEFAULT: "#575881", // on-surface-variant
+                        emphasis: "#2a2b51", // on-surface
+                        strong: "#08082f", // inverse-surface
+                        inverted: "#ffffff", // surface-container-lowest
                     },
                 },
                 "dark-tremor": {
@@ -82,6 +133,15 @@ export default {
                 "tremor-small": "0.375rem",
                 "tremor-default": "0.5rem",
                 "tremor-full": "9999px",
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem",
+            },
+            fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"],
             },
             fontSize: {
                 "tremor-label": ["0.75rem", { lineHeight: "1rem" }],

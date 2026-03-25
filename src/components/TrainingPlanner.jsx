@@ -337,7 +337,7 @@ const TrainingPlanner = ({ activities }) => {
         const doc = new jsPDF();
 
         // Colors
-        const primaryColor = [79, 70, 229]; // Indigo 600
+        const primaryColor = [37, 99, 235]; // Blue 600
         const secondaryColor = [100, 116, 139]; // Slate 500
 
         // Header
@@ -427,7 +427,7 @@ const TrainingPlanner = ({ activities }) => {
             <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 rounded-xl">
+                        <div className="p-2 bg-blue-100 rounded-xl">
                             <span className="text-2xl">🤖</span>
                         </div>
                         <div>
@@ -481,8 +481,8 @@ const TrainingPlanner = ({ activities }) => {
                                 <Badge
                                     key={day}
                                     size="lg"
-                                    className={`cursor-pointer select-none px-4 py-1.5 transition-all ${selectedDays.includes(day) ? 'ring-2 ring-indigo-500 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}
-                                    color={selectedDays.includes(day) ? 'indigo' : 'slate'}
+                                    className={`cursor-pointer select-none px-4 py-1.5 transition-all ${selectedDays.includes(day) ? 'ring-2 ring-blue-500 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}
+                                    color={selectedDays.includes(day) ? 'blue' : 'slate'}
                                     onClick={() => {
                                         setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
                                     }}
@@ -494,7 +494,7 @@ const TrainingPlanner = ({ activities }) => {
                     </div>
 
                     <div className="pt-2">
-                        <Button size="xl" className="w-full font-bold" loading={loading} type="submit" variant="primary" color="indigo">
+                        <Button size="xl" className="w-full font-bold" loading={loading} type="submit" variant="primary" color="blue">
                             {loading ? 'Analizando Historial y Diseñando Plan...' : 'Generar Plan Estratégico'}
                         </Button>
                     </div>
@@ -504,12 +504,12 @@ const TrainingPlanner = ({ activities }) => {
 
             {plan && (
                 <div className="space-y-6 fade-in">
-                    <Card decoration="left" decorationColor="indigo" className="bg-slate-50 border-indigo-100 dark:bg-slate-900 dark:border-slate-800">
+                    <Card decoration="left" decorationColor="blue" className="bg-slate-50 border-blue-100 dark:bg-slate-900 dark:border-slate-800">
                         <div className="flex flex-col md:flex-row gap-6">
                             <div className="flex-1">
                                 <Text className="uppercase text-xs font-bold text-slate-500 tracking-wider mb-2">Estrategia Semanal</Text>
                                 <Title className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-4">{plan.weekly_summary}</Title>
-                                <Text className="leading-relaxed text-slate-600 dark:text-slate-400 italic border-l-4 border-indigo-200 pl-4 py-1">{plan.analysis}</Text>
+                                <Text className="leading-relaxed text-slate-600 dark:text-slate-400 italic border-l-4 border-blue-200 pl-4 py-1">{plan.analysis}</Text>
                             </div>
                             {plan.stats && (
                                 <div className="w-full md:w-64 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">

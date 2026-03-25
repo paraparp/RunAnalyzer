@@ -8,7 +8,7 @@ import {
 
 const SPLIT_TYPES = {
   negative: { label: 'Negative Split', color: '#10b981', desc: '2ª mitad más rápida' },
-  even: { label: 'Even Split', color: '#6366f1', desc: 'Ritmo uniforme (<2%)' },
+  even: { label: 'Even Split', color: '#2563eb', desc: 'Ritmo uniforme (<2%)' },
   positive: { label: 'Positive Split', color: '#f59e0b', desc: '1ª mitad más rápida' },
   collapse: { label: 'Collapse', color: '#ef4444', desc: 'Último tercio >8% más lento' },
 };
@@ -157,23 +157,23 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Actividades analizadas</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{totalClassified}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Actividades analizadas</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{totalClassified}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">con datos de parciales</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Negative Splits</p>
-          <p className="text-2xl font-bold text-emerald-600 tabular-nums">{negativeRate}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Negative Splits</p>
+          <p className="text-2xl font-black text-emerald-600 tabular-nums">{negativeRate}%</p>
           <p className="text-[10px] text-slate-400 mt-0.5">{negativeCount} de {totalClassified}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Collapse</p>
-          <p className={`text-2xl font-bold tabular-nums ${collapseCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{collapseCount}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Collapse</p>
+          <p className={`text-2xl font-black tabular-nums ${collapseCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{collapseCount}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">sesiones con caída fuerte</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Disciplina</p>
-          <p className={`text-2xl font-bold tabular-nums ${negativeRate >= 40 ? 'text-emerald-600' : negativeRate >= 20 ? 'text-amber-600' : 'text-rose-600'}`}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Disciplina</p>
+          <p className={`text-2xl font-black tabular-nums ${negativeRate >= 40 ? 'text-emerald-600' : negativeRate >= 20 ? 'text-amber-600' : 'text-rose-600'}`}>
             {negativeRate >= 40 ? 'Alta' : negativeRate >= 20 ? 'Media' : 'Baja'}
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5">gestión de ritmo</p>
@@ -253,7 +253,7 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
                 <tr
                   key={a.id}
                   onClick={() => setSelectedId(selectedId === a.id ? null : a.id)}
-                  className={`border-b border-slate-100 cursor-pointer transition-colors ${selectedId === a.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
+                  className={`border-b border-slate-100 cursor-pointer transition-colors ${selectedId === a.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                 >
                   <td className="py-2 px-2 text-slate-500 text-xs">{a.dateLabel}</td>
                   <td className="py-2 px-2 text-slate-700 font-medium truncate max-w-[200px]">{a.name}</td>

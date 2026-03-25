@@ -70,7 +70,7 @@ export default function TechniqueAnalysis({ activities }) {
           <div className="flex flex-col gap-1 mt-2">
              <p className="text-slate-600 text-xs font-medium">Fecha: <span className="text-slate-900 font-bold ml-1">{data.dateStr}</span></p>
              <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-slate-900 font-bold ml-1">{paceFmt}</span></p>
-             <p className="text-slate-600 text-xs font-medium">Cadencia: <span className="text-indigo-600 font-bold ml-1">{data.Cadencia} spm</span></p>
+             <p className="text-slate-600 text-xs font-medium">Cadencia: <span className="text-blue-600 font-bold ml-1">{data.Cadencia} spm</span></p>
              <p className="text-slate-600 text-xs font-medium">Zancada: <span className="text-emerald-600 font-bold ml-1">{data.Zancada} m</span></p>
              <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
              <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
@@ -84,7 +84,7 @@ export default function TechniqueAnalysis({ activities }) {
     return null;
   };
 
-  const YEAR_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#f43f5e', '#8b5cf6'];
+  const YEAR_COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#f43f5e', '#3b82f6'];
 
   const stats = useMemo(() => {
     if (!chartData.length) return null;
@@ -106,17 +106,17 @@ export default function TechniqueAnalysis({ activities }) {
     <div className="space-y-6">
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2">Cadencia Media</p>
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.cadence} <span className="text-sm font-medium text-slate-400">spm</span></p>
+          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">Cadencia Media</p>
+            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.cadence} <span className="text-sm font-medium text-slate-400">spm</span></p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-2">Zancada Media</p>
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.stride} <span className="text-sm font-medium text-slate-400">m</span></p>
+          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
+            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Zancada Media</p>
+            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.stride} <span className="text-sm font-medium text-slate-400">m</span></p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2">Mejor Ritmo Registrado</p>
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.bestPace} <span className="text-sm font-medium text-slate-400">/km</span></p>
+          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Mejor Ritmo Registrado</p>
+            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.bestPace} <span className="text-sm font-medium text-slate-400">/km</span></p>
           </div>
         </div>
       )}
@@ -131,7 +131,7 @@ export default function TechniqueAnalysis({ activities }) {
                 id="flatFilter" 
                 checked={flatOnly}
                 onChange={(e) => setFlatOnly(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
               />
               <label htmlFor="flatFilter" className="text-sm font-semibold text-slate-700 cursor-pointer select-none">
                 Solo llanas (≤ 1.5%)

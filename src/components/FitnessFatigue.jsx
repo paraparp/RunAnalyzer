@@ -11,7 +11,7 @@ const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 const STATUS_STYLES = {
   sky: 'bg-sky-50 border-sky-100',
   emerald: 'bg-emerald-50 border-emerald-100',
-  indigo: 'bg-indigo-50 border-indigo-100',
+  blue: 'bg-blue-50 border-blue-100',
   amber: 'bg-amber-50 border-amber-100',
   rose: 'bg-rose-50 border-rose-100',
 };
@@ -217,7 +217,7 @@ export default function FitnessFatigue({ activities }) {
     const f = current.form;
     if (f > 15) return { label: 'Transición', desc: 'Estás muy fresco pero podrías estar desentrenándote. Considera aumentar la carga progresivamente.', color: 'sky' };
     if (f > 5) return { label: 'Fresco', desc: 'Buen momento para competir o hacer un test de rendimiento. Tu cuerpo está recuperado y en forma.', color: 'emerald' };
-    if (f > -10) return { label: 'Óptimo', desc: 'Equilibrio ideal entre carga y recuperación. Sigue con el plan de entrenamiento actual.', color: 'indigo' };
+    if (f > -10) return { label: 'Óptimo', desc: 'Equilibrio ideal entre carga y recuperación. Sigue con el plan de entrenamiento actual.', color: 'blue' };
     if (f > -20) return { label: 'Cargado', desc: 'Fatiga acumulada, pero las adaptaciones están ocurriendo. Prioriza el sueño y la nutrición.', color: 'amber' };
     return { label: 'Sobrecargado', desc: 'Riesgo de sobreentrenamiento o lesión. Reduce volumen e intensidad esta semana.', color: 'rose' };
   }, [current]);
@@ -291,7 +291,7 @@ export default function FitnessFatigue({ activities }) {
              <p className="text-slate-600 text-xs font-medium">Fecha: <span className="text-slate-900 font-bold ml-1">{d.dateStrFmt}</span></p>
              <p className="text-slate-600 text-xs font-medium">Fitness (CTL): <span className="text-slate-900 font-bold ml-1">{d.Fitness}</span></p>
              <p className="text-slate-600 text-xs font-medium">Forma (TSB): <span className={`font-bold ml-1 ${d.Forma > 5 ? 'text-emerald-600' : d.Forma < -10 ? 'text-rose-600' : 'text-slate-900'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
-             <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-indigo-600 font-bold ml-1">{paceFmt}</span></p>
+             <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-blue-600 font-bold ml-1">{paceFmt}</span></p>
              <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{d.distance} km</span></p>
           </div>
           <div className="mt-2 text-[10px] text-slate-400 font-medium">
@@ -317,14 +317,14 @@ export default function FitnessFatigue({ activities }) {
       {/* Status Cards Row 1: Core Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Fitness CTL */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Fitness (CTL)</p>
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Fitness (CTL)</p>
             <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${current.ctlTrend7 > 0 ? 'bg-emerald-50 text-emerald-600' : current.ctlTrend7 < 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-500'}`}>
               {current.ctlTrend7 > 0 ? '↑' : current.ctlTrend7 < 0 ? '↓' : '→'} {Math.abs(current.ctlTrend7)}
             </div>
           </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{current.fitness}</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{current.fitness}</p>
           {/* Fitness gauge */}
           <div className="mt-2">
             <div className="flex items-center justify-between mb-0.5">
@@ -332,16 +332,16 @@ export default function FitnessFatigue({ activities }) {
               <span className="text-[9px] text-slate-400">Pico: {current.peakFitness}</span>
             </div>
             <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 rounded-full transition-all duration-700" style={{ width: `${current.fitnessPercent}%` }} />
+              <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${current.fitnessPercent}%` }} />
             </div>
-            <p className="text-[9px] text-indigo-500 font-semibold mt-0.5 text-right">{current.fitnessPercent}% del pico</p>
+            <p className="text-[9px] text-blue-500 font-semibold mt-0.5 text-right">{current.fitnessPercent}% del pico</p>
           </div>
         </div>
 
         {/* Fatigue ATL */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-2">Fatiga (ATL)</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{current.fatigue}</p>
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
+          <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-2">Fatiga (ATL)</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{current.fatigue}</p>
           <p className="text-[10px] text-slate-400 mt-1">Carga media 7 días</p>
           <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-rose-400 rounded-full transition-all duration-700" style={{ width: `${Math.min((current.fatigue / Math.max(current.peakFitness, 1)) * 100, 100)}%` }} />
@@ -349,9 +349,9 @@ export default function FitnessFatigue({ activities }) {
         </div>
 
         {/* Form TSB */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-2">Forma (TSB)</p>
-          <p className={`text-2xl font-bold tabular-nums ${current.form > 5 ? 'text-emerald-600' : current.form > -10 ? 'text-indigo-600' : current.form > -20 ? 'text-amber-600' : 'text-rose-600'}`}>
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
+          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Forma (TSB)</p>
+          <p className={`text-2xl font-black tabular-nums ${current.form > 5 ? 'text-emerald-600' : current.form > -10 ? 'text-blue-600' : current.form > -20 ? 'text-amber-600' : 'text-rose-600'}`}>
             {current.form > 0 ? '+' : ''}{current.form}
           </p>
           <p className="text-[10px] text-slate-400 mt-1">{formStatus?.label}</p>
@@ -387,9 +387,9 @@ export default function FitnessFatigue({ activities }) {
         </div>
 
         {/* Ramp Rate */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Rampa Semanal</p>
-          <p className={`text-2xl font-bold tabular-nums ${
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Rampa Semanal</p>
+          <p className={`text-2xl font-black tabular-nums ${
             rampRate > 7 ? 'text-rose-600' : rampRate > 5 ? 'text-amber-600' : rampRate > 0 ? 'text-emerald-600' : 'text-sky-600'
           }`}>
             {rampRate > 0 ? '+' : ''}{rampRate}
@@ -550,7 +550,7 @@ export default function FitnessFatigue({ activities }) {
                     const isHigh = entry.Carga > avg * 1.3;
                     const isLow = entry.Carga < avg * 0.5;
                     return (
-                      <rect key={i} fill={isHigh ? '#f43f5e' : isLow ? '#94a3b8' : '#6366f1'} />
+                      <rect key={i} fill={isHigh ? '#f43f5e' : isLow ? '#94a3b8' : '#2563eb'} />
                     );
                   })}
                 </Bar>
@@ -600,7 +600,7 @@ export default function FitnessFatigue({ activities }) {
                   className="cursor-pointer"
                 >
                   {topEfforts.map((entry, index) => (
-                     <Cell key={`cell-${index}`} fill={entry.Forma > 5 ? '#10b981' : entry.Forma < -10 ? '#f43f5e' : '#6366f1'} fillOpacity={0.7} className="hover:opacity-100 transition-opacity drop-shadow-sm" />
+                     <Cell key={`cell-${index}`} fill={entry.Forma > 5 ? '#10b981' : entry.Forma < -10 ? '#f43f5e' : '#2563eb'} fillOpacity={0.7} className="hover:opacity-100 transition-opacity drop-shadow-sm" />
                   ))}
                 </Scatter>
               </ScatterChart>
@@ -612,7 +612,7 @@ export default function FitnessFatigue({ activities }) {
               <span className="text-[11px] text-slate-500 font-medium">Marcas estando fresco (TSB &gt; 5)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-indigo-500 opacity-70" />
+              <div className="w-3 h-3 rounded-full bg-blue-500 opacity-70" />
               <span className="text-[11px] text-slate-500 font-medium">Estado óptimo/neutro</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -657,7 +657,7 @@ export default function FitnessFatigue({ activities }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-indigo-500" />
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
               <p className="font-semibold text-slate-700">CTL (Fitness)</p>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">Media exponencial de carga en 42 días. Representa tu nivel de forma general. Crece con entrenamiento consistente.</p>

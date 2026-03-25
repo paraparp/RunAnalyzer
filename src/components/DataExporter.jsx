@@ -177,7 +177,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             onValueChange={setDateRange}
                             locale={es}
                             selectPlaceholder="Seleccionar rango"
-                            color="indigo"
+                            color="blue"
                             enableSelect={false}
                         />
                     </div>
@@ -208,7 +208,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             <Button
                                 size="xs"
                                 variant="light"
-                                color="indigo"
+                                color="blue"
                                 icon={ArrowPathIcon}
                                 loading={enriching}
                                 onClick={handleEnrichData}
@@ -221,7 +221,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
 
                 {enriching && (
                     <div className="mb-3">
-                        <ProgressBar value={enrichProgress} color="indigo" className="mt-1" />
+                        <ProgressBar value={enrichProgress} color="blue" className="mt-1" />
                         <Text className="text-xs text-center mt-1 text-slate-500">Descargando datos detallados de Strava... esto puede tardar unos segundos.</Text>
                     </div>
                 )}

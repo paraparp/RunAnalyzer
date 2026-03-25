@@ -185,7 +185,7 @@ export default function InjuryRisk({ activities }) {
     <div className="space-y-6">
       {/* Main risk gauge */}
       <div className={`${level.bg} ${level.border} border rounded-2xl p-6 text-center`}>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Riesgo de Lesión Actual</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Riesgo de Lesión Actual</p>
         <div className="relative inline-flex items-center justify-center">
           <svg width="180" height="100" viewBox="0 0 180 100">
             {/* Background arc */}
@@ -290,7 +290,7 @@ export default function InjuryRisk({ activities }) {
                 <ReferenceArea y1={35} y2={55} fill="#f59e0b" fillOpacity={0.06} />
                 <ReferenceArea y1={55} y2={75} fill="#f97316" fillOpacity={0.06} />
                 <ReferenceArea y1={75} y2={100} fill="#ef4444" fillOpacity={0.06} />
-                <Line type="monotone" dataKey="risk" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="risk" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

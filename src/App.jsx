@@ -82,11 +82,11 @@ const NAV_ITEMS = [
 ];
 
 const NAV_CATEGORIES = [
-  { title: '📊 Analítica', itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
-  { title: '🗺️ Mapas', itemIds: ['heatmap'] },
-  { title: '✨ Herramientas AI', itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
-  { title: '🏃 Rendimiento', itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker'] },
-  { title: '⚙️ Sistema', itemIds: ['export'] }
+  { id: 'analytics', label: 'Analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
+  { id: 'maps', label: 'Maps', icon: MapIcon, itemIds: ['heatmap'] },
+  { id: 'ai', label: 'AI Tools', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
+  { id: 'performance', label: 'Performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker'] },
+  { id: 'system', label: 'System', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
 const Dashboard = ({ user, handleLogout }) => {
@@ -427,67 +427,66 @@ const Dashboard = ({ user, handleLogout }) => {
   const pageTitle = currentNavItem?.label || 'Dashboard';
 
   // Sidebar component
-  const SidebarContent = () => (
-    <>
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 h-16 shrink-0">
-        <Logo />
-        <span className="font-bold text-[15px] tracking-tight text-slate-900">RunAnalyzer</span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto mt-1 custom-scrollbar">
-        {NAV_CATEGORIES.map(category => (
-          <div key={category.title}>
-            <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category.title}</p>
-            <div className="space-y-0.5">
-              {category.itemIds.map(id => {
-                const item = NAV_ITEMS.find(i => i.id === id);
-                if (!item) return null;
-                const Icon = item.icon;
-                const isActive = currentView === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => { setCurrentView(item.id); setMobileMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 group
-                      ${isActive
-                        ? 'bg-indigo-50 text-indigo-700'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                  >
-                    <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                    {item.label}
-                    {['planner', 'predictor', 'qa'].includes(item.id) && (
-                      <span className={`ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>AI</span>
-                    )}
-                  </button>
-                );
-              })}
+  const SidebarContent = () => {
+    const activeCatId = NAV_CATEGORIES.find(cat => cat.itemIds.includes(currentView))?.id;
+    return (
+      <>
+        {/* Logo */}
+        <div className="px-5 py-6 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Logo />
+            <div>
+              <div className="text-[18px] font-black italic text-blue-700 leading-tight">RunAnalyzer</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">Elite Performance</div>
             </div>
           </div>
-        ))}
-      </nav>
-
-      {/* User section */}
-      <div className="shrink-0 border-t border-slate-100 p-3">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors">
-          <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full bg-slate-200 ring-1 ring-slate-100" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-semibold text-slate-800 truncate">{user.name}</p>
-            <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
-          </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full mt-1 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-        >
-          <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-          Cerrar Sesion
-        </button>
-      </div>
-    </>
-  );
+
+        {/* Navigation — top-level categories only */}
+        <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
+          {NAV_CATEGORIES.map(cat => {
+            const Icon = cat.icon;
+            const isActive = cat.id === activeCatId;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  if (!isActive) setCurrentView(cat.itemIds[0]);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all active:opacity-75 ${
+                  isActive
+                    ? 'text-blue-700 font-bold border-r-4 border-blue-600 bg-blue-50/50'
+                    : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100/80 border-r-4 border-transparent'
+                }`}
+              >
+                <Icon className={`w-5 h-5 shrink-0`} />
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* User section */}
+        <div className="mt-auto px-4 pb-6 border-t border-slate-200 pt-4">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full ring-2 ring-blue-100" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-slate-800 truncate">{user.name}</p>
+              <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full mt-1 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+          >
+            <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+            Cerrar Sesión
+          </button>
+        </div>
+      </>
+    );
+  };
 
   if (!stravaData) {
     return (
@@ -512,9 +511,9 @@ const Dashboard = ({ user, handleLogout }) => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-main)' }}>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-[260px] bg-white border-r border-slate-200/80 shrink-0">
+      <aside className="hidden lg:flex lg:flex-col w-64 bg-slate-50 dark:bg-slate-950 border-r border-slate-200/60 dark:border-slate-800 shrink-0 h-screen z-50">
         <SidebarContent />
       </aside>
 
@@ -522,7 +521,7 @@ const Dashboard = ({ user, handleLogout }) => {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="sidebar-overlay fixed inset-0" onClick={() => setMobileMenuOpen(false)} />
-          <aside className="sidebar-enter fixed inset-y-0 left-0 w-[280px] bg-white shadow-2xl flex flex-col z-50">
+          <aside className="sidebar-enter fixed inset-y-0 left-0 w-[260px] bg-slate-50 shadow-2xl flex flex-col z-50">
             <SidebarContent />
           </aside>
         </div>
@@ -531,68 +530,69 @@ const Dashboard = ({ user, handleLogout }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
-        <header className="h-14 bg-white border-b border-slate-200/80 flex items-center px-4 lg:px-8 shrink-0 gap-4">
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-          >
-            <Bars3Icon className="w-5 h-5" />
-          </button>
-
-          <h1 className="text-[15px] font-semibold text-slate-800">{pageTitle}</h1>
-
-          <div className="flex-1" />
-
-          {currentView === 'dashboard' && (
-            <div className="flex items-center gap-3">
+        {(() => {
+          const activeCat = NAV_CATEGORIES.find(cat => cat.itemIds.includes(currentView));
+          const subItems = (activeCat?.itemIds ?? []).map(id => NAV_ITEMS.find(i => i.id === id)).filter(Boolean);
+          return (
+            <header className="sticky top-0 z-40 flex justify-between items-center px-8 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl h-16 shadow-sm dark:shadow-none shrink-0 gap-6">
+              {/* Mobile menu */}
               <button
-                onClick={syncData}
-                disabled={isSyncing}
-                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200
-                  ${isSyncing
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm hover:shadow'
-                  }`}
+                onClick={() => setMobileMenuOpen(true)}
+                className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               >
-                <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+                <Bars3Icon className="w-5 h-5" />
               </button>
 
-              <div className="hidden sm:flex items-center gap-1 p-1 rounded-lg bg-slate-100/80">
-                <button
-                  onClick={() => setSelectedYear('All')}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
-                    ${selectedYear === 'All'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                >
-                  Todo
-                </button>
-                {availableYears.slice(0, 4).map(year => (
-                  <button
-                    key={year}
-                    onClick={() => setSelectedYear(String(year))}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
-                      ${selectedYear === String(year)
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
+              <div className="flex items-center space-x-8">
+                {/* Section title */}
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight shrink-0">{activeCat?.label ?? pageTitle}</h2>
+
+                {/* Sub-navigation tabs */}
+                <nav className="hidden md:flex items-center space-x-6">
+                  {subItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => setCurrentView(item.id)}
+                      className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${
+                        currentView === item.id
+                          ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-blue-700 border-b-2 border-transparent'
                       }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-                {availableYears.length > 4 && (
-                  <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-16 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:!ring-0 [&>button]:!py-0.5 [&>button]:!px-1.5 [&>button]:!text-[11px] [&>button]:!font-semibold [&>button]:!bg-transparent [&>button]:!text-slate-500 [&>button]:!rounded-md hover:[&>button]:!text-slate-700">
-                    {availableYears.slice(4).map(year => (
-                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                    ))}
-                  </Select>
-                )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </nav>
               </div>
-            </div>
-          )}
-        </header>
+
+              {/* Right: year filter + sync + avatar */}
+              <div className="flex items-center gap-3 shrink-0 ml-auto">
+                {currentView === 'dashboard' && (
+                  <div className="hidden sm:flex items-center gap-1 bg-slate-100/90 px-1 py-1 rounded-lg">
+                    <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+                    <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-28 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:!ring-0 [&>button]:!py-0.5 [&>button]:!px-2 [&>button]:!text-xs [&>button]:!font-semibold [&>button]:!bg-transparent [&>button]:!text-slate-600 hover:[&>button]:!text-blue-600">
+                      <SelectItem value="All">Todo</SelectItem>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                <button
+                  onClick={syncData}
+                  disabled={isSyncing}
+                  className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${
+                    isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
+                  }`}
+                >
+                  <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+                </button>
+                <img src={user.picture} alt={user.name} className="hidden sm:block w-8 h-8 rounded-full ring-2 ring-blue-100" />
+              </div>
+            </header>
+          );
+        })()}
 
         {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto">
@@ -668,45 +668,56 @@ const Dashboard = ({ user, handleLogout }) => {
 
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
-                    <CollapsibleSection title="Mejores Marcas">
-                      <PersonalBests activities={filteredActivities} />
-                    </CollapsibleSection>
-
-                    <CollapsibleSection title="Progreso Mensual">
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
-                          <TabList variant="solid" className="w-fit">
-                            <Tab>Distancia</Tab>
-                            <Tab>Tiempo</Tab>
-                            <Tab>Desnivel</Tab>
-                            <Tab>Carga</Tab>
-                          </TabList>
-                        </TabGroup>
-                        <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80">
-                          <button
-                            onClick={() => setChartGroupBy('month')}
-                            className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
-                              ${chartGroupBy === 'month'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                              }`}
-                          >
-                            Mensual
-                          </button>
-                          <button
-                            onClick={() => setChartGroupBy('year')}
-                            className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150
-                              ${chartGroupBy === 'year'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                              }`}
-                          >
-                            Anual
-                          </button>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      {/* Left Column: Progress Chart */}
+                      <div className="lg:col-span-8 space-y-8">
+                        <div className="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                            <div>
+                              <h3 className="text-xl font-bold text-on-surface">Progreso Mensual</h3>
+                              <p className="text-sm text-on-surface-variant">Annual activity distribution</p>
+                            </div>
+                            <div className="flex items-center space-x-2 bg-surface-container-low p-1 rounded-full">
+                              <button
+                                onClick={() => setChartGroupBy('month')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-150 ${chartGroupBy === 'month' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant font-medium hover:text-on-surface'}`}
+                              >
+                                Monthly
+                              </button>
+                              <button
+                                onClick={() => setChartGroupBy('year')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-150 ${chartGroupBy === 'year' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant font-medium hover:text-on-surface'}`}
+                              >
+                                Annual
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mb-4 overflow-x-auto pb-2">
+                            <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
+                              <TabList variant="solid" className="w-fit">
+                                <Tab>Distancia</Tab>
+                                <Tab>Tiempo</Tab>
+                                <Tab>Desnivel</Tab>
+                                <Tab>Carga</Tab>
+                              </TabList>
+                            </TabGroup>
+                          </div>
+                          <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
                         </div>
                       </div>
-                      <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
-                    </CollapsibleSection>
+
+                      {/* Right Column: Personal Bests */}
+                      <div className="lg:col-span-4 space-y-8">
+                        <div className="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+                          <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-bold text-on-surface">Mejores Marcas</h3>
+                            <span className="material-symbols-outlined text-yellow-500" data-icon="workspace_premium" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
+                          </div>
+                          <PersonalBests activities={filteredActivities} />
+                        </div>
+
+                      </div>
+                    </div>
 
                     <CollapsibleSection title="Actividades">
                       <div className="space-y-3 mb-4">
@@ -1065,7 +1076,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {currentView === 'gear' && (
               <div className="fade-in">
-                <GearTracker activities={runningActivities} />
+                <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />
               </div>
             )}
 
@@ -1137,7 +1148,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
 // Stat card component
 const STAT_COLORS = {
-  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', icon: 'text-indigo-500' },
+  indigo: { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'text-blue-500' },
   violet: { bg: 'bg-violet-50', text: 'text-violet-600', icon: 'text-violet-500' },
   sky: { bg: 'bg-sky-50', text: 'text-sky-600', icon: 'text-sky-500' },
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'text-emerald-500' },
@@ -1148,16 +1159,14 @@ const STAT_COLORS = {
 const StatCard = ({ label, value, unit, icon: Icon, color = 'indigo' }) => {
   const colors = STAT_COLORS[color] || STAT_COLORS.indigo;
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 p-4 hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
-        <div className={`w-7 h-7 rounded-lg ${colors.bg} flex items-center justify-center`}>
-          <Icon className={`w-3.5 h-3.5 ${colors.icon}`} />
-        </div>
+    <div className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-transparent flex flex-col items-start transition-all duration-200 hover:shadow-md">
+      <div className={`w-10 h-10 rounded-xl ${colors.bg} flex items-center justify-center mb-4`}>
+        <Icon className={`w-5 h-5 ${colors.icon}`} />
       </div>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">{label}</span>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{value}</span>
-        {unit && <span className="text-xs font-medium text-slate-400">{unit}</span>}
+        <span className="text-3xl font-black text-on-surface tabular-nums leading-none">{value}</span>
+        {unit && <span className="text-xs font-medium text-on-surface-variant">{unit}</span>}
       </div>
     </div>
   );

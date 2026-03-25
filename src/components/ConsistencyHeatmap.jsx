@@ -180,23 +180,23 @@ export default function ConsistencyHeatmap({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Días activos</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{consistencyStats.totalDays}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Días activos</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{consistencyStats.totalDays}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">en {selectedYear}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Racha actual</p>
-          <p className="text-2xl font-bold text-emerald-600 tabular-nums">{consistencyStats.currentStreak}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Racha actual</p>
+          <p className="text-2xl font-black text-emerald-600 tabular-nums">{consistencyStats.currentStreak}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">días seguidos</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mejor racha</p>
-          <p className="text-2xl font-bold text-indigo-600 tabular-nums">{consistencyStats.longestStreak}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mejor racha</p>
+          <p className="text-2xl font-black text-blue-600 tabular-nums">{consistencyStats.longestStreak}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">días seguidos</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Semanas ≥3 sesiones</p>
-          <p className="text-2xl font-bold text-amber-600 tabular-nums">{consistencyStats.weeksWith3}<span className="text-sm font-medium text-slate-400">/{consistencyStats.totalWeeks}</span></p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Semanas ≥3 sesiones</p>
+          <p className="text-2xl font-black text-amber-600 tabular-nums">{consistencyStats.weeksWith3}<span className="text-sm font-medium text-slate-400">/{consistencyStats.totalWeeks}</span></p>
           <p className="text-[10px] text-slate-400 mt-0.5">{consistencyStats.totalWeeks > 0 ? Math.round((consistencyStats.weeksWith3 / consistencyStats.totalWeeks) * 100) : 0}% consistente</p>
         </div>
       </div>

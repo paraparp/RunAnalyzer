@@ -285,7 +285,7 @@ function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
 function getVO2Category(vo2) {
   if (vo2 >= 56) return { label: 'Superior', color: '#10b981', percentile: '95+' };
   if (vo2 >= 51) return { label: 'Excelente', color: '#22c55e', percentile: '80-95' };
-  if (vo2 >= 45) return { label: 'Bueno', color: '#6366f1', percentile: '60-80' };
+  if (vo2 >= 45) return { label: 'Bueno', color: '#2563eb', percentile: '60-80' };
   if (vo2 >= 39) return { label: 'Normal', color: '#f59e0b', percentile: '40-60' };
   if (vo2 >= 34) return { label: 'Regular', color: '#f97316', percentile: '20-40' };
   return { label: 'Bajo', color: '#ef4444', percentile: '<20' };
@@ -609,12 +609,12 @@ export default function VO2MaxTracker({ activities }) {
         {d.dateLabel && <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>}
         {d.paceLabel && <p className="text-slate-500">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>}
         {d.vo2max !== undefined && (
-          <p className="text-indigo-600 font-bold">
+          <p className="text-blue-600 font-bold">
             VO2max: {d.vo2max} ml/kg/min
             {d.confidence !== undefined && <span className="text-slate-400 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
           </p>
         )}
-        {d.vo2avg !== undefined && <p className="text-violet-600">Media ponderada: {d.vo2avg}</p>}
+        {d.vo2avg !== undefined && <p className="text-blue-500">Media ponderada: {d.vo2avg}</p>}
         {d.methods && d.methods.length > 0 && (
           <div className="mt-1 pt-1 border-t border-slate-100">
             {d.methods.map((m, i) => (
@@ -624,7 +624,7 @@ export default function VO2MaxTracker({ activities }) {
             ))}
           </div>
         )}
-        {d.avgVO2 !== undefined && <p className="text-indigo-600 font-bold">Media: {d.avgVO2}</p>}
+        {d.avgVO2 !== undefined && <p className="text-blue-600 font-bold">Media: {d.avgVO2}</p>}
         {d.bestVO2 !== undefined && <p className="text-emerald-600">Mejor: {d.bestVO2}</p>}
         {d.sessions !== undefined && <p className="text-slate-400">{d.sessions} sesiones</p>}
       </div>
@@ -636,14 +636,14 @@ export default function VO2MaxTracker({ activities }) {
       {/* Main VO2max display */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Big VO2max card */}
-        <div className="bg-gradient-to-br from-violet-500 to-purple-700 rounded-2xl p-6 text-center shadow-lg shadow-violet-200 flex flex-col justify-center">
-          <p className="text-violet-200 text-[10px] font-bold uppercase tracking-widest mb-1">VO2max Estimado</p>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-center shadow-lg shadow-blue-200 flex flex-col justify-center">
+          <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mb-1">VO2max Estimado</p>
           <p className="text-5xl font-black text-white tabular-nums">{stats.current}</p>
-          <p className="text-violet-200 text-xs mt-1">ml/kg/min</p>
+          <p className="text-blue-200 text-xs mt-1">ml/kg/min</p>
           <div className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full" style={{ backgroundColor: stats.category.color + '30' }}>
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stats.category.color }} />
             <span className="text-white text-xs font-semibold">{stats.category.label}</span>
-            <span className="text-violet-200 text-[10px]">(P{stats.category.percentile})</span>
+            <span className="text-blue-200 text-[10px]">(P{stats.category.percentile})</span>
           </div>
 
           {stats.officialVO2 && (
@@ -654,11 +654,11 @@ export default function VO2MaxTracker({ activities }) {
             </div>
           )}
 
-          <p className={`text-xs mt-2 font-semibold ${stats.trendDir > 0 ? 'text-emerald-300' : stats.trendDir < -1 ? 'text-rose-300' : 'text-violet-300'}`}>
+          <p className={`text-xs mt-2 font-semibold ${stats.trendDir > 0 ? 'text-emerald-300' : stats.trendDir < -1 ? 'text-rose-300' : 'text-blue-300'}`}>
             {stats.trendDir > 0 ? '↑' : stats.trendDir < -1 ? '↓' : '→'} {stats.trendDir > 0 ? '+' : ''}{stats.trendDir} tendencia
           </p>
           <div className="mt-2 bg-white/10 px-2 py-1 rounded border border-white/10">
-            <p className="text-[10px] text-violet-100">
+            <p className="text-[10px] text-blue-100">
               Confianza media: <span className="font-bold text-white">{stats.avgConfidence}%</span>
             </p>
           </div>
@@ -667,34 +667,34 @@ export default function VO2MaxTracker({ activities }) {
         {/* Stat cards */}
         <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pico histórico</p>
-            <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.peak}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Pico histórico</p>
+            <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.peak}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media global</p>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{stats.avg}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media global</p>
+            <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avg}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Últimos 30 días</p>
-            <p className="text-2xl font-bold text-indigo-600 tabular-nums">{stats.recentAvg || '--'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Últimos 30 días</p>
+            <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.recentAvg || '--'}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
               {stats.isMaxHREstimated ? 'FC máx detectada' : 'FC máx Garmin'}
             </p>
-            <p className="text-2xl font-bold text-rose-600 tabular-nums">{stats.activeMaxHR}</p>
+            <p className="text-2xl font-black text-rose-600 tabular-nums">{stats.activeMaxHR}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">
               {stats.isMaxHREstimated ? 'bpm (filtro de ruido)' : 'bpm (perfil oficial)'}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
               {stats.isRestHREstimated ? 'FC reposo estimada' : 'FC reposo Garmin'}
             </p>
-            <p className="text-2xl font-bold text-sky-600 tabular-nums">{stats.activeRestHR}</p>
+            <p className="text-2xl font-black text-sky-600 tabular-nums">{stats.activeRestHR}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">
               {stats.isRestHREstimated ? 'bpm (regresión en carreras)' : (
                 <span className="flex items-center gap-1 justify-center sm:justify-start">
@@ -705,8 +705,8 @@ export default function VO2MaxTracker({ activities }) {
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sesiones</p>
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalSessions}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Sesiones</p>
+            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.totalSessions}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">analizadas</p>
           </div>
         </div>
@@ -715,9 +715,9 @@ export default function VO2MaxTracker({ activities }) {
       {/* Method breakdown */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { key: 'HRR', label: 'Método HRR', desc: 'Swain-Leutholtz 1997', color: '#7c3aed' },
-          { key: 'Firstbeat', label: 'Regresión lineal', desc: 'Tipo Firstbeat/Garmin', color: '#6366f1' },
-          { key: '%HRmax', label: '%FCmax', desc: 'Swain 1994 (fallback)', color: '#a78bfa' },
+          { key: 'HRR', label: 'Método HRR', desc: 'Swain-Leutholtz 1997', color: '#1d4ed8' },
+          { key: 'Firstbeat', label: 'Regresión lineal', desc: 'Tipo Firstbeat/Garmin', color: '#2563eb' },
+          { key: '%HRmax', label: '%FCmax', desc: 'Swain 1994 (fallback)', color: '#60a5fa' },
         ].map(m => (
           <div key={m.key} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
             <div className="w-2 h-2 rounded-full mx-auto mb-1" style={{ backgroundColor: m.color }} />
@@ -748,14 +748,14 @@ export default function VO2MaxTracker({ activities }) {
               <input
                 type="email"
                 placeholder="Email Garmin"
-                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={garminCredentials.email}
                 onChange={e => setGarminCredentials({ ...garminCredentials, email: e.target.value })}
               />
               <input
                 type="password"
                 placeholder="Contraseña"
-                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={garminCredentials.password}
                 onChange={e => setGarminCredentials({ ...garminCredentials, password: e.target.value })}
               />
@@ -885,12 +885,12 @@ export default function VO2MaxTracker({ activities }) {
               />
               <RechartsTooltip content={<CustomTooltip />} />
 
-              <Scatter dataKey="vo2max" fill="#a78bfa" fillOpacity={0.35} r={3} name="VO2max sesión" />
+              <Scatter dataKey="vo2max" fill="#60a5fa" fillOpacity={0.35} r={3} name="VO2max sesión" />
 
               <Line
                 type="monotone"
                 dataKey="vo2avg"
-                stroke="#7c3aed"
+                stroke="#2563eb"
                 strokeWidth={2.5}
                 dot={false}
                 name="Media ponderada"
@@ -929,18 +929,18 @@ export default function VO2MaxTracker({ activities }) {
                 <Area
                   type="monotone"
                   dataKey="bestVO2"
-                  fill="#c4b5fd"
+                  fill="#93c5fd"
                   fillOpacity={0.3}
-                  stroke="#a78bfa"
+                  stroke="#3b82f6"
                   strokeWidth={1}
                   name="Mejor"
                 />
                 <Line
                   type="monotone"
                   dataKey="avgVO2"
-                  stroke="#7c3aed"
+                  stroke="#2563eb"
                   strokeWidth={2}
-                  dot={{ r: 3, fill: '#7c3aed' }}
+                  dot={{ r: 3, fill: '#2563eb' }}
                   name="Media"
                 />
               </ComposedChart>
@@ -983,7 +983,7 @@ export default function VO2MaxTracker({ activities }) {
                   const recencyRatio = idx / Math.max(1, efficiencyData.length - 1);
                   const alpha = 0.25 + recencyRatio * 0.65;
                   return (
-                    <Cell key={idx} fill={`rgba(124, 58, 237, ${alpha})`} />
+                    <Cell key={idx} fill={`rgba(37, 99, 235, ${alpha})`} />
                   );
                 })}
               </Scatter>
@@ -1002,7 +1002,7 @@ export default function VO2MaxTracker({ activities }) {
           {[
             { label: 'Superior', range: '56+', color: '#10b981' },
             { label: 'Excelente', range: '51-55', color: '#22c55e' },
-            { label: 'Bueno', range: '45-50', color: '#6366f1' },
+            { label: 'Bueno', range: '45-50', color: '#2563eb' },
             { label: 'Normal', range: '39-44', color: '#f59e0b' },
             { label: 'Regular', range: '34-38', color: '#f97316' },
             { label: 'Bajo', range: '<34', color: '#ef4444' },

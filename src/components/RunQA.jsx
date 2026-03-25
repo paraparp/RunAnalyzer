@@ -39,7 +39,7 @@ const MarkdownText = ({ content }) => {
                         parts.push(<span key={key++}>{remaining.slice(0, codeMatch.index)}</span>);
                     }
                     parts.push(
-                        <code key={key++} className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-xs font-mono">
+                        <code key={key++} className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs font-mono">
                             {codeMatch[1]}
                         </code>
                     );
@@ -140,9 +140,9 @@ const MarkdownText = ({ content }) => {
 // Typing indicator component
 const TypingIndicator = () => (
     <div className="flex items-center gap-1 px-2 py-1">
-        <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
     </div>
 );
 
@@ -319,13 +319,13 @@ INSTRUCCIONES:
             <Card className="p-4 ring-1 ring-slate-200 shadow-sm bg-white">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-violet-200">
+                        <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg shadow-blue-200">
                             <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
                         </div>
                         <div>
                             <Title className="text-lg font-bold text-slate-900">Pregunta sobre tus Carreras</Title>
                             <div className="flex items-center gap-2 mt-0.5">
-                                <Badge size="xs" color="violet" icon={BoltIcon}>
+                                <Badge size="xs" color="blue" icon={BoltIcon}>
                                     {selectedCount} carreras cargadas
                                 </Badge>
                             </div>
@@ -363,8 +363,8 @@ INSTRUCCIONES:
                     {conversation.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center p-8">
                             <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-violet-200 rounded-full blur-xl opacity-50 animate-pulse" />
-                                <div className="relative p-5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-xl">
+                                <div className="absolute inset-0 bg-blue-200 rounded-full blur-xl opacity-50 animate-pulse" />
+                                <div className="relative p-5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-xl">
                                     <SparklesIcon className="w-10 h-10 text-white" />
                                 </div>
                             </div>
@@ -379,10 +379,10 @@ INSTRUCCIONES:
                                     <button
                                         key={idx}
                                         onClick={() => setQuestion(q.text)}
-                                        className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 rounded-xl transition-all text-left group"
+                                        className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all text-left group"
                                     >
                                         <span className="text-2xl">{q.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 group-hover:text-violet-700">{q.text}</span>
+                                        <span className="text-sm font-medium text-slate-700 group-hover:text-blue-700">{q.text}</span>
                                     </button>
                                 ))}
                             </div>
@@ -396,7 +396,7 @@ INSTRUCCIONES:
                                 >
                                     {/* Avatar */}
                                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === 'user'
-                                            ? 'bg-violet-600 text-white'
+                                            ? 'bg-blue-600 text-white'
                                             : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
                                         }`}>
                                         {msg.role === 'user' ? 'Tú' : '🏃'}
@@ -406,7 +406,7 @@ INSTRUCCIONES:
                                     <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                                         <div
                                             className={`rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                                    ? 'bg-violet-600 text-white rounded-tr-sm'
+                                                    ? 'bg-blue-600 text-white rounded-tr-sm'
                                                     : 'bg-white ring-1 ring-slate-200 shadow-sm rounded-tl-sm'
                                                 }`}
                                         >
@@ -459,7 +459,7 @@ INSTRUCCIONES:
                                 value={question}
                                 onChange={(e) => setQuestion(e.target.value)}
                                 rows={1}
-                                className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
+                                className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
                                 style={{ minHeight: '48px', maxHeight: '120px' }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -488,7 +488,7 @@ INSTRUCCIONES:
                             icon={PaperAirplaneIcon}
                             loading={loading}
                             disabled={!question.trim() || loading}
-                            color="violet"
+                            color="blue"
                             className="h-12 px-5"
                         >
                             Enviar

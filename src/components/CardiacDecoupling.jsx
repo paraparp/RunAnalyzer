@@ -164,29 +164,29 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sesiones analizadas</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.total}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Sesiones analizadas</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.total}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">con datos completos</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media últimas 5</p>
-          <p className="text-2xl font-bold tabular-nums" style={{ color: stats.levelLast5.color }}>{stats.avgLast5}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media últimas 5</p>
+          <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5.color }}>{stats.avgLast5}%</p>
           <p className="text-[10px] font-semibold mt-0.5" style={{ color: stats.levelLast5.color }}>{stats.levelLast5.label}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mejor sesión</p>
-          <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.bestDc}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Mejor sesión</p>
+          <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.bestDc}%</p>
           <p className="text-[10px] text-slate-400 mt-0.5">mínimo decoupling</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Media global</p>
-          <p className="text-2xl font-bold text-slate-700 tabular-nums">{stats.avgAll}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media global</p>
+          <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avgAll}%</p>
           <p className="text-[10px] text-slate-400 mt-0.5">todas las sesiones</p>
         </div>
         {stats.improving !== null && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tendencia</p>
-            <p className={`text-2xl font-bold tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Tendencia</p>
+            <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
               {stats.improving ? '↗ Mejora' : '↘ Empeora'}
             </p>
             <p className="text-[10px] text-slate-400 mt-0.5">eficiencia aeróbica</p>
@@ -294,7 +294,7 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
                   contentStyle={{ fontSize: 12 }}
                 />
                 <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" />
-                <Line type="monotone" dataKey="avgDecoupling" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="avgDecoupling" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

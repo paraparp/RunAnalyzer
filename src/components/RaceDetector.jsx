@@ -144,24 +144,24 @@ export default function RaceDetector({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total carreras</p>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalRaces}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total carreras</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.totalRaces}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">detectadas en historial</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Este año</p>
-          <p className="text-2xl font-bold text-indigo-600 tabular-nums">{stats.thisYear}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Este año</p>
+          <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.thisYear}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">{new Date().getFullYear()}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Distancias con PR</p>
-          <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.prCount}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Distancias con PR</p>
+          <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.prCount}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">categorías</p>
         </div>
         {stats.lastRace && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Última carrera</p>
-            <p className="text-lg font-bold text-slate-900 tabular-nums truncate">{stats.lastRace.timeLabel}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Última carrera</p>
+            <p className="text-lg font-black text-slate-900 tabular-nums truncate">{stats.lastRace.timeLabel}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">{stats.lastRace.dateLabel}</p>
           </div>
         )}
@@ -177,7 +177,7 @@ export default function RaceDetector({ activities }) {
               return (
                 <div key={cat.id} className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200 p-4 text-center">
                   <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">{cat.label}</p>
-                  <p className="text-xl font-bold text-slate-900 tabular-nums">{pr.timeLabel}</p>
+                  <p className="text-xl font-black text-slate-900 tabular-nums">{pr.timeLabel}</p>
                   <p className="text-xs text-slate-500 mt-1">{pr.paceLabel}/km</p>
                   <p className="text-[10px] text-slate-400 mt-1">{pr.dateLabel}</p>
                 </div>
@@ -210,7 +210,7 @@ export default function RaceDetector({ activities }) {
                     labelFormatter={(label) => label}
                     contentStyle={{ fontSize: 12 }}
                   />
-                  <Line type="monotone" dataKey="pace" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} />
+                  <Line type="monotone" dataKey="pace" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: '#2563eb' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -261,7 +261,7 @@ export default function RaceDetector({ activities }) {
                     <td className="py-2 px-2 text-right text-slate-600 tabular-nums">{r.paceLabel}</td>
                     <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.hr > 0 ? Math.round(r.hr) : '-'}</td>
                     <td className="py-2 px-2 text-center">
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
                         {r.category.label}
                       </span>
                     </td>
