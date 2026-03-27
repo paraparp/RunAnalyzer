@@ -120,7 +120,7 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                             <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-3">VO2max</p>
                             <div className="flex items-center justify-center my-1">
                                 <svg width="96" height="96" viewBox="0 0 96 96">
-                                    <circle cx="48" cy="48" r="38" fill="none" stroke="#e2e8f0" strokeWidth="8"/>
+                                    <circle cx="48" cy="48" r="38" fill="none" stroke="#e2e8f0" strokeWidth="8" />
                                     <motion.circle cx="48" cy="48" r="38" fill="none" stroke="#2563eb" strokeWidth="8"
                                         strokeLinecap="round" strokeDasharray="238.76"
                                         initial={{ strokeDashoffset: 238.76 }}
@@ -151,9 +151,9 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                                 <p className="text-slate-700 text-xs font-bold uppercase tracking-widest">Race Predictor</p>
                             </div>
                             {[
-                                { dist: '5K',       time: '19:42', color: 'text-sky-600'    },
-                                { dist: '10K',      time: '41:28', color: 'text-blue-600'   },
-                                { dist: 'Half',     time: '1:31:05', color: 'text-indigo-600' },
+                                { dist: '5K', time: '19:42', color: 'text-sky-600' },
+                                { dist: '10K', time: '41:28', color: 'text-blue-600' },
+                                { dist: 'Half', time: '1:31:05', color: 'text-indigo-600' },
                                 { dist: 'Marathon', time: '3:11:48', color: 'text-violet-600' },
                             ].map((r, i) => (
                                 <motion.div key={i}
@@ -241,9 +241,9 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         viewport={{ once: true }} transition={{ duration: 0.6 }}
                         className="grid grid-cols-2 md:grid-cols-4 gap-6">
                         {[
-                            { value: '20+',  label: tx(lang, 'Analytics Tools',   'Herramientas'),          color: 'text-blue-600'    },
-                            { value: 'AI',   label: tx(lang, 'Gemini Powered',     'Potenciado por Gemini'), color: 'text-sky-600'     },
-                            { value: '∞',    label: tx(lang, 'Strava Activities',  'Actividades Strava'),    color: 'text-indigo-600'  },
+                            { value: '20+', label: tx(lang, 'Analytics Tools', 'Herramientas'), color: 'text-blue-600' },
+                            { value: 'AI', label: tx(lang, 'Gemini Powered', 'Potenciado por Gemini'), color: 'text-sky-600' },
+                            { value: '∞', label: tx(lang, 'Strava Activities', 'Actividades Strava'), color: 'text-indigo-600' },
                             { value: 'VO2', label: tx(lang, 'VO2max Tracker', 'Tracker VO2max'), color: 'text-emerald-600' },
                         ].map((s, i) => (
                             <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
@@ -273,19 +273,94 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
 
                     <div className="grid md:grid-cols-3 gap-5">
                         {[
-                            { icon: CpuChipIcon,          color: 'blue',   badge: 'AI',   title: t('landing.bento_1_title'), desc: t('landing.bento_1_desc'), cols: 'md:col-span-2' },
-                            { icon: ArrowTrendingUpIcon,  color: 'cyan',                  title: t('landing.bento_2_title'), desc: t('landing.bento_2_desc') },
-                            { icon: GlobeAmericasIcon,    color: 'indigo',                title: t('landing.bento_3_title'), desc: t('landing.bento_3_desc') },
-                            { icon: ChartBarIcon,         color: 'violet', badge: 'Deep', title: t('landing.bento_4_title'), desc: t('landing.bento_4_desc'), cols: 'md:col-span-2' },
-                            { icon: HeartIcon,            color: 'rose',
-                              title: tx(lang, 'HR & Zones', 'FC & Zonas'),
-                              desc:  tx(lang, 'Full cardiac decoupling analysis and training zone breakdown for every run.',
-                                            'Análisis de decoupling cardíaco y desglose de zonas para cada carrera.') },
-                            { icon: ShieldExclamationIcon,color: 'amber',
-                              title: tx(lang, 'Injury Risk', 'Riesgo de Lesión'),
-                              desc:  tx(lang, 'Detect overtraining signals before they become injuries using ACWR and load metrics.',
-                                            'Detecta señales de sobreentrenamiento antes de lesiones mediante ACWR.') },
+                            { icon: CpuChipIcon, color: 'blue', badge: 'AI', title: t('landing.bento_1_title'), desc: t('landing.bento_1_desc'), cols: 'md:col-span-2' },
+                            { icon: ArrowTrendingUpIcon, color: 'cyan', title: t('landing.bento_2_title'), desc: t('landing.bento_2_desc') },
+                            { icon: GlobeAmericasIcon, color: 'indigo', title: t('landing.bento_3_title'), desc: t('landing.bento_3_desc') },
+                            { icon: ChartBarIcon, color: 'violet', badge: 'Deep', title: t('landing.bento_4_title'), desc: t('landing.bento_4_desc'), cols: 'md:col-span-2' },
+                            {
+                                icon: HeartIcon, color: 'rose',
+                                title: tx(lang, 'HR & Zones', 'FC & Zonas'),
+                                desc: tx(lang, 'Full cardiac decoupling analysis and training zone breakdown for every run.',
+                                    'Análisis de decoupling cardíaco y desglose de zonas para cada carrera.')
+                            },
+                            {
+                                icon: ShieldExclamationIcon, color: 'amber',
+                                title: tx(lang, 'Injury Risk', 'Riesgo de Lesión'),
+                                desc: tx(lang, 'Detect overtraining signals before they become injuries using ACWR and load metrics.',
+                                    'Detecta señales de sobreentrenamiento antes de lesiones mediante ACWR.')
+                            },
                         ].map((card, i) => <FeatureCard key={i} {...card} delay={i * 0.07} />)}
+                    </div>
+                </div>
+            </section>
+
+            {/* ══════════════════════ HEATMAP SHOWCASE ══════════════════════ */}
+            <section className="bg-white py-24 border-t border-slate-100 overflow-hidden">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="grid md:grid-cols-2 gap-16 items-center">
+
+                        {/* Left: text */}
+                        <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
+                            <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
+                                {tx(lang, 'Global Heatmap', 'Heatmap Global')}
+                            </p>
+                            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-5 leading-tight">
+                                {tx(lang, "Every km you've run, visually mapped.", 'Cada km recorrido, mapeado visualmente.')}
+                            </h2>
+                            <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
+                                {tx(lang,
+                                    'See your entire running history on an interactive world map. Filter by year, type, or effort — your geography of dedication.',
+                                    'Visualiza todo tu historial de carrera en un mapa interactivo. Filtra por año, tipo o esfuerzo — tu geografía de dedicación.'
+                                )}
+                            </p>
+                            <div className="grid grid-cols-3 gap-4">
+                                {[
+                                    { val: '1,284', label: tx(lang, 'km tracked', 'km registrados'), color: 'text-blue-600' },
+                                    { val: '247',   label: tx(lang, 'activities', 'actividades'),     color: 'text-indigo-600' },
+                                    { val: '18.4k', label: tx(lang, 'm elevation', 'm desnivel'),     color: 'text-sky-600' },
+                                ].map((s, i) => (
+                                    <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
+                                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                                        <p className={`text-xl font-black tabular-nums ${s.color}`}>{s.val}</p>
+                                        <p className="text-slate-400 text-[10px] font-semibold mt-0.5">{s.label}</p>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </motion.div>
+
+                        {/* Right: heatmap dot visualization */}
+                        <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }} transition={{ duration: 0.7 }}
+                            className="relative">
+
+                            <div className="relative rounded-3xl bg-[#0d1117] border border-slate-200 shadow-2xl overflow-hidden p-6 aspect-[4/3]">
+                                {/* subtle glow */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-transparent to-indigo-600/5 pointer-events-none" />
+
+                                {/* dot grid heatmap */}
+                                <HeatmapViz />
+
+                                {/* overlay label */}
+                                <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                                    <MapIcon className="w-4 h-4 text-white/40" />
+                                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                                        {tx(lang, 'Global Activity Map', 'Mapa de Actividad Global')}
+                                    </span>
+                                </div>
+
+                                {/* legend */}
+                                <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                                    <span className="text-white/30 text-[9px] font-semibold uppercase tracking-widest mr-1">
+                                        {tx(lang, 'intensity', 'intensidad')}
+                                    </span>
+                                    {['bg-blue-900/60','bg-blue-600/70','bg-cyan-500/80','bg-orange-400/90','bg-red-500'].map((c, i) => (
+                                        <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
                     </div>
                 </div>
             </section>
@@ -309,20 +384,20 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                             {
                                 icon: LinkIcon, bg: 'bg-blue-600',
                                 title: tx(lang, 'Connect Strava', 'Conecta Strava'),
-                                desc:  tx(lang, 'Sign in with Google and authorize your Strava account. Activities sync automatically.',
-                                              'Inicia sesión con Google y autoriza tu cuenta Strava. Las actividades se sincronizan solas.'),
+                                desc: tx(lang, 'Sign in with Google and authorize your Strava account. Activities sync automatically.',
+                                    'Inicia sesión con Google y autoriza tu cuenta Strava. Las actividades se sincronizan solas.'),
                             },
                             {
                                 icon: BeakerIcon, bg: 'bg-sky-500',
                                 title: tx(lang, 'Analyze Everything', 'Analiza Todo'),
-                                desc:  tx(lang, 'Explore 20+ analytics tools covering performance, health, technique, and training load.',
-                                              'Explora más de 20 herramientas de rendimiento, salud, técnica y carga de entrenamiento.'),
+                                desc: tx(lang, 'Explore 20+ analytics tools covering performance, health, technique, and training load.',
+                                    'Explora más de 20 herramientas de rendimiento, salud, técnica y carga de entrenamiento.'),
                             },
                             {
                                 icon: FireIcon, bg: 'bg-indigo-600',
                                 title: tx(lang, 'Run Smarter', 'Corre más inteligente'),
-                                desc:  tx(lang, 'Let AI generate your training plan, predict race times, and answer any running question.',
-                                              'Deja que la IA genere tu plan, prediga tiempos y responda cualquier pregunta.'),
+                                desc: tx(lang, 'Let AI generate your training plan, predict race times, and answer any running question.',
+                                    'Deja que la IA genere tu plan, prediga tiempos y responda cualquier pregunta.'),
                             },
                         ].map((step, i) => (
                             <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
@@ -355,22 +430,22 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         viewport={{ once: true }} transition={{ duration: 0.5 }}
                         className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {[
-                            { icon: HeartIcon,               label: tx(lang, 'HR Analysis',          'Análisis FC')           },
-                            { icon: ChartBarIcon,            label: tx(lang, 'Fitness & Fatigue',    'Fitness y Fatiga')       },
-                            { icon: FireIcon,                label: tx(lang, 'Technique',            'Técnica')                },
-                            { icon: SignalIcon,              label: tx(lang, 'Training Zones',       'Zonas FC')               },
-                            { icon: MapIcon,                 label: tx(lang, 'Global Heatmap',       'Heatmap Global')         },
-                            { icon: CalendarDaysIcon,        label: tx(lang, 'Consistency',          'Consistencia')           },
-                            { icon: BeakerIcon,              label: tx(lang, 'VDOT Estimator',       'Estimador VDOT')         },
-                            { icon: StarIcon,                label: tx(lang, 'Gear Tracker',         'Zapatillas')             },
-                            { icon: SparklesIcon,            label: tx(lang, 'AI Coach',             'Entrenador AI')          },
-                            { icon: ArrowTrendingUpIcon,     label: tx(lang, 'Race Predictor',       'Predictor de Carrera')   },
-                            { icon: ChatBubbleLeftRightIcon, label: tx(lang, 'AI Q&A',               'Preguntas AI')           },
-                            { icon: BoltIcon,                label: tx(lang, 'Splits',               'Parciales')              },
-                            { icon: GlobeAmericasIcon,       label: tx(lang, 'Race Detector',        'Detector de Carreras')   },
-                            { icon: SignalIcon,              label: tx(lang, 'Cardiac Decoupling',   'Decoupling Cardíaco')    },
-                            { icon: ShieldExclamationIcon,   label: tx(lang, 'Injury Risk',          'Riesgo de Lesión')       },
-                            { icon: ArrowDownTrayIcon,       label: tx(lang, 'Data Export',          'Exportar Datos')         },
+                            { icon: HeartIcon, label: tx(lang, 'HR Analysis', 'Análisis FC') },
+                            { icon: ChartBarIcon, label: tx(lang, 'Fitness & Fatigue', 'Fitness y Fatiga') },
+                            { icon: FireIcon, label: tx(lang, 'Technique', 'Técnica') },
+                            { icon: SignalIcon, label: tx(lang, 'Training Zones', 'Zonas FC') },
+                            { icon: MapIcon, label: tx(lang, 'Global Heatmap', 'Heatmap Global') },
+                            { icon: CalendarDaysIcon, label: tx(lang, 'Consistency', 'Consistencia') },
+                            { icon: BeakerIcon, label: tx(lang, 'VDOT Estimator', 'Estimador VDOT') },
+                            { icon: StarIcon, label: tx(lang, 'Gear Tracker', 'Zapatillas') },
+                            { icon: SparklesIcon, label: tx(lang, 'AI Coach', 'Entrenador AI') },
+                            { icon: ArrowTrendingUpIcon, label: tx(lang, 'Race Predictor', 'Predictor de Carrera') },
+                            { icon: ChatBubbleLeftRightIcon, label: tx(lang, 'AI Q&A', 'Preguntas AI') },
+                            { icon: BoltIcon, label: tx(lang, 'Splits', 'Parciales') },
+                            { icon: GlobeAmericasIcon, label: tx(lang, 'Race Detector', 'Detector de Carreras') },
+                            { icon: SignalIcon, label: tx(lang, 'Cardiac Decoupling', 'Decoupling Cardíaco') },
+                            { icon: ShieldExclamationIcon, label: tx(lang, 'Injury Risk', 'Riesgo de Lesión') },
+                            { icon: ArrowDownTrayIcon, label: tx(lang, 'Data Export', 'Exportar Datos') },
                         ].map((tool, i) => (
                             <motion.div key={i} initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }}
                                 viewport={{ once: true }} transition={{ delay: i * 0.03 }}
@@ -394,7 +469,7 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         </h2>
                         <p className="text-slate-500 mb-10 text-base">
                             {tx(lang, 'Connect your Strava account and unlock professional-grade analytics in seconds.',
-                                      'Conecta tu cuenta de Strava y desbloquea análisis de nivel profesional en segundos.')}
+                                'Conecta tu cuenta de Strava y desbloquea análisis de nivel profesional en segundos.')}
                         </p>
                         <div className="flex flex-col items-center gap-3">
                             <div className="p-1 rounded-full bg-white shadow-xl ring-1 ring-slate-200 hover:ring-blue-300 hover:shadow-2xl transition-all duration-300">
@@ -431,12 +506,12 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
 
 /* ─── Feature Card ─── */
 const colorMap = {
-    blue:   { icon: 'bg-blue-100   text-blue-600',   hover: 'hover:border-blue-200   hover:shadow-blue-50/80'  },
-    cyan:   { icon: 'bg-cyan-100   text-cyan-600',   hover: 'hover:border-cyan-200'                            },
-    indigo: { icon: 'bg-indigo-100 text-indigo-600', hover: 'hover:border-indigo-200'                          },
-    violet: { icon: 'bg-violet-100 text-violet-600', hover: 'hover:border-violet-200'                          },
-    rose:   { icon: 'bg-rose-100   text-rose-600',   hover: 'hover:border-rose-200'                            },
-    amber:  { icon: 'bg-amber-100  text-amber-600',  hover: 'hover:border-amber-200'                           },
+    blue: { icon: 'bg-blue-100   text-blue-600', hover: 'hover:border-blue-200   hover:shadow-blue-50/80' },
+    cyan: { icon: 'bg-cyan-100   text-cyan-600', hover: 'hover:border-cyan-200' },
+    indigo: { icon: 'bg-indigo-100 text-indigo-600', hover: 'hover:border-indigo-200' },
+    violet: { icon: 'bg-violet-100 text-violet-600', hover: 'hover:border-violet-200' },
+    rose: { icon: 'bg-rose-100   text-rose-600', hover: 'hover:border-rose-200' },
+    amber: { icon: 'bg-amber-100  text-amber-600', hover: 'hover:border-amber-200' },
 };
 
 const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = '', delay = 0 }) => {
@@ -461,5 +536,73 @@ const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = ''
         </motion.div>
     );
 };
+
+/* ─── Heatmap blob visualization (smooth, no grid) ─── */
+// [x%, y%, radius, color]
+const BLOBS = [
+    // Europe — dense
+    [53, 28, 28, '#ef4444'], [52, 29, 18, '#f97316'], [55, 27, 14, '#f97316'],
+    [50, 30, 10, '#06b6d4'], [57, 26, 8, '#3b82f6'],
+    // East US
+    [22, 32, 22, '#f97316'], [21, 33, 14, '#ef4444'], [24, 31, 10, '#06b6d4'],
+    // West US
+    [14, 33, 14, '#06b6d4'], [13, 34, 8, '#3b82f6'],
+    // Brazil
+    [30, 55, 12, '#3b82f6'], [31, 57, 8, '#06b6d4'],
+    // Japan
+    [80, 30, 14, '#06b6d4'], [79, 31, 9, '#3b82f6'],
+    // Australia
+    [80, 61, 13, '#3b82f6'], [79, 63, 7, '#06b6d4'],
+    // South Africa
+    [54, 62, 10, '#3b82f6'],
+    // scattered dim
+    [36, 35, 7, '#1e40af'], [42, 26, 6, '#1e40af'], [62, 42, 6, '#1e40af'],
+    [70, 46, 5, '#1e40af'], [25, 42, 5, '#1e40af'], [85, 36, 5, '#1e40af'],
+];
+
+const HeatmapViz = () => (
+    <div className="absolute inset-6 bottom-10">
+        <svg viewBox="0 0 400 240" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="heatblur" x="-40%" y="-40%" width="180%" height="180%">
+                    <feGaussianBlur stdDeviation="9" result="blur" />
+                    <feColorMatrix in="blur" type="matrix"
+                        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -7"
+                        result="sharp" />
+                </filter>
+                <filter id="softblur" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" />
+                </filter>
+            </defs>
+
+            {/* Base heat layer — blurred blobs merged */}
+            <g filter="url(#heatblur)">
+                {BLOBS.map(([x, y, r, color], i) => (
+                    <motion.circle key={i}
+                        cx={x * 4} cy={y * 2.4} r={r}
+                        fill={color}
+                        initial={{ opacity: 0, scale: 0 }}
+                        whileInView={{ opacity: 0.85, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.8, delay: 0.4 + i * 0.04, ease: 'easeOut' }}
+                        style={{ transformOrigin: `${x * 4}px ${y * 2.4}px` }}
+                    />
+                ))}
+            </g>
+
+            {/* Bright core highlights (no filter) */}
+            {BLOBS.filter(([,,,, hi]) => hi !== false).slice(0, 6).map(([x, y, r], i) => (
+                <motion.circle key={`core-${i}`}
+                    cx={x * 4} cy={y * 2.4} r={r * 0.35}
+                    fill="white" fillOpacity={0.18}
+                    filter="url(#softblur)"
+                    initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: 0.8 + i * 0.06 }}
+                />
+            ))}
+        </svg>
+    </div>
+);
 
 export default LandingPage;

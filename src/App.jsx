@@ -19,6 +19,7 @@ import HRAnalysis from './components/HRAnalysis';
 import FitnessFatigue from './components/FitnessFatigue';
 import TechniqueAnalysis from './components/TechniqueAnalysis';
 import GlobalHeatmap from './components/GlobalHeatmap';
+import RouteGallery from './components/RouteGallery';
 import TrainingZones from './components/TrainingZones';
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import VDOTEstimator from './components/VDOTEstimator';
@@ -58,6 +59,7 @@ import {
   BeakerIcon,
   StarIcon,
   ShieldExclamationIcon,
+  RectangleGroupIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -67,6 +69,7 @@ const NAV_ITEMS = [
   { id: 'technique', label: 'Técnica', icon: FireIcon },
   { id: 'zones', label: 'Zonas FC', icon: SignalIcon },
   { id: 'heatmap', label: 'Heatmap Global', icon: MapIcon },
+  { id: 'gallery', label: 'Galería de Rutas', icon: RectangleGroupIcon },
   { id: 'consistency', label: 'Consistencia', icon: CalendarDaysIcon },
   { id: 'vdot', label: 'VDOT', icon: BeakerIcon },
   { id: 'gear', label: 'Zapatillas', icon: StarIcon },
@@ -84,7 +87,7 @@ const NAV_ITEMS = [
 
 const NAV_CATEGORIES = [
   { id: 'analytics', label: 'Analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
-  { id: 'maps', label: 'Maps', icon: MapIcon, itemIds: ['heatmap'] },
+  { id: 'maps', label: 'Maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', label: 'AI Tools', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
   { id: 'performance', label: 'Performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker'] },
   { id: 'system', label: 'System', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
@@ -446,7 +449,6 @@ const Dashboard = ({ user, handleLogout }) => {
             <Logo />
             <div>
               <div className="text-[18px] font-black italic text-blue-700 leading-tight">RunAnalyzer</div>
-              <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">Elite Performance</div>
             </div>
           </div>
         </div>
@@ -457,21 +459,54 @@ const Dashboard = ({ user, handleLogout }) => {
             const Icon = cat.icon;
             const isActive = cat.id === activeCatId;
             return (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  if (!isActive) setCurrentView(cat.itemIds[0]);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all active:opacity-75 ${
-                  isActive
-                    ? 'text-blue-700 font-bold border-r-4 border-blue-600 bg-blue-50/50'
-                    : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100/80 border-r-4 border-transparent'
-                }`}
-              >
-                <Icon className={`w-5 h-5 shrink-0`} />
-                <span>{t(`nav.categories.${cat.id}`)}</span>
-              </button>
+              <div key={cat.id} className="mb-0.5">
+                <button
+                  onClick={() => {
+                    if (!isActive) setCurrentView(cat.itemIds[0]);
+                    // Don't close mobile menu here if we just clicked a category, let them see the submenu
+                    // setMobileMenuOpen(false); 
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-all active:opacity-75 ${
+                    isActive
+                      ? 'text-blue-700 font-bold border-r-4 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100/80 border-r-4 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-5 h-5 shrink-0`} />
+                    <span>{t(`nav.categories.${cat.id}`)}</span>
+                  </div>
+                  {isActive ? <ChevronDownIcon className="w-4 h-4 text-blue-500" /> : <ChevronRightIcon className="w-4 h-4 opacity-0 group-hover:opacity-50" />}
+                </button>
+
+                {/* Submenus (only shown if category is active) */}
+                {isActive && (
+                  <div className="pl-11 pr-2 py-1.5 space-y-0.5 mr-2">
+                    {cat.itemIds.map(itemId => {
+                      const item = NAV_ITEMS.find(i => i.id === itemId);
+                      if (!item) return null;
+                      const isItemActive = currentView === itemId;
+                      return (
+                        <button
+                          key={itemId}
+                          onClick={() => {
+                            setCurrentView(itemId);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-all ${
+                            isItemActive
+                              ? 'text-blue-700 font-bold bg-blue-100/40'
+                              : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${isItemActive ? 'bg-blue-600' : 'bg-transparent'}`} />
+                          <span className="truncate">{t(`nav.${item.id}`)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
@@ -1075,6 +1110,12 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'heatmap' && (
               <div className="fade-in">
                 <GlobalHeatmap activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'gallery' && (
+              <div className="fade-in">
+                <RouteGallery activities={runningActivities} />
               </div>
             )}
 

@@ -11,6 +11,7 @@ const en = {
       technique: "Technique",
       zones: "HR Zones",
       heatmap: "Global Heatmap",
+      gallery: "Route Gallery",
       consistency: "Consistency",
       vdot: "VDOT",
       gear: "Shoe Garage",
@@ -71,6 +72,27 @@ const en = {
       bento_3_desc: "Visualize annual trends in seconds.",
       bento_4_title: "Deep Metrics",
       bento_4_desc: "80/20 breakdown, GAP, and chronic vs. acute training load."
+    },
+    maps: {
+      title: "Global Heatmap",
+      subtitle: "Explore all your routes in a single interactive map. Connect the visual dots of your performance.",
+      filter: "Activity Type",
+      all: "All runs",
+      road: "Road Only",
+      trail: "Trail Only",
+      long: "Long Runs (+20km)",
+      color_mode: "Color Mode",
+      density: "Heat/Density",
+      pace: "Pace Dynamics",
+      hr: "Heart Rate Stress",
+      base_map: "Base Map",
+      dark: "Dark Mode",
+      light: "Light",
+      satellite: "Satellite",
+      legend_fast: "Fast / Hard",
+      legend_slow: "Slow / Easy",
+      showing: "Showing",
+      routes: "routes"
     }
   }
 };
@@ -85,6 +107,7 @@ const es = {
       technique: "Técnica",
       zones: "Zonas FC",
       heatmap: "Heatmap Global",
+      gallery: "Galería de Rutas",
       consistency: "Consistencia",
       vdot: "VDOT",
       gear: "Zapatillas",
@@ -145,6 +168,27 @@ const es = {
       bento_3_desc: "Visualiza tendencias anuales en segundos.",
       bento_4_title: "Métricas Profundas",
       bento_4_desc: "Desglose 80/20, GAP, y carga de entrenamiento crónica vs aguda."
+    },
+    maps: {
+      title: "Mapa de Calor Global",
+      subtitle: "Explora todas tus rutas en un solo mapa interactivo. Las zonas que más transitas resaltan formando tu huella atlética personal.",
+      filter: "Filtro",
+      all: "Todas mis rutas",
+      road: "Solo Asfalto",
+      trail: "Solo Trail/Montaña",
+      long: "Tiradas Largas (+20k)",
+      color_mode: "Modo Relieve",
+      density: "Densidad de Huella",
+      pace: "Dinámica de Ritmo",
+      hr: "Estrés Cardíaco",
+      base_map: "Capa Base",
+      dark: "Modo Oscuro",
+      light: "Modo Claro",
+      satellite: "Satélite",
+      legend_fast: "Rápido / Intenso",
+      legend_slow: "Lento / Suave",
+      showing: "Procesando",
+      routes: "rutas procesadas"
     }
   }
 };
