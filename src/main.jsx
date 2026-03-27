@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
+import './i18n';
 
 // ⚠️ REPLACE THIS WITH YOUR ACTUAL GOOGLE CLIENT ID
 const GOOGLE_CLIENT_ID = "536043455550-raqdfcep5cjum550gj7f0kg2ur3k1r5e.apps.googleusercontent.com";

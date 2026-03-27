@@ -2,6 +2,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useEffect, useState, useMemo, Fragment } from 'react';
 import { Route, Routes, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import './App.css';
 import StravaCallback from './components/StravaCallback';
 import MonthlyChart from './components/MonthlyChart';
@@ -90,12 +91,20 @@ const NAV_CATEGORIES = [
 ];
 
 const Dashboard = ({ user, handleLogout }) => {
+  const { t, i18n } = useTranslation();
   const [stravaData, setStravaData] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  
+  const changeLanguage = () => {
+    const newLang = i18n.language.startsWith('en') ? 'es' : 'en';
+    i18n.changeLanguage(newLang);
+    localStorage.setItem('app_language', newLang);
+  };
+  
   const [distanceRange, setDistanceRange] = useState({ min: '', max: '' });
   const [elevationRange, setElevationRange] = useState({ min: '', max: '' });
   const [paceRange, setPaceRange] = useState({ min: '', max: '' });
@@ -424,7 +433,7 @@ const Dashboard = ({ user, handleLogout }) => {
   };
 
   const currentNavItem = NAV_ITEMS.find(item => item.id === currentView);
-  const pageTitle = currentNavItem?.label || 'Dashboard';
+  const pageTitle = currentNavItem ? t(`nav.${currentNavItem.id}`) : t('nav.dashboard');
 
   // Sidebar component
   const SidebarContent = () => {
@@ -461,7 +470,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 }`}
               >
                 <Icon className={`w-5 h-5 shrink-0`} />
-                <span>{cat.label}</span>
+                <span>{t(`nav.categories.${cat.id}`)}</span>
               </button>
             );
           })}
@@ -481,7 +490,7 @@ const Dashboard = ({ user, handleLogout }) => {
             className="w-full mt-1 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
           >
             <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-            Cerrar Sesión
+            {t('topbar.logout')}
           </button>
         </div>
       </>
@@ -559,7 +568,7 @@ const Dashboard = ({ user, handleLogout }) => {
                           : 'text-slate-500 dark:text-slate-400 hover:text-blue-700 border-b-2 border-transparent'
                       }`}
                     >
-                      {item.label}
+                      {t(`nav.${item.id}`)}
                     </button>
                   ))}
                 </nav>
@@ -567,11 +576,18 @@ const Dashboard = ({ user, handleLogout }) => {
 
               {/* Right: year filter + sync + avatar */}
               <div className="flex items-center gap-3 shrink-0 ml-auto">
+                <button 
+                  onClick={changeLanguage}
+                  className="px-2 py-1 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg uppercase tracking-wider transition-colors"
+                  title={i18n.language.startsWith('en') ? 'Switch to Spanish' : 'Cambiar a Inglés'}
+                >
+                  {i18n.language.startsWith('en') ? 'EN' : 'ES'}
+                </button>
                 {currentView === 'dashboard' && (
                   <div className="hidden sm:flex items-center gap-1 bg-slate-100/90 px-1 py-1 rounded-lg">
                     <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
                     <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-28 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:!ring-0 [&>button]:!py-0.5 [&>button]:!px-2 [&>button]:!text-xs [&>button]:!font-semibold [&>button]:!bg-transparent [&>button]:!text-slate-600 hover:[&>button]:!text-blue-600">
-                      <SelectItem value="All">Todo</SelectItem>
+                      <SelectItem value="All">{t('topbar.all_filter')}</SelectItem>
                       {availableYears.map(year => (
                         <SelectItem key={year} value={String(year)}>{year}</SelectItem>
                       ))}
@@ -586,7 +602,7 @@ const Dashboard = ({ user, handleLogout }) => {
                   }`}
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+                  {isSyncing ? t('topbar.syncing') : t('topbar.sync')}
                 </button>
                 <img src={user.picture} alt={user.name} className="hidden sm:block w-8 h-8 rounded-full ring-2 ring-blue-100" />
               </div>
@@ -615,34 +631,34 @@ const Dashboard = ({ user, handleLogout }) => {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <StatCard
-                    label="Distancia"
+                    label={t('dashboard.distance')}
                     value={`${Math.round(stats.distance / 1000)}`}
                     unit="km"
                     icon={MapPinIcon}
                     color="indigo"
                   />
                   <StatCard
-                    label="Actividades"
+                    label={t('dashboard.activities')}
                     value={stats.count}
                     icon={ChartBarIcon}
                     color="violet"
                   />
                   <StatCard
-                    label="Tiempo"
+                    label={t('dashboard.time')}
                     value={`${Math.floor(stats.moving_time / 3600)}`}
                     unit="h"
                     icon={ClockIcon}
                     color="sky"
                   />
                   <StatCard
-                    label="Ritmo Medio"
+                    label={t('dashboard.avg_pace')}
                     value={calculatePace(stats.distance > 0 ? stats.distance / stats.moving_time : 0)}
                     unit="/km"
                     icon={BoltIcon}
                     color="emerald"
                   />
                   <StatCard
-                    label="GAP"
+                    label={t('dashboard.gap')}
                     value={(() => {
                       const d = stats.distance / 1000;
                       if (d <= 0) return '0:00';

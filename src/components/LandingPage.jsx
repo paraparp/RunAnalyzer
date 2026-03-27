@@ -1,10 +1,18 @@
 import React from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { motion } from "framer-motion";
-import { ChartBarIcon, CpuChipIcon, BoltIcon, GlobeAmericasIcon, ArrowTrendingUpIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { CpuChipIcon, BoltIcon, GlobeAmericasIcon, ArrowTrendingUpIcon, SparklesIcon, ChartBarIcon } from "@heroicons/react/24/outline";
 import Logo from './Logo';
+import { useTranslation } from 'react-i18next';
 
 const LandingPage = ({ onLoginSuccess, onLoginError }) => {
+    const { t, i18n } = useTranslation();
+
+    const changeLanguage = () => {
+        const newLang = i18n.language.startsWith('en') ? 'es' : 'en';
+        i18n.changeLanguage(newLang);
+        localStorage.setItem('app_language', newLang);
+    };
     return (
         <div className="min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-indigo-100 font-sans overflow-x-hidden relative">
 
@@ -37,9 +45,17 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         animate={{ opacity: 1, x: 0 }}
                         className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500"
                     >
-                        <span className="hover:text-indigo-600 transition-colors cursor-pointer">Características</span>
-                        <span className="hover:text-indigo-600 transition-colors cursor-pointer">Privacidad</span>
+                        <span className="hover:text-indigo-600 transition-colors cursor-pointer">{t('landing.features')}</span>
+                        <span className="hover:text-indigo-600 transition-colors cursor-pointer">{t('landing.privacy')}</span>
                         <div className="px-3 py-1 rounded-full border border-indigo-100 bg-indigo-50 text-xs text-indigo-600 font-semibold">Beta v1.0</div>
+                        
+                        <button 
+                            onClick={changeLanguage}
+                            className="px-2 py-1 text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 rounded-full uppercase tracking-wider transition-colors ml-2"
+                            title={i18n.language.startsWith('en') ? 'Switch to Spanish' : 'Cambiar a Inglés'}
+                        >
+                            {i18n.language.startsWith('en') ? 'EN' : 'ES'}
+                        </button>
                     </motion.div>
                 </nav>
 
@@ -53,17 +69,17 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm mb-8"
                     >
                         <SparklesIcon className="w-4 h-4 text-amber-500" />
-                        <span className="text-slate-600 text-sm font-medium">Potenciado por <span className="text-slate-900 font-bold">Gemini 2.0 Flash</span></span>
+                        <span className="text-slate-600 text-sm font-medium">{t('landing.powered_by')} <span className="text-slate-900 font-bold">Gemini 2.0 Flash</span></span>
                     </motion.div>
 
                     <motion.h1
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6, delay: 0.1 }}
-                        className="text-6xl md:text-8xl font-black tracking-tighter mb-8 leading-[0.95] text-slate-900"
+                        className="text-6xl md:text-8xl font-black tracking-tighter mb-8 leading-[0.95] text-slate-900 uppercase"
                     >
-                        TU EVOLUCIÓN <br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-sky-500 to-emerald-500 animate-gradient-x">IMPULSADA POR IA</span>
+                        {t('landing.title_1')} <br />
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-sky-500 to-emerald-500 animate-gradient-x">{t('landing.title_2')}</span>
                     </motion.h1>
 
                     <motion.p
@@ -72,7 +88,7 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         transition={{ duration: 0.6, delay: 0.2 }}
                         className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed font-medium"
                     >
-                        Desbloquea el verdadero potencial de tus datos de Strava. Planes de entreno generados por IA, predicciones de carrera precisas y analytics de nivel profesional.
+                        {t('landing.subtitle')}
                     </motion.p>
 
                     <motion.div
@@ -91,13 +107,13 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                                     size="large"
                                     width="100%"
                                     text="continue_with"
-                                    locale="es"
+                                    locale={i18n.language.substring(0, 2)}
                                 />
                             </div>
                         </div>
                         <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest font-semibold flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            Acceso gratuito inmediato
+                            {t('landing.free_access')}
                         </p>
                     </motion.div>
 
@@ -161,15 +177,15 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                 {/* Features Bento Grid - Light */}
                 <section className="max-w-7xl mx-auto px-6 pb-24 border-t border-slate-100/50 pt-24 bg-white/50 backdrop-blur-sm">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold text-slate-900 mb-4">Tecnología de Vanguardia</h2>
-                        <p className="text-slate-500 max-w-xl mx-auto">Nuestra suite de herramientas diseñada para corredores que buscan resultados, no solo datos.</p>
+                        <h2 className="text-3xl font-bold text-slate-900 mb-4">{t('landing.tech_title')}</h2>
+                        <p className="text-slate-500 max-w-xl mx-auto">{t('landing.tech_desc')}</p>
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-6">
 
                         <BentoCard
-                            title="Entrenamientos AI"
-                            desc="Algoritmos generativos que crean rutinas adaptativas basadas en tu fatiga y calendario."
+                            title={t('landing.bento_1_title')}
+                            desc={t('landing.bento_1_desc')}
                             icon={CpuChipIcon}
                             color="indigo"
                             badge="Core"
@@ -177,22 +193,22 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         />
 
                         <BentoCard
-                            title="Predicción de Carrera"
-                            desc="Estima tus tiempos finales en 5K, 10K y Maratón con una precisión asombrosa."
+                            title={t('landing.bento_2_title')}
+                            desc={t('landing.bento_2_desc')}
                             icon={ArrowTrendingUpIcon}
                             color="emerald"
                         />
 
                         <BentoCard
-                            title="Análisis Global"
-                            desc="Visualiza tendencias anuales en segundos."
+                            title={t('landing.bento_3_title')}
+                            desc={t('landing.bento_3_desc')}
                             icon={GlobeAmericasIcon}
                             color="sky"
                         />
 
                         <BentoCard
-                            title="Métricas Profundas"
-                            desc="Desglose 80/20, GAP, y carga de entrenamiento crónica vs aguda."
+                            title={t('landing.bento_4_title')}
+                            desc={t('landing.bento_4_desc')}
                             icon={ChartBarIcon}
                             color="rose"
                             cols="md:col-span-2"
