@@ -317,8 +317,8 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                             <div className="grid grid-cols-3 gap-4">
                                 {[
                                     { val: '1,284', label: tx(lang, 'km tracked', 'km registrados'), color: 'text-blue-600' },
-                                    { val: '247',   label: tx(lang, 'activities', 'actividades'),     color: 'text-indigo-600' },
-                                    { val: '18.4k', label: tx(lang, 'm elevation', 'm desnivel'),     color: 'text-sky-600' },
+                                    { val: '247', label: tx(lang, 'activities', 'actividades'), color: 'text-indigo-600' },
+                                    { val: '18.4k', label: tx(lang, 'm elevation', 'm desnivel'), color: 'text-sky-600' },
                                 ].map((s, i) => (
                                     <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
@@ -355,7 +355,7 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                                     <span className="text-white/30 text-[9px] font-semibold uppercase tracking-widest mr-1">
                                         {tx(lang, 'intensity', 'intensidad')}
                                     </span>
-                                    {['bg-blue-900/60','bg-blue-600/70','bg-cyan-500/80','bg-orange-400/90','bg-red-500'].map((c, i) => (
+                                    {['bg-blue-900/60', 'bg-blue-600/70', 'bg-cyan-500/80', 'bg-orange-400/90', 'bg-red-500'].map((c, i) => (
                                         <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
                                     ))}
                                 </div>
@@ -460,6 +460,101 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                 </div>
             </section>
 
+            {/* ══════════════════════ SOCIAL PROOF ══════════════════════ */}
+            <section className="bg-white py-24 border-t border-slate-100 overflow-hidden">
+                <div className="max-w-6xl mx-auto px-6">
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }} className="text-center mb-16">
+                        <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-3">
+                            {tx(lang, 'Trusted by runners', 'Los runners confían')}
+                        </p>
+                        <h2 className="text-4xl font-black tracking-tighter text-slate-900">
+                            {tx(lang, 'What runners are saying', 'Lo que dicen los corredores')}
+                        </h2>
+                    </motion.div>
+
+                    {/* Animated counters */}
+                    <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }} transition={{ duration: 0.6 }}
+                        className="grid grid-cols-3 gap-8 mb-16 max-w-2xl mx-auto">
+                        {[
+                            { end: '2.4K', label: tx(lang, 'Activities Analyzed', 'Actividades Analizadas'), color: 'text-blue-600' },
+                            { end: '98%', label: tx(lang, 'Prediction Accuracy', 'Precisión de Predicción'), color: 'text-emerald-600' },
+                            { end: '4.9', label: tx(lang, 'User Rating', 'Valoración'), color: 'text-amber-500' },
+                        ].map((stat, i) => (
+                            <motion.div key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: i * 0.15 }}
+                                className="text-center">
+                                <p className={`text-3xl md:text-4xl font-black tracking-tighter ${stat.color}`}>{stat.end}</p>
+                                <p className="text-slate-400 text-xs font-semibold mt-1">{stat.label}</p>
+                            </motion.div>
+                        ))}
+                    </motion.div>
+
+                    {/* Testimonial Cards */}
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {[
+                            {
+                                name: 'Carlos M.',
+                                role: tx(lang, 'Marathon Runner', 'Maratonista'),
+                                avatar: '🏃‍♂️',
+                                text: tx(lang,
+                                    "The race predictor nailed my marathon time within 2 minutes. The AI coach suggested a taper strategy I hadn't considered. Absolutely game-changing.",
+                                    "El predictor clavó mi tiempo de maratón con 2 minutos de diferencia. El entrenador AI me sugirió una estrategia de taper que no había considerado. Revolucionario."),
+                                accent: 'border-blue-200 hover:border-blue-300',
+                            },
+                            {
+                                name: 'Laura S.',
+                                role: tx(lang, 'Trail Runner', 'Corredora de Trail'),
+                                avatar: '⛰️',
+                                text: tx(lang,
+                                    "The VO2max tracker and cardiac decoupling analysis helped me understand why my easy runs felt hard. Turns out my zones were all wrong!",
+                                    "El tracker VO2max y el análisis de decoupling cardíaco me ayudaron a entender por qué mis rodajes me costaban. ¡Resulta que mis zonas estaban mal!"),
+                                accent: 'border-emerald-200 hover:border-emerald-300',
+                            },
+                            {
+                                name: 'Pablo R.',
+                                role: tx(lang, 'Ultra Runner', 'Ultra Runner'),
+                                avatar: '🦁',
+                                text: tx(lang,
+                                    "Route Gallery is insane — seeing all my mountain runs as minimalist posters is beautiful. And the injury risk alert saved me from overtraining twice.",
+                                    "La Galería de Rutas es una locura — ver mis rutas de montaña como pósters minimalistas es precioso. Y la alerta de riesgo de lesión me salvó dos veces."),
+                                accent: 'border-violet-200 hover:border-violet-300',
+                            },
+                        ].map((review, i) => (
+                            <motion.div key={i}
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: i * 0.12 }}
+                                whileHover={{ y: -4 }}
+                                className={`bg-white rounded-2xl p-7 border ${review.accent} shadow-sm hover:shadow-lg transition-all duration-300`}>
+                                <div className="flex items-center gap-3 mb-5">
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg">
+                                        {review.avatar}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-900 leading-tight">{review.name}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{review.role}</p>
+                                    </div>
+                                    <div className="ml-auto flex gap-0.5">
+                                        {[...Array(5)].map((_, s) => (
+                                            <svg key={s} className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                                <p className="text-slate-600 text-sm leading-relaxed italic">"{review.text}"</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
             {/* ══════════════════════ FINAL CTA ══════════════════════ */}
             <section className="bg-gradient-to-b from-blue-50 to-white py-28 border-t border-blue-100">
                 <div className="max-w-2xl mx-auto px-6 text-center">
@@ -538,67 +633,72 @@ const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = ''
 };
 
 /* ─── Heatmap blob visualization (smooth, no grid) ─── */
-// [x%, y%, radius, color]
-const BLOBS = [
-    // Europe — dense
-    [53, 28, 28, '#ef4444'], [52, 29, 18, '#f97316'], [55, 27, 14, '#f97316'],
-    [50, 30, 10, '#06b6d4'], [57, 26, 8, '#3b82f6'],
-    // East US
-    [22, 32, 22, '#f97316'], [21, 33, 14, '#ef4444'], [24, 31, 10, '#06b6d4'],
-    // West US
-    [14, 33, 14, '#06b6d4'], [13, 34, 8, '#3b82f6'],
-    // Brazil
-    [30, 55, 12, '#3b82f6'], [31, 57, 8, '#06b6d4'],
-    // Japan
-    [80, 30, 14, '#06b6d4'], [79, 31, 9, '#3b82f6'],
-    // Australia
-    [80, 61, 13, '#3b82f6'], [79, 63, 7, '#06b6d4'],
-    // South Africa
-    [54, 62, 10, '#3b82f6'],
-    // scattered dim
-    [36, 35, 7, '#1e40af'], [42, 26, 6, '#1e40af'], [62, 42, 6, '#1e40af'],
-    [70, 46, 5, '#1e40af'], [25, 42, 5, '#1e40af'], [85, 36, 5, '#1e40af'],
+/* ─── GPS route heatmap visualization ─── */
+// Organic paths mimicking real running routes on a city map
+const ROUTES = [
+    // Main cluster — dense overlapping routes (like the screenshot)
+    "M 180,130 C 185,120 192,115 200,110 C 210,105 218,108 222,115 C 228,124 224,132 218,138 C 212,144 204,148 196,150 C 188,152 180,148 176,142 C 172,136 174,130 180,130Z",
+    "M 178,128 C 183,112 196,102 210,105 C 226,108 234,122 230,136 C 226,150 212,156 198,154 C 184,152 174,142 174,130 C 174,118 178,110 186,106",
+    "M 200,108 C 208,98 220,92 232,96 C 244,100 250,112 246,124 C 242,136 230,142 218,140 C 206,138 198,130 200,120",
+    "M 172,140 C 164,148 158,158 155,168 C 152,178 155,188 163,192 C 171,196 180,192 186,184 C 192,176 192,166 186,158 C 180,150 172,148 168,152",
+    "M 222,116 C 232,108 244,104 256,108 C 268,112 274,124 270,136 C 266,146 256,152 246,150 C 236,148 228,140 226,130",
+    "M 196,152 C 196,162 194,172 190,180 C 186,188 180,194 172,196 C 164,198 156,194 152,186 C 148,178 150,168 156,162 C 162,156 170,154 178,156",
+    "M 200,106 C 196,94 188,84 178,80 C 168,76 158,80 152,90 C 146,100 148,112 156,118 C 164,124 174,124 182,118",
+    // Longer route going outward (like the user's long trail routes)
+    "M 220,112 C 234,100 250,90 266,84 C 282,78 298,78 310,86 C 322,94 326,108 320,120",
+    "M 176,142 C 166,150 154,156 140,158 C 126,160 112,156 102,148 C 92,140 88,128 92,116",
+    // Coastal run (bottom path)
+    "M 155,168 C 148,174 138,178 128,180 C 118,182 108,180 100,174 C 92,168 88,158 90,148",
+    // Faint solo run far away
+    "M 310,88 C 318,80 328,74 338,72 C 348,70 356,74 360,82",
+    "M 90,148 C 82,142 76,134 74,124 C 72,114 74,104 80,96",
 ];
 
 const HeatmapViz = () => (
-    <div className="absolute inset-6 bottom-10">
-        <svg viewBox="0 0 400 240" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+    <div className="absolute inset-0">
+        <svg viewBox="0 0 420 260" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                <filter id="heatblur" x="-40%" y="-40%" width="180%" height="180%">
-                    <feGaussianBlur stdDeviation="9" result="blur" />
-                    <feColorMatrix in="blur" type="matrix"
-                        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -7"
-                        result="sharp" />
-                </filter>
-                <filter id="softblur" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="4" />
+                {/* Outer glow */}
+                <filter id="routeglow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="3.5" result="glow" />
+                    <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
             </defs>
 
-            {/* Base heat layer — blurred blobs merged */}
-            <g filter="url(#heatblur)">
-                {BLOBS.map(([x, y, r, color], i) => (
-                    <motion.circle key={i}
-                        cx={x * 4} cy={y * 2.4} r={r}
-                        fill={color}
-                        initial={{ opacity: 0, scale: 0 }}
-                        whileInView={{ opacity: 0.85, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.8, delay: 0.4 + i * 0.04, ease: 'easeOut' }}
-                        style={{ transformOrigin: `${x * 4}px ${y * 2.4}px` }}
-                    />
+            {/* Solid dark background */}
+            <rect width="420" height="260" fill="#0d1117" />
+
+            {/* Glow halo behind routes */}
+            <g filter="url(#routeglow)" opacity="0.35">
+                {ROUTES.slice(0, 9).map((d, i) => (
+                    <path key={`glow-${i}`} d={d} fill="none"
+                        stroke="#f97316" strokeWidth={i < 7 ? 6 : 3} strokeLinecap="round" strokeLinejoin="round" />
                 ))}
             </g>
 
-            {/* Bright core highlights (no filter) */}
-            {BLOBS.filter(([,,,, hi]) => hi !== false).slice(0, 6).map(([x, y, r], i) => (
-                <motion.circle key={`core-${i}`}
-                    cx={x * 4} cy={y * 2.4} r={r * 0.35}
-                    fill="white" fillOpacity={0.18}
-                    filter="url(#softblur)"
-                    initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
+            {/* Main routes — animated draw */}
+            {ROUTES.map((d, i) => (
+                <motion.path key={i} d={d} fill="none"
+                    stroke={i < 7 ? '#fb923c' : i < 10 ? '#f97316' : '#ea580c'}
+                    strokeWidth={i < 7 ? 1.6 : i < 10 ? 1.2 : 0.8}
+                    strokeLinecap="round" strokeLinejoin="round"
+                    opacity={i < 7 ? 0.95 : i < 10 ? 0.7 : 0.45}
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    whileInView={{ pathLength: 1, opacity: i < 7 ? 0.95 : i < 10 ? 0.7 : 0.45 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.8 + i * 0.06 }}
+                    transition={{ duration: 1.6, delay: 0.3 + i * 0.12, ease: 'easeInOut' }}
+                />
+            ))}
+
+            {/* Hot-spot dots at route intersections */}
+            {[[200, 130], [210, 110], [196, 150], [222, 116], [180, 130], [186, 106], [230, 112]].map(([cx, cy], i) => (
+                <motion.circle key={`dot-${i}`} cx={cx} cy={cy} r={i === 0 ? 3.5 : 2}
+                    fill="#fbbf24"
+                    initial={{ scale: 0, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: i === 0 ? 1 : 0.7 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: 1.8 + i * 0.08 }}
+                    style={{ transformOrigin: `${cx}px ${cy}px` }}
                 />
             ))}
         </svg>
