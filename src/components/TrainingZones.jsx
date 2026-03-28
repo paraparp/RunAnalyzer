@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -16,13 +17,13 @@ import { Card, Title, Text, Badge, Callout } from '@tremor/react';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fmtBucket = (key, groupBy) => {
-  if (groupBy === 'week') {
-    const d = new Date(key + 'T00:00:00');
-    return `${d.getDate()}/${d.getMonth() + 1}`;
-  }
-  const [y, m] = key.split('-');
-  return new Date(+y, +m - 1).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+const fmtBucket = (key, groupBy, lang = 'en') => {
+    if (groupBy === 'week') {
+        const d = new Date(key + 'T00:00:00');
+        return `${d.getDate()}/${d.getMonth() + 1}`;
+    }
+    const [y, m] = key.split('-');
+    return new Date(+y, +m - 1).toLocaleDateString(lang, { month: 'short', year: '2-digit' });
 };
 
 // ── Zone models ───────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ function detectRestHR(activities) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TrainingZones({ activities }) {
+  const { t, i18n } = useTranslation();
   const [modelKey,  setModelKey]  = useState('seiler');
   const [groupBy,   setGroupBy]   = useState('month');
   const [userMax,   setUserMax]   = useState('');
@@ -199,7 +201,50 @@ export default function TrainingZones({ activities }) {
   const lthr   = userLTHR ? +userLTHR : (lthrResult.lthr ?? Math.round(hrmax * 0.875));
   const hrr    = hrmax - hrrest;
 
-  const model  = MODELS[modelKey];
+  const translatedModels = useMemo(() => ({
+    seiler: {
+        ...MODELS.seiler,
+        name: t('zones.seiler_name'),
+        desc: t('zones.seiler_desc'),
+        zones: MODELS.seiler.zones.map(z => ({
+            ...z,
+            label: t(`zones.polar_labels.${z.name.toLowerCase()}`),
+            desc: t(`hr_analysis.${z.name.toLowerCase()}_desc`, z.desc) 
+        }))
+    },
+    karvonen: {
+        ...MODELS.karvonen,
+        name: t('zones.karvonen_name'),
+        desc: t('zones.karvonen_desc'),
+        zones: MODELS.karvonen.zones.map(z => ({
+            ...z,
+            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
+            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
+        }))
+    },
+    friel: {
+        ...MODELS.friel,
+        name: t('zones.friel_name'),
+        desc: t('zones.friel_desc'),
+        zones: MODELS.friel.zones.map(z => ({
+            ...z,
+            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
+            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
+        }))
+    },
+    acsm: {
+        ...MODELS.acsm,
+        name: t('zones.acsm_name'),
+        desc: t('zones.acsm_desc'),
+        zones: MODELS.acsm.zones.map(z => ({
+            ...z,
+            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
+            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
+        }))
+    }
+  }), [t]);
+
+  const model  = translatedModels[modelKey];
   const bounds = useMemo(() => model.getBounds({ lthr, hrmax, hrrest }), [model, lthr, hrmax, hrrest]);
 
   // ── Classify HR → zone index (inline, no closure dependency issue) ──
@@ -250,7 +295,7 @@ export default function TrainingZones({ activities }) {
     });
     const sorted = Object.values(buckets).sort((a, b) => a.key.localeCompare(b.key));
     return (groupBy === 'week' ? sorted.slice(-16) : sorted.slice(-12)).map(b => {
-      const row = { name: fmtBucket(b.key, groupBy) };
+      const row = { name: fmtBucket(b.key, groupBy, i18n.language) };
       model.zones.forEach((z, i) => { row[z.name] = +(b.zones[i] / 3600).toFixed(2); });
       return row;
     });
@@ -265,21 +310,17 @@ export default function TrainingZones({ activities }) {
 
     let status, tip, color;
     if (z1 >= 70 && z2 <= 15) {
-      status = 'Distribución Polarizada ✅'; color = 'emerald';
-      tip = `${z1.toFixed(0)}% Z1 / ${z2.toFixed(0)}% Z2 / ${z3.toFixed(0)}% Z3 — Excelente adherencia al modelo 80/20. ` +
-        `Stöggl & Sperlich (2014) demostraron que la distribución polarizada supera al entrenamiento en umbral en mejoras de VO2max, velocidad en umbral y rendimiento en carrera. Mantén los días fáciles verdaderamente fáciles (<${bounds[0]?.hi} bpm).`;
+      status = t('zones.seiler_status.ok'); color = 'emerald';
+      tip = t('hr_analysis.polarized_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0), hi: bounds[0]?.hi });
     } else if (z2 > 20) {
-      status = 'Trampa de la Zona Gris ⚠️'; color = 'amber';
-      tip = `Un ${z2.toFixed(0)}% del tiempo en Z2 (zona umbral). Seiler denomina Z2 la "zona gris": es fisiológicamente costosa para recuperarse pero no genera las adaptaciones aeróbicas de Z1 (mitocondrias, densidad capilar) ni las neuromusculares/VO2max de Z3. ` +
-        `Convierte ese tiempo en Z1 más suave (<${bounds[0]?.hi} bpm) o en intervalos Z3 estructurados (>${bounds[2]?.lo} bpm).`;
+      status = t('zones.seiler_status.gray'); color = 'amber';
+      tip = t('hr_analysis.gray_zone_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0), hi: bounds[0]?.hi, lo: bounds[2]?.lo });
     } else if (z3 < 10) {
-      status = 'Falta Estímulo de Alta Intensidad ⚠️'; color = 'sky';
-      tip = `Solo ${z3.toFixed(0)}% en Z3. Los estímulos de alta intensidad (intervalos, repeticiones) son imprescindibles para progresar el VO2max y la economía de carrera. ` +
-        `Añade 1–2 sesiones/semana por encima de ${bounds[2]?.lo} bpm (intervalos 3–5 min, repeticiones de colina, fartlek).`;
+      status = t('zones.seiler_status.low'); color = 'sky';
+      tip = t('hr_analysis.low_intensity_tip', { z3: z3.toFixed(0), lo: bounds[2]?.lo });
     } else {
-      status = 'Distribución Moderada 📊'; color = 'indigo';
-      tip = `Distribución actual ${z1.toFixed(0)} / ${z2.toFixed(0)} / ${z3.toFixed(0)} % (Z1/Z2/Z3). El objetivo polarizado es ~75 / 5 / 20. ` +
-        `Intenta desplazar el tiempo de Z2 hacia Z1 (días de recuperación más lentos) o hacia Z3 (sesiones específicas de calidad).`;
+      status = t('zones.seiler_status.mod'); color = 'indigo';
+      tip = t('hr_analysis.moderate_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0) });
     }
     return { z1, z2, z3, status, tip, color };
   }, [modelKey, zoneStats, bounds]);
@@ -287,10 +328,10 @@ export default function TrainingZones({ activities }) {
   // ── Confidence labels ──
   const confColor = lthrResult.confidence >= 70 ? 'emerald' : lthrResult.confidence >= 40 ? 'amber' : 'rose';
   const methodText = {
-    field:   `Auto-detectado de ${lthrResult.n} entrenam. umbral`,
-    race:    `Estimado de ${lthrResult.n} competición(es)`,
-    formula: '87.5% FCmax  (Friel, apróx.)',
-    none:    'Sin datos suficientes',
+    field:   t('zones.method_field', { n: lthrResult.n }),
+    race:    t('zones.method_race', { n: lthrResult.n }),
+    formula: t('zones.method_formula'),
+    none:    t('zones.method_none'),
   }[lthrResult.method];
 
   const activitiesWithHR = activities?.filter(a => a.average_heartrate)?.length ?? 0;
@@ -313,9 +354,9 @@ export default function TrainingZones({ activities }) {
       {/* ── 1. Calibration ──────────────────────────────────────────────────── */}
       <Card className="shadow-lg border-slate-200">
         <div className="mb-5">
-          <Title className="text-slate-800 font-bold">Zonas de Frecuencia Cardíaca</Title>
+          <Title className="text-slate-800 font-bold">{t('zones.title')}</Title>
           <Text className="text-slate-500 text-sm mt-0.5">
-            Calibración de parámetros fisiológicos individuales · {activitiesWithHR} actividades con datos de FC
+            {t('zones.subtitle', { count: activitiesWithHR })}
           </Text>
         </div>
 
@@ -323,11 +364,11 @@ export default function TrainingZones({ activities }) {
           {/* HRmax */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FC Máxima</p>
-              <Badge color={userMax ? 'violet' : 'sky'} size="xs">{userMax ? 'Manual' : 'Auto'}</Badge>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_max')}</p>
+              <Badge color={userMax ? 'violet' : 'sky'} size="xs">{userMax ? t('zones.manual') : t('zones.auto')}</Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">bpm {userMax ? 'introducidos' : 'detectados'}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} {userMax ? t('zones.detected').toLowerCase() : t('zones.detected').toLowerCase()}</p>
             <input
               type="number" placeholder={`${autoMaxHR} (auto)`} value={userMax}
               onChange={e => setUserMax(e.target.value)}
@@ -339,11 +380,11 @@ export default function TrainingZones({ activities }) {
           {/* HRrest */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FC Reposo</p>
-              <Badge color={userRest ? 'violet' : 'slate'} size="xs">{userRest ? 'Manual' : 'Estimada'}</Badge>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_rest')}</p>
+              <Badge color={userRest ? 'violet' : 'slate'} size="xs">{userRest ? t('zones.manual') : t('zones.estimated')}</Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">bpm {userRest ? 'introducidos' : 'estimados'}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} {userRest ? t('zones.detected').toLowerCase() : t('zones.estimated').toLowerCase()}</p>
             <input
               type="number" placeholder={`${autoRestHR} (estimada)`} value={userRest}
               onChange={e => setUserRest(e.target.value)}
@@ -355,9 +396,9 @@ export default function TrainingZones({ activities }) {
           {/* LTHR */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">LTHR (Umbral)</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.lthr')}</p>
               <Badge color={userLTHR ? 'violet' : confColor} size="xs">
-                {userLTHR ? 'Manual' : `${lthrResult.confidence}% conf.`}
+                {userLTHR ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
               </Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr}</p>
@@ -367,7 +408,7 @@ export default function TrainingZones({ activities }) {
               onChange={e => setUserLTHR(e.target.value)}
               className="mt-3 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 tabular-nums text-center font-semibold"
             />
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">Test: FC media en los últimos 20 min de un esfuerzo máximo sostenido de 30 min (Friel, 2009).</p>
+            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.lthr_desc')}</p>
           </div>
         </div>
 
@@ -375,7 +416,7 @@ export default function TrainingZones({ activities }) {
         <div className="mt-4 flex gap-2.5 flex-wrap">
           <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">HRR</span>
-            <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} bpm</span>
+            <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} {t('zones.bpm')}</span>
             <span className="text-[10px] text-indigo-400">({hrmax} − {hrrest})</span>
           </div>
           <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-3 py-1.5">
@@ -441,15 +482,15 @@ export default function TrainingZones({ activities }) {
       {/* ── 3. Time in zones ────────────────────────────────────────────────── */}
       <Card className="shadow-lg border-slate-200">
         <div className="mb-5">
-          <Title className="text-slate-800 font-bold">Tiempo en Zonas</Title>
+          <Title className="text-slate-800 font-bold">{t('zones.time_in_zones')}</Title>
           <Text className="text-slate-500 text-sm">
-            Distribución por FC media por actividad
-            {modelKey === 'seiler' && ' · Las barras verticales indican el objetivo del modelo 80/20'}
+            {t('zones.time_in_zones_desc')}
+            {modelKey === 'seiler' && ` · ${t('hr_analysis.bars_obj_8020')}`}
           </Text>
         </div>
 
         {zoneStats.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">Sin actividades con datos de FC</div>
+          <div className="text-center py-10 text-slate-400 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <div className="space-y-4">
             {zoneStats.map((z) => {
@@ -501,8 +542,8 @@ export default function TrainingZones({ activities }) {
       <Card className="shadow-lg border-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <Title className="text-slate-800 font-bold">Evolución Temporal</Title>
-            <Text className="text-slate-500 text-sm">Horas en cada zona por período</Text>
+            <Title className="text-slate-800 font-bold">{t('zones.evolution')}</Title>
+            <Text className="text-slate-500 text-sm">{t('zones.evolution_desc')}</Text>
           </div>
           <div className="flex gap-1.5">
             {['month', 'week'].map(g => (
@@ -515,14 +556,14 @@ export default function TrainingZones({ activities }) {
                     : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
                 }`}
               >
-                {g === 'month' ? 'Mensual' : 'Semanal'}
+                {g === 'month' ? t('zones.monthly') : t('zones.weekly')}
               </button>
             ))}
           </div>
         </div>
 
         {evolutionData.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">Sin datos</div>
+          <div className="text-center py-10 text-slate-400 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <>
             <div className="flex flex-wrap gap-2 mb-3">
@@ -556,13 +597,13 @@ export default function TrainingZones({ activities }) {
       {/* ── 5. Seiler Polarization ───────────────────────────────────────────── */}
       {polarization && (
         <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-5">Análisis de Polarización — Modelo Seiler 80/20</Title>
+          <Title className="text-slate-800 font-bold mb-5">{t('zones.polarization_title')}</Title>
 
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
-              { label: 'Z1 · Base Aeróbica', val: polarization.z1, color: '#16a34a', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', target: '≥75%' },
-              { label: 'Z2 · Zona Gris',     val: polarization.z2, color: '#d97706', bg: 'rgba(251,191,36,0.10)', border: 'rgba(251,191,36,0.30)', target: '≤10%' },
-              { label: 'Z3 · Alta Intensidad',val: polarization.z3, color: '#dc2626', bg: 'rgba(248,113,113,0.10)',border: 'rgba(248,113,113,0.30)',target: '~20%' },
+              { label: t('zones.polar_labels.z1'), val: polarization.z1, color: '#16a34a', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', target: '≥75%' },
+              { label: t('zones.polar_labels.z2'), val: polarization.z2, color: '#d97706', bg: 'rgba(251,191,36,0.10)', border: 'rgba(251,191,36,0.30)', target: '≤10%' },
+              { label: t('zones.polar_labels.z3'), val: polarization.z3, color: '#dc2626', bg: 'rgba(248,113,113,0.10)',border: 'rgba(248,113,113,0.30)',target: '~20%' },
             ].map(row => (
               <div key={row.label} className="text-center p-4 rounded-xl" style={{ background: row.bg, border: `1px solid ${row.border}` }}>
                 <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: row.color }}>{row.label}</p>
@@ -586,9 +627,8 @@ export default function TrainingZones({ activities }) {
           {/* Reference note */}
           <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              <span className="font-semibold text-slate-500">Base científica:</span>{' '}
-              Seiler & Kjerland (2006) analizaron a esquiadores de élite y descubrieron que el 75–80% del volumen se realizaba en Z1.
-              Stöggl & Sperlich (2014) compararon en ensayo controlado 4 modelos de distribución (HIT, umbral, HVT, polarizado) y concluyeron que el entrenamiento polarizado producía las mayores mejoras en VO2max, velocidad en umbral de lactato y rendimiento en carrera.
+              <span className="font-semibold text-slate-500">{t('zones.scientific_base')}:</span>{' '}
+              {t('hr_analysis.seiler_scientific_base')}
             </p>
           </div>
         </Card>

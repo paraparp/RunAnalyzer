@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ const fmtPace = (paceS) => {
 };
 
 const OverviewChart = ({ rows, avgPaceS }) => {
+    const { t } = useTranslation();
     const n = rows.length;
     if (n === 0) return null;
 
@@ -134,15 +136,15 @@ const OverviewChart = ({ rows, avgPaceS }) => {
             <div className="absolute top-0.5 right-1 flex items-center gap-3">
                 <div className="flex items-center gap-1">
                     <div className="w-3 h-0.5 rounded bg-orange-400" />
-                    <span className="text-[9px] text-slate-400">FC</span>
+                    <span className="text-[9px] text-slate-400">{t('splits.legend_hr', 'FC')}</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <div className="w-3 h-2 rounded-sm bg-slate-300/80" style={{ background: 'linear-gradient(#34d399,#f87171)' }} />
-                    <span className="text-[9px] text-slate-400">ritmo</span>
+                    <span className="text-[9px] text-slate-400">{t('splits.pace', 'RITMO').toLowerCase()}</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <div className="w-4 h-px" style={{ background: '#6366f1' }} />
-                    <span className="text-[9px] text-slate-400 font-mono">media {fmtPace(avgPaceS)}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">{t('splits.avg', 'media')} {fmtPace(avgPaceS)}</span>
                 </div>
             </div>
             <div className="absolute left-1 top-0.5 text-[9px] text-slate-400 font-mono">{fmtPace(minP)} ↑</div>
@@ -183,8 +185,9 @@ const PaceBar = ({ row }) => {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const ActivitySplits = ({ splits, globalMaxHR }) => {
+    const { t } = useTranslation();
     if (!splits || splits.length === 0) {
-        return <p className="py-4 text-center text-sm italic text-slate-400">No hay parciales.</p>;
+        return <p className="py-4 text-center text-sm italic text-slate-400">{t('splits.no_splits', 'No hay parciales.')}</p>;
     }
 
     const { rows, avgPaceS, maxHR } = useMemo(() => {
@@ -227,7 +230,7 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
             <OverviewChart rows={rows} avgPaceS={avgPaceS} />
             <div className="grid items-center gap-x-2 px-0 pb-2 border-b border-slate-200 mb-0.5" style={{ gridTemplateColumns: GRID }}>
                 <div />
-                {['LAP', 'DIST', 'RITMO', '', 'GRAFICA', 'TIEMPO', 'GAP', 'DESN.', '', 'ZONA / FC'].map((h, i) => (
+                {[t('splits.lap'), t('splits.dist'), t('splits.pace'), '', t('splits.chart'), t('splits.time'), t('splits.gap'), t('splits.elev'), '', t('splits.zone_hr')].map((h, i) => (
                     <span key={i} className={`text-[9px] font-bold uppercase tracking-widest text-slate-400 ${i >= 5 ? 'text-right' : i === 4 ? 'text-center' : ''}`}>
                         {h}
                     </span>
@@ -289,10 +292,10 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
             <div className="mt-4 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-x-5 px-1">
                 <div className="flex items-center gap-1.5">
                     <div className="w-8 h-1.5 rounded-full" style={{ background: 'linear-gradient(90deg,#f1f5f9,#1d4ed8)' }} />
-                    <span className="text-[9px] text-slate-400">ritmo: 6:30 (claro) → 3:00 (azul)</span>
+                    <span className="text-[9px] text-slate-400">{t('splits.legend_pace_range')}</span>
                 </div>
                 <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-[9px] text-slate-400">frecuencia cardíaca:</span>
+                    <span className="text-[9px] text-slate-400">{t('nav.zones').toLowerCase()}:</span>
                     {[1, 2, 3, 4, 5].map(z => <span key={z} className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: ZONES[z].bg, color: ZONES[z].text }}>{ZONES[z].label}</span>)}
                 </div>
             </div>

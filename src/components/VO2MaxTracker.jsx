@@ -1,10 +1,22 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
   ComposedChart, AreaChart, Area, Line, ScatterChart, Scatter, Cell, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
+import { 
+  HeartIcon, 
+  FlagIcon, 
+  ChartBarIcon, 
+  CalendarIcon, 
+  ClockIcon, 
+  PlayCircleIcon,
+  CpuChipIcon,
+  SparklesIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
 
 // ============================================================
 // VO2max Multi-Method Estimation Engine
@@ -282,13 +294,13 @@ function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
 
 // --- ACSM VO2max fitness classification ---
 
-function getVO2Category(vo2) {
-  if (vo2 >= 56) return { label: 'Superior', color: '#10b981', percentile: '95+' };
-  if (vo2 >= 51) return { label: 'Excelente', color: '#22c55e', percentile: '80-95' };
-  if (vo2 >= 45) return { label: 'Bueno', color: '#2563eb', percentile: '60-80' };
-  if (vo2 >= 39) return { label: 'Normal', color: '#f59e0b', percentile: '40-60' };
-  if (vo2 >= 34) return { label: 'Regular', color: '#f97316', percentile: '20-40' };
-  return { label: 'Bajo', color: '#ef4444', percentile: '<20' };
+function getVO2Category(vo2, t) {
+  if (vo2 >= 56) return { label: t('vo2.categories.superior'), color: '#10b981', percentile: '95+' };
+  if (vo2 >= 51) return { label: t('vo2.categories.excellent'), color: '#22c55e', percentile: '80-95' };
+  if (vo2 >= 45) return { label: t('vo2.categories.good'), color: '#2563eb', percentile: '60-80' };
+  if (vo2 >= 39) return { label: t('vo2.categories.fair'), color: '#f59e0b', percentile: '40-60' };
+  if (vo2 >= 34) return { label: t('vo2.categories.poor'), color: '#f97316', percentile: '20-40' };
+  return { label: t('vo2.categories.very_poor'), color: '#ef4444', percentile: '<20' };
 }
 
 function formatPace(minPerKm) {
@@ -307,13 +319,12 @@ function getWeekKey(dateStr) {
   return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
-// ============================================================
-// Component
-// ============================================================
-
 export default function VO2MaxTracker({ activities }) {
+  const { t, i18n } = useTranslation();
+  const MONTH_SHORT = i18n.language.startsWith('es')
+    ? ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
   const [monthsToShow, setMonthsToShow] = useState('12');
   const [smoothing, setSmoothing] = useState('7');
 
@@ -565,7 +576,7 @@ export default function VO2MaxTracker({ activities }) {
     const methodCounts = { HRR: 0, Firstbeat: 0, '%HRmax': 0 };
     validRuns.forEach(r => r.methods.forEach(m => { methodCounts[m.method] = (methodCounts[m.method] || 0) + 1; }));
 
-    const category = getVO2Category(current);
+    const category = getVO2Category(current, t);
 
     return {
       trendData: trend,
@@ -589,13 +600,13 @@ export default function VO2MaxTracker({ activities }) {
         officialVO2: garminOfficialVO2
       },
     };
-  }, [activities, monthsToShow, smoothing, garminRestHR, garminMaxHR, garminOfficialVO2]);
+  }, [activities, monthsToShow, smoothing, garminRestHR, garminMaxHR, garminOfficialVO2, t]);
 
   if (!stats || trendData.length === 0) {
     return (
       <div className="text-center py-12 text-slate-400">
-        <p className="text-sm">No hay datos suficientes para estimar tu VO2max.</p>
-        <p className="text-xs mt-2">Se necesitan actividades de +10 min con datos de frecuencia cardíaca.</p>
+        <p className="text-sm">{t('vo2.no_data', 'No hay datos suficientes para estimar tu VO2max.')}</p>
+        <p className="text-xs mt-2">{t('vo2.no_data_desc', 'Se necesitan actividades de +10 min con datos de frecuencia cardíaca.')}</p>
       </div>
     );
   }
@@ -634,137 +645,150 @@ export default function VO2MaxTracker({ activities }) {
   return (
     <div className="space-y-6">
       {/* Main VO2max display */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Big VO2max card */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-center shadow-lg shadow-blue-200 flex flex-col justify-center">
-          <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mb-1">VO2max Estimado</p>
-          <p className="text-5xl font-black text-white tabular-nums">{stats.current}</p>
-          <p className="text-blue-200 text-xs mt-1">ml/kg/min</p>
-          <div className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full" style={{ backgroundColor: stats.category.color + '30' }}>
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stats.category.color }} />
-            <span className="text-white text-xs font-semibold">{stats.category.label}</span>
-            <span className="text-blue-200 text-[10px]">(P{stats.category.percentile})</span>
+        <div className="bg-slate-900 rounded-3xl p-8 text-center shadow-2xl shadow-blue-100/50 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 transition-transform group-hover:scale-125">
+             <SparklesIcon className="w-24 h-24 text-white" />
+          </div>
+          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 relative z-10">{t('vo2.estimated')}</p>
+          <div className="relative z-10">
+            <p className="text-7xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.current}</p>
+            <p className="text-blue-300 text-xs font-bold mt-2 uppercase tracking-widest">{t('vo2.ml_kg_min')}</p>
+          </div>
+          
+          <div className="mt-8 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm relative z-10">
+            <div className="w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ backgroundColor: stats.category.color }} />
+            <span className="text-white text-xs font-black uppercase tracking-wider">{t(`vo2.categories.${stats.category.label}`, stats.category.label)}</span>
+            <span className="text-blue-300 text-[10px] font-bold">(P{stats.category.percentile})</span>
           </div>
 
-          {stats.officialVO2 && (
-            <div className="mt-2 bg-emerald-400/20 px-2 py-1 rounded-lg border border-emerald-400/10">
-              <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-widest">
-                Perfil Garmin: <span className="text-white">{stats.officialVO2}</span>
-              </p>
+          <div className="mt-6 flex flex-col gap-2 relative z-10">
+            {stats.officialVO2 && (
+              <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+                <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">
+                  Perfil Garmin: <span className="text-white ml-1">{stats.officialVO2}</span>
+                </p>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between px-2 pt-4 border-t border-white/5">
+                <p className={`text-[11px] font-black uppercase tracking-widest ${stats.trendDir > 0 ? 'text-emerald-400' : stats.trendDir < -1 ? 'text-rose-400' : 'text-blue-400'}`}>
+                  {stats.trendDir > 0 ? t('vo2.tendency') : stats.trendDir < -1 ? t('vo2.drop') : t('vo2.stable')}
+                </p>
+                <p className="text-white font-black text-xs">
+                  {stats.trendDir > 0 ? '+' : ''}{stats.trendDir}
+                </p>
             </div>
-          )}
-
-          <p className={`text-xs mt-2 font-semibold ${stats.trendDir > 0 ? 'text-emerald-300' : stats.trendDir < -1 ? 'text-rose-300' : 'text-blue-300'}`}>
-            {stats.trendDir > 0 ? '↑' : stats.trendDir < -1 ? '↓' : '→'} {stats.trendDir > 0 ? '+' : ''}{stats.trendDir} tendencia
-          </p>
-          <div className="mt-2 bg-white/10 px-2 py-1 rounded border border-white/10">
-            <p className="text-[10px] text-blue-100">
-              Confianza media: <span className="font-bold text-white">{stats.avgConfidence}%</span>
-            </p>
           </div>
         </div>
 
         {/* Stat cards */}
-        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Pico histórico</p>
-            <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.peak}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media global</p>
-            <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avg}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Últimos 30 días</p>
-            <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.recentAvg || '--'}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">ml/kg/min</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-              {stats.isMaxHREstimated ? 'FC máx detectada' : 'FC máx Garmin'}
-            </p>
-            <p className="text-2xl font-black text-rose-600 tabular-nums">{stats.activeMaxHR}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              {stats.isMaxHREstimated ? 'bpm (filtro de ruido)' : 'bpm (perfil oficial)'}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-              {stats.isRestHREstimated ? 'FC reposo estimada' : 'FC reposo Garmin'}
-            </p>
-            <p className="text-2xl font-black text-sky-600 tabular-nums">{stats.activeRestHR}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              {stats.isRestHREstimated ? 'bpm (regresión en carreras)' : (
-                <span className="flex items-center gap-1 justify-center sm:justify-start">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  bpm (sincronizado exacto)
-                </span>
+        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {[
+            { label: t('vo2.peak'), value: stats.peak, unit: t('vo2.ml_kg_min'), color: "text-emerald-600", icon: FlagIcon },
+            { label: t('vo2.global_avg'), value: stats.avg, unit: t('vo2.ml_kg_min'), color: "text-slate-600", icon: ChartBarIcon },
+            { label: t('vo2.last_30'), value: stats.recentAvg || '--', unit: t('vo2.ml_kg_min'), color: "text-blue-600", icon: CalendarIcon },
+            { 
+              label: stats.isMaxHREstimated ? t('vo2.garmin_sync.max_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.max_hr') + " (Garmin)", 
+              value: stats.activeMaxHR, 
+              unit: "bpm", 
+              color: "text-rose-600", 
+              icon: HeartIcon,
+              sub: stats.isMaxHREstimated ? t('hr_analysis.diagnosis.noise_filter', 'Filtro de ruido') : t('vo2.garmin_sync.official')
+            },
+            { 
+              label: stats.isRestHREstimated ? t('vo2.garmin_sync.resting_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.resting_hr') + " (Garmin)", 
+              value: stats.activeRestHR, 
+              unit: "bpm", 
+              color: "text-sky-600", 
+              icon: ClockIcon,
+              sub: stats.isRestHREstimated ? t('fitness.how_to_read', 'Regresión lineal') : t('vo2.garmin_sync.connected').split(' ')[0]
+            },
+            { label: t('vo2.sessions'), value: stats.totalSessions, unit: t('vo2.analyzed'), color: "text-slate-900", icon: PlayCircleIcon },
+          ].map((card, idx) => (
+            <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm transition-all hover:shadow-md group">
+              <div className="flex justify-between items-start mb-3">
+                 <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                    {card.icon && <card.icon className="w-5 h-5" />}
+                 </div>
+                 <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <p className={`text-2xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
+              </div>
+              {card.sub && (
+                 <div className="mt-2 text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                    <div className="w-1 h-1 rounded-full bg-slate-200" />
+                    {card.sub}
+                 </div>
               )}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Sesiones</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.totalSessions}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">analizadas</p>
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Method breakdown */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { key: 'HRR', label: 'Método HRR', desc: 'Swain-Leutholtz 1997', color: '#1d4ed8' },
-          { key: 'Firstbeat', label: 'Regresión lineal', desc: 'Tipo Firstbeat/Garmin', color: '#2563eb' },
-          { key: '%HRmax', label: '%FCmax', desc: 'Swain 1994 (fallback)', color: '#60a5fa' },
+          { key: 'HRR', label: 'Estrategia HRR', desc: 'Basado en Reserva (Swain 1997)', color: 'bg-blue-600' },
+          { key: 'Firstbeat', label: 'Regresión Lineal', desc: 'Patrón Firstbeat Analytics', color: 'bg-slate-900' },
+          { key: '%HRmax', label: 'Swain Fallback', desc: 'Basado en %FCmax 1994', color: 'bg-slate-400' },
         ].map(m => (
-          <div key={m.key} className="bg-white rounded-xl border border-slate-200 p-3 text-center">
-            <div className="w-2 h-2 rounded-full mx-auto mb-1" style={{ backgroundColor: m.color }} />
-            <p className="text-xs font-bold text-slate-700">{m.label}</p>
-            <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{stats.methodCounts[m.key] || 0}</p>
-            <p className="text-[9px] text-slate-400">{m.desc}</p>
+          <div key={m.key} className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
+            <div className={`w-12 h-12 ${m.color} rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-slate-200`}>
+                <span className="font-black text-lg leading-none">{stats.methodCounts[m.key] || 0}</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-0.5">{m.label}</p>
+              <p className="text-xs font-bold text-slate-600">{m.desc}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Garmin Sync Module */}
-      <div className={`rounded-xl border p-4 ${garminRestHR ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200 shadow-sm'}`}>
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div>
-            <h4 className="font-bold text-sm text-slate-800 mb-1 flex items-center gap-2">
-              {garminRestHR ? '✅ Sincronizado con Garmin Connect' : '🔌 Conectar con Garmin Connect (Experimental)'}
+      <div className={`rounded-2xl border-l-[12px] p-8 transition-all ${garminRestHR ? 'bg-white border-emerald-500 border border-slate-100 shadow-xl shadow-emerald-100/20' : 'bg-white border-blue-600 border border-slate-100 shadow-xl shadow-blue-100/20'}`}>
+        <div className="flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
+          <div className="flex-1">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+               <CpuChipIcon className="w-4 h-4" />
+               <span className="text-[10px] font-black uppercase tracking-widest">{garminRestHR ? 'Bio-Sincronización Activa' : 'Mejora la precisión'}</span>
+            </div>
+            <h4 className="font-black text-2xl text-slate-900 tracking-tight mb-2">
+              {garminRestHR ? 'Sincronizado con Garmin Connect' : 'Conecta tu cuenta de Garmin'}
             </h4>
-            <p className="text-xs text-slate-500 max-w-xl">
+            <p className="text-sm text-slate-500 max-w-2xl leading-relaxed font-medium">
               {garminRestHR
-                ? `La aplicación está utilizando tu frecuencia cardíaca en reposo real (${garminRestHR} bpm). Esto garantiza que el cálculo de VO2Max sea idéntico al algoritmo Firstbeat/Garmin.`
-                : 'El modelo matemático actual está "adivinando" tu frecuencia cardíaca en reposo. Para obtener un VO2Max totalmente preciso y parejo al de tu reloj, introduce tus credenciales de Garmin para extraer tu pulso basal real. (Solo se usa de forma local y no se almacena).'
+                ? `Utilizando tu frecuencia cardíaca en reposo basal (${garminRestHR} bpm) para cálculos de precisión clínica.`
+                : 'Sincroniza tus datos fisiológicos reales para eliminar estimaciones. Tus credenciales se procesan de forma efímera y no se almacenan en servidores externos.'
               }
             </p>
           </div>
 
           {!garminRestHR && (
-            <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+            <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-4 xl:mt-0">
               <input
                 type="email"
                 placeholder="Email Garmin"
-                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-xs font-bold px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all w-full sm:w-64"
                 value={garminCredentials.email}
                 onChange={e => setGarminCredentials({ ...garminCredentials, email: e.target.value })}
               />
               <input
                 type="password"
                 placeholder="Contraseña"
-                className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-xs font-bold px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all w-full sm:w-48"
                 value={garminCredentials.password}
                 onChange={e => setGarminCredentials({ ...garminCredentials, password: e.target.value })}
               />
               <button
                 onClick={handleGarminSync}
                 disabled={garminSyncState.loading}
-                className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white text-[10px] font-black uppercase tracking-[0.2em] px-8 py-4 rounded-2xl transition-all shadow-lg active:scale-95 whitespace-nowrap"
               >
-                {garminSyncState.loading ? (syncProgress || 'Conectando...') : 'Sincronizar Bio-Garmin'}
+                {garminSyncState.loading ? (syncProgress || 'Procesando...') : 'Enlazar'}
               </button>
             </div>
           )}
@@ -781,14 +805,19 @@ export default function VO2MaxTracker({ activities }) {
                 setGarminOfficialVO2(null);
                 localStorage.removeItem('garminOfficialVO2');
               }}
-              className="text-xs font-semibold text-rose-500 hover:text-rose-700 underline"
+              className="text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-700 underline transition-colors"
             >
-              Desconectar
+              Desvincular Cuenta
             </button>
           )}
         </div>
         {garminSyncState.error && (
-          <p className="text-xs text-rose-500 mt-2 font-medium bg-rose-50 p-2 rounded">Error: {garminSyncState.error}</p>
+          <div className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3">
+             <div className="bg-rose-500 text-white p-1 rounded-lg">
+                <ExclamationTriangleIcon className="w-4 h-4" />
+             </div>
+             <p className="text-xs text-rose-600 font-bold uppercase tracking-tight">Error de autenticación: {garminSyncState.error}</p>
+          </div>
         )}
       </div>
 

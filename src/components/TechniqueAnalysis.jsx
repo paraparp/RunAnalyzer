@@ -1,5 +1,11 @@
-import { Card, Title, Text } from '@tremor/react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ZAxis, Cell } from 'recharts';
+import { 
+  SignalIcon, 
+  ArrowsPointingOutIcon, 
+  StopIcon,
+  SparklesIcon,
+  AdjustmentsHorizontalIcon
+} from '@heroicons/react/24/outline';
 import { useMemo, useState, useEffect } from 'react';
 
 export default function TechniqueAnalysis({ activities }) {
@@ -105,43 +111,57 @@ export default function TechniqueAnalysis({ activities }) {
   return (
     <div className="space-y-6">
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
-            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">Cadencia Media</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.cadence} <span className="text-sm font-medium text-slate-400">spm</span></p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
-            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Zancada Media</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.stride} <span className="text-sm font-medium text-slate-400">m</span></p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm">
-            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Mejor Ritmo Registrado</p>
-            <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.bestPace} <span className="text-sm font-medium text-slate-400">/km</span></p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Cadencia Media", value: stats.cadence, unit: "spm", color: "text-blue-600", icon: SignalIcon },
+            { label: "Zancada Media", value: stats.stride, unit: "m", color: "text-emerald-600", icon: ArrowsPointingOutIcon },
+            { label: "Ritmo Pico", value: stats.bestPace, unit: "/km", color: "text-amber-600", icon: StopIcon }
+          ].map((card, i) => (
+            <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
+               <div className="flex justify-between items-start mb-3">
+                  <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                     <card.icon className="w-5 h-5" />
+                  </div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+               </div>
+               <div className="flex items-baseline gap-1.5">
+                  <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
+               </div>
+            </div>
+          ))}
         </div>
       )}
 
-      <Card className="shadow-lg border-slate-200">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-          <Title className="text-slate-800 font-bold">Técnica: Ritmo vs Cadencia</Title>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-              <input 
-                type="checkbox" 
-                id="flatFilter" 
-                checked={flatOnly}
-                onChange={(e) => setFlatOnly(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="flatFilter" className="text-sm font-semibold text-slate-700 cursor-pointer select-none">
-                Solo llanas (≤ 1.5%)
-              </label>
+      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+               <div className="bg-blue-600 text-white p-1 rounded-lg">
+                  <SparklesIcon className="w-4 h-4" />
+               </div>
+               <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">Técnica: Ritmo vs Cadencia</h3>
             </div>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
+              Analiza la correlación bio-mecánica entre tu frecuencia de paso y la longitud de zancada. El filtrado de terreno llano permite aislar la fatiga de la pendiente.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100 shrink-0">
+             <button 
+                onClick={() => setFlatOnly(false)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+             >
+                Todo
+             </button>
+             <button 
+                onClick={() => setFlatOnly(true)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+             >
+                Solo Llanas
+             </button>
           </div>
         </div>
-        <Text className="text-slate-500 mb-4 max-w-2xl">
-          Descubre cómo varía tu cadencia y longitud de zancada a diferentes ritmos. Analizar los datos sobre terreno llano ofrece la visión más real de tu técnica.
-        </Text>
 
         {uniqueYears.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -168,50 +188,52 @@ export default function TechniqueAnalysis({ activities }) {
           </div>
         )}
 
-        <div className="h-[450px] w-full mt-2 bg-slate-50/50 rounded-xl p-4 border border-slate-100 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                type="number" 
-                dataKey="ritmoVal" 
-                name="Ritmo" 
-                domain={['dataMin', 'dataMax']}
-                tickFormatter={(val) => {
-                  const m = Math.floor(val);
-                  const s = Math.round((val - m) * 60);
-                  return `${m}:${s.toString().padStart(2, '0')}`;
-                }}
-                reversed={true}
-                label={{ value: 'Ritmo (min/km) - MÁS RÁPIDO →', position: 'insideBottom', offset: -10, fill: '#64748b', fontSize: 12, fontWeight: 600 }}
-                tick={{ fill: '#64748b', fontSize: 12 }}
-                tickCount={8}
-              />
-              <YAxis 
-                type="number" 
-                dataKey="Cadencia" 
-                name="Cadencia" 
-                domain={['dataMin - 5', 'dataMax + 5']}
-                label={{ value: 'Cadencia (spm)', angle: -90, position: 'insideLeft', offset: -5, fill: '#64748b', fontSize: 12, fontWeight: 600 }}
-                tick={{ fill: '#64748b', fontSize: 12 }}
-              />
-              <ZAxis type="number" dataKey="Distancia" range={[40, 400]} name="Distancia" />
-              <RechartsTooltip cursor={{ strokeDasharray: '3 3', stroke: '#cbd5e1' }} content={<CustomTooltip />} />
-              <Scatter 
-                name="Actividades" 
-                data={chartData} 
-                onClick={(e) => window.open(`https://www.strava.com/activities/${e.id}`, '_blank')}
-                className="cursor-pointer"
-              >
-                {chartData.map((entry, index) => {
-                  const colorIdx = entry.year % YEAR_COLORS.length;
-                  return <Cell key={`cell-${index}`} fill={YEAR_COLORS[colorIdx]} fillOpacity={0.7} className="hover:opacity-100 transition-opacity drop-shadow-sm" />;
-                })}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
+        <div className="h-[500px] w-full mt-4 bg-slate-50/20 rounded-2xl p-6 border border-slate-100/50 relative overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 to-transparent pointer-events-none" />
+           <ResponsiveContainer width="100%" height="100%">
+             <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 10 }}>
+               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+               <XAxis 
+                 type="number" 
+                 dataKey="ritmoVal" 
+                 name="Ritmo" 
+                 domain={['dataMin', 'dataMax']}
+                 tickFormatter={(val) => {
+                   const m = Math.floor(val);
+                   const s = Math.round((val - m) * 60);
+                   return `${m}:${s.toString().padStart(2, '0')}`;
+                 }}
+                 reversed={true}
+                 tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                 axisLine={{ stroke: '#f1f5f9' }}
+                 tickLine={false}
+               />
+               <YAxis 
+                 type="number" 
+                 dataKey="Cadencia" 
+                 name="Cadencia" 
+                 domain={['dataMin - 5', 'dataMax + 5']}
+                 tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                 axisLine={false}
+                 tickLine={false}
+               />
+               <ZAxis type="number" dataKey="Distancia" range={[60, 600]} name="Distancia" />
+               <RechartsTooltip cursor={{ strokeDasharray: '3 3', stroke: '#3b82f6', strokeWidth: 2 }} content={<CustomTooltip />} />
+               <Scatter 
+                 name="Actividades" 
+                 data={chartData} 
+                 onClick={(e) => window.open(`https://www.strava.com/activities/${e.id}`, '_blank')}
+                 className="cursor-pointer"
+               >
+                 {chartData.map((entry, index) => {
+                   const colorIdx = entry.year % YEAR_COLORS.length;
+                   return <Cell key={`cell-${index}`} fill={YEAR_COLORS[colorIdx]} fillOpacity={0.6} className="hover:opacity-100 transition-opacity drop-shadow-lg" strokeWidth={1} stroke="#fff" />;
+                 })}
+               </Scatter>
+             </ScatterChart>
+           </ResponsiveContainer>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,20 @@
-import { Card, Title, Text, ProgressBar, Badge } from '@tremor/react';
 import { useMemo, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getAthleteProfile } from '../services/strava';
+import { 
+  SparklesIcon, 
+  ClockIcon, 
+  MapPinIcon, 
+  BoltIcon, 
+  ArrowsRightLeftIcon,
+  CheckBadgeIcon,
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
 
 export default function GearTracker({ activities, stravaData, setStravaData }) {
+  const { t } = useTranslation();
   const [shoeNames, setShoeNames] = useState({});
 
   useEffect(() => {
@@ -111,95 +123,123 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
   if (gearStats.length === 0) {
     return (
-      <Card className="shadow-sm border-transparent bg-surface-container-lowest">
-        <Title className="text-on-surface font-bold mb-2">Garaje de Zapatillas</Title>
-        <Text className="text-on-surface-variant mb-6">Analiza el uso y rendimiento de tu equipamiento.</Text>
-        <div className="bg-surface-container-low rounded-xl p-8 border border-dashed border-outline-variant flex flex-col items-center justify-center text-center">
-            <span className="text-4xl mb-3">👟</span>
-            <p className="text-sm font-semibold text-on-surface">No hay zapatillas registradas</p>
-            <p className="text-xs text-on-surface-variant mt-1 max-w-sm">Si añades tus zapatillas dentro de tus actividades de Strava, aparecerán aquí agrupadas automáticamente.</p>
+      <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
+        <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+           <MapPinIcon className="w-10 h-10 text-slate-300" />
         </div>
-      </Card>
+        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('gear.empty_title', 'Garaje Vacío')}</h3>
+        <p className="text-slate-500 max-w-sm mx-auto font-medium">
+           {t('gear.empty_desc', 'Si añades tus zapatillas dentro de tus actividades de Strava, aparecerán aquí agrupadas automáticamente.')}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm border-transparent bg-surface-container-lowest">
-        <Title className="text-on-surface font-bold mb-2">Garaje de Zapatillas</Title>
-        <Text className="text-on-surface-variant mb-6">
-          Lleva el control de kilómetros y rendimiento. Unas zapatillas suelen perder su amortiguación óptima entre los 600 y 800 km.
-        </Text>
+      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+               <div className="bg-slate-900 text-white p-1 rounded-lg">
+                  <SparklesIcon className="w-4 h-4" />
+               </div>
+               <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('gear.title')}</h3>
+            </div>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
+              {t('gear.subtitle')}
+            </p>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {gearStats.map(gear => {
+        <div className="space-y-4">
+          {gearStats.map((gear, idx) => {
             const pct = Math.min((gear.distanceKm / gear.maxLife) * 100, 100);
-            let color = "emerald";
-            if (pct > 60) color = "amber";
-            if (pct > 85) color = "rose";
+            let color = "bg-emerald-500";
+            let textColor = "text-emerald-600";
+            let bgColor = "bg-emerald-50";
+            let borderColor = "border-emerald-100";
+            let icon = CheckBadgeIcon;
+            let statusText = t('gear.status.good');
 
-            let statusText = "Buen estado";
-            if (pct > 60) statusText = "Desgaste medio";
-            if (pct > 85) statusText = "Considera cambiarlas";
+            if (pct > 60) {
+              color = "bg-amber-500";
+              textColor = "text-amber-600";
+              bgColor = "bg-amber-50";
+              borderColor = "border-amber-100";
+              icon = ExclamationTriangleIcon;
+              statusText = t('gear.status.medium');
+            }
+            if (pct > 85) {
+              color = "bg-rose-500";
+              textColor = "text-rose-600";
+              bgColor = "bg-rose-50";
+              borderColor = "border-rose-100";
+              icon = ExclamationCircleIcon;
+              statusText = t('gear.status.replacement');
+            }
 
             return (
-              <div key={gear.id} className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-5 shadow-sm hover:shadow-md transition-all">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-bold text-on-surface">{gear.name}</h3>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{gear.count} usos • {gear.lastUsedStr}</p>
-                  </div>
-                  <Badge color={color} size="xs">{statusText}</Badge>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                  {/* Ritmo Medio */}
-                  <div className="bg-surface-container-low rounded-xl p-4 flex flex-col items-start border border-transparent">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-3">
-                      <span className="material-symbols-outlined text-blue-500 text-[18px]" data-icon="speed">speed</span>
+              <motion.div 
+                key={gear.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                className="group bg-white rounded-2xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-lg transition-all"
+              >
+                <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
+                  {/* Shoe Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1">
+                       <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
+                       <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${bgColor} ${textColor} border ${borderColor}`}>
+                          {statusText}
+                       </div>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Ritmo Medio</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-black text-on-surface tabular-nums leading-none">{gear.paceFormatted}</span>
-                      <span className="text-[10px] font-medium text-on-surface-variant">/km</span>
-                    </div>
-                  </div>
-                  {/* Media Km/Salida */}
-                  <div className="bg-surface-container-low rounded-xl p-4 flex flex-col items-start border border-transparent">
-                    <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center mb-3">
-                      <span className="material-symbols-outlined text-sky-500 text-[18px]" data-icon="avg_time">avg_pace</span>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Media / Salida</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-black text-on-surface tabular-nums leading-none">{(gear.distanceKm / gear.count).toFixed(1)}</span>
-                      <span className="text-[10px] font-medium text-on-surface-variant">km</span>
+                    <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                       <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
+                       <span>•</span>
+                       <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
                     </div>
                   </div>
-                  {/* Distancia Total */}
-                  <div className="bg-surface-container-low rounded-xl p-4 flex flex-col items-start border border-transparent">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-3">
-                      <span className="material-symbols-outlined text-emerald-500 text-[18px]" data-icon="route">route</span>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Dist. Total</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-black text-on-surface tabular-nums leading-none">{Math.round(gear.distanceKm)}</span>
-                      <span className="text-[10px] font-medium text-on-surface-variant">km</span>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider">
-                    <span className="text-on-surface-variant">Desgaste</span>
-                    <span className="text-on-surface">{Math.round(gear.distanceKm)} / {gear.maxLife} km</span>
+                  {/* Perf Stats */}
+                  <div className="grid grid-cols-2 gap-8 shrink-0 border-l border-slate-50 pl-8 hidden sm:grid">
+                     <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.avg_pace')}</p>
+                        <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
+                           {gear.paceFormatted} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">/km</span>
+                        </p>
+                     </div>
+                     <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.km_per_run')}</p>
+                        <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
+                           {(gear.distanceKm / gear.count).toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">km</span>
+                        </p>
+                     </div>
                   </div>
-                  <ProgressBar value={pct} color={color} className="mt-2 h-2" />
+
+                  {/* Wear Progress */}
+                  <div className="w-full lg:w-64 xl:w-80 shrink-0">
+                    <div className="flex justify-between items-end mb-2">
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
+                       <p className="text-xs font-black text-slate-900 tabular-nums">{Math.round(gear.distanceKm)} <span className="text-[10px] text-slate-400 font-bold">/ {gear.maxLife} km</span></p>
+                    </div>
+                    <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100 relative">
+                       <motion.div 
+                          className={`h-full rounded-full ${color} shadow-[0_0_10px_rgba(0,0,0,0.1)]`}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                       />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

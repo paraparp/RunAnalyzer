@@ -24,6 +24,7 @@ const en = {
       decoupling: "Decoupling",
       injury: "Injury Risk",
       vo2tracker: "VO2max Tracker",
+      lactate: "LT Tracker",
       export: "Export",
       categories: {
         analytics: "Analytics",
@@ -49,6 +50,12 @@ const en = {
       monthly_progress: "Monthly Progress",
       annual_distribution: "Annual activity distribution",
       personal_bests: "Personal Bests",
+      records: {
+        "5k": "5K",
+        "10k": "10K",
+        "hm": "Half Marathon",
+        "fm": "Marathon"
+      },
       recent_activities: "Recent Activities",
       view_all: "View all",
       today: "Today",
@@ -71,7 +78,15 @@ const en = {
       bento_3_title: "Global Analysis",
       bento_3_desc: "Visualize annual trends in seconds.",
       bento_4_title: "Deep Metrics",
-      bento_4_desc: "80/20 breakdown, GAP, and chronic vs. acute training load."
+      bento_4_desc: "80/20 breakdown, GAP, and chronic vs. acute training load.",
+      everything_you_need: "Everything you need",
+      heatmap_tagline: "Every km you've run, visually mapped.",
+      stats: {
+        tools: "Analytics Tools",
+        ai: "Gemini Powered",
+        activities: "Strava Activities",
+        vo2: "VO2max Tracker"
+      }
     },
     maps: {
       title: "Global Heatmap",
@@ -93,6 +108,190 @@ const en = {
       legend_slow: "Slow / Easy",
       showing: "Showing",
       routes: "routes"
+    },
+    splits: {
+      no_splits: "No splits available.",
+      lap: "LAP",
+      dist: "DIST",
+      pace: "PACE",
+      chart: "CHART",
+      time: "TIME",
+      gap: "GAP",
+      elev: "ELEV.",
+      zone_hr: "ZONE / HR",
+      legend_hr: "HR",
+      legend_pace_range: "pace: 6:30 (light) → 3:00 (blue)",
+      avg: "avg"
+    },
+    hr_analysis: {
+      title: "Heart Rate Analysis",
+      subtitle: "Optimize your intensity and detect overtraining with cardiovascular data.",
+      no_data: "No heart rate data available.",
+      check_hr: "Ensure your activities have HR data.",
+      tabs: {
+        overview: "Overview",
+        scatter: "HR vs Pace",
+        distribution: "Distribution",
+        efficiency: "Efficiency",
+        intervals: "Intervals",
+        drift: "Cardiac Drift",
+        diagnosis: "Diagnosis"
+      },
+      filters: {
+        last: "Last",
+        year: "Year",
+        all: "All",
+        runs: "Runs"
+      },
+      stats: {
+        avg_hr: "Global Avg HR",
+        max_hr: "Absolute Max HR",
+        min_effort: "Min Effort",
+        max_effort: "Max Effort",
+        sessions: "{{count}} sessions analyzed",
+        limit: "Limit registered"
+      },
+      polarized_tip: "{{z1}}% Z1 / {{z2}}% Z2 / {{z3}}% Z3 — Excellent adherence to the 80/20 model. Stöggl & Sperlich (2014) showed that polarized distribution outperforms threshold training in VO2max gains and racing performance. Keep your easy days truly easy (<{{hi}} bpm).",
+      gray_zone_trap_tip: "{{z2}}% of time in Z2 (threshold zone). Seiler calls Z2 the 'gray zone': it's physiologically costly to recover from but doesn't generate the aerobic adaptations of Z1 or the neuromuscular/VO2max gains of Z3. Shift this time to easier Z1 (<{{hi}} bpm) or structured Z3 intervals (>{{lo}} bpm).",
+      low_intensity_tip: "Only {{z3}}% in Z3. High intensity stimuli (intervals, repeats) are essential to progress VO2max and running economy. Add 1-2 sessions/week above {{lo}} bpm.",
+      moderate_tip: "Current distribution {{z1}} / {{z2}} / {{z3}} % (Z1/Z2/Z3). The polarized goal is ~75 / 5 / 20. Try shifting Z2 time towards Z1 (slower recovery days) or Z3 (specific quality sessions).",
+      seiler_scientific_base: "Seiler & Kjerland (2006) analyzed elite skiers and found 75–80% of volume in Z1. Stöggl & Sperlich (2014) compared 4 models (HIT, threshold, HVT, polarized) and concluded that polarized training produced the greatest improvements in VO2max and race performance.",
+      bars_obj_8020: "Vertical bars indicate the 80/20 model target",
+      z1_desc: "Conversational, fat oxidation, mitochondrial development.",
+      z2_desc: "'Gray zone' — physiologically costly but without the adaptations of Z1 or Z3.",
+      z3_desc: "Intervals, VO2max, anaerobic. Neuromuscular and cardiac adaptations.",
+      diagnosis: {
+        critical_pattern: "Critical Pattern: Cardiac Deviation",
+        deviation_msg: "Your average heart rate on flat runs has risen ~{{bpm}} bpm recently. This is a clear indicator of accumulated fatigue or dehydration. Consider a recovery week."
+      },
+      metrics: {
+        aerobic: "Aerobic Base",
+        threshold: "Threshold",
+        anaerobic: "Anaerobic",
+        resting: "Resting HR",
+        max: "Max HR"
+      }
+    },
+    consistency: {
+      title: "Activity Calendar",
+      subtitle: "Visualize your commitment throughout the year. Data intensity is color-coded.",
+      stats: {
+        active_days: "Active Days",
+        current_streak: "Current Streak",
+        best_streak: "Best Streak",
+        consistency: "Consistency"
+      },
+      metrics: {
+        distance: "Distance",
+        time: "Time",
+        load: "Load"
+      }
+    },
+    gear: {
+      title: "Running Gear",
+      subtitle: "Track your shoe mileage. They average lifespan is 600-800 km.",
+      stats: {
+        avg_pace: "Avg Pace",
+        km_per_run: "Km / Run",
+        total_dist: "Total Distance"
+      },
+      status: {
+        good: "Good",
+        medium: "Moderate Wear",
+        replacement: "Replacement suggested"
+      }
+    },
+    planner: {
+      title: "AI Trainer",
+      subtitle: "Elite training plans powered by AI.",
+      config_title: "Plan Configuration",
+      goal_dist: "Goal Distance",
+      goal_time: "Goal Time (min)",
+      weeks: "Plan Weeks",
+      weeks_unit: "Weeks",
+      days: "Training Days",
+      generate_btn: "Generate Strategic Plan",
+      analyzing: "Analyzing...",
+      export_pdf: "Export PDF",
+      analysis_title: "Strategic Analysis",
+      vol: "Volume",
+      time: "Time",
+      calendar: "Weekly Calendar",
+      empty_state_title: "Elite AI Training",
+      empty_state_desc: "Set your next big goal and let our AI design your path to success.",
+      structure: "Session Structure",
+      prompt: "Act as an elite sports physiologist and professional running coach. HISTORY: {{history}}. OBJETIVO: Correr {{dist}} en {{time}} minutos. Disponibilidad: {{daysCount}} días ({{daysStr}}). METODOLOGÍA: 80/20, polarizado. GENERA EXACTAMENTE {{daysCount}} SESIONES.",
+      distances: {
+        "5k": "5K",
+        "10k": "10K",
+        "21k": "Half Marathon",
+        "42k": "Marathon"
+      }
+    },
+    zones: {
+      title: "Heart Rate Zones",
+      subtitle: "Calibration of individual physiological parameters · {{count}} activities with HR data",
+      fc_max: "Max HR",
+      fc_rest: "Rest HR",
+      lthr: "LTHR (Threshold)",
+      hrmax_desc: "Max. observed in all workouts. Tanaka (2001): 208 − 0.7 × age.",
+      hrrest_desc: "Used by Karvonen (HRR = MaxHR − RestHR). Measure before waking up.",
+      lthr_desc: "Test: Avg HR in the last 20 min of a 30-min sustained max effort (Friel, 2009).",
+      manual: "Manual",
+      auto: "Auto",
+      estimated: "Estimated",
+      detected: "Detected",
+      conf: "conf.",
+      bpm: "bpm",
+      method_field: "Auto-detected from {{n}} threshold runs",
+      method_race: "Estimated from {{n}} race(s)",
+      method_formula: "87.5% MaxHR (Friel approx.)",
+      method_none: "Insuficient data",
+      time_in_zones: "Time in Zones",
+      time_in_zones_desc: "Distribution by average HR per activity",
+      evolution: "Temporal Evolution",
+      evolution_desc: "Hours in each zone per period",
+      monthly: "Monthly",
+      weekly: "Weekly",
+      polarization_title: "Polarization Analysis — Seiler 80/20 Model",
+      polarized_ok: "Polarized Distribution",
+      gray_zone_trap: "Gray Zone Trap",
+      low_intensity_warning: "Missing High Intensity Stimulus",
+      moderate_dist: "Moderate Distribution",
+      seiler_name: "Seiler 3-Zones · Polarized Model",
+      seiler_desc: "The most science-backed model for endurance athletes. Divide into easy / threshold / intense. 80/20 base.",
+      karvonen_name: "Karvonen 5-Zones · Heart Rate Reserve",
+      karvonen_desc: "Uses Heart Rate Reserve (MaxHR − RestHR). More precise than %MaxHR as it incorporates baseline fitness.",
+      friel_name: "Friel 7-Zones · LTHR",
+      friel_desc: "System based on LTHR (Lactate Threshold HR). Widely used by elite triathletes and cyclists for precise load prescription.",
+      acsm_name: "ACSM 5-Zones · % MaxHR",
+      acsm_desc: "American College of Sports Medicine standard. Simplest as it doesn't require RestHR or LTHR.",
+      scientific_base: "Scientific basis",
+      seiler_status: {
+        ok: "Polarized Distribution ✅",
+        gray: "Gray Zone Trap ⚠️",
+        low: "Missing High Intensity Stimulus ⚠️",
+        mod: "Moderate Distribution 📊"
+      },
+      polar_labels: {
+        z1: "Z1 · Aerobic Base",
+        z2: "Z2 · Gray Zone",
+        z3: "Z3 · High Intensity"
+      }
+    },
+    injury: {
+      title: "Injury Risk Analysis",
+      subtitle: "Calculation based on ACWR (Acute:Chronic Workload Ratio) and relative intensity.",
+      risk_levels: {
+        optimal: "Optimal",
+        warning: "Warning",
+        high: "High Risk"
+      }
+    },
+    vo2max: {
+      title: "VO2Max Tracker",
+      subtitle: "Estimation based on heart rate efficiency over time.",
+      garmin_sync: "Garmin Connect Sync"
     }
   }
 };
@@ -120,6 +319,7 @@ const es = {
       decoupling: "Decoupling",
       injury: "Riesgo Lesión",
       vo2tracker: "Tracker VO2max",
+      lactate: "Umbral Lactato",
       export: "Exportar",
       categories: {
         analytics: "Analítica",
@@ -135,6 +335,11 @@ const es = {
       sync: "Sincronizar",
       logout: "Cerrar Sesión"
     },
+    auth: {
+      connect_title: "Conecta Strava",
+      connect_desc: "Vincula tu cuenta para visualizar y analizar tu rendimiento.",
+      connect_btn: "Conectar con Strava"
+    },
     dashboard: {
       distance: "Distancia",
       activities: "Actividades",
@@ -144,11 +349,24 @@ const es = {
       elevation: "Desnivel",
       monthly_progress: "Progreso Mensual",
       annual_distribution: "Distribución anual de actividades",
-      personal_bests: "Mejores Marcas",
+      personal_bests: "Marcas Personales",
+      records: {
+        "5k": "5K",
+        "10k": "10K",
+        "hm": "Media Maratón",
+        "fm": "Maratón"
+      },
       recent_activities: "Actividades Recientes",
       view_all: "Ver todas",
       today: "Hoy",
-      yesterday: "Ayer"
+      yesterday: "Ayer",
+      in: "en",
+      days: "días",
+      weeks_min: "semanas ≥3",
+      no_activity: "Sin actividad",
+      less: "Menos",
+      more: "Más",
+      desgaste: "Desgaste Acumulado"
     },
     landing: {
       features: "Características",
@@ -167,7 +385,15 @@ const es = {
       bento_3_title: "Análisis Global",
       bento_3_desc: "Visualiza tendencias anuales en segundos.",
       bento_4_title: "Métricas Profundas",
-      bento_4_desc: "Desglose 80/20, GAP, y carga de entrenamiento crónica vs aguda."
+      bento_4_desc: "Desglose 80/20, GAP, y carga de entrenamiento crónica vs aguda.",
+      everything_you_need: "Todo lo que necesitas",
+      heatmap_tagline: "Cada km recorrido, mapeado visualmente.",
+      stats: {
+        tools: "Herramientas de Análisis",
+        ai: "Potenciado por Gemini",
+        activities: "Actividades Strava",
+        vo2: "Tracker VO2max"
+      }
     },
     maps: {
       title: "Mapa de Calor Global",
@@ -189,6 +415,322 @@ const es = {
       legend_slow: "Lento / Suave",
       showing: "Procesando",
       routes: "rutas procesadas"
+    },
+    splits: {
+      no_splits: "No hay parciales.",
+      lap: "VUELTA",
+      dist: "DIST",
+      pace: "RITMO",
+      chart: "GRAFICA",
+      time: "TIEMPO",
+      gap: "GAP",
+      elev: "DESN.",
+      zone_hr: "ZONA / FC",
+      legend_hr: "FC",
+      legend_pace_range: "ritmo: 6:30 (claro) → 3:00 (azul)",
+      avg: "media"
+    },
+    hr_analysis: {
+      title: "Análisis de Frecuencia Cardíaca",
+      subtitle: "Optimiza tu intensidad y detecta sobreentrenamiento con datos cardiovasculares.",
+      no_data: "No hay datos de frecuencia cardíaca disponibles.",
+      check_hr: "Asegúrate de que tus actividades tienen datos de FC.",
+      tabs: {
+        overview: "Resumen",
+        scatter: "FC vs Ritmo",
+        distribution: "Distribución",
+        efficiency: "Eficiencia",
+        intervals: "Intervalos",
+        drift: "Deriva Cardíaca",
+        diagnosis: "Diagnóstico"
+      },
+      filters: {
+        last: "Último",
+        year: "Año",
+        all: "Todo",
+        runs: "Carreras"
+      },
+      stats: {
+        avg_hr: "FC Media Global",
+        max_hr: "FC Máxima Absoluta",
+        min_effort: "Esfuerzo Mín.",
+        max_effort: "Esfuerzo Máx.",
+        sessions: "{{count}} sesiones analizadas",
+        limit: "Límite registrado"
+      },
+      polarized_tip: "{{z1}}% Z1 / {{z2}}% Z2 / {{z3}}% Z3 — Excelente adherencia al modelo 80/20. Stöggl & Sperlich (2014) demostraron que la distribución polarizada supera al entrenamiento en umbral en mejoras de VO2max y rendimiento en carrera. Mantén los días fáciles verdaderamente fáciles (<{{hi}} bpm).",
+      gray_zone_trap_tip: "Un {{z2}}% del tiempo en Z2 (zona umbral). Seiler denomina Z2 la 'zona gris': es fisiológicamente costosa para recuperarse pero no genera las adaptaciones aeróbicas de Z1 ni las neuromusculares de Z3. Convierte ese tiempo en Z1 más suave (<{{hi}} bpm) o en intervalos Z3 estructurados (>{{lo}} bpm).",
+      low_intensity_tip: "Solo {{z3}}% en Z3. Los estímulos de alta intensidad son imprescindibles para progresar el VO2max y la economía de carrera. Añade 1–2 sesiones/semana por encima de {{lo}} bpm.",
+      moderate_tip: "Distribución actual {{z1}} / {{z2}} / {{z3}} % (Z1/Z2/Z3). El objetivo polarizado es ~75 / 5 / 20. Intenta desplazar el tiempo de Z2 hacia Z1 o hacia Z3.",
+      seiler_scientific_base: "Seiler & Kjerland (2006) analizaron a esquiadores de élite y descubrieron que el 75–80% del volumen se realizaba en Z1. Stöggl & Sperlich (2014) compararon 4 modelos y concluyeron que el entrenamiento polarizado producía las mayores mejoras en VO2max y rendimiento.",
+      bars_obj_8020: "Las barras verticales indican el objetivo del modelo 80/20",
+      z1_desc: "Conversacional, oxidación de grasas, desarrollo mitocondrial.",
+      z2_desc: "'Zona gris' — fisiológicamente costosa pero sin las adaptaciones de Z1 o Z3.",
+      z3_desc: "Intervalos, VO2max, anaeróbico. Adaptaciones neuromusculares y cardíacas.",
+      diagnosis: {
+        critical_pattern: "Patrón Crítico: Desviación Cardíaca",
+        deviation_msg: "Tu frecuencia cardíaca media en carreras llanas ha subido ~{{bpm}} ppm recientemente. Es un indicador claro de fatiga acumulada o deshidratación. Considera una semana de recuperación."
+      },
+      metrics: {
+        aerobic: "Base Aeróbica",
+        threshold: "Umbral",
+        anaerobic: "Anaeróbico",
+        resting: "FC Reposo",
+        max: "FC Máxima"
+      }
+    },
+    fitness: {
+      title: "Fitness y Fatiga",
+      subtitle: "Visualiza la interacción entre fitness, fatiga y forma a lo largo del tiempo.",
+      no_data: "No hay actividades con datos de carga válidos.",
+      ctl: "Fitness (CTL)",
+      atl: "Fatiga (ATL)",
+      tsb: "Forma (TSB)",
+      acwr: "ACWR",
+      ramp: "Rampa Semanal",
+      peak_fitness: "del pico",
+      avg_7_days: "Carga media 7 días",
+      weekly_load: "Carga Semanal",
+      monthly_progress: "Progreso Mensual",
+      performance_vs_fitness: "Rendimiento vs. Fitness Físico (CTL)",
+      how_to_read: "Cómo interpretar estos datos",
+      status: {
+        transition: "Transición",
+        transition_desc: "Estás muy fresco pero podrías estar perdiendo forma. Considera aumentar la carga progresivamente.",
+        fresh: "Fresco",
+        fresh_desc: "Buen momento para competir o hacer un test de rendimiento. Tu cuerpo está recuperado y en forma.",
+        optimal: "Óptimo",
+        optimal_desc: "Equilibrio ideal entre carga y recuperación. Mantén el plan de entrenamiento actual.",
+        loaded: "Cargado",
+        loaded_desc: "Fatiga acumulada, pero se están produciendo adaptaciones. Prioriza el sueño y la nutrición.",
+        overloaded: "Sobrecargado",
+        overloaded_desc: "Riesgo de sobreentrenamiento o lesión. Reduce volumen e intensidad esta semana."
+      },
+      acwr_status: {
+        underload: "Subcarga",
+        underload_desc: "Estás entrenando menos de lo que tu cuerpo está acostumbrado. Podrías perder fitness.",
+        optimal: "Zona Óptima",
+        optimal_desc: "Tu ratio agudo:crónico está en la zona ideal (0.8-1.3). Buen equilibrio para progresar sin riesgo.",
+        caution: "Precaución",
+        caution_desc: "Tu carga aguda supera significativamente a la crónica. Riesgo moderado de lesión. No aumentes más esta semana.",
+        danger: "Peligro",
+        danger_desc: "Ratio agudo:crónico muy alto (>1.5). Alto riesgo de lesión. Reduce la carga inmediatamente."
+      },
+      risk: {
+        low: "Bajo",
+        moderate: "Moderado",
+        high: "Alto"
+      },
+      ramp_labels: {
+        high: "Aumento Alto",
+        safe: "Seguro"
+      },
+      pmc: {
+        title: "Gráfico de Gestión de Rendimiento",
+        desc: "Visualiza la interacción entre fitness, fatiga y forma a lo largo del tiempo.",
+        daily_load: "Carga Diaria",
+        ritmo_10k: "Ritmo 10k"
+      }
+    },
+    vo2: {
+      title: "Tracker de VO2max",
+      subtitle: "Estima tu capacidad aeróbica y monitoriza tu progresión fisiológica.",
+      estimated: "VO2max estimado",
+      ml_kg_min: "ml/kg/min",
+      peak: "Pico histórico",
+      global_avg: "Media global",
+      last_30: "Últimos 30 días",
+      category: "Categoría",
+      sessions: "sesiones",
+      analyzed: "analizadas",
+      tendency: "Tendencia activa",
+      stable: "Estable",
+      drop: "Caída detectada",
+      garmin_sync: {
+        title: "Sincronizar con Garmin Connect",
+        connected: "Garmin Connect Sincronizado",
+        bio_sync: "Bio-Sync Activo",
+        improve: "Mejorar precisión",
+        resting_hr: "FC Reposo",
+        max_hr: "FC Máxima",
+        official: "Perfil Oficial",
+        placeholder_email: "Email de Garmin",
+        placeholder_pass: "Contraseña",
+        sync_btn: "Vincular",
+        processing: "Procesando...",
+        estimated_suffix: "(Est.)"
+      },
+      methods: {
+        hrr: "Estrategia HRR",
+        hrr_desc: "Basado en Reserva (Swain 1997)",
+        firstbeat: "Regresión Lineal",
+        firstbeat_desc: "Patrón Firstbeat Analytics",
+        fallback: "Swain Fallback",
+        fallback_desc: "Basado en %FCmax 1994"
+      },
+      categories: {
+        superior: "Superior",
+        excellent: "Excelente",
+        good: "Bueno",
+        fair: "Aceptable",
+        poor: "Pobre",
+        very_poor: "Muy Pobre"
+      }
+    },
+    injury: {
+      title: "Análisis de Riesgo de Lesión",
+      subtitle: "Evalúa tu estabilidad física y previene el sobreentrenamiento.",
+      risk_points: "Puntos de Riesgo",
+      stability_eval: "Evaluación de Estabilidad",
+      evaluation_desc: "Basado en el análisis de la carga crónica vs. aguda y la progresión del volumen de los últimos 42 días.",
+      risk_levels: {
+        safe: "Seguro",
+        alert: "Alerta",
+        loaded: "Cargado",
+        danger: "Peligro",
+        low: "Bajo",
+        moderate: "Moderado",
+        high: "Alto",
+        very_high: "Muy Alto"
+      },
+      factors: {
+        title: "Desglose Paramétrico",
+        acwr: "ACWR",
+        volume: "Volumen Semanal",
+        rest: "Descanso",
+        monotony: "Monotonía",
+        strain: "Tensión",
+        impact: "IMPACTO",
+        score: "PUNTUACIÓN",
+        rule_10: "Regla del 10%"
+      },
+      history: "Historial de Riesgo",
+      history_desc: "Puntuación de riesgo semanal simplificada basada en la progresión del volumen.",
+      roadmap: "Hoja de Ruta Preventiva",
+      risk_label: "Riesgo",
+      methodology: "Metodología",
+      methodology_desc: "La puntuación de riesgo combina 5 factores respaldados por la investigación en ciencias del deporte:"
+    },
+    consistency: {
+      title: "Calendario de Actividad",
+      subtitle: "Visualiza tu compromiso a lo largo del año. La intensidad se indica por colores.",
+      stats: {
+        active_days: "Días Activos",
+        current_streak: "Racha Actual",
+        best_streak: "Mejor Racha",
+        consistency: "Consistencia"
+      },
+      metrics: {
+        distance: "Distancia",
+        time: "Tiempo",
+        load: "Carga"
+      }
+    },
+    gear: {
+      title: "Garaje de Zapatillas",
+      subtitle: "Controla el kilometraje de tus zapatillas. Suelen perder amortiguación entre los 600-800 km.",
+      stats: {
+        avg_pace: "Ritmo Medio",
+        km_per_run: "Km / Salida",
+        total_dist: "Distancia Total"
+      },
+      status: {
+        good: "Buen estado",
+        medium: "Desgaste medio",
+        replacement: "Cambio sugerido"
+      }
+    },
+    injury: {
+      title: "Análisis de Riesgo de Lesión",
+      subtitle: "Cálculo basado en ACWR (Acute:Chronic Workload Ratio) e intensidad relativa.",
+      risk_levels: {
+        optimal: "Óptimo",
+        warning: "Aviso",
+        high: "Riesgo Alto"
+      }
+    },
+    vo2max: {
+      title: "Tracker de VO2Max",
+      subtitle: "Estimación basada en la eficiencia del pulso a lo largo del tiempo.",
+      garmin_sync: "Sincronización con Garmin Connect"
+    },
+    planner: {
+      title: "Entrenador AI",
+      subtitle: "Planes de entrenamiento de élite potenciados por IA.",
+      config_title: "Configuración del Plan",
+      goal_dist: "Distancia Objetivo",
+      goal_time: "Tiempo Meta (min)",
+      weeks: "Semanas del Plan",
+      weeks_unit: "Semanas",
+      days: "Días de Entrenamiento",
+      generate_btn: "Generar Plan Estratégico",
+      analyzing: "Analizando...",
+      export_pdf: "Exportar PDF",
+      analysis_title: "Análisis Estratégico",
+      vol: "Volumen",
+      time: "Tiempo",
+      calendar: "Calendario Semanal",
+      empty_state_title: "Entrenamiento AI de Élite",
+      empty_state_desc: "Configura tu próximo gran objetivo y deja que nuestra IA diseñe tu camino al éxito.",
+      structure: "Estructura de la Sesión",
+      prompt: "Actúa como un fisiólogo deportivo de élite y entrenador de running profesional. HISTORIAL: {{history}}. OBJETIVO: Correr {{dist}} en {{time}} minutos. Disponibilidad: {{daysCount}} días ({{daysStr}}). METODOLOGÍA: 80/20, polarizado. GENERA EXACTAMENTE {{daysCount}} SESIONES.",
+      distances: {
+        "5k": "5K",
+        "10k": "10K",
+        "21k": "Media Maratón",
+        "42k": "Maratón"
+      }
+    },
+    zones: {
+      title: "Zonas de Frecuencia Cardíaca",
+      subtitle: "Calibración de parámetros fisiológicos individuales · {{count}} actividades con datos de FC",
+      fc_max: "FC Máxima",
+      fc_rest: "FC Reposo",
+      lthr: "LTHR (Umbral)",
+      hrmax_desc: "Máx. observada en todos los entrenamientos. Tanaka (2001): 208 − 0.7 × edad.",
+      hrrest_desc: "Usada por Karvonen (HRR = FCmax − FCreposo). Mídela antes de levantarte por la mañana.",
+      lthr_desc: "Test: FC media en los últimos 20 min de un esfuerzo máximo sostenido de 30 min (Friel, 2009).",
+      manual: "Manual",
+      auto: "Auto",
+      estimated: "Estimada",
+      detected: "Detectada",
+      conf: "% conf.",
+      bpm: "bpm",
+      method_field: "Auto-detectado de {{n}} entrenam. umbral",
+      method_race: "Estimado de {{n}} competición(es)",
+      method_formula: "87.5% FCmax (Friel, apróx.)",
+      method_none: "Sin datos suficientes",
+      time_in_zones: "Tiempo en Zonas",
+      time_in_zones_desc: "Distribución por FC media por actividad",
+      evolution: "Evolución Temporal",
+      evolution_desc: "Horas en cada zona por período",
+      monthly: "Mensual",
+      weekly: "Semanal",
+      polarization_title: "Análisis de Polarización — Modelo Seiler 80/20",
+      polarized_ok: "Distribución Polarizada",
+      gray_zone_trap: "Trampa de la Zona Gris",
+      low_intensity_warning: "Falta Estímulo de Alta Intensidad",
+      moderate_dist: "Distribución Moderada",
+      seiler_name: "Seiler 3-Zonas · Modelo Polarizado",
+      seiler_desc: "El modelo más respaldado por evidencia científica para atletas de resistencia. Divide en fácil / umbral / intenso. Base del entrenamiento 80/20.",
+      karvonen_name: "Karvonen 5-Zonas · Heart Rate Reserve",
+      karvonen_desc: "Usa la Reserva de FC (FCmax − FCreposo). Más preciso que %FCmax porque incorpora tu condición física base.",
+      friel_name: "Friel 7-Zonas · LTHR",
+      friel_desc: "Sistema basado en LTHR (FC en el umbral de lactato). Muy utilizado por triatletas y ciclistas de élite para prescribir cargas de entrenamiento con precisión.",
+      acsm_name: "ACSM 5-Zonas · % FCmax",
+      acsm_desc: "Estándar del Colegio Americano de Medicina Deportiva. El más simple al no requerir FCreposo ni LTHR. Adecuado como punto de partida.",
+      scientific_base: "Base científica",
+      seiler_status: {
+        ok: "Distribución Polarizada ✅",
+        gray: "Trampa de la Zona Gris ⚠️",
+        low: "Falta Estímulo de Alta Intensidad ⚠️",
+        mod: "Distribución Moderada 📊"
+      },
+      polar_labels: {
+        z1: "Z1 · Base Aeróbica",
+        z2: "Z2 · Zona Gris",
+        z3: "Z3 · Alta Intensidad"
+      }
     }
   }
 };

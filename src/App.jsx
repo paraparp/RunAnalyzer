@@ -30,6 +30,7 @@ import RaceDetector from './components/RaceDetector';
 import CardiacDecoupling from './components/CardiacDecoupling';
 import InjuryRisk from './components/InjuryRisk';
 import VO2MaxTracker from './components/VO2MaxTracker';
+import LactateThreshold from './components/LactateThreshold';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
 import {
@@ -63,34 +64,35 @@ import {
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: Squares2X2Icon },
-  { id: 'hranalysis', label: 'Análisis FC', icon: HeartIcon },
-  { id: 'fitness', label: 'Fitness & Fatiga', icon: ChartPieIcon },
-  { id: 'technique', label: 'Técnica', icon: FireIcon },
-  { id: 'zones', label: 'Zonas FC', icon: SignalIcon },
-  { id: 'heatmap', label: 'Heatmap Global', icon: MapIcon },
-  { id: 'gallery', label: 'Galería de Rutas', icon: RectangleGroupIcon },
-  { id: 'consistency', label: 'Consistencia', icon: CalendarDaysIcon },
-  { id: 'vdot', label: 'VDOT', icon: BeakerIcon },
-  { id: 'gear', label: 'Zapatillas', icon: StarIcon },
-  { id: 'planner', label: 'Entrenador AI', icon: SparklesIcon },
-  { id: 'predictor', label: 'Predictor AI', icon: ArrowTrendingUpIcon },
-  { id: 'qa', label: 'Preguntas AI', icon: ChatBubbleLeftRightIcon },
-  { id: 'weekly', label: 'Volumen Semanal', icon: ChartBarIcon },
-  { id: 'splits', label: 'Parciales', icon: BoltIcon },
-  { id: 'races', label: 'Carreras', icon: FireIcon },
-  { id: 'decoupling', label: 'Decoupling', icon: SignalIcon },
-  { id: 'injury', label: 'Riesgo Lesión', icon: ShieldExclamationIcon },
-  { id: 'vo2tracker', label: 'VO2max Tracker', icon: ArrowTrendingUpIcon },
-  { id: 'export', label: 'Exportar', icon: ArrowDownTrayIcon },
+  { id: 'dashboard', icon: Squares2X2Icon },
+  { id: 'hranalysis', icon: HeartIcon },
+  { id: 'fitness', icon: ChartPieIcon },
+  { id: 'technique', icon: FireIcon },
+  { id: 'zones', icon: SignalIcon },
+  { id: 'heatmap', icon: MapIcon },
+  { id: 'gallery', icon: RectangleGroupIcon },
+  { id: 'consistency', icon: CalendarDaysIcon },
+  { id: 'vdot', icon: BeakerIcon },
+  { id: 'gear', icon: StarIcon },
+  { id: 'planner', icon: SparklesIcon },
+  { id: 'predictor', icon: ArrowTrendingUpIcon },
+  { id: 'qa', icon: ChatBubbleLeftRightIcon },
+  { id: 'weekly', icon: ChartBarIcon },
+  { id: 'splits', icon: BoltIcon },
+  { id: 'races', icon: FireIcon },
+  { id: 'decoupling', icon: SignalIcon },
+  { id: 'injury', icon: ShieldExclamationIcon },
+  { id: 'vo2tracker', icon: ArrowTrendingUpIcon },
+  { id: 'lactate', icon: SignalIcon },
+  { id: 'export', icon: ArrowDownTrayIcon },
 ];
 
 const NAV_CATEGORIES = [
-  { id: 'analytics', label: 'Analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
-  { id: 'maps', label: 'Maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
-  { id: 'ai', label: 'AI Tools', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
-  { id: 'performance', label: 'Performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker'] },
-  { id: 'system', label: 'System', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
+  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
+  { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
+  { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker', 'lactate'] },
+  { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
 const Dashboard = ({ user, handleLogout }) => {
@@ -540,13 +542,13 @@ const Dashboard = ({ user, handleLogout }) => {
             <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
               <BoltIcon className="w-7 h-7 text-orange-500" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Conecta Strava</h2>
-            <p className="text-sm text-slate-500 mb-6 leading-relaxed">Vincula tu cuenta para visualizar y analizar tu rendimiento.</p>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">{t('auth.connect_title', 'Conecta Strava')}</h2>
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">{t('auth.connect_desc', 'Vincula tu cuenta para visualizar y analizar tu rendimiento.')}</p>
             <button
               onClick={connectToStrava}
               className="w-full py-3 px-6 bg-[#fc4c02] hover:bg-[#e34402] text-white text-sm font-bold rounded-xl transition-colors"
             >
-              Conectar con Strava
+              {t('auth.connect_btn', 'Conectar con Strava')}
             </button>
           </div>
         </div>
@@ -589,7 +591,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
               <div className="flex items-center space-x-8">
                 {/* Section title */}
-                <h2 className="text-lg font-bold text-slate-900 tracking-tight shrink-0">{activeCat?.label ?? pageTitle}</h2>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight shrink-0">{activeCat ? t(`nav.categories.${activeCat.id}`) : pageTitle}</h2>
 
                 {/* Sub-navigation tabs */}
                 <nav className="hidden md:flex items-center space-x-6">
@@ -1188,6 +1190,12 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'vo2tracker' && (
               <div className="fade-in">
                 <VO2MaxTracker activities={runningActivities} />
+              </div>
+            )}
+
+            {currentView === 'lactate' && (
+              <div className="fade-in">
+                <LactateThreshold activities={runningActivities} />
               </div>
             )}
 

@@ -1,12 +1,23 @@
 import { Card, Title, Text, Callout, Select, SelectItem } from '@tremor/react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ComposedChart, Area, BarChart, Bar, Line, ScatterChart, Scatter, ZAxis, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine, ReferenceArea, Brush
 } from 'recharts';
-
-const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+import { 
+  ArrowTrendingUpIcon, 
+  FireIcon, 
+  SparklesIcon, 
+  BoltIcon, 
+  AdjustmentsHorizontalIcon,
+  ExclamationTriangleIcon,
+  PlayCircleIcon,
+  ChartBarIcon,
+  CalendarIcon,
+  ClockIcon
+} from '@heroicons/react/24/outline';
 
 const STATUS_STYLES = {
   sky: 'bg-sky-50 border-sky-100',
@@ -17,6 +28,7 @@ const STATUS_STYLES = {
 };
 
 export default function FitnessFatigue({ activities }) {
+  const { t, i18n } = useTranslation();
   const [timeRange, setTimeRange] = useState('36');
   const [offsetMonths, setOffsetMonths] = useState(0);
 
@@ -191,15 +203,15 @@ export default function FitnessFatigue({ activities }) {
 
   // Date range label for display
   const dateRangeLabel = useMemo(() => {
-    if (timeRange === 'all') return 'Todo el historial';
+    if (timeRange === 'all') return t('hr_analysis.filters.all');
     const months = parseInt(timeRange);
     const end = new Date();
     end.setMonth(end.getMonth() - offsetMonths);
     const start = new Date(end);
     start.setMonth(start.getMonth() - months);
-    const fmt = (d) => d.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+    const fmt = (d) => d.toLocaleDateString(i18n.language, { month: 'short', year: 'numeric' });
     return `${fmt(start)} — ${fmt(end)}`;
-  }, [timeRange, offsetMonths]);
+  }, [timeRange, offsetMonths, i18n.language, t]);
 
   // Check if we can navigate further back
   const canGoBack = useMemo(() => {
@@ -215,22 +227,22 @@ export default function FitnessFatigue({ activities }) {
   const formStatus = useMemo(() => {
     if (!current) return null;
     const f = current.form;
-    if (f > 15) return { label: 'Transición', desc: 'Estás muy fresco pero podrías estar desentrenándote. Considera aumentar la carga progresivamente.', color: 'sky' };
-    if (f > 5) return { label: 'Fresco', desc: 'Buen momento para competir o hacer un test de rendimiento. Tu cuerpo está recuperado y en forma.', color: 'emerald' };
-    if (f > -10) return { label: 'Óptimo', desc: 'Equilibrio ideal entre carga y recuperación. Sigue con el plan de entrenamiento actual.', color: 'blue' };
-    if (f > -20) return { label: 'Cargado', desc: 'Fatiga acumulada, pero las adaptaciones están ocurriendo. Prioriza el sueño y la nutrición.', color: 'amber' };
-    return { label: 'Sobrecargado', desc: 'Riesgo de sobreentrenamiento o lesión. Reduce volumen e intensidad esta semana.', color: 'rose' };
-  }, [current]);
+    if (f > 15) return { label: t('fitness.status.transition'), desc: t('fitness.status.transition_desc'), color: 'sky' };
+    if (f > 5) return { label: t('fitness.status.fresh'), desc: t('fitness.status.fresh_desc'), color: 'emerald' };
+    if (f > -10) return { label: t('fitness.status.optimal'), desc: t('fitness.status.optimal_desc'), color: 'blue' };
+    if (f > -20) return { label: t('fitness.status.loaded'), desc: t('fitness.status.loaded_desc'), color: 'amber' };
+    return { label: t('fitness.status.overloaded'), desc: t('fitness.status.overloaded_desc'), color: 'rose' };
+  }, [current, t]);
 
   // ACWR risk level
   const acwrStatus = useMemo(() => {
     if (!current) return null;
     const r = current.acwr;
-    if (r < 0.8) return { label: 'Infracarga', desc: 'Estás entrenando menos de lo que tu cuerpo está acostumbrado. Podrías perder fitness.', color: 'sky', risk: 'Bajo' };
-    if (r <= 1.3) return { label: 'Zona óptima', desc: 'Tu ratio agudo:crónico está en la zona ideal (0.8-1.3). Buen balance para progresar sin riesgo.', color: 'emerald', risk: 'Bajo' };
-    if (r <= 1.5) return { label: 'Precaución', desc: 'Tu carga aguda supera significativamente la crónica. Riesgo moderado de lesión. No aumentes más esta semana.', color: 'amber', risk: 'Moderado' };
-    return { label: 'Peligro', desc: 'Ratio agudo:crónico muy alto (>1.5). Alto riesgo de lesión. Reduce la carga inmediatamente.', color: 'rose', risk: 'Alto' };
-  }, [current]);
+    if (r < 0.8) return { label: t('fitness.acwr_status.underload'), desc: t('fitness.acwr_status.underload_desc'), color: 'sky', risk: t('fitness.risk.low') };
+    if (r <= 1.3) return { label: t('fitness.acwr_status.optimal'), desc: t('fitness.acwr_status.optimal_desc'), color: 'emerald', risk: t('fitness.risk.low') };
+    if (r <= 1.5) return { label: t('fitness.acwr_status.caution'), desc: t('fitness.acwr_status.caution_desc'), color: 'amber', risk: t('fitness.risk.moderate') };
+    return { label: t('fitness.acwr_status.danger'), desc: t('fitness.acwr_status.danger_desc'), color: 'rose', risk: t('fitness.risk.high') };
+  }, [current, t]);
 
   const PMCTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -268,9 +280,9 @@ export default function FitnessFatigue({ activities }) {
       const d = payload[0]?.payload;
       return (
         <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl">
-          <p className="text-[11px] font-semibold text-slate-500 mb-1">Semana del {label}</p>
-          <p className="text-sm font-bold text-slate-900">Carga: {d?.Carga}</p>
-          <p className="text-xs text-slate-500">{d?.Sesiones} sesiones</p>
+          <p className="text-[11px] font-semibold text-slate-500 mb-1">{t('dashboard.weeks_min').split(' ')[0]} {label}</p>
+          <p className="text-sm font-bold text-slate-900">{t('fitness.weekly_load').split(' ')[0]}: {d?.Carga}</p>
+          <p className="text-xs text-slate-500">{d?.Sesiones} {t('vo2.sessions')}</p>
         </div>
       );
     }
@@ -295,7 +307,7 @@ export default function FitnessFatigue({ activities }) {
              <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{d.distance} km</span></p>
           </div>
           <div className="mt-2 text-[10px] text-slate-400 font-medium">
-            (Clic para abrir en Strava)
+            {i18n.language.startsWith('es') ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}
           </div>
         </div>
       );
@@ -306,8 +318,8 @@ export default function FitnessFatigue({ activities }) {
   if (!current) {
     return (
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold">Fitness & Fatiga</Title>
-        <Text className="text-slate-500 mt-2">No hay actividades con datos de carga disponibles.</Text>
+        <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
+        <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
       </Card>
     );
   }
@@ -315,108 +327,104 @@ export default function FitnessFatigue({ activities }) {
   return (
     <div className="space-y-6">
       {/* Status Cards Row 1: Core Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Fitness CTL */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Fitness (CTL)</p>
-            <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${current.ctlTrend7 > 0 ? 'bg-emerald-50 text-emerald-600' : current.ctlTrend7 < 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-500'}`}>
-              {current.ctlTrend7 > 0 ? '↑' : current.ctlTrend7 < 0 ? '↓' : '→'} {Math.abs(current.ctlTrend7)}
+      {/* Status Cards Row 1: Core Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[
+          { 
+            label: t('fitness.ctl'), 
+            value: current.fitness, 
+            trend: current.ctlTrend7, 
+            sub: `${current.fitnessPercent}% ${t('fitness.peak_fitness')}`,
+            progress: current.fitnessPercent,
+            color: "text-blue-600",
+            icon: ArrowTrendingUpIcon
+          },
+          { 
+            label: t('fitness.atl'), 
+            value: current.fatigue, 
+            sub: t('fitness.avg_7_days'),
+            progress: Math.min((current.fatigue / Math.max(current.peakFitness, 1)) * 100, 100),
+            color: "text-rose-600",
+            icon: FireIcon
+          },
+          { 
+            label: t('fitness.tsb'), 
+            value: (current.form > 0 ? '+' : '') + current.form, 
+            sub: formStatus?.label,
+            color: current.form > 5 ? 'text-emerald-600' : current.form > -10 ? 'text-blue-600' : 'text-rose-600',
+            icon: SparklesIcon
+          },
+          { 
+            label: t('fitness.acwr'), 
+            value: current.acwr.toFixed(2), 
+            sub: i18n.language.startsWith('en') ? `Risk ${acwrStatus?.risk}` : `Riesgo ${acwrStatus?.risk}`,
+            color: acwrStatus?.color === 'emerald' ? 'text-emerald-600' : 'text-rose-600',
+            icon: BoltIcon,
+            acwr: true
+          },
+          { 
+            label: t('fitness.ramp'), 
+            value: (rampRate > 0 ? '+' : '') + rampRate, 
+            sub: rampRate > 5 ? t('fitness.ramp_labels.high') : t('fitness.ramp_labels.safe'),
+            color: rampRate > 5 ? 'text-rose-600' : 'text-emerald-600',
+            icon: AdjustmentsHorizontalIcon
+          }
+        ].map((card, i) => (
+          <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors`}>
+                <card.icon className="w-5 h-5" />
+              </div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
+              {card.trend !== undefined && (
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-lg ${card.trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  {card.trend > 0 ? '+' : ''}{card.trend}
+                </span>
+              )}
+            </div>
+            
+            <div className="mt-4 space-y-2">
+              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-tighter text-slate-400">
+                <span>{card.sub}</span>
+              </div>
+              {card.progress !== undefined && (
+                <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
+                  <div className={`h-full rounded-full transition-all duration-700 ${card.color.replace('text-', 'bg-')}`} style={{ width: `${card.progress}%` }} />
+                </div>
+              )}
+              {card.acwr && (
+                <div className="relative h-2 flex gap-0.5 mt-1">
+                   <div className="h-full flex-[0.8] bg-sky-200 rounded-l-md" />
+                   <div className="h-full flex-[0.5] bg-emerald-400" />
+                   <div className="h-full flex-[0.2] bg-amber-400" />
+                   <div className="h-full flex-[0.5] bg-rose-400 rounded-r-md" />
+                   <div className="absolute top-0 w-1.5 h-1.5 bg-slate-900 rounded-full shadow-md border border-white transition-all duration-500" 
+                        style={{ left: `${Math.min(Math.max((current.acwr / 2) * 100, 2), 98)}%`, transform: 'translateX(-50%)' }} />
+                </div>
+              )}
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{current.fitness}</p>
-          {/* Fitness gauge */}
-          <div className="mt-2">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[9px] text-slate-400">0</span>
-              <span className="text-[9px] text-slate-400">Pico: {current.peakFitness}</span>
-            </div>
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${current.fitnessPercent}%` }} />
-            </div>
-            <p className="text-[9px] text-blue-500 font-semibold mt-0.5 text-right">{current.fitnessPercent}% del pico</p>
-          </div>
-        </div>
-
-        {/* Fatigue ATL */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-          <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-2">Fatiga (ATL)</p>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{current.fatigue}</p>
-          <p className="text-[10px] text-slate-400 mt-1">Carga media 7 días</p>
-          <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-rose-400 rounded-full transition-all duration-700" style={{ width: `${Math.min((current.fatigue / Math.max(current.peakFitness, 1)) * 100, 100)}%` }} />
-          </div>
-        </div>
-
-        {/* Form TSB */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Forma (TSB)</p>
-          <p className={`text-2xl font-black tabular-nums ${current.form > 5 ? 'text-emerald-600' : current.form > -10 ? 'text-blue-600' : current.form > -20 ? 'text-amber-600' : 'text-rose-600'}`}>
-            {current.form > 0 ? '+' : ''}{current.form}
-          </p>
-          <p className="text-[10px] text-slate-400 mt-1">{formStatus?.label}</p>
-          <p className="text-[9px] text-slate-400 mt-0.5">Peor: {current.lowestTSB}</p>
-        </div>
-
-        {/* ACWR */}
-        <div className={`rounded-xl border p-4 ${STATUS_STYLES[acwrStatus?.color] || 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ACWR</p>
-            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-              acwrStatus?.color === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
-              acwrStatus?.color === 'amber' ? 'bg-amber-100 text-amber-700' :
-              acwrStatus?.color === 'rose' ? 'bg-rose-100 text-rose-700' :
-              'bg-sky-100 text-sky-700'
-            }`}>
-              Riesgo {acwrStatus?.risk}
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{current.acwr.toFixed(2)}</p>
-          <p className="text-[10px] text-slate-500 mt-1">{acwrStatus?.label}</p>
-          {/* ACWR visual scale */}
-          <div className="mt-1.5 flex h-2 rounded-full overflow-hidden">
-            <div className="bg-sky-300 flex-[0.8]" />
-            <div className="bg-emerald-400 flex-[0.5]" />
-            <div className="bg-amber-400 flex-[0.2]" />
-            <div className="bg-rose-400 flex-[0.5]" />
-          </div>
-          <div className="relative mt-0.5 h-2">
-            <div className="absolute top-0 w-0 h-0 border-l-[4px] border-r-[4px] border-b-[5px] border-l-transparent border-r-transparent border-b-slate-800 transition-all duration-500"
-              style={{ left: `${Math.min(Math.max((current.acwr / 2) * 100, 2), 98)}%`, transform: 'translateX(-50%)' }} />
-          </div>
-        </div>
-
-        {/* Ramp Rate */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Rampa Semanal</p>
-          <p className={`text-2xl font-black tabular-nums ${
-            rampRate > 7 ? 'text-rose-600' : rampRate > 5 ? 'text-amber-600' : rampRate > 0 ? 'text-emerald-600' : 'text-sky-600'
-          }`}>
-            {rampRate > 0 ? '+' : ''}{rampRate}
-          </p>
-          <p className="text-[10px] text-slate-400 mt-1">CTL/semana (últ. 28d)</p>
-          <p className={`text-[9px] font-semibold mt-0.5 ${rampRate > 7 ? 'text-rose-500' : rampRate > 5 ? 'text-amber-500' : 'text-emerald-500'}`}>
-            {rampRate > 7 ? 'Aumento agresivo' : rampRate > 5 ? 'Aumento moderado' : rampRate > 0 ? 'Progresión segura' : 'Reducción'}
-          </p>
-          <p className="text-[9px] text-slate-400 mt-0.5">Recomendado: ≤5/sem</p>
-        </div>
+        ))}
       </div>
 
       {/* PMC Chart */}
       <Card className="shadow-lg border-slate-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
           <div>
-            <Title className="text-slate-800 font-bold mb-1">Performance Management Chart</Title>
-            <Text className="text-slate-500 text-sm">Visualiza la interacción entre fitness, fatiga y forma a lo largo del tiempo</Text>
+            <Title className="text-slate-800 font-bold mb-1">{t('fitness.pmc.title')}</Title>
+            <Text className="text-slate-500 text-sm">{t('fitness.pmc.desc')}</Text>
           </div>
           <div className="flex items-center gap-2">
             <Select value={timeRange} onValueChange={(v) => { setTimeRange(v); setOffsetMonths(0); }} enableClear={false} className="w-36">
-              <SelectItem value="all">Todo</SelectItem>
-              <SelectItem value="3">3 meses</SelectItem>
-              <SelectItem value="6">6 meses</SelectItem>
-              <SelectItem value="12">12 meses</SelectItem>
-              <SelectItem value="24">2 años</SelectItem>
-              <SelectItem value="36">3 años</SelectItem>
+              <SelectItem value="all">{t('hr_analysis.filters.all')}</SelectItem>
+              <SelectItem value="3">{i18n.language.startsWith('es') ? '3 meses' : '3 months'}</SelectItem>
+              <SelectItem value="6">{i18n.language.startsWith('es') ? '6 meses' : '6 months'}</SelectItem>
+              <SelectItem value="12">{i18n.language.startsWith('es') ? '12 meses' : '12 months'}</SelectItem>
+              <SelectItem value="24">{i18n.language.startsWith('es') ? '2 años' : '2 years'}</SelectItem>
+              <SelectItem value="36">{i18n.language.startsWith('es') ? '3 años' : '3 years'}</SelectItem>
             </Select>
             {timeRange !== 'all' && (
               <div className="flex items-center gap-1">
@@ -480,24 +488,19 @@ export default function FitnessFatigue({ activities }) {
               <ReferenceLine yAxisId="form" y={0} stroke="#94a3b8" strokeDasharray="3 3" strokeWidth={1} />
               <RechartsTooltip content={<PMCTooltip />} />
               
-              {/* Daily load as subtle thin bars */}
-              <Bar yAxisId="load" dataKey="load" name="Carga Diaria" fill="#e2e8f0" barSize={2} isAnimationActive={false} />
+              <Bar yAxisId="load" dataKey="load" name={t('fitness.pmc.daily_load')} fill="#e2e8f0" barSize={2} isAnimationActive={false} />
               
-              {/* TSB (Form) as colored bars */}
-              <Bar yAxisId="form" dataKey="Forma" name="TSB (Forma)" barSize={3} isAnimationActive={false} radius={[2,2,2,2]}>
+              <Bar yAxisId="form" dataKey="Forma" name={t('fitness.tsb')} barSize={3} isAnimationActive={false} radius={[2,2,2,2]}>
                 {filteredChartData.map((entry, i) => (
                   <Cell key={i} fill={entry.Forma >= 0 ? '#10b981' : '#f43f5e'} fillOpacity={0.5} />
                 ))}
               </Bar>
 
-              {/* CTL (Fitness) Area */}
-              <Area yAxisId="load" type="monotone" dataKey="Fitness" name="CTL (Fitness)" stroke="#3b82f6" strokeWidth={3} fill="url(#gradFitness)" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-md" />
+              <Area yAxisId="load" type="monotone" dataKey="Fitness" name={t('fitness.ctl')} stroke="#3b82f6" strokeWidth={3} fill="url(#gradFitness)" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-md" />
               
-              {/* ATL (Fatigue) Line */}
-              <Line yAxisId="load" type="monotone" dataKey="Fatiga" name="ATL (Fatiga)" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: '#ec4899', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-sm" />
+              <Line yAxisId="load" type="monotone" dataKey="Fatiga" name={t('fitness.atl')} stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: '#ec4899', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-sm" />
               
-              {/* 10k best paces as scattered yellow dots */}
-              <Line yAxisId="pace" type="monotone" dataKey="Pace10k" name="Ritmo 10k" stroke="none" isAnimationActive={false} dot={{ r: 5, fill: '#eab308', stroke: '#fff', strokeWidth: 1.5 }} activeDot={{ r: 7, fill: '#eab308', stroke: '#fff', strokeWidth: 2 }} connectNulls={false} />
+              <Line yAxisId="pace" type="monotone" dataKey="Pace10k" name={t('fitness.pmc.ritmo_10k')} stroke="none" isAnimationActive={false} dot={{ r: 5, fill: '#eab308', stroke: '#fff', strokeWidth: 1.5 }} activeDot={{ r: 7, fill: '#eab308', stroke: '#fff', strokeWidth: 2 }} connectNulls={false} />
 
               <Brush dataKey="date" height={25} stroke="#cbd5e1" fill="#f8fafc" tickFormatter={() => ''} travellerWidth={8} className="mt-8" />
             </ComposedChart>
@@ -535,8 +538,8 @@ export default function FitnessFatigue({ activities }) {
       {/* Weekly Load */}
       {weeklyLoad.length > 0 && (
         <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">Carga Semanal</Title>
-          <Text className="text-slate-500 text-sm mb-4">Distribución de la carga de entrenamiento por semana (últimas 16 semanas)</Text>
+          <Title className="text-slate-800 font-bold mb-1">{t('fitness.weekly_load')}</Title>
+          <Text className="text-slate-500 text-sm mb-4">{t('consistency.subtitle')}</Text>
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyLoad} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
@@ -563,8 +566,8 @@ export default function FitnessFatigue({ activities }) {
       {/* TSB vs Performance Scatter Chart */}
       {topEfforts && topEfforts.length > 0 && (
         <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">Rendimiento vs Fitness Físico (CTL)</Title>
-          <Text className="text-slate-500 text-sm mb-4">Descubre cómo tu acumulación de estado físico (CTL) se traduce en ritmos más rápidos corriendo en llano (≤ 1.5% desnivel).</Text>
+          <Title className="text-slate-800 font-bold mb-1">{t('fitness.performance_vs_fitness')}</Title>
+          <Text className="text-slate-500 text-sm mb-4">{t('fitness.pmc.desc')}</Text>
           <div className="h-80 w-full mt-2 bg-slate-50/50 rounded-xl p-4 border border-slate-100 relative">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
@@ -624,36 +627,44 @@ export default function FitnessFatigue({ activities }) {
       )}
 
       {/* Interpretation Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {formStatus && (
-          <Callout
-            title={`Estado de Forma: ${formStatus.label}`}
-            color={formStatus.color}
-          >
-            {formStatus.desc}
-          </Callout>
-        )}
-        {acwrStatus && (
-          <Callout
-            title={`ACWR ${current.acwr.toFixed(2)}: ${acwrStatus.label}`}
-            color={acwrStatus.color}
-          >
-            {acwrStatus.desc}
-          </Callout>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[
+          { status: formStatus, label: "Estado de Forma", icon: SparklesIcon },
+          { status: acwrStatus, label: "ACWR Agudo:Crónico", icon: BoltIcon }
+        ].map((item, i) => (
+          <div key={i} className={`bg-white rounded-2xl border-l-[8px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 ${item.status?.color === 'emerald' ? 'border-l-emerald-500' : item.status?.color === 'rose' ? 'border-l-rose-500' : 'border-l-blue-500'}`}>
+             <div className="flex gap-5 items-start">
+                <div className={`p-4 rounded-2xl shrink-0 ${item.status?.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : item.status?.color === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
+                   <item.icon className="w-8 h-8" />
+                </div>
+                <div>
+                   <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-2">{item.label}: <span className={item.status?.color === 'emerald' ? 'text-emerald-600' : 'text-blue-600'}>{item.status?.label}</span></h4>
+                   <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.status?.desc}</p>
+                </div>
+             </div>
+          </div>
+        ))}
       </div>
 
-      {/* Ramp rate warning */}
       {rampRate > 5 && (
-        <Callout title="Alerta de Rampa" color={rampRate > 7 ? 'rose' : 'amber'}>
-          Tu CTL está aumentando a +{rampRate}/semana. Se recomienda no superar +5 unidades/semana para evitar lesiones.
-          {rampRate > 7 && ' Considera una semana de descarga pronto.'}
-        </Callout>
+        <div className="bg-white border-l-8 border-rose-500 rounded-2xl p-6 flex gap-5 items-start shadow-xl shadow-rose-100/20 border border-slate-100 animate-pulse-subtle">
+            <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl shrink-0">
+                <ExclamationTriangleIcon className="w-6 h-6" />
+            </div>
+            <div>
+                <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-1">{i18n.language.startsWith('es') ? 'Punto de Alerta: Rampa de Carga' : 'Alert: Load Ramp'}</h4>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                    {i18n.language.startsWith('es') 
+                      ? `Tu CTL está aumentando a +${rampRate}/semana. Un aumento superior a +5 es un pre-vaticinio de sobreentrenamiento o lesión.`
+                      : `Your CTL is increasing at +${rampRate}/week. An increase higher than +5 is a harbinger of overtraining or injury.`}
+                </p>
+            </div>
+        </div>
       )}
 
       {/* Legend / How to read */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Cómo interpretar estos datos</Title>
+        <Title className="text-slate-800 font-bold mb-3">{t('fitness.how_to_read')}</Title>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

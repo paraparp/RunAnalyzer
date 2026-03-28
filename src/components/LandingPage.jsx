@@ -241,10 +241,10 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         viewport={{ once: true }} transition={{ duration: 0.6 }}
                         className="grid grid-cols-2 md:grid-cols-4 gap-6">
                         {[
-                            { value: '20+', label: tx(lang, 'Analytics Tools', 'Herramientas'), color: 'text-blue-600' },
-                            { value: 'AI', label: tx(lang, 'Gemini Powered', 'Potenciado por Gemini'), color: 'text-sky-600' },
-                            { value: '∞', label: tx(lang, 'Strava Activities', 'Actividades Strava'), color: 'text-indigo-600' },
-                            { value: 'VO2', label: tx(lang, 'VO2max Tracker', 'Tracker VO2max'), color: 'text-emerald-600' },
+                            { value: '20+', label: t('landing.stats.tools', 'Analytics Tools'), color: 'text-blue-600' },
+                            { value: 'AI', label: t('landing.stats.ai', 'Gemini Powered'), color: 'text-sky-600' },
+                            { value: '∞', label: t('landing.stats.activities', 'Strava Activities'), color: 'text-indigo-600' },
+                            { value: 'VO2', label: t('landing.stats.vo2', 'VO2max Tracker'), color: 'text-emerald-600' },
                         ].map((s, i) => (
                             <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }} transition={{ delay: i * 0.1 }}
@@ -263,7 +263,7 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                     <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }} className="text-center mb-16">
                         <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-                            {tx(lang, 'Everything you need', 'Todo lo que necesitas')}
+                            {t('landing.everything_you_need', 'Everything you need')}
                         </p>
                         <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-4">
                             {t('landing.tech_title')}
@@ -303,22 +303,19 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                         <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }} transition={{ duration: 0.7 }}>
                             <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
-                                {tx(lang, 'Global Heatmap', 'Heatmap Global')}
+                                {t('maps.title')}
                             </p>
                             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-5 leading-tight">
-                                {tx(lang, "Every km you've run, visually mapped.", 'Cada km recorrido, mapeado visualmente.')}
+                                {t('landing.heatmap_tagline', "Every km you've run, visually mapped.")}
                             </h2>
                             <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
-                                {tx(lang,
-                                    'See your entire running history on an interactive world map. Filter by year, type, or effort — your geography of dedication.',
-                                    'Visualiza todo tu historial de carrera en un mapa interactivo. Filtra por año, tipo o esfuerzo — tu geografía de dedicación.'
-                                )}
+                                {t('maps.subtitle')}
                             </p>
                             <div className="grid grid-cols-3 gap-4">
                                 {[
-                                    { val: '1,284', label: tx(lang, 'km tracked', 'km registrados'), color: 'text-blue-600' },
-                                    { val: '247', label: tx(lang, 'activities', 'actividades'), color: 'text-indigo-600' },
-                                    { val: '18.4k', label: tx(lang, 'm elevation', 'm desnivel'), color: 'text-sky-600' },
+                                    { val: '1,284', label: t('dashboard.distance').toLowerCase() + ' ' + t('dashboard.tracked', 'tracked'), color: 'text-blue-600' },
+                                    { val: '247', label: t('dashboard.activities').toLowerCase(), color: 'text-indigo-600' },
+                                    { val: '18.4k', label: t('dashboard.elevation').toLowerCase(), color: 'text-sky-600' },
                                 ].map((s, i) => (
                                     <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
@@ -350,15 +347,67 @@ const LandingPage = ({ onLoginSuccess, onLoginError }) => {
                                     </span>
                                 </div>
 
-                                {/* legend */}
-                                <div className="absolute top-4 right-4 flex items-center gap-1.5">
-                                    <span className="text-white/30 text-[9px] font-semibold uppercase tracking-widest mr-1">
-                                        {tx(lang, 'intensity', 'intensidad')}
-                                    </span>
-                                    {['bg-blue-900/60', 'bg-blue-600/70', 'bg-cyan-500/80', 'bg-orange-400/90', 'bg-red-500'].map((c, i) => (
-                                        <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
-                                    ))}
-                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ══════════════════════ LACTATE THRESHOLD ══════════════════════ */}
+            <section className="bg-[#F8FAFC] py-24 border-t border-slate-100">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="grid md:grid-cols-2 gap-16 items-center">
+
+                        {/* Left: chart */}
+                        <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
+                            <LTChart />
+                        </motion.div>
+
+                        {/* Right: text */}
+                        <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
+                            <p className="text-indigo-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
+                                {tx(lang, 'Lactate Threshold', 'Umbral de Lactato')}
+                            </p>
+                            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-5 leading-tight">
+                                {tx(lang, 'Track how your engine gets stronger.', 'Observa cómo tu motor mejora.')}
+                            </h2>
+                            <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
+                                {tx(lang,
+                                    'Your lactate threshold pace is the most reliable marker of aerobic fitness. RunAnalyzer tracks it automatically from your heart rate data — no lab test needed.',
+                                    'El ritmo de umbral de lactato es el indicador más fiable de tu forma aeróbica. RunAnalyzer lo calcula automáticamente desde tus datos de frecuencia cardíaca — sin test de laboratorio.'
+                                )}
+                            </p>
+                            <div className="space-y-4">
+                                {[
+                                    {
+                                        icon: '📈',
+                                        title: tx(lang, 'Monthly trend', 'Tendencia mensual'),
+                                        desc: tx(lang, 'See if your threshold pace is improving or stagnating over time.', 'Ve si tu ritmo umbral mejora o se estanca mes a mes.'),
+                                    },
+                                    {
+                                        icon: '❤️',
+                                        title: tx(lang, 'Derived from HR data', 'Derivado de datos FC'),
+                                        desc: tx(lang, 'Estimated from cardiac decoupling and HR drift — no extra gear.', 'Estimado desde decoupling cardíaco y deriva de FC — sin equipamiento extra.'),
+                                    },
+                                    {
+                                        icon: '🎯',
+                                        title: tx(lang, 'Pace & power targets', 'Objetivos de ritmo'),
+                                        desc: tx(lang, 'Know your Z3/Z4 boundary and train at the right intensity.', 'Conoce tu límite Z3/Z4 y entrena a la intensidad correcta.'),
+                                    },
+                                ].map((item, i) => (
+                                    <motion.div key={i}
+                                        initial={{ opacity: 0, x: 16 }} whileInView={{ opacity: 1, x: 0 }}
+                                        viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.12 }}
+                                        className="flex gap-4 items-start p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                                        <span className="text-xl mt-0.5">{item.icon}</span>
+                                        <div>
+                                            <p className="text-slate-900 text-sm font-bold mb-0.5">{item.title}</p>
+                                            <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                                        </div>
+                                    </motion.div>
+                                ))}
                             </div>
                         </motion.div>
                     </div>
@@ -632,77 +681,177 @@ const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = ''
     );
 };
 
-/* ─── Heatmap blob visualization (smooth, no grid) ─── */
-/* ─── GPS route heatmap visualization ─── */
-// Organic paths mimicking real running routes on a city map
-const ROUTES = [
-    // Main cluster — dense overlapping routes (like the screenshot)
-    "M 180,130 C 185,120 192,115 200,110 C 210,105 218,108 222,115 C 228,124 224,132 218,138 C 212,144 204,148 196,150 C 188,152 180,148 176,142 C 172,136 174,130 180,130Z",
-    "M 178,128 C 183,112 196,102 210,105 C 226,108 234,122 230,136 C 226,150 212,156 198,154 C 184,152 174,142 174,130 C 174,118 178,110 186,106",
-    "M 200,108 C 208,98 220,92 232,96 C 244,100 250,112 246,124 C 242,136 230,142 218,140 C 206,138 198,130 200,120",
-    "M 172,140 C 164,148 158,158 155,168 C 152,178 155,188 163,192 C 171,196 180,192 186,184 C 192,176 192,166 186,158 C 180,150 172,148 168,152",
-    "M 222,116 C 232,108 244,104 256,108 C 268,112 274,124 270,136 C 266,146 256,152 246,150 C 236,148 228,140 226,130",
-    "M 196,152 C 196,162 194,172 190,180 C 186,188 180,194 172,196 C 164,198 156,194 152,186 C 148,178 150,168 156,162 C 162,156 170,154 178,156",
-    "M 200,106 C 196,94 188,84 178,80 C 168,76 158,80 152,90 C 146,100 148,112 156,118 C 164,124 174,124 182,118",
-    // Longer route going outward (like the user's long trail routes)
-    "M 220,112 C 234,100 250,90 266,84 C 282,78 298,78 310,86 C 322,94 326,108 320,120",
-    "M 176,142 C 166,150 154,156 140,158 C 126,160 112,156 102,148 C 92,140 88,128 92,116",
-    // Coastal run (bottom path)
-    "M 155,168 C 148,174 138,178 128,180 C 118,182 108,180 100,174 C 92,168 88,158 90,148",
-    // Faint solo run far away
-    "M 310,88 C 318,80 328,74 338,72 C 348,70 356,74 360,82",
-    "M 90,148 C 82,142 76,134 74,124 C 72,114 74,104 80,96",
-];
-
+/* ─── GPS heatmap — pure CSS radial gradients, zero SVG grid ─── */
 const HeatmapViz = () => (
-    <div className="absolute inset-0">
-        <svg viewBox="0 0 420 260" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                {/* Outer glow */}
-                <filter id="routeglow" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="3.5" result="glow" />
-                    <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-            </defs>
-
-            {/* Solid dark background */}
-            <rect width="420" height="260" fill="#0d1117" />
-
-            {/* Glow halo behind routes */}
-            <g filter="url(#routeglow)" opacity="0.35">
-                {ROUTES.slice(0, 9).map((d, i) => (
-                    <path key={`glow-${i}`} d={d} fill="none"
-                        stroke="#f97316" strokeWidth={i < 7 ? 6 : 3} strokeLinecap="round" strokeLinejoin="round" />
-                ))}
-            </g>
-
-            {/* Main routes — animated draw */}
-            {ROUTES.map((d, i) => (
-                <motion.path key={i} d={d} fill="none"
-                    stroke={i < 7 ? '#fb923c' : i < 10 ? '#f97316' : '#ea580c'}
-                    strokeWidth={i < 7 ? 1.6 : i < 10 ? 1.2 : 0.8}
-                    strokeLinecap="round" strokeLinejoin="round"
-                    opacity={i < 7 ? 0.95 : i < 10 ? 0.7 : 0.45}
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    whileInView={{ pathLength: 1, opacity: i < 7 ? 0.95 : i < 10 ? 0.7 : 0.45 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 1.6, delay: 0.3 + i * 0.12, ease: 'easeInOut' }}
-                />
-            ))}
-
-            {/* Hot-spot dots at route intersections */}
-            {[[200, 130], [210, 110], [196, 150], [222, 116], [180, 130], [186, 106], [230, 112]].map(([cx, cy], i) => (
-                <motion.circle key={`dot-${i}`} cx={cx} cy={cy} r={i === 0 ? 3.5 : 2}
-                    fill="#fbbf24"
-                    initial={{ scale: 0, opacity: 0 }}
-                    whileInView={{ scale: 1, opacity: i === 0 ? 1 : 0.7 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: 1.8 + i * 0.08 }}
-                    style={{ transformOrigin: `${cx}px ${cy}px` }}
-                />
-            ))}
-        </svg>
+    <div className="absolute inset-0 rounded-3xl overflow-hidden" style={{
+        background: '#0d1117',
+        backgroundImage: [
+            // dense core — A Coruña style cluster
+            'radial-gradient(ellipse 22% 16% at 50% 50%, rgba(251,146,60,0.85) 0%, rgba(249,115,22,0.55) 35%, transparent 70%)',
+            'radial-gradient(ellipse 14% 10% at 47% 48%, rgba(255,200,100,0.7) 0%, transparent 60%)',
+            'radial-gradient(ellipse 18% 14% at 54% 52%, rgba(251,146,60,0.6) 0%, transparent 65%)',
+            // secondary blobs
+            'radial-gradient(ellipse 10% 8% at 44% 44%, rgba(253,186,116,0.5) 0%, transparent 60%)',
+            'radial-gradient(ellipse 9% 7% at 57% 45%, rgba(249,115,22,0.45) 0%, transparent 55%)',
+            'radial-gradient(ellipse 8% 10% at 49% 58%, rgba(251,146,60,0.4) 0%, transparent 55%)',
+            // tentacles going outward (like long runs leaving the city)
+            'radial-gradient(ellipse 20% 5% at 68% 46%, rgba(234,88,12,0.3) 0%, transparent 70%)',
+            'radial-gradient(ellipse 5% 18% at 50% 68%, rgba(234,88,12,0.25) 0%, transparent 70%)',
+            'radial-gradient(ellipse 18% 5% at 34% 50%, rgba(234,88,12,0.25) 0%, transparent 70%)',
+            // faint outer glow
+            'radial-gradient(ellipse 40% 30% at 50% 50%, rgba(249,115,22,0.12) 0%, transparent 80%)',
+        ].join(','),
+    }}>
+        {/* Animated pulse on the hot core */}
+        <motion.div
+            className="absolute rounded-full"
+            style={{ width: '8%', height: '6%', left: '46%', top: '47%', background: 'rgba(255,220,120,0.25)', filter: 'blur(6px)' }}
+            animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0.2, 0.6] }}
+            transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+        />
     </div>
 );
+
+/* ─── Lactate Threshold evolution chart ─── */
+// [month label, threshold pace in sec/km (lower = faster)]
+const LT_DATA = [
+    { m: 'Mar', v: 292 }, // 4:52
+    { m: 'Apr', v: 289 },
+    { m: 'May', v: 287 },
+    { m: 'Jun', v: 291 }, // small regression
+    { m: 'Jul', v: 284 },
+    { m: 'Aug', v: 279 },
+    { m: 'Sep', v: 276 },
+    { m: 'Oct', v: 272 },
+    { m: 'Nov', v: 268 }, // 4:28
+    { m: 'Dec', v: 265 },
+    { m: 'Jan', v: 262 },
+    { m: 'Feb', v: 258 }, // 4:18  ← best
+];
+
+const fmtPace = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+
+const LTChart = () => {
+    const W = 420, H = 220, PL = 48, PR = 16, PT = 20, PB = 36;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const vals = LT_DATA.map(d => d.v);
+    const min = Math.min(...vals) - 6;
+    const max = Math.max(...vals) + 6;
+
+    const x = (i) => PL + (i / (LT_DATA.length - 1)) * cW;
+    const y = (v) => PT + ((max - v) / (max - min)) * cH;
+
+    const linePath = LT_DATA.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)},${y(d.v)}`).join(' ');
+
+    // smooth area fill path
+    const areaPath = [
+        `M ${x(0)},${y(LT_DATA[0].v)}`,
+        ...LT_DATA.slice(1).map((d, i) => `L ${x(i + 1)},${y(d.v)}`),
+        `L ${x(LT_DATA.length - 1)},${PT + cH}`,
+        `L ${x(0)},${PT + cH}`,
+        'Z',
+    ].join(' ');
+
+    const bestIdx = vals.indexOf(Math.min(...vals)); // last point (best pace)
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-lg p-6">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+                <div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
+                        Threshold Pace
+                    </p>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-indigo-600 tabular-nums">
+                            {fmtPace(vals[vals.length - 1])}
+                        </span>
+                        <span className="text-slate-400 text-sm">/km</span>
+                        <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100">
+                            ↑ {fmtPace(vals[0])} → {fmtPace(vals[vals.length - 1])}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    <span className="text-indigo-600 text-[10px] font-bold">12 months</span>
+                </div>
+            </div>
+
+            {/* SVG Chart */}
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+                <defs>
+                    <linearGradient id="ltgrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+
+                {/* Horizontal grid lines */}
+                {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+                    const gy = PT + t * cH;
+                    const paceVal = Math.round(max - t * (max - min));
+                    return (
+                        <g key={i}>
+                            <line x1={PL} y1={gy} x2={W - PR} y2={gy}
+                                stroke="#f1f5f9" strokeWidth="1" />
+                            <text x={PL - 6} y={gy + 4} textAnchor="end"
+                                fill="#94a3b8" fontSize="8" fontWeight="600">
+                                {fmtPace(paceVal)}
+                            </text>
+                        </g>
+                    );
+                })}
+
+                {/* Area fill */}
+                <motion.path d={areaPath} fill="url(#ltgrad)"
+                    initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.4 }} />
+
+                {/* Line */}
+                <motion.path d={linePath} fill="none"
+                    stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }}
+                    viewport={{ once: true }} transition={{ duration: 1.8, delay: 0.3, ease: 'easeInOut' }} />
+
+                {/* Data points */}
+                {LT_DATA.map((d, i) => (
+                    <motion.circle key={i} cx={x(i)} cy={y(d.v)} r={i === bestIdx ? 5 : 3}
+                        fill={i === bestIdx ? '#6366f1' : 'white'}
+                        stroke="#6366f1" strokeWidth={i === bestIdx ? 0 : 2}
+                        initial={{ scale: 0 }} whileInView={{ scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.3, delay: 0.4 + i * 0.08 }}
+                        style={{ transformOrigin: `${x(i)}px ${y(d.v)}px` }}
+                    />
+                ))}
+
+                {/* Best point label */}
+                <motion.g initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }} transition={{ delay: 1.6 }}>
+                    <rect x={x(bestIdx) - 24} y={y(vals[bestIdx]) - 26}
+                        width="48" height="18" rx="5" fill="#6366f1" />
+                    <text x={x(bestIdx)} y={y(vals[bestIdx]) - 13}
+                        textAnchor="middle" fill="white" fontSize="9" fontWeight="800">
+                        🏆 {fmtPace(vals[bestIdx])}
+                    </text>
+                </motion.g>
+
+                {/* Month labels */}
+                {LT_DATA.map((d, i) => (
+                    <text key={i} x={x(i)} y={H - 6} textAnchor="middle"
+                        fill="#94a3b8" fontSize="8" fontWeight="600">
+                        {d.m}
+                    </text>
+                ))}
+            </svg>
+
+            {/* Footer note */}
+            <p className="text-slate-400 text-[10px] text-center mt-3 font-medium">
+                Estimated automatically · No lab test required
+            </p>
+        </div>
+    );
+};
 
 export default LandingPage;

@@ -1,15 +1,17 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TrophyIcon } from "@heroicons/react/24/solid";
 
 const PersonalBests = ({ activities }) => {
+    const { t } = useTranslation();
     const bests = useMemo(() => {
         if (!activities || activities.length === 0) return null;
 
         const ranges = [
-            { id: '5k', name: '5K', min: 4900, max: 5200 },
-            { id: '10k', name: '10K', min: 9900, max: 10500 },
-            { id: 'hm', name: 'Media Maraton', min: 21000, max: 21500 },
-            { id: 'fm', name: 'Maraton', min: 42000, max: 43000 },
+            { id: '5k', name: t('dashboard.records.5k'), min: 4900, max: 5200 },
+            { id: '10k', name: t('dashboard.records.10k'), min: 9900, max: 10500 },
+            { id: 'hm', name: t('dashboard.records.hm'), min: 21000, max: 21500 },
+            { id: 'fm', name: t('dashboard.records.fm'), min: 42000, max: 43000 },
         ];
 
         const records = {};

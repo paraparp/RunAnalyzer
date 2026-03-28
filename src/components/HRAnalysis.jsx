@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
@@ -11,7 +12,9 @@ import {
     ChevronDownIcon,
     ArrowPathIcon,
     HeartIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    FireIcon,
+    SparklesIcon
 } from "@heroicons/react/24/outline";
 
 // Month color palette
@@ -133,6 +136,7 @@ const CustomTooltipVolume = ({ active, payload }) => {
 };
 
 export default function HRAnalysis({ activities, onEnrichActivity }) {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
     const [filterMode, setFilterMode] = useState("last"); // "last" or "year"
     const [lastNRuns, setLastNRuns] = useState(30);
@@ -440,18 +444,18 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         return (
             <div className="text-center py-12 text-slate-400">
                 <HeartIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                <p className="text-sm">No hay datos de frecuencia cardíaca disponibles.</p>
-                <p className="text-xs mt-1">Asegúrate de que tus actividades tienen datos de FC.</p>
+                <p className="text-sm">{t('hr_analysis.no_data')}</p>
+                <p className="text-xs mt-1">{t('hr_analysis.check_hr')}</p>
             </div>
         );
     }
 
     const tabs = [
-        { id: "overview", label: "Resumen" },
-        { id: "scatter", label: "FC vs Ritmo" },
-        { id: "drift", label: "Deriva Cardíaca" },
-        { id: "efficiency", label: "Eficiencia" },
-        { id: "diagnosis", label: "Diagnóstico" },
+        { id: "overview", label: t('hr_analysis.tabs.overview') },
+        { id: "scatter", label: t('hr_analysis.tabs.scatter') },
+        { id: "drift", label: t('hr_analysis.tabs.drift') },
+        { id: "efficiency", label: t('hr_analysis.tabs.efficiency') },
+        { id: "diagnosis", label: t('hr_analysis.tabs.diagnosis') },
     ];
 
     const { timeline, scatterData, monthlyVolume, driftRuns, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
@@ -460,14 +464,14 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         <div className="space-y-5">
             {/* Banner Diagnóstico Automático */}
             {diagnosis.hrDeviation > 5 && (
-                <div className="bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 rounded-2xl p-4 flex gap-4 items-start shadow-sm animate-pulse-subtle">
-                    <div className="bg-rose-500 text-white p-1.5 rounded-lg shrink-0">
-                        <ExclamationTriangleIcon className="w-5 h-5" />
+                <div className="bg-white border-l-8 border-rose-500 rounded-2xl p-6 flex gap-5 items-start shadow-xl shadow-rose-100/20 border border-slate-100 animate-pulse-subtle">
+                    <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl shrink-0">
+                        <ExclamationTriangleIcon className="w-6 h-6" />
                     </div>
                     <div>
-                        <h4 className="text-rose-900 font-bold text-sm">Patrón detectado: Desviación Cardíaca</h4>
-                        <p className="text-rose-700 text-[13px] leading-snug mt-1">
-                            Tu FC media en rodajes llanos ha subido <strong className="font-extrabold">~{Math.round(diagnosis.hrDeviation)} bpm</strong> recientemente respecto a tu base histórica. Esto sugiere fatiga acumulada, deshidratación o cambio en la eficiencia cardiovascular.
+                        <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-1">{t('hr_analysis.diagnosis.critical_pattern')}</h4>
+                        <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                            {t('hr_analysis.diagnosis.deviation_msg', { bpm: Math.round(diagnosis.hrDeviation) })}
                         </p>
                     </div>
                 </div>
@@ -475,15 +479,15 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
 
             {/* Filter + Tabs header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="flex-1 flex gap-1 bg-slate-100 rounded-xl p-1 shrink-0">
+                <div className="flex-1 flex gap-1 bg-slate-50 rounded-2xl p-1.5 border border-slate-100 shrink-0 shadow-sm">
                     {tabs.map(t => (
                         <button
                             key={t.id}
                             onClick={() => setActiveTab(t.id)}
-                            className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-medium transition-all duration-200
+                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300
                                 ${activeTab === t.id
-                                    ? "bg-white text-slate-900 shadow-sm"
-                                    : "text-slate-500 hover:text-slate-700"
+                                    ? "bg-slate-900 text-white shadow-lg shadow-slate-200 scale-105"
+                                    : "text-slate-400 hover:text-slate-600 hover:bg-white"
                                 }`}
                         >
                             {t.label}
@@ -492,56 +496,51 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 </div>
 
                 {/* Filter controls */}
-                <div className="flex items-center gap-0 bg-white border border-slate-200 rounded-xl overflow-hidden h-[42px] shadow-sm">
-                    {/* Funnel Icon */}
-                    <div className="pl-3 pr-2 border-r border-slate-100 flex items-center justify-center bg-slate-50/30">
-                        <FunnelIcon className="w-3.5 h-3.5 text-slate-400" />
-                    </div>
-
+                <div className="flex items-center gap-0 bg-white border border-slate-100 rounded-2xl overflow-hidden h-[48px] shadow-sm">
                     {/* Mode Toggle */}
-                    <div className="flex items-center">
+                    <div className="flex items-center h-full">
                         <button
                             onClick={() => setFilterMode("last")}
-                            className={`flex items-center gap-1.5 px-3 h-[42px] text-[11px] font-bold uppercase tracking-wider transition-colors
+                            className={`flex items-center gap-2 px-4 h-full text-[10px] font-black uppercase tracking-widest transition-all
                                 ${filterMode === "last"
-                                    ? "bg-blue-50 text-blue-700 border-r border-blue-100"
-                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-100"}`}
+                                    ? "bg-blue-600 text-white shadow-inner"
+                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-50"}`}
                         >
-                            <ClockIcon className="w-3.5 h-3.5" />
-                            <span className="hidden xs:inline">Carreras</span>
+                            <ClockIcon className="w-4 h-4" />
+                            <span className="hidden xs:inline">{t('hr_analysis.filters.last')}</span>
                         </button>
                         <button
                             onClick={() => setFilterMode("year")}
-                            className={`flex items-center gap-1.5 px-3 h-[42px] text-[11px] font-bold uppercase tracking-wider transition-colors
+                            className={`flex items-center gap-2 px-4 h-full text-[10px] font-black uppercase tracking-widest transition-all
                                 ${filterMode === "year"
-                                    ? "bg-blue-50 text-blue-700 border-r border-blue-100"
-                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-100"}`}
+                                    ? "bg-blue-600 text-white shadow-inner"
+                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-50"}`}
                         >
-                            <CalendarIcon className="w-3.5 h-3.5" />
-                            <span className="hidden xs:inline">Año</span>
+                            <CalendarIcon className="w-4 h-4" />
+                            <span className="hidden xs:inline">{t('hr_analysis.filters.year')}</span>
                         </button>
                     </div>
 
                     {/* Value Selector */}
-                    <div className="flex items-center bg-slate-50/50 px-3 h-[42px]">
+                    <div className="flex items-center bg-slate-50/30 px-4 h-full min-w-[80px]">
                         {filterMode === "last" ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                                 <input
                                     type="number"
                                     value={lastNRuns}
                                     onChange={(e) => setLastNRuns(Math.max(1, parseInt(e.target.value) || 0))}
-                                    className="w-10 text-[13px] font-bold text-slate-700 bg-transparent border-0 p-0 focus:ring-0 text-center"
+                                    className="w-8 text-sm font-black text-slate-900 bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
                                 />
-                                <span className="text-[10px] text-slate-400 font-bold uppercase">Últimas</span>
+                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
                             </div>
                         ) : (
-                            <div className="relative flex items-center">
+                            <div className="relative flex items-center w-full">
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="appearance-none text-[13px] font-bold text-slate-700 bg-transparent border-0 p-0 pr-6 focus:ring-0 cursor-pointer"
+                                    className="appearance-none text-sm font-black text-slate-900 bg-transparent border-0 p-0 pr-6 focus:ring-0 cursor-pointer w-full text-center"
                                 >
-                                    <option value="All">Todos</option>
+                                    <option value="All">{t('hr_analysis.filters.all')}</option>
                                     {availableYears.map(y => (
                                         <option key={y} value={String(y)}>{y}</option>
                                     ))}
@@ -557,50 +556,66 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             {activeTab === "overview" && (
                 <div className="space-y-5">
                     {/* Key metric cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
                             {
-                                label: "FC Media Global",
+                                label: t('hr_analysis.stats.avg_hr'),
                                 value: Math.round(stats.avgHrAll),
                                 unit: "bpm",
-                                sub: `${timeline.length} sesiones con FC`,
-                                gradient: "from-blue-500 to-blue-600",
+                                sub: t('hr_analysis.stats.sessions', { count: timeline.length }),
+                                icon: HeartIcon,
+                                color: "text-blue-600",
                                 bg: "bg-blue-50",
+                                border: "border-blue-100"
                             },
                             {
-                                label: "FC Max Registrada",
+                                label: t('hr_analysis.stats.max_hr'),
                                 value: Math.round(stats.maxHrEver),
                                 unit: "bpm",
-                                sub: "Máximo absoluto",
-                                gradient: "from-rose-500 to-pink-500",
+                                sub: t('hr_analysis.stats.limit'),
+                                icon: FireIcon,
+                                color: "text-rose-600",
                                 bg: "bg-rose-50",
+                                border: "border-rose-100"
                             },
                             {
-                                label: "Sesión Más Baja",
+                                label: t('hr_analysis.stats.min_effort'),
                                 value: Math.round(stats.lowestAvgHr.avgHr),
                                 unit: "bpm",
-                                sub: `${stats.lowestAvgHr.dateFormatted} · GAP ${stats.lowestAvgHr.gap}/km`,
-                                gradient: "from-emerald-500 to-teal-500",
+                                sub: `${stats.lowestAvgHr.dateFormatted}`,
+                                icon: SparklesIcon,
+                                color: "text-emerald-600",
                                 bg: "bg-emerald-50",
+                                border: "border-emerald-100"
                             },
                             {
-                                label: "Sesión Más Alta",
+                                label: t('hr_analysis.stats.max_effort'),
                                 value: Math.round(stats.highestAvgHr.avgHr),
                                 unit: "bpm",
-                                sub: `${stats.highestAvgHr.dateFormatted} · GAP ${stats.highestAvgHr.gap}/km`,
-                                gradient: "from-orange-500 to-red-500",
+                                sub: `${stats.highestAvgHr.dateFormatted}`,
+                                icon: ExclamationTriangleIcon,
+                                color: "text-amber-600",
                                 bg: "bg-amber-50",
+                                border: "border-amber-100"
                             },
                         ].map((card, i) => (
-                            <div key={i} className={`${card.bg} rounded-xl p-4 border border-slate-200/60`}>
-                                <div className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">{card.label}</div>
+                            <div key={i} className={`bg-white rounded-2xl p-6 border ${card.border} shadow-sm transition-all hover:shadow-md group`}>
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className={`p-2 rounded-xl ${card.bg} ${card.color} transition-transform group-hover:scale-110`}>
+                                      <card.icon className="w-5 h-5" />
+                                  </div>
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{card.label}</div>
+                                </div>
                                 <div className="flex items-baseline gap-1.5">
-                                    <span className={`text-3xl font-extrabold bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent tabular-nums`}>
+                                    <span className={`text-3xl font-black text-slate-900 tabular-nums leading-none`}>
                                         {card.value}
                                     </span>
-                                    <span className="text-xs font-medium text-slate-400">{card.unit}</span>
+                                    <span className="text-xs font-bold text-slate-400 capitalize">{card.unit}</span>
                                 </div>
-                                <div className="text-[11px] text-slate-500 mt-1.5">{card.sub}</div>
+                                <div className="text-[11px] font-bold text-slate-400 mt-3 flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-slate-200" />
+                                  {card.sub}
+                                </div>
                             </div>
                         ))}
                     </div>
