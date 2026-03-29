@@ -1,17 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  CalendarDaysIcon, 
-  FireIcon, 
-  TrophyIcon, 
+import {
+  CalendarDaysIcon,
+  FireIcon,
+  TrophyIcon,
   CheckBadgeIcon,
   SparklesIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
-
-const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const DAY_LABELS = ['Lun', '', 'Mié', '', 'Vie', '', 'Dom'];
 
 function getColorForValue(value, max, metric) {
   if (!value || value === 0) return 'bg-slate-100/60';
@@ -32,6 +29,8 @@ function getColorForValue(value, max, metric) {
 
 export default function ConsistencyHeatmap({ activities }) {
   const { t } = useTranslation();
+  const MONTH_LABELS = t('consistency.months', { returnObjects: true });
+  const DAY_LABELS = t('consistency.days', { returnObjects: true });
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [metric, setMetric] = useState('distance');
 
@@ -61,7 +60,7 @@ export default function ConsistencyHeatmap({ activities }) {
 
       const val = metric === 'distance' ? data[key].distance
         : metric === 'time' ? data[key].time
-        : data[key].load;
+          : data[key].load;
       if (val > max) max = val;
     });
 
@@ -90,7 +89,7 @@ export default function ConsistencyHeatmap({ activities }) {
         const metricValue = value
           ? (metric === 'distance' ? value.distance
             : metric === 'time' ? value.time
-            : value.load)
+              : value.load)
           : 0;
 
         week.push({
@@ -198,16 +197,16 @@ export default function ConsistencyHeatmap({ activities }) {
           { label: t('consistency.stats.consistency'), value: `${consistencyStats.weeksWith3}/${consistencyStats.totalWeeks}`, unit: t('dashboard.weeks_min', 'semanas ≥3'), color: "text-amber-600", icon: CheckBadgeIcon }
         ].map((card, i) => (
           <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
-             <div className="flex justify-between items-start mb-3">
-                <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
-                   <card.icon className="w-5 h-5" />
-                </div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
-             </div>
-             <div className="flex items-baseline gap-1.5">
-                <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
-             </div>
+            <div className="flex justify-between items-start mb-3">
+              <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                <card.icon className="w-5 h-5" />
+              </div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -217,44 +216,44 @@ export default function ConsistencyHeatmap({ activities }) {
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
-               <div className="bg-emerald-600 text-white p-1 rounded-lg">
-                  <SparklesIcon className="w-4 h-4" />
-               </div>
-               <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('consistency.title')}</h3>
+              <div className="bg-emerald-600 text-white p-1 rounded-lg">
+                <SparklesIcon className="w-4 h-4" />
+              </div>
+              <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('consistency.title')}</h3>
             </div>
             <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
               {t('consistency.subtitle')}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-4">
-             <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-                {availableYears.map(y => (
-                  <button
-                    key={y}
-                    onClick={() => setSelectedYear(y)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedYear === y ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    {y}
-                  </button>
-                ))}
-             </div>
-             
-             <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-                {[
-                  { id: 'distance', label: t('consistency.metrics.distance') },
-                  { id: 'time', label: t('consistency.metrics.time') },
-                  { id: 'load', label: t('consistency.metrics.load') }
-                ].map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => setMetric(m.id)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${metric === m.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-             </div>
+            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+              {availableYears.map(y => (
+                <button
+                  key={y}
+                  onClick={() => setSelectedYear(y)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedYear === y ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+              {[
+                { id: 'distance', label: t('consistency.metrics.distance') },
+                { id: 'time', label: t('consistency.metrics.time') },
+                { id: 'load', label: t('consistency.metrics.load') }
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setMetric(m.id)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${metric === m.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

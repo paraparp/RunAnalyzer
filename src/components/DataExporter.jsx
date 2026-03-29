@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Button, Select, SelectItem, Grid, NumberInput, DateRangePicker, ProgressBar } from "@tremor/react";
 import { ClipboardDocumentListIcon, CheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { es } from 'date-fns/locale';
 
 const DataExporter = ({ activities, onEnrichActivity }) => {
+    const { t } = useTranslation();
+
     // Default to last 3 months
     const [dateRange, setDateRange] = useState({
         from: new Date(new Date().setMonth(new Date().getMonth() - 3)),
@@ -163,26 +166,26 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         <ClipboardDocumentListIcon className="w-6 h-6 text-emerald-600" />
                     </div>
                     <div>
-                        <Title className="text-xl font-bold text-slate-900">Exportador de Datos</Title>
-                        <Text className="text-slate-500 text-sm">Copia tus actividades para usarlas en otras herramientas o análisis.</Text>
+                        <Title className="text-xl font-bold text-slate-900">{t('exporter.title')}</Title>
+                        <Text className="text-slate-500 text-sm">{t('exporter.subtitle')}</Text>
                     </div>
                 </div>
 
                 <Grid numItems={1} numItemsSm={3} className="gap-6 mb-6">
                     <div>
-                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Rango de Fechas</Text>
+                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.date_range')}</Text>
                         <DateRangePicker
                             className="w-full"
                             value={dateRange}
                             onValueChange={setDateRange}
                             locale={es}
-                            selectPlaceholder="Seleccionar rango"
+                            selectPlaceholder={t('exporter.select_range')}
                             color="blue"
                             enableSelect={false}
                         />
                     </div>
                     <div>
-                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Distancia Mínima (km)</Text>
+                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.min_distance')}</Text>
                         <NumberInput
                             value={minDist}
                             onValueChange={setMinDist}
@@ -191,20 +194,20 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         />
                     </div>
                     <div>
-                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Formato</Text>
+                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.format')}</Text>
                         <Select value={format} onValueChange={setFormat} enableClear={false}>
-                            <SelectItem value="json">JSON (Completo)</SelectItem>
-                            <SelectItem value="csv">CSV (Excel/Sheets)</SelectItem>
-                            <SelectItem value="text">Texto (Resumen)</SelectItem>
+                            <SelectItem value="json">{t('exporter.format_json')}</SelectItem>
+                            <SelectItem value="csv">{t('exporter.format_csv')}</SelectItem>
+                            <SelectItem value="text">{t('exporter.format_txt')}</SelectItem>
                         </Select>
                     </div>
                 </Grid>
 
                 <div className="flex justify-between items-center mb-2">
-                    <Text className="font-bold text-slate-700">Vista Previa</Text>
+                    <Text className="font-bold text-slate-700">{t('exporter.preview')}</Text>
                     {missingLapsCount > 0 && onEnrichActivity && (
                         <div className="flex items-center gap-2">
-                            <Text className="text-xs text-slate-500">{missingLapsCount} actividades sin datos de vueltas</Text>
+                            <Text className="text-xs text-slate-500">{missingLapsCount} {t('exporter.activities_without_laps')}</Text>
                             <Button
                                 size="xs"
                                 variant="light"
@@ -213,7 +216,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                 loading={enriching}
                                 onClick={handleEnrichData}
                             >
-                                Obtener Parciales
+                                {t('exporter.fetch_laps')}
                             </Button>
                         </div>
                     )}
@@ -222,7 +225,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 {enriching && (
                     <div className="mb-3">
                         <ProgressBar value={enrichProgress} color="blue" className="mt-1" />
-                        <Text className="text-xs text-center mt-1 text-slate-500">Descargando datos detallados de Strava... esto puede tardar unos segundos.</Text>
+                        <Text className="text-xs text-center mt-1 text-slate-500">{t('exporter.fetching_laps')}</Text>
                     </div>
                 )}
 
@@ -240,14 +243,14 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             onClick={handleCopy}
                             icon={copied ? CheckIcon : ClipboardDocumentListIcon}
                         >
-                            {copied ? "Copiado!" : "Copiar al portapapeles"}
+                            {copied ? t('exporter.copied') : t('exporter.copy')}
                         </Button>
                     </div>
                 </div>
 
                 <div className="mt-4 flex justify-between items-center text-slate-400 text-xs">
                     <div className="flex gap-2">
-                        <span>Actividades filtradas: <span className="font-bold text-slate-600">{filteredActivities.length}</span></span>
+                        <span>{t('exporter.filtered_activities')} <span className="font-bold text-slate-600">{filteredActivities.length}</span></span>
                         <span>de {activities?.length || 0}</span>
                     </div>
                     <span>Caracteres: {exportedData.length}</span>

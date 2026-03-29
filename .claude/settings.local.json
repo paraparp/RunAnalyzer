@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm run build:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(grep -r ['' '] /d/Projects/RunAnalyzer/src/components/*.jsx)",
+      "Bash(grep -n \"return { label: ''[A-ZÁ-Ú]\" /d/Projects/RunAnalyzer/src/components/*.jsx)",
+      "Bash(grep -n \"[''\"\"]\\(Excelente|Bueno|Normal|Alto|Muy|Hoy|Ayer|Hace|Zapatilla|Sesiones|Media|Mejor|Tendencia|Empeora|Mejora|Cómo\\)\" /d/Projects/RunAnalyzer/src/components/*.jsx)",
+      "Bash(grep -rn \"['''']\\\\\\([A-Zá-ú][a-záéíóúñ ]*\\\\|Hoy\\\\|Ayer\\\\|Hace\\\\|Ritmo\\\\|Sesiones\\\\|Media\\\\|Mejor\\\\|Tendencia\\\\|Mejora\\\\|Empeora\\\\\\)\" /d/Projects/RunAnalyzer/src/components/*.jsx)",
+      "Bash(grep -rn \"['''']\\\\\\(Hoy\\\\|Ayer\\\\|Hace\\\\|Sesiones\\\\|Media\\\\|Mejor\\\\|Tendencia\\\\|Mejora\\\\|Empeora\\\\|Ritmo\\\\|Carga\\\\|Fitness\\\\|Estado de Forma\\\\|Punto de Alerta\\\\|Rampa de Carga\\\\|Actividades\\\\|Cómo\\\\|Garaje\\\\|Zapatilla\\\\|Elevada\\\\|Moderada\\\\|Normal\\\\|Decoupling\\\\|Duración\\\\|Período\\\\\\)\" /d/Projects/RunAnalyzer/src/components/*.jsx)",
+      "Bash(grep -rn name.*''[A-Zá-ú] /d/Projects/RunAnalyzer/src/components/*.jsx)"
     ]
   }
 }

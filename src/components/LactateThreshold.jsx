@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -66,12 +67,60 @@ function weightedMedian(pairs) {
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LT2_TARGET_PCT = 0.87;
-const LT2_SIGMA_PCT  = 0.025; // ≈ ±5 bpm at HRmax 180
-const LT1_TARGET_PCT = 0.77;
-const LT1_SIGMA_PCT  = 0.025;
-const EWMA_LAMBDA    = 0.3;   // recency weight; higher = more reactive
-const MIN_DURATION_S = 20 * 60; // 20 min minimum
+const LT2_TARGET_PCT  = 0.87;
+const LT2_SIGMA_PCT   = 0.025; // ≈ ±4-5 bpm at HRmax 180
+const LT1_TARGET_PCT  = 0.77;
+const LT1_SIGMA_PCT   = 0.025;
+const EWMA_LAMBDA     = 0.3;   // recency weight; higher = more reactive
+const MIN_DURATION_S  = 20 * 60; // 20 min minimum for full-run fallback
+const MIN_LAP_TIME_S  = 4 * 60;  // 4 min minimum per lap (~500m+) for steady-state HR
+const MIN_LAP_DIST_M  = 400;     // ignore sub-400 m laps (transition/auto-split artifacts)
+
+/**
+ * Extract lap-level or activity-level HR/pace samples for gaussian weighting.
+ *
+ * Priority:
+ *   1. If activity.laps is available and has ≥2 valid laps → use individual laps.
+ *      Each lap has its own avgHR and avgSpeed, so a tempo segment within a longer
+ *      run correctly contributes at its actual intensity — far more accurate than
+ *      using the whole-run average.
+ *   2. Fallback to whole-run average_heartrate when laps aren't loaded yet.
+ */
+function extractSamples(a) {
+  const samples = [];
+
+  const validLap = l =>
+    l.average_heartrate > 80 &&
+    l.average_speed > 0 &&
+    (l.moving_time || l.elapsed_time || 0) >= MIN_LAP_TIME_S &&
+    (l.distance || 0) >= MIN_LAP_DIST_M;
+
+  if (a.laps && a.laps.length >= 2 && a.laps.some(validLap)) {
+    for (const l of a.laps) {
+      if (!validLap(l)) continue;
+      const pace = 1000 / (l.average_speed * 60);
+      const elevPerKm = l.distance > 0 ? ((l.total_elevation_gain || 0) / l.distance) * 1000 : 0;
+      samples.push({
+        hr: l.average_heartrate,
+        pace,
+        isHilly: elevPerKm > 10,
+        isLap: true,
+      });
+    }
+  } else if (a.average_heartrate > 0 && a.average_speed > 0) {
+    // Whole-run fallback
+    const pace = 1000 / (a.average_speed * 60);
+    const elevPerKm = a.distance > 0 ? ((a.total_elevation_gain || 0) / a.distance) * 1000 : 0;
+    samples.push({
+      hr: a.average_heartrate,
+      pace,
+      isHilly: elevPerKm > 10,
+      isLap: false,
+    });
+  }
+
+  return samples;
+}
 
 function computeLTMonthly(activities, months, hrmax) {
   const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
@@ -80,39 +129,40 @@ function computeLTMonthly(activities, months, hrmax) {
   const lt1Target = hrmax * LT1_TARGET_PCT;
   const lt1Sigma  = hrmax * LT1_SIGMA_PCT;
 
-  // 1. Filter valid runs
+  // 1. Filter valid runs within the time window
   const runs = activities.filter(a =>
     (a.type === 'Run' || a.sport_type === 'Run') &&
     a.moving_time >= MIN_DURATION_S &&
-    a.average_heartrate > 0 &&
-    a.average_speed > 0 &&
     new Date(a.start_date).getTime() >= cutoff
   );
 
-  // 2. Group by month, compute gaussian-weighted median pace for LT2 and LT1
+  // 2. Group by month, accumulating gaussian-weighted pace samples per LT zone
   const byMonth = {};
   for (const a of runs) {
     const month = a.start_date.slice(0, 7);
-    if (!byMonth[month]) byMonth[month] = { lt2pairs: [], lt1pairs: [], hrs: [], count: 0, hillCount: 0 };
+    if (!byMonth[month]) byMonth[month] = { lt2pairs: [], lt1pairs: [], hrs: [], count: 0, lapCount: 0 };
 
-    const pace = 1000 / (a.average_speed * 60); // min/km
-    const hr   = a.average_heartrate;
-    const elevPerKm = a.distance > 0 ? ((a.total_elevation_gain || 0) / a.distance) * 1000 : 0;
-    const isHilly = elevPerKm > 10; // > 10 m/km — gradient confounds HR/pace
+    const samples = extractSamples(a);
+    if (samples.length === 0) continue;
 
-    const w2 = gaussianWeight(hr, lt2Target, lt2Sigma);
-    const w1 = gaussianWeight(hr, lt1Target, lt1Sigma);
-
-    // Include run in LT2 if weight is meaningful (within ~2.5 sigma = ±6% HRmax)
-    if (w2 > 0.01) {
-      byMonth[month].lt2pairs.push({ value: pace, weight: w2 * (isHilly ? 0.4 : 1) });
-    }
-    if (w1 > 0.01) {
-      byMonth[month].lt1pairs.push({ value: pace, weight: w1 * (isHilly ? 0.4 : 1) });
-    }
-    byMonth[month].hrs.push(hr);
     byMonth[month].count++;
-    if (isHilly) byMonth[month].hillCount++;
+    let usedLaps = false;
+
+    for (const s of samples) {
+      // Exclude hilly laps/runs: gradient decouples HR from pace, making the
+      // sample unreliable for LT estimation (same HR = slower pace uphill, faster downhill).
+      if (s.isHilly) continue;
+
+      const w2 = gaussianWeight(s.hr, lt2Target, lt2Sigma);
+      const w1 = gaussianWeight(s.hr, lt1Target, lt1Sigma);
+
+      // threshold for inclusion: within ~3 sigma of target (~13 bpm at HRmax 180)
+      if (w2 > 0.01) byMonth[month].lt2pairs.push({ value: s.pace, weight: w2 });
+      if (w1 > 0.01) byMonth[month].lt1pairs.push({ value: s.pace, weight: w1 });
+      byMonth[month].hrs.push(s.hr);
+      if (s.isLap) usedLaps = true;
+    }
+    if (usedLaps) byMonth[month].lapCount++;
   }
 
   // 3. Compute per-month estimates
@@ -124,8 +174,12 @@ function computeLTMonthly(activities, months, hrmax) {
       const lt2pace = weightedMedian(d.lt2pairs);
       const lt1pace = weightedMedian(d.lt1pairs);
       const avgHR   = d.hrs.reduce((s, h) => s + h, 0) / d.hrs.length;
-      const confidence = Math.min(3, d.lt2pairs.length); // 1–3+
-      return { month, label, lt2pace, lt1pace, hr: Math.round(avgHR), count: d.count, confidence };
+      // confidence: lap-level data scores higher than whole-run averages
+      const rawConf = d.lt2pairs.length;
+      const confidence = d.lapCount > 0
+        ? Math.min(3, rawConf)        // lap data: each qualifying lap counts
+        : Math.min(2, rawConf);       // fallback: cap at 2 (less precise)
+      return { month, label, lt2pace, lt1pace, hr: Math.round(avgHR), count: d.count, lapCount: d.lapCount, confidence };
     })
     .filter(d => d.lt2pace !== null);
 
@@ -142,6 +196,7 @@ function computeLTMonthly(activities, months, hrmax) {
 // ─── component ──────────────────────────────────────────────────────────────
 
 export default function LactateThreshold({ activities }) {
+  const { t } = useTranslation();
   const [monthsToShow, setMonthsToShow] = useState('12');
 
   // Derive HRmax from observed data across ALL activities (not just the window)
@@ -186,8 +241,8 @@ export default function LactateThreshold({ activities }) {
     return (
       <div className="text-center py-16 text-slate-400">
         <div className="text-5xl mb-4">💓</div>
-        <p className="text-base font-semibold text-slate-600 mb-1">No HR data found</p>
-        <p className="text-sm">Heart rate data is required. Make sure your runs are recorded with a HR monitor.</p>
+        <p className="text-base font-semibold text-slate-600 mb-1">{t('lactate.no_hr')}</p>
+        <p className="text-sm">{t('lactate.no_hr_hint')}</p>
       </div>
     );
   }
@@ -196,9 +251,9 @@ export default function LactateThreshold({ activities }) {
     return (
       <div className="text-center py-16 text-slate-400">
         <div className="text-5xl mb-4">📊</div>
-        <p className="text-base font-semibold text-slate-600 mb-1">Not enough qualifying runs</p>
-        <p className="text-sm">Need runs &gt;20 min with HR near {Math.round(hrmax * 0.87)} bpm (87% of your HRmax {hrmax}).</p>
-        <p className="text-xs mt-2">Try extending the time window or logging more steady-state aerobic runs.</p>
+        <p className="text-base font-semibold text-slate-600 mb-1">{t('lactate.not_enough')}</p>
+        <p className="text-sm">{t('lactate.not_enough_hint', { bpm: Math.round(hrmax * 0.87), hrmax })}</p>
+        <p className="text-xs mt-2">{t('lactate.extend_hint')}</p>
       </div>
     );
   }
@@ -214,12 +269,15 @@ export default function LactateThreshold({ activities }) {
 
   const trendConfig = {
     improving: { color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', arrow: '↑',
-      msg: `LT2 pace improved ${Math.abs(trendDelta)}s/km over this period. Consistent aerobic and threshold work is producing measurable adaptations.` },
+      msg: t('lactate.trend_improving_msg', { sec: Math.abs(trendDelta) }) },
     stable:    { color: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200',     arrow: '→',
-      msg: `LT2 pace is stable (±5s/km). Consider adding structured tempo intervals (20–40 min at LT2 pace) to stimulate further adaptation.` },
+      msg: t('lactate.trend_stable_msg') },
     worsening: { color: 'text-red-600',     bg: 'bg-red-50 border-red-200',         arrow: '↓',
-      msg: `LT2 pace has slowed ${Math.abs(trendDelta)}s/km. This can reflect accumulated fatigue, reduced training load, or illness. Prioritise recovery and base aerobic volume.` },
+      msg: t('lactate.trend_worsening_msg', { sec: Math.abs(trendDelta) }) },
   };
+
+  const lt2HR  = Math.round(hrmax * LT2_TARGET_PCT);
+  const lt1HR  = Math.round(hrmax * LT1_TARGET_PCT);
 
   const PaceTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
@@ -229,13 +287,11 @@ export default function LactateThreshold({ activities }) {
         <p className="font-bold text-slate-700">{d.label}</p>
         <p className="text-blue-600 font-semibold">LT2: {formatPace(d.lt2pace)}/km</p>
         {d.lt1pace && <p className="text-sky-500">LT1: {formatPace(d.lt1pace)}/km</p>}
-        <p className="text-slate-400">{d.count} run{d.count !== 1 ? 's' : ''} · confidence {d.confidence}/3</p>
+        <p className="text-slate-400">{t('lactate.runs_count', { n: d.count, c: d.confidence })}</p>
+        <p className="text-slate-300">{d.lapCount > 0 ? t('lactate.with_lap_data', { n: d.lapCount }) : t('lactate.run_average_only')}</p>
       </div>
     );
   };
-
-  const lt2HR  = Math.round(hrmax * LT2_TARGET_PCT);
-  const lt1HR  = Math.round(hrmax * LT1_TARGET_PCT);
 
   return (
     <div className="space-y-6">
@@ -243,29 +299,29 @@ export default function LactateThreshold({ activities }) {
       {/* ── Stat row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">HRmax (observed)</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('lactate.hrmax_label')}</p>
           <p className="text-2xl font-black text-slate-800 tabular-nums">{hrmax} <span className="text-sm font-semibold text-slate-400">bpm</span></p>
-          <p className="text-[10px] text-slate-400 mt-0.5">from all your activities</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('lactate.hrmax_hint')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">LT2 Pace</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('lactate.lt2_label')}</p>
           <p className="text-2xl font-black text-blue-600 tabular-nums">{formatPace(currentLT2)}<span className="text-sm font-semibold text-slate-400">/km</span></p>
-          <p className="text-[10px] text-slate-400 mt-0.5">at ~{lt2HR} bpm (87% HRmax)</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('lactate.lt2_hint', { bpm: lt2HR })}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">LT1 Pace</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('lactate.lt1_label')}</p>
           <p className="text-2xl font-black text-sky-500 tabular-nums">{formatPace(currentLT1)}<span className="text-sm font-semibold text-slate-400">/km</span></p>
-          <p className="text-[10px] text-slate-400 mt-0.5">at ~{lt1HR} bpm (77% HRmax)</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('lactate.lt1_hint', { bpm: lt1HR })}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Tendencia</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('lactate.trend_label')}</p>
           {trendDelta !== null ? (
             <>
               <p className={`text-2xl font-black tabular-nums ${trendConfig[trendStatus].color}`}>
                 {trendConfig[trendStatus].arrow} {Math.abs(trendDelta)}s/km
               </p>
               <p className={`text-[10px] font-semibold mt-0.5 ${trendConfig[trendStatus].color}`}>
-                {trendStatus === 'improving' ? 'Mejorando' : trendStatus === 'worsening' ? 'Empeorando' : 'Estable'}
+                {trendStatus === 'improving' ? t('lactate.improving') : trendStatus === 'worsening' ? t('lactate.worsening') : t('lactate.stable')}
               </p>
             </>
           ) : (
@@ -277,23 +333,22 @@ export default function LactateThreshold({ activities }) {
       {/* ── Time window ── */}
       <div className="flex items-center gap-3">
         <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-36">
-          <SelectItem value="3">3 meses</SelectItem>
-          <SelectItem value="6">6 meses</SelectItem>
-          <SelectItem value="12">12 meses</SelectItem>
-          <SelectItem value="24">24 meses</SelectItem>
+          <SelectItem value="3">{t('lactate.months_3')}</SelectItem>
+          <SelectItem value="6">{t('lactate.months_6')}</SelectItem>
+          <SelectItem value="12">{t('lactate.months_12')}</SelectItem>
+          <SelectItem value="24">{t('lactate.months_24')}</SelectItem>
         </Select>
-        <span className="text-xs text-slate-400">{monthlyData.length} mes{monthlyData.length !== 1 ? 'es' : ''} con datos</span>
+        <span className="text-xs text-slate-400">{t('lactate.months_with_data', { n: monthlyData.length })}</span>
       </div>
 
       {/* ── LT2 trend chart ── */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">Evolución del Umbral de Lactato (LT2)</Title>
+        <Title className="text-slate-800 font-bold mb-1">{t('lactate.chart_title')}</Title>
         <Text className="text-slate-500 text-sm mb-1">
-          Ritmo estimado al 87% HRmax usando ponderación gaussiana por proximidad al HR objetivo.
-          La línea discontinua es el suavizado EWMA (λ=0.3).
+          {t('lactate.chart_subtitle')} {t('lactate.chart_ewma')}
         </Text>
         <Text className="text-slate-400 text-xs mb-4">
-          Eje Y invertido: valores más arriba = ritmo más rápido.
+          {t('lactate.chart_yaxis')}
         </Text>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -330,17 +385,17 @@ export default function LactateThreshold({ activities }) {
           </ResponsiveContainer>
         </div>
         <div className="flex items-center gap-5 mt-3 text-[10px] text-slate-500 flex-wrap">
-          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-300" /> LT2 por carrera</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-600" style={{borderTop:'2px dashed #2563eb',background:'none'}} /> EWMA suavizado</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-sky-400" /> LT1 (umbral aeróbico)</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-300" /> {t('lactate.legend_lt2_raw')}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-600" style={{borderTop:'2px dashed #2563eb',background:'none'}} /> {t('lactate.legend_lt2_ewma')}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-sky-400" /> {t('lactate.legend_lt1')}</span>
         </div>
       </Card>
 
       {/* ── Confidence bars ── */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">Runs por mes en zona LT</Title>
+        <Title className="text-slate-800 font-bold mb-1">{t('lactate.confidence_bars_title')}</Title>
         <Text className="text-slate-500 text-sm mb-4">
-          Más carreras en zona = estimación más fiable. Barras coloreadas por nivel de confianza.
+          {t('lactate.confidence_bars_subtitle')}
         </Text>
         <div className="h-[180px] w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -355,7 +410,7 @@ export default function LactateThreshold({ activities }) {
                   return (
                     <div className="bg-white border border-slate-200 rounded-lg shadow p-2 text-xs">
                       <p className="font-bold text-slate-700">{d.label}</p>
-                      <p>{d.count} carrera{d.count !== 1 ? 's' : ''} en zona LT</p>
+                      <p>{t('lactate.runs_count', { n: d.count, c: d.confidence })}</p>
                     </div>
                   );
                 }}
@@ -369,9 +424,9 @@ export default function LactateThreshold({ activities }) {
           </ResponsiveContainer>
         </div>
         <div className="flex items-center gap-4 mt-2 text-[10px] text-slate-400">
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-600" /> Alta confianza (3+)</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-300" /> Media (2)</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100" /> Baja (1)</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-600" /> {t('lactate.high_conf')}</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-300" /> {t('lactate.medium_conf')}</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100" /> {t('lactate.low_conf')}</span>
         </div>
       </Card>
 
@@ -379,7 +434,7 @@ export default function LactateThreshold({ activities }) {
       {trendStatus && (
         <div className={`rounded-xl border p-4 ${trendConfig[trendStatus].bg}`}>
           <p className={`text-sm font-bold mb-1 ${trendConfig[trendStatus].color}`}>
-            {trendConfig[trendStatus].arrow} {trendStatus === 'improving' ? 'LT2 mejorando' : trendStatus === 'worsening' ? 'LT2 empeorando' : 'LT2 estable'}
+            {trendConfig[trendStatus].arrow} {trendStatus === 'improving' ? t('lactate.lt2_improving') : trendStatus === 'worsening' ? t('lactate.lt2_worsening') : t('lactate.lt2_stable')}
           </p>
           <p className="text-sm text-slate-700">{trendConfig[trendStatus].msg}</p>
         </div>
@@ -387,21 +442,19 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Zone reference ── */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Zonas de referencia (tu HRmax: {hrmax} bpm)</Title>
+        <Title className="text-slate-800 font-bold mb-3">{t('lactate.zones_title', { hrmax })}</Title>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { name: 'LT1 — Umbral aeróbico', pct: '74–80%', hr: `${Math.round(hrmax*0.74)}–${Math.round(hrmax*0.80)} bpm`, pace: currentLT1 ? formatPace(currentLT1) : '—', color: 'border-sky-300 bg-sky-50',
-              desc: 'Límite superior del entrenamiento aeróbico base. Por debajo hay poco estrés metabólico; encima, empieza la acumulación de lactato.' },
-            { name: 'LT2 — Umbral anaeróbico (MLSS)', pct: '85–89%', hr: `${Math.round(hrmax*0.85)}–${Math.round(hrmax*0.89)} bpm`, pace: currentLT2 ? formatPace(currentLT2) : '—', color: 'border-blue-400 bg-blue-50',
-              desc: 'Máxima intensidad sostenible en estado estacionario de lactato. El ritmo "tempo" ideal. Mejorarlo es el objetivo principal de la periodización.' },
+            { nameKey: 'lactate.lt1_zone_name', descKey: 'lactate.lt1_zone_desc', pct: '74–80%', hr: `${Math.round(hrmax*0.74)}–${Math.round(hrmax*0.80)} bpm`, pace: currentLT1 ? formatPace(currentLT1) : '—', color: 'border-sky-300 bg-sky-50' },
+            { nameKey: 'lactate.lt2_zone_name', descKey: 'lactate.lt2_zone_desc', pct: '85–89%', hr: `${Math.round(hrmax*0.85)}–${Math.round(hrmax*0.89)} bpm`, pace: currentLT2 ? formatPace(currentLT2) : '—', color: 'border-blue-400 bg-blue-50' },
           ].map(z => (
-            <div key={z.name} className={`rounded-xl border-2 p-4 ${z.color}`}>
-              <p className="text-xs font-bold text-slate-700 mb-0.5">{z.name}</p>
+            <div key={z.nameKey} className={`rounded-xl border-2 p-4 ${z.color}`}>
+              <p className="text-xs font-bold text-slate-700 mb-0.5">{t(z.nameKey)}</p>
               <div className="flex items-baseline gap-3 mb-2">
                 <span className="text-lg font-black text-slate-800 tabular-nums">{z.pace}<span className="text-xs font-semibold text-slate-400">/km</span></span>
                 <span className="text-xs text-slate-500">{z.hr} · {z.pct} HRmax</span>
               </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">{z.desc}</p>
+              <p className="text-[11px] text-slate-600 leading-relaxed">{t(z.descKey)}</p>
             </div>
           ))}
         </div>
@@ -409,26 +462,26 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Methodology ── */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Metodología</Title>
+        <Title className="text-slate-800 font-bold mb-3">{t('lactate.methodology_title')}</Title>
         <div className="space-y-2 text-sm text-slate-600">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { label: 'HRmax observado', desc: 'Máximo de max_heartrate en todas tus actividades. Más preciso que cualquier fórmula de edad (error ±10 bpm en Tanaka 2001 vs. dato real).' },
-              { label: 'Ponderación gaussiana', desc: 'Cada carrera contribuye proporcionalmente a lo cerca que está su HR del objetivo (87% HRmax). Rutas con desnivel > 10 m/km se ponderan al 40%.' },
-              { label: 'Suavizado EWMA (λ=0.3)', desc: 'Media ponderada exponencial para filtrar ruido mes a mes. Las semanas más recientes tienen más peso. Evita que un outlier distorsione la tendencia.' },
+              { labelKey: 'lactate.method_hrmax', descKey: 'lactate.method_hrmax_desc' },
+              { labelKey: 'lactate.method_laps', descKey: 'lactate.method_laps_desc' },
+              { labelKey: 'lactate.method_ewma', descKey: 'lactate.method_ewma_desc' },
             ].map(z => (
-              <div key={z.label} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                <p className="text-xs font-semibold text-slate-700 mb-1">{z.label}</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">{z.desc}</p>
+              <div key={z.labelKey} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                <p className="text-xs font-semibold text-slate-700 mb-1">{t(z.labelKey)}</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{t(z.descKey)}</p>
               </div>
             ))}
           </div>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            <span className="font-semibold">Referencias:</span>{' '}
+            <span className="font-semibold">{t('lactate.references')}:</span>{' '}
             Faude et al. (2009) <em>Sports Med</em> 39(6):469–490 ·
             Kindermann et al. (1979) <em>Eur J Appl Physiol</em> ·
-            Hofmann & Tschakert (2017) <em>Front Physiol</em> 8:337 ·
-            Stegmann & Kindermann (1982) <em>Int J Sports Med</em> 3(2):105–110 ·
+            Hofmann &amp; Tschakert (2017) <em>Front Physiol</em> 8:337 ·
+            Stegmann &amp; Kindermann (1982) <em>Int J Sports Med</em> 3(2):105–110 ·
             Tanaka et al. (2001) <em>JACC</em> 37(1):153–156.
           </p>
         </div>

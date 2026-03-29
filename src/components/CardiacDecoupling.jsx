@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -37,16 +38,31 @@ function calcDecoupling(splits) {
   return ((ratioSecond - ratioFirst) / ratioFirst) * 100;
 }
 
-function getDecouplingLevel(pct) {
-  if (pct === null) return { label: 'N/A', color: '#94a3b8' };
-  if (pct < 3) return { label: 'Excelente', color: '#10b981' };
-  if (pct < 5) return { label: 'Bueno', color: '#22c55e' };
-  if (pct < 8) return { label: 'Normal', color: '#f59e0b' };
-  if (pct < 12) return { label: 'Alto', color: '#f97316' };
-  return { label: 'Muy alto', color: '#ef4444' };
+// Level keys for i18n lookup
+function getDecouplingLevelKey(pct) {
+  if (pct === null) return null;
+  if (pct < 3) return 'excellent';
+  if (pct < 5) return 'good';
+  if (pct < 8) return 'normal';
+  if (pct < 12) return 'high';
+  return 'very_high';
+}
+
+const LEVEL_COLORS = {
+  excellent: '#10b981',
+  good: '#22c55e',
+  normal: '#f59e0b',
+  high: '#f97316',
+  very_high: '#ef4444',
+};
+
+function getDecouplingColor(pct) {
+  const key = getDecouplingLevelKey(pct);
+  return key ? LEVEL_COLORS[key] : '#94a3b8';
 }
 
 export default function CardiacDecoupling({ activities, onEnrichActivity }) {
+  const { t } = useTranslation();
   const [monthsToShow, setMonthsToShow] = useState('6');
   const [minDuration, setMinDuration] = useState('30');
 
@@ -70,7 +86,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
         if (dc === null) return null;
 
         const pace = a.average_speed > 0 ? 16.6667 / a.average_speed : 0;
-        const level = getDecouplingLevel(dc);
+        const levelKey = getDecouplingLevelKey(dc);
+        const color = levelKey ? LEVEL_COLORS[levelKey] : '#94a3b8';
 
         return {
           id: a.id,
@@ -83,8 +100,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
           paceLabel: formatPace(pace),
           hr: Math.round(a.average_heartrate),
           decoupling: Math.round(dc * 10) / 10,
-          level: level.label,
-          color: level.color,
+          levelKey,
+          color,
         };
       })
       .filter(Boolean)
@@ -121,6 +138,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       : null;
     const improving = firstHalfAvg !== null && secondHalfAvg !== null ? secondHalfAvg < firstHalfAvg : null;
 
+    const avgLast5Key = getDecouplingLevelKey(avgLast5);
+
     return {
       decouplingData: results,
       trendData: trend,
@@ -130,7 +149,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
         bestDc: Math.round(bestDc * 10) / 10,
         avgAll: Math.round(avgAll * 10) / 10,
         improving,
-        levelLast5: getDecouplingLevel(avgLast5),
+        levelLast5Key: avgLast5Key,
+        levelLast5Color: avgLast5Key ? LEVEL_COLORS[avgLast5Key] : '#94a3b8',
       },
     };
   }, [activities, monthsToShow, minDuration]);
@@ -138,8 +158,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
   if (!decouplingData.length) {
     return (
       <div className="text-center py-12 text-slate-400">
-        <p className="text-sm">No hay actividades con datos suficientes para calcular el decoupling.</p>
-        <p className="text-xs mt-2">Se necesitan actividades de +30 min con datos de FC y parciales por km.</p>
+        <p className="text-sm">{t('decoupling.no_data')}</p>
+        <p className="text-xs mt-2">{t('decoupling.no_data_hint')}</p>
       </div>
     );
   }
@@ -151,9 +171,9 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
         <p className="font-bold text-slate-700 mb-1">{d.name}</p>
         <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>
-        <p className="text-slate-600">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>
+        <p className="text-slate-600">{t('decoupling.subtitle').split(' ')[0]}: {d.paceLabel}/km | FC: {d.hr} bpm</p>
         <p className="font-bold" style={{ color: d.color }}>
-          Decoupling: {d.decoupling}% ({d.level})
+          Decoupling: {d.decoupling}% ({d.levelKey ? t(`decoupling.levels.${d.levelKey}`) : 'N/A'})
         </p>
       </div>
     );
@@ -164,32 +184,34 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Sesiones analizadas</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.sessions_analyzed')}</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.total}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">con datos completos</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.with_complete_data')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media últimas 5</p>
-          <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5.color }}>{stats.avgLast5}%</p>
-          <p className="text-[10px] font-semibold mt-0.5" style={{ color: stats.levelLast5.color }}>{stats.levelLast5.label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.last_5_avg')}</p>
+          <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5Color }}>{stats.avgLast5}%</p>
+          <p className="text-[10px] font-semibold mt-0.5" style={{ color: stats.levelLast5Color }}>
+            {stats.levelLast5Key ? t(`decoupling.levels.${stats.levelLast5Key}`) : ''}
+          </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Mejor sesión</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.best_session')}</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.bestDc}%</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">mínimo decoupling</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.min_decoupling')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media global</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.global_avg')}</p>
           <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avgAll}%</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">todas las sesiones</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.all_sessions')}</p>
         </div>
         {stats.improving !== null && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Tendencia</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.trend')}</p>
             <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {stats.improving ? '↗ Mejora' : '↘ Empeora'}
+              {stats.improving ? `↗ ${t('decoupling.improving')}` : `↘ ${t('decoupling.worsening')}`}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">eficiencia aeróbica</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
           </div>
         )}
       </div>
@@ -197,10 +219,10 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       {/* Controls */}
       <div className="flex gap-3">
         <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
-          <SelectItem value="3">3 meses</SelectItem>
-          <SelectItem value="6">6 meses</SelectItem>
-          <SelectItem value="12">12 meses</SelectItem>
-          <SelectItem value="24">24 meses</SelectItem>
+          <SelectItem value="3">{t('decoupling.months_3')}</SelectItem>
+          <SelectItem value="6">{t('decoupling.months_6')}</SelectItem>
+          <SelectItem value="12">{t('decoupling.months_12')}</SelectItem>
+          <SelectItem value="24">{t('decoupling.months_24')}</SelectItem>
         </Select>
         <Select value={minDuration} onValueChange={setMinDuration} className="w-36">
           <SelectItem value="20">+20 min</SelectItem>
@@ -212,8 +234,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
 
       {/* Timeline chart */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">Evolución del Decoupling Cardíaco</Title>
-        <Text className="text-slate-500 text-sm mb-4">% de desacoplamiento FC/ritmo por sesión a lo largo del tiempo</Text>
+        <Title className="text-slate-800 font-bold mb-1">{t('decoupling.title')}</Title>
+        <Text className="text-slate-500 text-sm mb-4">{t('decoupling.subtitle')}</Text>
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -232,8 +254,8 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
               />
               <ZAxis dataKey="km" range={[30, 150]} />
               <RechartsTooltip content={<CustomTooltip />} />
-              <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" label={{ value: '5% bueno', fontSize: 10, fill: '#10b981' }} />
-              <ReferenceLine y={10} stroke="#f59e0b" strokeDasharray="5 3" label={{ value: '10% alto', fontSize: 10, fill: '#f59e0b' }} />
+              <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" label={{ value: t('decoupling.good_threshold'), fontSize: 10, fill: '#10b981' }} />
+              <ReferenceLine y={10} stroke="#f59e0b" strokeDasharray="5 3" label={{ value: t('decoupling.high_threshold'), fontSize: 10, fill: '#f59e0b' }} />
               <Scatter data={decouplingData} shape="circle">
                 {decouplingData.map((entry, idx) => (
                   <Cell key={idx} fill={entry.color} fillOpacity={0.8} />
@@ -303,20 +325,20 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
 
       {/* Interpretation guide */}
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Cómo interpretar el Decoupling Cardíaco</Title>
+        <Title className="text-slate-800 font-bold mb-3">{t('decoupling.how_to_interpret')}</Title>
         <div className="space-y-2 text-sm text-slate-600">
           <p>El <span className="font-semibold">decoupling cardíaco</span> mide cuánto se desacopla tu frecuencia cardíaca del ritmo durante una sesión. Se compara la relación FC/ritmo de la primera mitad con la segunda mitad.</p>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
             {[
-              { label: '<3%', desc: 'Excelente', color: '#10b981' },
-              { label: '3-5%', desc: 'Bueno', color: '#22c55e' },
-              { label: '5-8%', desc: 'Normal', color: '#f59e0b' },
-              { label: '8-12%', desc: 'Alto', color: '#f97316' },
-              { label: '>12%', desc: 'Muy alto', color: '#ef4444' },
+              { range: '<3%', key: 'excellent', color: LEVEL_COLORS.excellent },
+              { range: '3-5%', key: 'good', color: LEVEL_COLORS.good },
+              { range: '5-8%', key: 'normal', color: LEVEL_COLORS.normal },
+              { range: '8-12%', key: 'high', color: LEVEL_COLORS.high },
+              { range: '>12%', key: 'very_high', color: LEVEL_COLORS.very_high },
             ].map(z => (
-              <div key={z.label} className="text-center p-2 rounded-lg" style={{ backgroundColor: z.color + '15' }}>
-                <p className="font-bold text-xs" style={{ color: z.color }}>{z.label}</p>
-                <p className="text-[10px] text-slate-500">{z.desc}</p>
+              <div key={z.key} className="text-center p-2 rounded-lg" style={{ backgroundColor: z.color + '15' }}>
+                <p className="font-bold text-xs" style={{ color: z.color }}>{z.range}</p>
+                <p className="text-[10px] text-slate-500">{t(`decoupling.levels.${z.key}`)}</p>
               </div>
             ))}
           </div>

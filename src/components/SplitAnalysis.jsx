@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text } from '@tremor/react';
 import {
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
@@ -6,11 +7,12 @@ import {
   ResponsiveContainer, Legend
 } from 'recharts';
 
-const SPLIT_TYPES = {
-  negative: { label: 'Negative Split', color: '#10b981', desc: '2ª mitad más rápida' },
-  even: { label: 'Even Split', color: '#2563eb', desc: 'Ritmo uniforme (<2%)' },
-  positive: { label: 'Positive Split', color: '#f59e0b', desc: '1ª mitad más rápida' },
-  collapse: { label: 'Collapse', color: '#ef4444', desc: 'Último tercio >8% más lento' },
+// Static split type definitions — labels/descs resolved via t() inside component
+const SPLIT_TYPE_KEYS = {
+  negative: { label: 'Negative Split', color: '#10b981', descKey: 'splits_analysis.negative' },
+  even:     { label: 'Even Split',     color: '#2563eb', descKey: 'splits_analysis.even' },
+  positive: { label: 'Positive Split', color: '#f59e0b', descKey: 'splits_analysis.positive' },
+  collapse: { label: 'Collapse',       color: '#ef4444', descKey: 'splits_analysis.collapse' },
 };
 
 function classifySplits(splits) {
@@ -55,6 +57,7 @@ function formatPace(minPerKm) {
 }
 
 export default function SplitAnalysis({ activities, onEnrichActivity }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
 
@@ -92,9 +95,9 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
     const counts = { negative: 0, even: 0, positive: 0, collapse: 0 };
     withSplits.forEach(a => counts[a.type]++);
     const dist = Object.entries(counts).map(([type, count]) => ({
-      name: SPLIT_TYPES[type].label,
+      name: SPLIT_TYPE_KEYS[type].label,
       value: count,
-      color: SPLIT_TYPES[type].color,
+      color: SPLIT_TYPE_KEYS[type].color,
       type,
     }));
 
@@ -152,6 +155,12 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
   const collapseCount = classified.filter(a => a.type === 'collapse').length;
   const negativeRate = Math.round((negativeCount / totalClassified) * 100);
 
+  const disciplineLabel = negativeRate >= 40
+    ? t('splits_analysis.confidence_high')
+    : negativeRate >= 20
+    ? t('splits_analysis.confidence_medium')
+    : t('splits_analysis.confidence_low');
+
   return (
     <div className="space-y-6">
       {/* Stat cards */}
@@ -174,7 +183,7 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Disciplina</p>
           <p className={`text-2xl font-black tabular-nums ${negativeRate >= 40 ? 'text-emerald-600' : negativeRate >= 20 ? 'text-amber-600' : 'text-rose-600'}`}>
-            {negativeRate >= 40 ? 'Alta' : negativeRate >= 20 ? 'Media' : 'Baja'}
+            {disciplineLabel}
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5">gestión de ritmo</p>
         </div>
@@ -262,9 +271,9 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
                   <td className="py-2 px-2 text-center">
                     <span
                       className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold text-white"
-                      style={{ backgroundColor: SPLIT_TYPES[a.type].color }}
+                      style={{ backgroundColor: SPLIT_TYPE_KEYS[a.type].color }}
                     >
-                      {SPLIT_TYPES[a.type].label}
+                      {SPLIT_TYPE_KEYS[a.type].label}
                     </span>
                   </td>
                 </tr>
@@ -296,7 +305,7 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
                 />
                 <RechartsTooltip
                   formatter={(val, name) => {
-                    if (name === 'pace') return [formatPace(val), 'Ritmo'];
+                    if (name === 'pace') return [formatPace(val), t('splits_analysis.pace_label')];
                     if (name === 'hr') return [`${Math.round(val)} bpm`, 'FC'];
                     return [val, name];
                   }}
@@ -319,12 +328,12 @@ export default function SplitAnalysis({ activities, onEnrichActivity }) {
       <Card className="shadow-lg border-slate-200">
         <Title className="text-slate-800 font-bold mb-3">Cómo interpretar</Title>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-600">
-          {Object.entries(SPLIT_TYPES).map(([key, val]) => (
+          {Object.entries(SPLIT_TYPE_KEYS).map(([key, val]) => (
             <div key={key} className="flex items-start gap-2">
               <div className="w-3 h-3 rounded-full mt-0.5 shrink-0" style={{ backgroundColor: val.color }} />
               <div>
                 <p className="font-semibold text-slate-700">{val.label}</p>
-                <p className="text-xs">{val.desc}</p>
+                <p className="text-xs">{t(val.descKey)}</p>
               </div>
             </div>
           ))}

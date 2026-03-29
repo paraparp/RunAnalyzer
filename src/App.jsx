@@ -103,16 +103,18 @@ const Dashboard = ({ user, handleLogout }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  
+
   const changeLanguage = () => {
     const newLang = i18n.language.startsWith('en') ? 'es' : 'en';
     i18n.changeLanguage(newLang);
     localStorage.setItem('app_language', newLang);
   };
-  
+
   const [distanceRange, setDistanceRange] = useState({ min: '', max: '' });
   const [elevationRange, setElevationRange] = useState({ min: '', max: '' });
   const [paceRange, setPaceRange] = useState({ min: '', max: '' });
+  const [activitiesPage, setActivitiesPage] = useState(1);
+  const ACTIVITIES_PAGE_SIZE = 10;
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedChartIndex, setSelectedChartIndex] = useState(0);
   const [chartGroupBy, setChartGroupBy] = useState('month');
@@ -129,7 +131,7 @@ const Dashboard = ({ user, handleLogout }) => {
     try {
       const accessToken = stravaData.accessToken;
       const detailedActivity = await getActivity(accessToken, activityId);
-      
+
       // Enriquecer laps con desnivel real usando streams si es posible
       if (detailedActivity.laps && detailedActivity.laps.length > 0) {
         try {
@@ -304,10 +306,10 @@ const Dashboard = ({ user, handleLogout }) => {
   const stats = useMemo(() => {
     return filteredActivities.reduce((acc, act) => ({
       distance: acc.distance + act.distance,
-      moving_time: acc.moving_time + act.moving_time,
+      elapsed_time: acc.elapsed_time + (act.elapsed_time || act.moving_time),
       elevation_gain: acc.elevation_gain + act.total_elevation_gain,
       count: acc.count + 1
-    }), { distance: 0, moving_time: 0, elevation_gain: 0, count: 0 });
+    }), { distance: 0, elapsed_time: 0, elevation_gain: 0, count: 0 });
   }, [filteredActivities]);
 
   const handleSort = (key) => {
@@ -316,6 +318,7 @@ const Dashboard = ({ user, handleLogout }) => {
       direction = 'asc';
     }
     setSortConfig({ key, direction });
+    setActivitiesPage(1);
   };
 
   // Compute min/max bounds for distance and elevation range filters
@@ -390,20 +393,25 @@ const Dashboard = ({ user, handleLogout }) => {
         case 'distance':
           aValue = a.distance; bValue = b.distance; break;
         case 'time':
-          aValue = a.moving_time; bValue = b.moving_time; break;
+          aValue = a.elapsed_time || a.moving_time; bValue = b.elapsed_time || b.moving_time; break;
         case 'real_pace': {
           const aDist = a.distance / 1000;
           const bDist = b.distance / 1000;
-          aValue = aDist > 0 ? (a.elapsed_time / 60) / aDist : 0;
-          bValue = bDist > 0 ? (b.elapsed_time / 60) / bDist : 0;
+          aValue = aDist > 0 ? ((a.elapsed_time || a.moving_time) / 60) / aDist : 0;
+          bValue = bDist > 0 ? ((b.elapsed_time || b.moving_time) / 60) / bDist : 0;
           break;
         }
         case 'elevation':
           aValue = a.total_elevation_gain; bValue = b.total_elevation_gain; break;
         case 'heartrate':
           aValue = a.average_heartrate || 0; bValue = b.average_heartrate || 0; break;
-        case 'pace':
-          aValue = a.average_speed; bValue = b.average_speed; break;
+        case 'pace': {
+          const aDkm = a.distance / 1000;
+          const bDkm = b.distance / 1000;
+          aValue = aDkm > 0 ? (a.elapsed_time || a.moving_time) / aDkm : 0;
+          bValue = bDkm > 0 ? (b.elapsed_time || b.moving_time) / bDkm : 0;
+          break;
+        }
         case 'gap': {
           const aDistKm = a.distance / 1000;
           const bDistKm = b.distance / 1000;
@@ -431,6 +439,12 @@ const Dashboard = ({ user, handleLogout }) => {
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
+
+  const activitiesTotalPages = Math.ceil(sortedActivities.length / ACTIVITIES_PAGE_SIZE);
+  const pagedActivities = sortedActivities.slice(
+    (activitiesPage - 1) * ACTIVITIES_PAGE_SIZE,
+    activitiesPage * ACTIVITIES_PAGE_SIZE
+  );
 
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return '↕';
@@ -468,11 +482,10 @@ const Dashboard = ({ user, handleLogout }) => {
                     // Don't close mobile menu here if we just clicked a category, let them see the submenu
                     // setMobileMenuOpen(false); 
                   }}
-                  className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-all active:opacity-75 ${
-                    isActive
-                      ? 'text-blue-700 font-bold border-r-4 border-blue-600 bg-blue-50/50'
-                      : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100/80 border-r-4 border-transparent'
-                  }`}
+                  className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-all active:opacity-75 ${isActive
+                    ? 'text-blue-700 font-bold border-r-4 border-blue-600 bg-blue-50/50'
+                    : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100/80 border-r-4 border-transparent'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className={`w-5 h-5 shrink-0`} />
@@ -495,11 +508,10 @@ const Dashboard = ({ user, handleLogout }) => {
                             setCurrentView(itemId);
                             setMobileMenuOpen(false);
                           }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-all ${
-                            isItemActive
-                              ? 'text-blue-700 font-bold bg-blue-100/40'
-                              : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100'
-                          }`}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-all ${isItemActive
+                            ? 'text-blue-700 font-bold bg-blue-100/40'
+                            : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100'
+                            }`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${isItemActive ? 'bg-blue-600' : 'bg-transparent'}`} />
                           <span className="truncate">{t(`nav.${item.id}`)}</span>
@@ -599,11 +611,10 @@ const Dashboard = ({ user, handleLogout }) => {
                     <button
                       key={item.id}
                       onClick={() => setCurrentView(item.id)}
-                      className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${
-                        currentView === item.id
-                          ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
-                          : 'text-slate-500 dark:text-slate-400 hover:text-blue-700 border-b-2 border-transparent'
-                      }`}
+                      className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${currentView === item.id
+                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-blue-700 border-b-2 border-transparent'
+                        }`}
                     >
                       {t(`nav.${item.id}`)}
                     </button>
@@ -613,7 +624,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
               {/* Right: year filter + sync + avatar */}
               <div className="flex items-center gap-3 shrink-0 ml-auto">
-                <button 
+                <button
                   onClick={changeLanguage}
                   className="px-2 py-1 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg uppercase tracking-wider transition-colors"
                   title={i18n.language.startsWith('en') ? 'Switch to Spanish' : 'Cambiar a Inglés'}
@@ -634,9 +645,8 @@ const Dashboard = ({ user, handleLogout }) => {
                 <button
                   onClick={syncData}
                   disabled={isSyncing}
-                  className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${
-                    isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
-                  }`}
+                  className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
+                    }`}
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? t('topbar.syncing') : t('topbar.sync')}
@@ -682,14 +692,14 @@ const Dashboard = ({ user, handleLogout }) => {
                   />
                   <StatCard
                     label={t('dashboard.time')}
-                    value={`${Math.floor(stats.moving_time / 3600)}`}
+                    value={`${Math.floor(stats.elapsed_time / 3600)}`}
                     unit="h"
                     icon={ClockIcon}
                     color="sky"
                   />
                   <StatCard
                     label={t('dashboard.avg_pace')}
-                    value={calculatePace(stats.distance > 0 ? stats.distance / stats.moving_time : 0)}
+                    value={calculatePace(stats.distance > 0 ? stats.distance / stats.elapsed_time : 0)}
                     unit="/km"
                     icon={BoltIcon}
                     color="emerald"
@@ -699,7 +709,7 @@ const Dashboard = ({ user, handleLogout }) => {
                     value={(() => {
                       const d = stats.distance / 1000;
                       if (d <= 0) return '0:00';
-                      const p = (stats.moving_time / 60) / d;
+                      const p = (stats.elapsed_time / 60) / d;
                       const e = stats.elevation_gain / d;
                       const g = Math.max(p - ((e / 10) * 8 / 60), p * 0.8);
                       const m = Math.floor(g);
@@ -801,7 +811,7 @@ const Dashboard = ({ user, handleLogout }) => {
                                 type="text"
                                 placeholder="Buscar..."
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(e) => { setSearchQuery(e.target.value); setActivitiesPage(1); }}
                                 className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder:text-slate-400"
                               />
                             </div>
@@ -956,9 +966,6 @@ const Dashboard = ({ user, handleLogout }) => {
                               <TableHeaderCell onClick={() => handleSort('time')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2 whitespace-nowrap">
                                 Tiempo {getSortIcon('time')}
                               </TableHeaderCell>
-                              <TableHeaderCell onClick={() => handleSort('real_pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2 whitespace-nowrap">
-                                R. Real {getSortIcon('real_pace')}
-                              </TableHeaderCell>
                               <TableHeaderCell onClick={() => handleSort('pace')} className="cursor-pointer text-right hover:text-indigo-600 transition-colors px-2 whitespace-nowrap">
                                 Ritmo {getSortIcon('pace')}
                               </TableHeaderCell>
@@ -980,10 +987,11 @@ const Dashboard = ({ user, handleLogout }) => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {sortedActivities.map(activity => {
+                            {pagedActivities.map(activity => {
                               const distKm = activity.distance / 1000;
                               const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
-                              const rawPaceMinKm = (activity.moving_time / 60) / distKm;
+                              const elapsedSecs = activity.elapsed_time || activity.moving_time;
+                              const rawPaceMinKm = (elapsedSecs / 60) / distKm;
                               const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
                               const gapAdjustment = gapAdjustmentSeconds / 60;
                               const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
@@ -1024,13 +1032,10 @@ const Dashboard = ({ user, handleLogout }) => {
                                       <span className="text-sm tabular-nums text-slate-700">{(activity.distance / 1000).toFixed(2)}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      <span className="text-sm tabular-nums text-slate-700">{Math.floor(activity.moving_time / 60)}</span>
+                                      <span className="text-sm tabular-nums text-slate-700">{Math.floor((activity.elapsed_time || activity.moving_time) / 60)}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      <span className="text-sm tabular-nums text-slate-700">{calculatePace(activity.distance / activity.elapsed_time)}</span>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <span className="text-sm tabular-nums text-slate-700">{calculatePace(activity.average_speed)}</span>
+                                      <span className="text-sm tabular-nums text-slate-700">{calculatePace(activity.distance / (activity.elapsed_time || activity.moving_time))}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {hasSignificantAdjustment ? (
@@ -1075,6 +1080,44 @@ const Dashboard = ({ user, handleLogout }) => {
                             })}
                           </TableBody>
                         </Table>
+                        {/* Pagination */}
+                        {activitiesTotalPages > 1 && (
+                          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                            <span className="text-xs text-slate-400">
+                              {(activitiesPage - 1) * ACTIVITIES_PAGE_SIZE + 1}–{Math.min(activitiesPage * ACTIVITIES_PAGE_SIZE, sortedActivities.length)} / {sortedActivities.length}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setActivitiesPage(p => Math.max(1, p - 1))}
+                                disabled={activitiesPage === 1}
+                                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >‹</button>
+                              {Array.from({ length: activitiesTotalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === activitiesTotalPages || Math.abs(p - activitiesPage) <= 1)
+                                .reduce((acc, p, idx, arr) => {
+                                  if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…');
+                                  acc.push(p);
+                                  return acc;
+                                }, [])
+                                .map((p, i) =>
+                                  p === '…' ? (
+                                    <span key={`e-${i}`} className="px-1 text-xs text-slate-300">…</span>
+                                  ) : (
+                                    <button key={p} onClick={() => setActivitiesPage(p)}
+                                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${p === activitiesPage ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                                      {p}
+                                    </button>
+                                  )
+                                )
+                              }
+                              <button
+                                onClick={() => setActivitiesPage(p => Math.min(activitiesTotalPages, p + 1))}
+                                disabled={activitiesPage === activitiesTotalPages}
+                                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >›</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CollapsibleSection>
                   </div>
