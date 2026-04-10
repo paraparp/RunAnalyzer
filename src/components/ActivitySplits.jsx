@@ -186,11 +186,9 @@ const PaceBar = ({ row }) => {
 
 const ActivitySplits = ({ splits, globalMaxHR }) => {
     const { t } = useTranslation();
-    if (!splits || splits.length === 0) {
-        return <p className="py-4 text-center text-sm italic text-slate-400">{t('splits.no_splits', 'No hay parciales.')}</p>;
-    }
 
     const { rows, avgPaceS, maxHR } = useMemo(() => {
+        if (!splits || splits.length === 0) return { rows: [], avgPaceS: 0, maxHR: 0 };
         const full = splits.filter(s => s.distance >= 950 && s.average_speed > 0);
         const ref = full.length ? full : splits.filter(s => s.average_speed > 0);
         const avgSpeed = ref.reduce((s, a) => s + a.average_speed, 0) / ref.length;
@@ -222,6 +220,10 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
 
         return { rows, avgPaceS, maxHR };
     }, [splits, globalMaxHR]);
+
+    if (!splits || splits.length === 0) {
+        return <p className="py-4 text-center text-sm italic text-slate-400">{t('splits.no_splits', 'No hay parciales.')}</p>;
+    }
 
     const GRID = '3px 2.5rem 4rem 4.2rem 1fr 4rem 4rem 3.5rem 3.5rem 5rem';
 
