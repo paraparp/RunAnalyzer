@@ -283,12 +283,37 @@ const en = {
     },
     injury: {
       title: "Injury Risk Analysis",
-      subtitle: "Calculation based on ACWR (Acute:Chronic Workload Ratio) and relative intensity.",
+      subtitle: "Evaluate your physical stability and prevent overtraining.",
+      risk_points: "Risk Points",
+      stability_eval: "Stability Evaluation",
+      evaluation_desc: "Based on the chronic vs. acute load analysis and volume progression of the last 42 days.",
       risk_levels: {
-        optimal: "Optimal",
-        warning: "Warning",
-        high: "High Risk"
-      }
+        safe: "Safe",
+        alert: "Alert",
+        loaded: "Loaded",
+        danger: "Danger",
+        low: "Low",
+        moderate: "Moderate",
+        high: "High",
+        very_high: "Very High"
+      },
+      factors: {
+        title: "Parametric Breakdown",
+        acwr: "ACWR",
+        volume: "Weekly Volume",
+        rest: "Rest",
+        monotony: "Monotony",
+        strain: "Strain",
+        impact: "IMPACT",
+        score: "SCORE",
+        rule_10: "10% Rule"
+      },
+      history: "Risk History",
+      history_desc: "Simplified weekly risk score based on volume progression.",
+      roadmap: "Preventive Roadmap",
+      risk_label: "Risk",
+      methodology: "Methodology",
+      methodology_desc: "The risk score combines 5 factors backed by sports science research:"
     },
     vo2max: {
       title: "VO2Max Tracker",
@@ -787,15 +812,7 @@ const es = {
         replacement: "Cambio sugerido"
       }
     },
-    injury: {
-      title: "Análisis de Riesgo de Lesión",
-      subtitle: "Cálculo basado en ACWR (Acute:Chronic Workload Ratio) e intensidad relativa.",
-      risk_levels: {
-        optimal: "Óptimo",
-        warning: "Aviso",
-        high: "Riesgo Alto"
-      }
-    },
+
     vo2max: {
       title: "Tracker de VO2Max",
       subtitle: "Estimación basada en la eficiencia del pulso a lo largo del tiempo.",
