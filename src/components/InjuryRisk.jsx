@@ -264,7 +264,7 @@ export default function InjuryRisk({ activities }) {
         </h3>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6">
           {factors.map(f => {
-            const fLevel = getRiskLevel(f.risk);
+            const fLevel = getRiskLevel(f.risk, t);
             return (
               <div key={f.name} className="group">
                 <div className="flex justify-between items-end mb-2">
@@ -298,7 +298,7 @@ export default function InjuryRisk({ activities }) {
           <Title className="text-slate-800 font-bold mb-1">{t('injury.history')}</Title>
           <Text className="text-slate-500 text-sm mb-4">{t('injury.history_desc')}</Text>
           <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={historyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} />
