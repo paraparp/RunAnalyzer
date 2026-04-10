@@ -87,9 +87,9 @@ const TrainingPlanner = ({ activities }) => {
                 const timeMin = (a.moving_time / 60).toFixed(1);
                 const pace = (a.moving_time / 60 / (a.distance / 1000)).toFixed(2);
                 const date = new Date(a.start_date).toLocaleDateString();
-                const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} ppm` : 'Sin datos FC';
-                const elev = `${Math.round(a.total_elevation_gain)}m`;
-                return `- ${date}: ${distKm}km em ${timeMin}min (Ritmo ${pace} min/km). FC: ${hr}. Desnivel: ${elev}.`;
+                const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
+                const elev = `+${Math.round(a.total_elevation_gain)}m`;
+                return `- ${date}: ${distKm}km in ${timeMin}min (pace ${pace} min/km). HR: ${hr}. Elev: ${elev}.`;
             });
         return recent.join('\n');
     };

@@ -93,7 +93,6 @@ export const getActivity = async (accessToken, activityId) => {
         throw new Error('Failed to fetch activity details: ' + response.status);
     }
     const data = await response.json();
-    console.log(`Fetched details for activity ${activityId}:`, data);
     if (!data.splits_metric) {
         console.warn('No splits_metric found in response', data);
     }

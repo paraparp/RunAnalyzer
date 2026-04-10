@@ -38,9 +38,10 @@ const getMonthColor = (dateStr) => {
     return MONTH_COLORS[month] || "#636e72";
 };
 
-const getMonthLabel = (monthIndex) => {
-    return ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][monthIndex] || "";
-};
+const MONTHS_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const getMonthLabel = (monthIndex, lang = 'en') =>
+    (lang.startsWith('es') ? MONTHS_ES : MONTHS_EN)[monthIndex] || "";
 
 const formatPaceFromSpeed = (speedMs) => {
     if (!speedMs || speedMs === 0) return "0:00";
@@ -136,7 +137,7 @@ const CustomTooltipVolume = ({ active, payload }) => {
 };
 
 export default function HRAnalysis({ activities, onEnrichActivity }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
     const [filterMode, setFilterMode] = useState("last"); // "last" or "year"
     const [lastNRuns, setLastNRuns] = useState(30);
@@ -236,7 +237,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                     gapMinKm,
                     pace: gap, // default "pace" is now GAP
                     month: date.getMonth(),
-                    monthLabel: getMonthLabel(date.getMonth()),
+                    monthLabel: getMonthLabel(date.getMonth(), i18n.language),
                     yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
                     color: getMonthColor(a.start_date),
                     movingTime: a.moving_time,
@@ -254,7 +255,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         const months = [...new Set(withHR.map(r => r.yearMonth))].sort();
         const uniqueMonths = months.map(ym => {
             const [y, m] = ym.split("-");
-            return { key: ym, label: getMonthLabel(parseInt(m) - 1), year: y, monthIndex: parseInt(m) - 1 };
+            return { key: ym, label: getMonthLabel(parseInt(m) - 1, i18n.language), year: y, monthIndex: parseInt(m) - 1 };
         });
 
         // Scatter data: all runs with HR > 3km, using GAP speed for fair comparison

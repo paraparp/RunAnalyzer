@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -26,9 +27,11 @@ function getWeekStart(year, week) {
   return weekStart;
 }
 
-const MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
 export default function WeeklyProgression({ activities }) {
+  const { i18n } = useTranslation();
+  const MONTH_SHORT = i18n.language.startsWith('es')
+    ? ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const [monthsToShow, setMonthsToShow] = useState('6');
 
   const { weeklyData, stats } = useMemo(() => {

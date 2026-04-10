@@ -106,7 +106,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         const today = new Date();
         const diffTime = Math.abs(today - gear.lastUsed);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const lastUsedStr = diffDays <= 1 ? 'Hoy' : diffDays === 2 ? 'Ayer' : `Hace ${diffDays} d`;
+        const lastUsedStr = diffDays <= 1 ? t('dashboard.today') : diffDays === 2 ? t('dashboard.yesterday') : `${diffDays}d`;
 
         return {
           ...gear,

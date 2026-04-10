@@ -61,6 +61,7 @@ import {
   StarIcon,
   ShieldExclamationIcon,
   RectangleGroupIcon,
+  TrophyIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -666,9 +667,9 @@ const Dashboard = ({ user, handleLogout }) => {
 
                 {/* Mobile year filter */}
                 <div className="sm:hidden flex items-center gap-2 px-1">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ano:</span>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('hr_analysis.filters.year')}:</span>
                   <Select value={selectedYear} onValueChange={setSelectedYear} enableClear={false} className="w-28">
-                    <SelectItem value="All">Todos</SelectItem>
+                    <SelectItem value="All">{t('topbar.all_filter')}</SelectItem>
                     {availableYears.map(year => (
                       <SelectItem key={year} value={String(year)}>{year}</SelectItem>
                     ))}
@@ -731,62 +732,75 @@ const Dashboard = ({ user, handleLogout }) => {
 
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                       {/* Left Column: Progress Chart */}
-                      <div className="lg:col-span-8 space-y-8">
-                        <div className="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
-                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                      <div className="lg:col-span-8">
+                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                          {/* Single header row: title + metric pills + group toggle */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                             <div>
-                              <h3 className="text-xl font-bold text-on-surface">Progreso Mensual</h3>
-                              <p className="text-sm text-on-surface-variant">Annual activity distribution</p>
+                              <h3 className="text-sm font-bold text-slate-800">{t('dashboard.monthly_progress')}</h3>
+                              <p className="text-[11px] text-slate-400">{t('dashboard.annual_distribution')}</p>
                             </div>
-                            <div className="flex items-center space-x-2 bg-surface-container-low p-1 rounded-full">
-                              <button
-                                onClick={() => setChartGroupBy('month')}
-                                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-150 ${chartGroupBy === 'month' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant font-medium hover:text-on-surface'}`}
-                              >
-                                Monthly
-                              </button>
-                              <button
-                                onClick={() => setChartGroupBy('year')}
-                                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-150 ${chartGroupBy === 'year' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant font-medium hover:text-on-surface'}`}
-                              >
-                                Annual
-                              </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Metric selector */}
+                              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+                                {[
+                                  { key: 'distance', label: t('dashboard.distance') },
+                                  { key: 'time',     label: t('dashboard.time')     },
+                                  { key: 'elevation',label: t('dashboard.elevation')},
+                                  { key: 'load',     label: i18n.language.startsWith('es') ? 'Carga' : 'Load' },
+                                ].map((m, idx) => (
+                                  <button
+                                    key={m.key}
+                                    onClick={() => setSelectedChartIndex(idx)}
+                                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${selectedChartIndex === idx ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                  >
+                                    {m.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {/* Group-by toggle */}
+                              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+                                <button
+                                  onClick={() => setChartGroupBy('month')}
+                                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${chartGroupBy === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                  {t('zones.monthly')}
+                                </button>
+                                <button
+                                  onClick={() => setChartGroupBy('year')}
+                                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${chartGroupBy === 'year' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                  {i18n.language.startsWith('es') ? 'Anual' : 'Annual'}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 mb-4 overflow-x-auto pb-2">
-                            <TabGroup index={selectedChartIndex} onIndexChange={setSelectedChartIndex}>
-                              <TabList variant="solid" className="w-fit">
-                                <Tab>Distancia</Tab>
-                                <Tab>Tiempo</Tab>
-                                <Tab>Desnivel</Tab>
-                                <Tab>Carga</Tab>
-                              </TabList>
-                            </TabGroup>
                           </div>
                           <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
                         </div>
                       </div>
 
                       {/* Right Column: Personal Bests */}
-                      <div className="lg:col-span-4 space-y-8">
-                        <div className="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
-                          <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-xl font-bold text-on-surface">Mejores Marcas</h3>
-                            <span className="material-symbols-outlined text-yellow-500" data-icon="workspace_premium" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
+                      <div className="lg:col-span-4">
+                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-800">{t('dashboard.personal_bests')}</h3>
+                              <p className="text-[11px] text-slate-400">{t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}</p>
+                            </div>
+                            <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
                           </div>
                           <PersonalBests activities={filteredActivities} />
                         </div>
-
                       </div>
                     </div>
 
-                    <CollapsibleSection title="Actividades">
+                    <CollapsibleSection title={t('dashboard.activities')}>
                       <div className="space-y-3 mb-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
-                            <p className="text-xs text-slate-400 font-medium">{sortedActivities.length} carreras</p>
+                            <p className="text-xs text-slate-400 font-medium">{sortedActivities.length} {t('hr_analysis.filters.runs').toLowerCase()}</p>
                             {activeFilterCount > 0 && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold">
                                 {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''} activo{activeFilterCount > 1 ? 's' : ''}
@@ -1267,14 +1281,16 @@ const STAT_COLORS = {
 const StatCard = ({ label, value, unit, icon: Icon, color = 'indigo' }) => {
   const colors = STAT_COLORS[color] || STAT_COLORS.indigo;
   return (
-    <div className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-transparent flex flex-col items-start transition-all duration-200 hover:shadow-md">
-      <div className={`w-10 h-10 rounded-xl ${colors.bg} flex items-center justify-center mb-4`}>
-        <Icon className={`w-5 h-5 ${colors.icon}`} />
+    <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
+      <div className={`w-9 h-9 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+        <Icon className={`w-4.5 h-4.5 ${colors.icon}`} />
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">{label}</span>
-      <div className="flex items-baseline gap-1">
-        <span className="text-3xl font-black text-on-surface tabular-nums leading-none">{value}</span>
-        {unit && <span className="text-xs font-medium text-on-surface-variant">{unit}</span>}
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
+        <div className="flex items-baseline gap-1">
+          <span className="text-xl font-black text-slate-800 tabular-nums leading-none">{value}</span>
+          {unit && <span className="text-xs font-medium text-slate-400">{unit}</span>}
+        </div>
       </div>
     </div>
   );
@@ -1297,9 +1313,7 @@ function App() {
     }
   };
 
-  const handleLoginError = () => {
-    console.log('Login Failed');
-  };
+  const handleLoginError = () => {};
 
   const handleLogout = () => {
     setUser(null);

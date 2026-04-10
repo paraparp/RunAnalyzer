@@ -19,6 +19,8 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 const STATUS_STYLES = {
   sky: 'bg-sky-50 border-sky-100',
   emerald: 'bg-emerald-50 border-emerald-100',
@@ -458,7 +460,7 @@ export default function FitnessFatigue({ activities }) {
 
         {/* Unified PMC: CTL + ATL + TSB bars + daily load */}
         <div className="h-[500px] w-full mt-2 relative">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <ComposedChart data={filteredChartData} margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
               <defs>
                 <linearGradient id="gradFitness" x1="0" y1="0" x2="0" y2="1">
@@ -541,7 +543,7 @@ export default function FitnessFatigue({ activities }) {
           <Title className="text-slate-800 font-bold mb-1">{t('fitness.weekly_load')}</Title>
           <Text className="text-slate-500 text-sm mb-4">{t('consistency.subtitle')}</Text>
           <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={weeklyLoad} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
@@ -569,7 +571,7 @@ export default function FitnessFatigue({ activities }) {
           <Title className="text-slate-800 font-bold mb-1">{t('fitness.performance_vs_fitness')}</Title>
           <Text className="text-slate-500 text-sm mb-4">{t('fitness.pmc.desc')}</Text>
           <div className="h-80 w-full mt-2 bg-slate-50/50 rounded-xl p-4 border border-slate-100 relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 

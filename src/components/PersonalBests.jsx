@@ -33,7 +33,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function DistanceRecord({ record }) {
+function DistanceRecord({ record, t }) {
   const [open, setOpen] = useState(false);
   const pr = record.top[0];
   const rest = record.top.slice(1);
@@ -78,7 +78,7 @@ function DistanceRecord({ record }) {
             className="w-full flex items-center justify-between px-4 py-2 bg-slate-50 hover:bg-slate-100 border-t border-slate-100 transition-colors"
           >
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-              Top {record.top.length} carreras
+              Top {record.top.length} {t('hr_analysis.filters.runs').toLowerCase()}
             </span>
             <ChevronDownIcon
               className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
@@ -151,7 +151,7 @@ const PersonalBests = ({ activities }) => {
   return (
     <div className="space-y-3">
       {records.map(record => (
-        <DistanceRecord key={record.id} record={record} />
+        <DistanceRecord key={record.id} record={record} t={t} />
       ))}
     </div>
   );
