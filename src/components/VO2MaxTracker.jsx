@@ -6,12 +6,12 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { 
-  HeartIcon, 
-  FlagIcon, 
-  ChartBarIcon, 
-  CalendarIcon, 
-  ClockIcon, 
+import {
+  HeartIcon,
+  FlagIcon,
+  ChartBarIcon,
+  CalendarIcon,
+  ClockIcon,
   PlayCircleIcon,
   CpuChipIcon,
   SparklesIcon,
@@ -649,14 +649,14 @@ export default function VO2MaxTracker({ activities }) {
         {/* Big VO2max card */}
         <div className="bg-slate-900 rounded-3xl p-8 text-center shadow-2xl shadow-blue-100/50 flex flex-col justify-center relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 transition-transform group-hover:scale-125">
-             <SparklesIcon className="w-24 h-24 text-white" />
+            <SparklesIcon className="w-24 h-24 text-white" />
           </div>
           <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 relative z-10">{t('vo2.estimated')}</p>
           <div className="relative z-10">
             <p className="text-7xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.current}</p>
             <p className="text-blue-300 text-xs font-bold mt-2 uppercase tracking-widest">{t('vo2.ml_kg_min')}</p>
           </div>
-          
+
           <div className="mt-8 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm relative z-10">
             <div className="w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ backgroundColor: stats.category.color }} />
             <span className="text-white text-xs font-black uppercase tracking-wider">{t(`vo2.categories.${stats.category.label}`, stats.category.label)}</span>
@@ -671,14 +671,14 @@ export default function VO2MaxTracker({ activities }) {
                 </p>
               </div>
             )}
-            
+
             <div className="flex items-center justify-between px-2 pt-4 border-t border-white/5">
-                <p className={`text-[11px] font-black uppercase tracking-widest ${stats.trendDir > 0 ? 'text-emerald-400' : stats.trendDir < -1 ? 'text-rose-400' : 'text-blue-400'}`}>
-                  {stats.trendDir > 0 ? t('vo2.tendency') : stats.trendDir < -1 ? t('vo2.drop') : t('vo2.stable')}
-                </p>
-                <p className="text-white font-black text-xs">
-                  {stats.trendDir > 0 ? '+' : ''}{stats.trendDir}
-                </p>
+              <p className={`text-[11px] font-black uppercase tracking-widest ${stats.trendDir > 0 ? 'text-emerald-400' : stats.trendDir < -1 ? 'text-rose-400' : 'text-blue-400'}`}>
+                {stats.trendDir > 0 ? t('vo2.tendency') : stats.trendDir < -1 ? t('vo2.drop') : t('vo2.stable')}
+              </p>
+              <p className="text-white font-black text-xs">
+                {stats.trendDir > 0 ? '+' : ''}{stats.trendDir}
+              </p>
             </div>
           </div>
         </div>
@@ -689,19 +689,19 @@ export default function VO2MaxTracker({ activities }) {
             { label: t('vo2.peak'), value: stats.peak, unit: t('vo2.ml_kg_min'), color: "text-emerald-600", icon: FlagIcon },
             { label: t('vo2.global_avg'), value: stats.avg, unit: t('vo2.ml_kg_min'), color: "text-slate-600", icon: ChartBarIcon },
             { label: t('vo2.last_30'), value: stats.recentAvg || '--', unit: t('vo2.ml_kg_min'), color: "text-blue-600", icon: CalendarIcon },
-            { 
-              label: stats.isMaxHREstimated ? t('vo2.garmin_sync.max_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.max_hr') + " (Garmin)", 
-              value: stats.activeMaxHR, 
-              unit: "bpm", 
-              color: "text-rose-600", 
+            {
+              label: stats.isMaxHREstimated ? t('vo2.garmin_sync.max_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.max_hr') + " (Garmin)",
+              value: stats.activeMaxHR,
+              unit: "bpm",
+              color: "text-rose-600",
               icon: HeartIcon,
               sub: stats.isMaxHREstimated ? t('hr_analysis.diagnosis.noise_filter', 'Filtro de ruido') : t('vo2.garmin_sync.official')
             },
-            { 
-              label: stats.isRestHREstimated ? t('vo2.garmin_sync.resting_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.resting_hr') + " (Garmin)", 
-              value: stats.activeRestHR, 
-              unit: "bpm", 
-              color: "text-sky-600", 
+            {
+              label: stats.isRestHREstimated ? t('vo2.garmin_sync.resting_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.resting_hr') + " (Garmin)",
+              value: stats.activeRestHR,
+              unit: "bpm",
+              color: "text-sky-600",
               icon: ClockIcon,
               sub: stats.isRestHREstimated ? t('fitness.how_to_read', 'Regresión lineal') : t('vo2.garmin_sync.connected').split(' ')[0]
             },
@@ -709,20 +709,20 @@ export default function VO2MaxTracker({ activities }) {
           ].map((card, idx) => (
             <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm transition-all hover:shadow-md group">
               <div className="flex justify-between items-start mb-3">
-                 <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
-                    {card.icon && <card.icon className="w-5 h-5" />}
-                 </div>
-                 <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+                <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                  {card.icon && <card.icon className="w-5 h-5" />}
+                </div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <p className={`text-2xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
               </div>
               {card.sub && (
-                 <div className="mt-2 text-[9px] font-bold text-slate-400 flex items-center gap-1">
-                    <div className="w-1 h-1 rounded-full bg-slate-200" />
-                    {card.sub}
-                 </div>
+                <div className="mt-2 text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                  <div className="w-1 h-1 rounded-full bg-slate-200" />
+                  {card.sub}
+                </div>
               )}
             </div>
           ))}
@@ -738,7 +738,7 @@ export default function VO2MaxTracker({ activities }) {
         ].map(m => (
           <div key={m.key} className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
             <div className={`w-12 h-12 ${m.color} rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-slate-200`}>
-                <span className="font-black text-lg leading-none">{stats.methodCounts[m.key] || 0}</span>
+              <span className="font-black text-lg leading-none">{stats.methodCounts[m.key] || 0}</span>
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-0.5">{m.label}</p>
@@ -753,8 +753,8 @@ export default function VO2MaxTracker({ activities }) {
         <div className="flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
           <div className="flex-1">
             <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-               <CpuChipIcon className="w-4 h-4" />
-               <span className="text-[10px] font-black uppercase tracking-widest">{garminRestHR ? 'Bio-Sincronización Activa' : 'Mejora la precisión'}</span>
+              <CpuChipIcon className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">{garminRestHR ? 'Bio-Sincronización Activa' : 'Mejora la precisión'}</span>
             </div>
             <h4 className="font-black text-2xl text-slate-900 tracking-tight mb-2">
               {garminRestHR ? 'Sincronizado con Garmin Connect' : 'Conecta tu cuenta de Garmin'}
@@ -813,10 +813,10 @@ export default function VO2MaxTracker({ activities }) {
         </div>
         {garminSyncState.error && (
           <div className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3">
-             <div className="bg-rose-500 text-white p-1 rounded-lg">
-                <ExclamationTriangleIcon className="w-4 h-4" />
-             </div>
-             <p className="text-xs text-rose-600 font-bold uppercase tracking-tight">Error de autenticación: {garminSyncState.error}</p>
+            <div className="bg-rose-500 text-white p-1 rounded-lg">
+              <ExclamationTriangleIcon className="w-4 h-4" />
+            </div>
+            <p className="text-xs text-rose-600 font-bold uppercase tracking-tight">Error de autenticación: {garminSyncState.error}</p>
           </div>
         )}
       </div>

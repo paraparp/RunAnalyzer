@@ -732,10 +732,10 @@ const Dashboard = ({ user, handleLogout }) => {
 
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
                       {/* Left Column: Progress Chart */}
-                      <div className="lg:col-span-8">
-                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                      <div className="lg:col-span-8 flex flex-col">
+                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col flex-1">
                           {/* Single header row: title + metric pills + group toggle */}
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                             <div>
@@ -777,7 +777,9 @@ const Dashboard = ({ user, handleLogout }) => {
                               </div>
                             </div>
                           </div>
-                          <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
+                          <div className="flex-1 min-h-0">
+                            <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
+                          </div>
                         </div>
                       </div>
 
@@ -1084,7 +1086,13 @@ const Dashboard = ({ user, handleLogout }) => {
                                     <TableRow>
                                       <TableCell colSpan={12} className="!p-0">
                                         <div className="bg-slate-50/70 border-y border-slate-100 px-4 py-3">
-                                          <ActivitySplits splits={activity.laps} globalMaxHR={Math.max(...runningActivities.map(a => a.max_heartrate || 0).filter(Boolean))} />
+                                          <ActivitySplits
+                                            splits={activity.laps}
+                                            globalMaxHR={Math.max(...runningActivities.map(a => a.max_heartrate || 0).filter(Boolean))}
+                                            bestEfforts={activity.best_efforts}
+                                            similarActivities={activity.similar_activities}
+                                            splitsMetric={activity.splits_metric}
+                                          />
                                         </div>
                                       </TableCell>
                                     </TableRow>

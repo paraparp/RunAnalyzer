@@ -180,11 +180,111 @@ const PaceBar = ({ row }) => {
     );
 };
 
+// ─── Similar Activities Banner ────────────────────────────────────────────────
 
+const SimilarActivitiesBanner = ({ similar }) => {
+    const { t } = useTranslation();
+    if (!similar) return null;
+
+    const { pr_rank, effort_count, trend, average_speed } = similar;
+    const isPR = pr_rank === 1;
+    const isImproving = trend?.direction === 1;
+
+    if (!isPR && !isImproving) return null;
+
+    const speeds = trend?.speeds || [];
+    let diffLabel = null;
+    if (speeds.length >= 2) {
+        const prevPaceS = 1000 / speeds[speeds.length - 2];
+        const currPaceS = 1000 / speeds[speeds.length - 1];
+        const diffS = Math.round(prevPaceS - currPaceS); // positive = now faster
+        if (Math.abs(diffS) >= 2) {
+            diffLabel = diffS > 0
+                ? `${diffS}s/km ${t('splits.faster_than_prev', 'más rápido que anterior')}`
+                : `${Math.abs(diffS)}s/km ${t('splits.slower_than_prev', 'más lento que anterior')}`;
+        }
+    }
+
+    const avgPaceStr = average_speed > 0 ? fmtPace(1000 / average_speed) : null;
+
+    const bgClass = isPR
+        ? 'bg-amber-50 border-amber-100'
+        : isImproving
+            ? 'bg-emerald-50 border-emerald-100'
+            : 'bg-slate-50 border-slate-100';
+
+    const textClass = isPR ? 'text-amber-700' : isImproving ? 'text-emerald-700' : 'text-slate-600';
+
+    const icon = isPR ? '🏆' : isImproving ? '↑' : '↔';
+    const label = isPR
+        ? t('splits.route_pr', 'Récord en esta ruta')
+        : isImproving
+            ? t('splits.route_improving', 'Mejorando en esta ruta')
+            : t('splits.route_similar', 'Ruta similar');
+
+    return (
+        <div className={`mb-3 px-3 py-2 rounded-lg flex items-center gap-2.5 border ${bgClass}`}>
+            <span className={`text-sm font-bold ${textClass}`}>{icon}</span>
+            <div className="flex flex-col gap-0.5 min-w-0">
+                <span className={`font-bold text-[11px] ${textClass}`}>{label}</span>
+                <span className="text-[9px] text-slate-400 truncate">
+                    {effort_count} {t('splits.similar_runs', 'carreras similares')}
+                    {avgPaceStr && <> · {t('splits.avg', 'media')} {avgPaceStr}/km</>}
+                    {diffLabel && <> · {diffLabel}</>}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// ─── Best Efforts Section ─────────────────────────────────────────────────────
+
+const PR_RANK_LABELS = { 1: 'PR', 2: '2º', 3: '3º' };
+
+const BestEffortsSection = ({ efforts }) => {
+    const { t } = useTranslation();
+    if (!efforts?.length) return null;
+
+    return (
+        <div className="mt-4 pt-3 border-t border-slate-100">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                {t('splits.best_efforts', 'Mejores Esfuerzos')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+                {efforts.map((effort) => {
+                    const isPR = effort.pr_rank === 1;
+                    const prLabel = PR_RANK_LABELS[effort.pr_rank];
+                    const paceStr = effort.distance > 0
+                        ? fmtPace((effort.elapsed_time / effort.distance) * 1000)
+                        : null;
+
+                    return (
+                        <div
+                            key={effort.id}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${isPR ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}
+                        >
+                            <span className={`text-[10px] font-medium ${isPR ? 'text-amber-600' : 'text-slate-500'}`}>
+                                {effort.name}
+                            </span>
+                            {paceStr && (
+                                <span className={`text-[12px] font-black tabular-nums font-mono ${isPR ? 'text-amber-700' : 'text-slate-700'}`}>{paceStr}/km</span>
+                            )}
+                            {prLabel && (
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide ${isPR ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                    {prLabel}
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-const ActivitySplits = ({ splits, globalMaxHR }) => {
+const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, splitsMetric }) => {
     const { t } = useTranslation();
 
     const { rows, avgPaceS, maxHR } = useMemo(() => {
@@ -199,6 +299,11 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
 
         const restingHR = parseInt(localStorage.getItem('garminRestHR')) || null;
 
+        // Build a map of Strava's official GAP speed by split index
+        const stravaGapMap = splitsMetric?.length
+            ? Object.fromEntries(splitsMetric.map(s => [s.split, s.average_grade_adjusted_speed]))
+            : {};
+
         const rows = splits.map((split, idx) => {
             const paceS = split.average_speed > 0 ? 1000 / split.average_speed : avgPaceS;
             const deviationPct = ((paceS - avgPaceS) / avgPaceS) * 100;
@@ -208,18 +313,24 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
             const hrZone = getZone(split.average_heartrate, maxHR, restingHR);
             const isFaster = deviationPct < 0;
 
+            // Use Strava's official GAP if available, otherwise fall back to local calculation
+            const stravaGapSpeed = stravaGapMap[split.split];
+            const gap = stravaGapSpeed
+                ? calculatePace(stravaGapSpeed)
+                : calculateGAP(split.average_speed, split.distance, split.elevation_difference, split.total_elevation_gain);
+
             return {
                 ...split,
                 idx, paceS, deviationPct, elevation, isPartial, isBest, hrZone, isFaster,
                 pace: calculatePace(split.average_speed),
-                gap: calculateGAP(split.average_speed, split.distance, split.elevation_difference, split.total_elevation_gain),
+                gap,
                 timeStr: `${Math.floor(split.moving_time / 60)}:${(split.moving_time % 60).toString().padStart(2, '0')}`,
                 distKm: (split.distance / 1000).toFixed(2),
             };
         });
 
         return { rows, avgPaceS, maxHR };
-    }, [splits, globalMaxHR]);
+    }, [splits, globalMaxHR, splitsMetric]);
 
     if (!splits || splits.length === 0) {
         return <p className="py-4 text-center text-sm italic text-slate-400">{t('splits.no_splits', 'No hay parciales.')}</p>;
@@ -229,6 +340,7 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
 
     return (
         <div>
+            <SimilarActivitiesBanner similar={similarActivities} />
             <OverviewChart rows={rows} avgPaceS={avgPaceS} />
             <div className="grid items-center gap-x-2 px-0 pb-2 border-b border-slate-200 mb-0.5" style={{ gridTemplateColumns: GRID }}>
                 <div />
@@ -301,6 +413,8 @@ const ActivitySplits = ({ splits, globalMaxHR }) => {
                     {[1, 2, 3, 4, 5].map(z => <span key={z} className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: ZONES[z].bg, color: ZONES[z].text }}>{ZONES[z].label}</span>)}
                 </div>
             </div>
+
+            <BestEffortsSection efforts={bestEfforts} />
         </div>
     );
 };

@@ -69,7 +69,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
   if (!chartData.length) return null;
 
   return (
-    <div className="flex items-end gap-[3px] h-48 pt-3">
+    <div className="flex items-end gap-[3px] h-full min-h-[12rem] pt-3">
       {chartData.map((item, i) => {
         const pct = Math.max((item[selectedMetric] / maxVal) * 100, 3);
         const val = item[selectedMetric];
