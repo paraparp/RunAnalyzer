@@ -187,8 +187,13 @@ export default function TrainingZones({ activities }) {
   // ── Auto-detected parameters ──
   const autoMaxHR = useMemo(() => {
     if (!activities?.length) return 185;
-    const hrs = activities.filter(a => a.max_heartrate).map(a => a.max_heartrate);
-    return hrs.length ? Math.max(...hrs) : 185;
+    const hrs = activities
+      .filter(a => a.max_heartrate)
+      .map(a => a.max_heartrate)
+      .sort((a, b) => b - a)
+      .slice(0, 10);
+    if (!hrs.length) return 185;
+    return Math.round(hrs.reduce((s, v) => s + v, 0) / hrs.length);
   }, [activities]);
 
   const autoRestHR = useMemo(() => detectRestHR(activities ?? []), [activities]);

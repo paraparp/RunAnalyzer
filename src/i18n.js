@@ -462,6 +462,59 @@ const en = {
       legend_lt2_raw: "LT2 per run",
       legend_lt2_ewma: "EWMA smoothed",
       legend_lt1: "LT1 (aerobic threshold)"
+    },
+    fitness: {
+      title: "Fitness & Fatigue",
+      subtitle: "Visualize the interaction between fitness, fatigue and form over time.",
+      no_data: "No activities with valid load data.",
+      ctl: "Fitness (CTL)",
+      atl: "Fatigue (ATL)",
+      tsb: "Form (TSB)",
+      acwr: "ACWR",
+      ramp: "Weekly Ramp",
+      peak_fitness: "of peak",
+      avg_7_days: "Avg load 7 days",
+      weekly_load: "Weekly Load",
+      monthly_progress: "Monthly Progress",
+      performance_vs_fitness: "Performance vs. Fitness (CTL)",
+      how_to_read: "How to read this data",
+      status: {
+        transition: "Transition",
+        transition_desc: "You are very fresh but may be losing fitness. Consider gradually increasing training load.",
+        fresh: "Fresh",
+        fresh_desc: "Great time to race or run a performance test. Your body is recovered and in shape.",
+        optimal: "Optimal",
+        optimal_desc: "Ideal balance between load and recovery. Keep your current training plan.",
+        loaded: "Loaded",
+        loaded_desc: "Accumulated fatigue, but adaptations are happening. Prioritize sleep and nutrition.",
+        overloaded: "Overloaded",
+        overloaded_desc: "Risk of overtraining or injury. Reduce volume and intensity this week."
+      },
+      acwr_status: {
+        underload: "Underload",
+        underload_desc: "You are training less than your body is used to. You may lose fitness.",
+        optimal: "Optimal Zone",
+        optimal_desc: "Your acute:chronic ratio is in the ideal zone (0.8–1.3). Good balance to progress safely.",
+        caution: "Caution",
+        caution_desc: "Your acute load significantly exceeds chronic load. Moderate injury risk. Don't increase load further this week.",
+        danger: "Danger",
+        danger_desc: "Acute:chronic ratio very high (>1.5). High injury risk. Reduce load immediately."
+      },
+      risk: {
+        low: "Low",
+        moderate: "Moderate",
+        high: "High"
+      },
+      ramp_labels: {
+        high: "High Increase",
+        safe: "Safe"
+      },
+      pmc: {
+        title: "Performance Management Chart",
+        desc: "Visualize the interaction between fitness, fatigue and form over time.",
+        daily_load: "Daily Load",
+        ritmo_10k: "10k Pace"
+      }
     }
   }
 };

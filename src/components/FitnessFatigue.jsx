@@ -249,7 +249,7 @@ export default function FitnessFatigue({ activities }) {
   const PMCTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const d = new Date(label);
-      const formattedDate = !isNaN(d) ? d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : label;
+      const formattedDate = !isNaN(d) ? d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }) : label;
 
       return (
         <div className="bg-white/95 backdrop-blur-md p-4 border border-slate-200 shadow-2xl rounded-2xl min-w-[220px]">
@@ -412,12 +412,13 @@ export default function FitnessFatigue({ activities }) {
         ))}
       </div>
 
-      {/* PMC Chart */}
-      <Card className="shadow-lg border-slate-200">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+      {/* PMC Chart — dual-panel layout (TrainingPeaks style) */}
+      <Card className="shadow-lg border-slate-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2">
           <div>
-            <Title className="text-slate-800 font-bold mb-1">{t('fitness.pmc.title')}</Title>
-            <Text className="text-slate-500 text-sm">{t('fitness.pmc.desc')}</Text>
+            <Title className="text-slate-800 font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
+            <Text className="text-slate-400 text-xs">{t('fitness.pmc.desc')}</Text>
           </div>
           <div className="flex items-center gap-2">
             <Select value={timeRange} onValueChange={(v) => { setTimeRange(v); setOffsetMonths(0); }} enableClear={false} className="w-36">
@@ -455,85 +456,170 @@ export default function FitnessFatigue({ activities }) {
           </div>
         </div>
         {timeRange !== 'all' && (
-          <p className="text-[11px] text-slate-400 font-medium mb-3 tabular-nums">{dateRangeLabel}</p>
+          <p className="text-[11px] text-slate-400 font-medium mb-2 tabular-nums">{dateRangeLabel}</p>
         )}
 
-        {/* Unified PMC: CTL + ATL + TSB bars + daily load */}
-        <div className="h-[500px] w-full mt-2 relative">
+        {/* ── Legend row ── */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-[3px] rounded-full bg-blue-600" />
+            <span className="text-[11px] text-slate-600 font-semibold">{t('fitness.ctl')} — Fitness</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-[2px]" style={{ background: 'repeating-linear-gradient(90deg,#f43f5e 0 5px,transparent 5px 9px)' }} />
+            <span className="text-[11px] text-slate-500 font-semibold">{t('fitness.atl')} — Fatiga</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-3 rounded-sm bg-blue-200 opacity-80" />
+            <span className="text-[11px] text-slate-400 font-medium">{t('fitness.pmc.daily_load')}</span>
+          </div>
+        </div>
+
+        <defs>
+          <linearGradient id="gradCTL2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+
+        {/* ── PANEL 1: CTL + ATL + Load bars ── */}
+        <div className="h-[280px] w-full rounded-xl overflow-hidden bg-slate-50/60 border border-slate-100">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <ComposedChart data={filteredChartData} margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
+            <ComposedChart data={filteredChartData} margin={{ top: 16, right: 16, bottom: 0, left: 8 }}>
               <defs>
-                <linearGradient id="gradFitness" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.05} />
+                <linearGradient id="gradCTLv3" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor="#2563eb" stopOpacity={0.40} />
+                  <stop offset="55%"  stopColor="#2563eb" stopOpacity={0.10} />
+                  <stop offset="100%" stopColor="#2563eb" stopOpacity={0}    />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              
-              <XAxis
-                dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }}
-                tickFormatter={v => { const d = new Date(v); return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`; }}
-                interval={Math.max(Math.floor(filteredChartData.length / 10), 1)}
-              />
-              {/* Left axis: CTL / ATL / Load */}
+              <CartesianGrid strokeDasharray="2 8" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="date" hide />
               <YAxis
-                yAxisId="load" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={32}
-                domain={[0, dataMax => Math.round(dataMax * 1.1)]}
+                yAxisId="lines"
+                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                domain={[0, dataMax => Math.round(dataMax * 1.15)]}
+                tickCount={5}
               />
-              {/* Right axis: TSB */}
-              <YAxis
-                yAxisId="form" orientation="right" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={32}
-                domain={[-80, 80]}
-              />
-              <YAxis yAxisId="pace" orientation="left" hide={true} domain={['auto', 'auto']} reversed={true} />
-              
-              <ReferenceLine yAxisId="form" y={0} stroke="#94a3b8" strokeDasharray="3 3" strokeWidth={1} />
+              <YAxis yAxisId="bars" hide domain={[0, dataMax => dataMax * 7]} />
               <RechartsTooltip content={<PMCTooltip />} />
-              
-              <Bar yAxisId="load" dataKey="load" name={t('fitness.pmc.daily_load')} fill="#e2e8f0" barSize={2} isAnimationActive={false} />
-              
-              <Bar yAxisId="form" dataKey="Forma" name={t('fitness.tsb')} barSize={3} isAnimationActive={false} radius={[2,2,2,2]}>
-                {filteredChartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.Forma >= 0 ? '#10b981' : '#f43f5e'} fillOpacity={0.5} />
-                ))}
-              </Bar>
 
-              <Area yAxisId="load" type="monotone" dataKey="Fitness" name={t('fitness.ctl')} stroke="#3b82f6" strokeWidth={3} fill="url(#gradFitness)" dot={false} isAnimationActive={false} activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-md" />
-              
-              <Line yAxisId="load" type="monotone" dataKey="Fatiga" name={t('fitness.atl')} stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: '#ec4899', stroke: '#fff', strokeWidth: 2 }} className="drop-shadow-sm" />
-              
-              <Line yAxisId="pace" type="monotone" dataKey="Pace10k" name={t('fitness.pmc.ritmo_10k')} stroke="none" isAnimationActive={false} dot={{ r: 5, fill: '#eab308', stroke: '#fff', strokeWidth: 1.5 }} activeDot={{ r: 7, fill: '#eab308', stroke: '#fff', strokeWidth: 2 }} connectNulls={false} />
+              {/* Load bars — pinned to bottom via inflated axis */}
+              <Bar
+                yAxisId="bars"
+                dataKey="load"
+                name={t('fitness.pmc.daily_load')}
+                fill="#93c5fd"
+                opacity={0.45}
+                barSize={2}
+                isAnimationActive={false}
+              />
 
-              <Brush dataKey="date" height={25} stroke="#cbd5e1" fill="#f8fafc" tickFormatter={() => ''} travellerWidth={8} className="mt-8" />
+              {/* ATL first so CTL renders on top */}
+              <Line
+                yAxisId="lines"
+                type="monotone"
+                dataKey="Fatiga"
+                name={t('fitness.atl')}
+                stroke="#f43f5e"
+                strokeWidth={2}
+                strokeDasharray="6 3"
+                dot={false}
+                isAnimationActive={false}
+                activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }}
+              />
+
+              {/* CTL — protagonist */}
+              <Area
+                yAxisId="lines"
+                type="monotone"
+                dataKey="Fitness"
+                name={t('fitness.ctl')}
+                stroke="#2563eb"
+                strokeWidth={3}
+                fill="url(#gradCTLv3)"
+                dot={false}
+                isAnimationActive={false}
+                activeDot={{ r: 6, fill: '#2563eb', stroke: '#fff', strokeWidth: 2 }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        {/* Inline legend */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[3px] rounded-full bg-[#3b82f6]" />
-            <span className="text-[10px] text-slate-500 font-medium">CTL (Fitness)</span>
+
+        {/* Divider with TSB label */}
+        <div className="flex items-center gap-3 my-3">
+          <div className="h-px flex-1 bg-slate-100" />
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            {t('fitness.tsb')} — {i18n.language.startsWith('es') ? 'Forma del Día' : 'Daily Form'}
+          </span>
+          <div className="flex items-center gap-1">
+            {[
+              { label: i18n.language.startsWith('es') ? 'Trans.' : 'Trans.', bg: '#dbeafe', fg: '#1d4ed8' },
+              { label: i18n.language.startsWith('es') ? 'Fresco' : 'Fresh',  bg: '#d1fae5', fg: '#065f46' },
+              { label: i18n.language.startsWith('es') ? 'Óptimo' : 'Optimal', bg: '#fef9c3', fg: '#92400e' },
+              { label: i18n.language.startsWith('es') ? 'Cargado' : 'Loaded', bg: '#ffedd5', fg: '#9a3412' },
+              { label: i18n.language.startsWith('es') ? 'Sobrecar.' : 'Over.', bg: '#fee2e2', fg: '#991b1b' },
+            ].map(z => (
+              <span key={z.label} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: z.bg, color: z.fg }}>
+                {z.label}
+              </span>
+            ))}
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[2px] rounded-full bg-[#ec4899]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #ec4899 0 4px, transparent 4px 7px)' }} />
-            <span className="text-[10px] text-slate-500 font-medium">ATL (Fatiga)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-emerald-400/50" />
-            <span className="text-[10px] text-slate-500 font-medium">TSB +</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-rose-400/50" />
-            <span className="text-[10px] text-slate-500 font-medium">TSB −</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-slate-200" />
-            <span className="text-[10px] text-slate-500 font-medium">Carga diaria</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 border border-white" />
-            <span className="text-[10px] text-slate-500 font-medium">Ritmo 10k</span>
-          </div>
+          <div className="h-px flex-1 bg-slate-100" />
+        </div>
+
+        {/* ── PANEL 2: TSB zones ── */}
+        <div className="h-[170px] w-full rounded-xl overflow-hidden border border-slate-100">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ComposedChart data={filteredChartData} margin={{ top: 0, right: 16, bottom: 20, left: 8 }}>
+              <CartesianGrid strokeDasharray="2 8" stroke="#f1f5f9" vertical={false} />
+
+              {/* Zone bands */}
+              <ReferenceArea y1={25}  y2={80}  fill="#dbeafe" fillOpacity={0.85} ifOverflow="hidden" />
+              <ReferenceArea y1={5}   y2={25}  fill="#d1fae5" fillOpacity={0.85} ifOverflow="hidden" />
+              <ReferenceArea y1={-10} y2={5}   fill="#fef9c3" fillOpacity={0.85} ifOverflow="hidden" />
+              <ReferenceArea y1={-30} y2={-10} fill="#ffedd5" fillOpacity={0.85} ifOverflow="hidden" />
+              <ReferenceArea y1={-80} y2={-30} fill="#fee2e2" fillOpacity={0.85} ifOverflow="hidden" />
+
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 500 }}
+                tickLine={false}
+                axisLine={{ stroke: '#e2e8f0' }}
+                tickFormatter={v => {
+                  const d = new Date(v);
+                  return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+                }}
+                interval={Math.max(Math.floor(filteredChartData.length / 12), 1)}
+              />
+              <YAxis
+                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                domain={[-80, 80]}
+                tickCount={5}
+              />
+
+              <ReferenceLine y={0} stroke="#64748b" strokeWidth={1.5} />
+              <RechartsTooltip content={<PMCTooltip />} />
+
+              {/* TSB — dark slate so it contrasts all zone colors */}
+              <Line
+                type="monotone"
+                dataKey="Forma"
+                name={t('fitness.tsb')}
+                stroke="#0f172a"
+                strokeWidth={2.5}
+                dot={false}
+                isAnimationActive={false}
+                activeDot={{ r: 5, fill: '#0f172a', stroke: '#fff', strokeWidth: 2 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </Card>
 
@@ -555,7 +641,7 @@ export default function FitnessFatigue({ activities }) {
                     const isHigh = entry.Carga > avg * 1.3;
                     const isLow = entry.Carga < avg * 0.5;
                     return (
-                      <rect key={i} fill={isHigh ? '#f43f5e' : isLow ? '#94a3b8' : '#2563eb'} />
+                      <Cell key={i} fill={isHigh ? '#f43f5e' : isLow ? '#94a3b8' : '#2563eb'} />
                     );
                   })}
                 </Bar>
