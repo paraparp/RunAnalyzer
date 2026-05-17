@@ -53,19 +53,45 @@ app.post('/api/garmin/login', async (req, res) => {
         const now = new Date();
         // Limit days to 365 to avoid extreme delays/bans
         const daysToFetch = Math.min(parseInt(days) || 30, 365);
-        
+
+        const endDate = now.toISOString().split('T')[0];
+        const startDateObj = new Date(now);
+        startDateObj.setDate(now.getDate() - daysToFetch + 1);
+        const startDate = startDateObj.toISOString().split('T')[0];
+
+        // Fetch HRV data in a single bulk call
+        let hrvHistory = [];
+        sendProgress({ status: 'fetching_hrv', message: 'Descargando datos de HRV...' });
+        try {
+            const hrvUrl = `https://connect.garmin.com/gc-api/hrv-service/hrv/daily/${startDate}/${endDate}`;
+            const hrvResponse = await gcClient.client.get(hrvUrl);
+            if (hrvResponse?.hrvSummaries) {
+                hrvHistory = hrvResponse.hrvSummaries.map(s => ({
+                    date: s.calendarDate,
+                    hrv: s.lastNightAvg,
+                    weeklyAvg: s.weeklyAvg,
+                    status: s.status,
+                    baseline: s.baseline
+                }));
+                console.log(`Fetched ${hrvHistory.length} HRV records`);
+            }
+        } catch (e) {
+            console.error('Error fetching HRV data:', e.message);
+            sendProgress({ status: 'warning', message: 'No se pudieron obtener datos de HRV.' });
+        }
+
         console.log(`Fetching ${daysToFetch} days of HR history...`);
-        
+
         for (let i = 0; i < daysToFetch; i++) {
             const date = new Date();
             date.setDate(now.getDate() - i);
             const dateStr = date.toISOString().split('T')[0];
-            
+
             try {
                 // Adaptive delay: smaller for few days, larger for many days to be stealthier
                 const baseDelay = daysToFetch > 60 ? 400 : 250;
-                if (i > 0) await delay(baseDelay + Math.random() * 200); 
-                
+                if (i > 0) await delay(baseDelay + Math.random() * 200);
+
                 const hrData = await gcClient.getHeartRate(date);
                 if (hrData && hrData.restingHeartRate) {
                     history.push({
@@ -73,12 +99,12 @@ app.post('/api/garmin/login', async (req, res) => {
                         rhr: hrData.restingHeartRate
                     });
                 }
-                
+
                 // Update progress less frequently if range is large
                 const updateFreq = daysToFetch > 60 ? 5 : 1;
                 if ((i + 1) % updateFreq === 0 || (i + 1) === daysToFetch) {
-                    sendProgress({ 
-                        status: 'fetching_history', 
+                    sendProgress({
+                        status: 'fetching_history',
                         progress: Math.round(((i + 1) / daysToFetch) * 100),
                         message: `Sincronizando historial día ${i + 1}/${daysToFetch}...`
                     });
@@ -87,13 +113,13 @@ app.post('/api/garmin/login', async (req, res) => {
                 console.error(`Error at day ${i} (${dateStr}):`, e.message);
                 if (e.message.includes('403') || e.message.includes('429')) {
                     sendProgress({ status: 'warning', message: 'Límite de Garmin alcanzado. Guardando lo obtenido hasta ahora...' });
-                    break; 
+                    break;
                 }
             }
         }
 
         const finalRHR = (history.length > 0) ? history[0].rhr : 60;
-        
+
         sendProgress({
             status: 'complete',
             success: true,
@@ -101,6 +127,7 @@ app.post('/api/garmin/login', async (req, res) => {
             maxHR: userMaxHR,
             officialVO2Max: officialVO2Max,
             history: history.reverse(),
+            hrvHistory,
             message: '¡Sincronización completada!'
         });
         

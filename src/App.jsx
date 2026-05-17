@@ -28,6 +28,7 @@ import WeeklyProgression from './components/WeeklyProgression';
 import SplitAnalysis from './components/SplitAnalysis';
 import RaceDetector from './components/RaceDetector';
 import CardiacDecoupling from './components/CardiacDecoupling';
+import GarminCardiac from './components/GarminCardiac';
 import InjuryRisk from './components/InjuryRisk';
 import VO2MaxTracker from './components/VO2MaxTracker';
 import LactateThreshold from './components/LactateThreshold';
@@ -82,6 +83,7 @@ const NAV_ITEMS = [
   { id: 'splits', icon: BoltIcon },
   { id: 'races', icon: FireIcon },
   { id: 'decoupling', icon: SignalIcon },
+  { id: 'cardiac', icon: HeartIcon },
   { id: 'injury', icon: ShieldExclamationIcon },
   { id: 'vo2tracker', icon: ArrowTrendingUpIcon },
   { id: 'lactate', icon: SignalIcon },
@@ -92,7 +94,7 @@ const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'injury', 'vo2tracker', 'lactate'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'cardiac', 'injury', 'vo2tracker', 'lactate'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -1039,10 +1041,19 @@ const Dashboard = ({ user, handleLogout }) => {
                                       <span className="text-xs text-slate-500 tabular-nums">{new Date(activity.start_date).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' })}</span>
                                     </TableCell>
                                     <TableCell>
-                                      <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
-                                        className="text-sm font-medium text-slate-800 hover:text-indigo-600 transition-colors truncate max-w-[180px] block">
-                                        {activity.name}
-                                      </a>
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
+                                          className="text-sm font-medium text-slate-800 hover:text-indigo-600 transition-colors truncate max-w-[160px]">
+                                          {activity.name}
+                                        </a>
+                                        {(() => {
+                                          const st = activity.sport_type || activity.type;
+                                          const isRace = activity.workout_type === 1;
+                                          if (isRace) return <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-bold tracking-wide bg-amber-400 text-white uppercase">Race</span>;
+                                          if (st === 'TrailRun') return <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-bold tracking-wide bg-emerald-500 text-white uppercase">Trail</span>;
+                                          return null;
+                                        })()}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-right">
                                       <span className="text-sm tabular-nums text-slate-700">{(activity.distance / 1000).toFixed(2)}</span>
@@ -1243,6 +1254,12 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'decoupling' && (
               <div className="fade-in">
                 <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />
+              </div>
+            )}
+
+            {currentView === 'cardiac' && (
+              <div className="fade-in">
+                <GarminCardiac />
               </div>
             )}
 
