@@ -17,7 +17,7 @@ const ModelSelector = ({
     // Reset model when provider changes
     useEffect(() => {
         if (provider === 'groq') setSelectedModel(m => m.startsWith('llama') || m.startsWith('mixtral') ? m : 'llama-3.1-8b-instant');
-        else if (provider === 'gemini') setSelectedModel(m => m.startsWith('gemini') ? m : 'gemini-2.5-flash-lite');
+        else if (provider === 'gemini') setSelectedModel(m => m.startsWith('gemini') ? m : 'gemini-3.5-flash');
         else if (provider === 'anthropic') setSelectedModel(m => m.startsWith('claude') ? m : 'claude-3-5-sonnet-latest');
     }, [provider, setSelectedModel]);
 
@@ -62,10 +62,10 @@ const ModelSelector = ({
                     {provider === 'groq' && <SelectItem value="mixtral-8x7b-32768">🌀 Mixtral 8x7B</SelectItem>}
 
                     {/* Gemini Models */}
-                    {provider === 'gemini' && <SelectItem value="gemini-2.5-flash-lite">🆕 Gemini 2.5 Flash Lite</SelectItem>}
+                    {provider === 'gemini' && <SelectItem value="gemini-3.5-flash">🆕 Gemini 3.5 Flash</SelectItem>}
+                    {provider === 'gemini' && <SelectItem value="gemini-3.1-pro">🧠 Gemini 3.1 Pro</SelectItem>}
                     {provider === 'gemini' && <SelectItem value="gemini-2.5-flash">⚡ Gemini 2.5 Flash</SelectItem>}
-                    {provider === 'gemini' && <SelectItem value="gemini-2.0-flash">🚀 Gemini 2.0 Flash</SelectItem>}
-                    {provider === 'gemini' && <SelectItem value="gemini-2.0-pro-exp-02-05">🧪 Gemini 2.0 Pro Exp</SelectItem>}
+                    {provider === 'gemini' && <SelectItem value="gemini-2.5-flash-lite">🌀 Gemini 2.5 Flash Lite</SelectItem>}
 
                     {/* Anthropic Models */}
                     {provider === 'anthropic' && <SelectItem value="claude-3-5-sonnet-latest">🧠 Claude 3.5 Sonnet</SelectItem>}

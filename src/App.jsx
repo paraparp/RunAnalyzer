@@ -26,6 +26,7 @@ import VDOTEstimator from './components/VDOTEstimator';
 import GearTracker from './components/GearTracker';
 import SplitAnalysis from './components/SplitAnalysis';
 import RaceDetector from './components/RaceDetector';
+import AIInsights from './components/AIInsights';
 import CardiacDecoupling from './components/CardiacDecoupling';
 import GarminCardiac from './components/GarminCardiac';
 import InjuryRisk from './components/InjuryRisk';
@@ -733,11 +734,15 @@ const Dashboard = ({ user, handleLogout }) => {
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-                      {/* Left Column: Progress Chart */}
-                      <div className="lg:col-span-8 flex flex-col">
+                      {/* Left Column: Progress Chart & AI Insights */}
+                      <div className="lg:col-span-8 flex flex-col gap-4">
+                        {/* Standalone Section 1: AI Insights */}
+                        <AIInsights activities={runningActivities} />
+
+                        {/* Standalone Section 2: Progress Chart */}
                         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col flex-1">
                           {/* Single header row: title + metric pills + group toggle */}
-                          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                             <div>
                               <h3 className="text-sm font-bold text-slate-800">{t('dashboard.monthly_progress')}</h3>
                               <p className="text-[11px] text-slate-400">{t('dashboard.annual_distribution')}</p>
@@ -777,7 +782,8 @@ const Dashboard = ({ user, handleLogout }) => {
                               </div>
                             </div>
                           </div>
-                          <div className="flex-1 min-h-0">
+
+                          <div className="flex-grow flex flex-col justify-end min-h-[160px]">
                             <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
                           </div>
                         </div>
