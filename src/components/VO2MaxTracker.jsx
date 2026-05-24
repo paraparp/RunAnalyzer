@@ -356,7 +356,7 @@ export default function VO2MaxTracker({ activities }) {
     const daysToSync = Math.min(parseInt(monthsToShow) * 30, 365); // Cap at 1 year for safety
 
     try {
-      const response = await fetch('http://localhost:3001/api/garmin/login', {
+      const response = await fetch('/api/garmin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

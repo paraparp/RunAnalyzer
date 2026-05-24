@@ -27,6 +27,7 @@ const en = {
       vo2tracker: "VO2max Tracker",
       lactate: "LT Tracker",
       export: "Export",
+      status: "My Status",
       categories: {
         analytics: "Analytics",
         maps: "Maps",
@@ -546,6 +547,7 @@ const es = {
       vo2tracker: "Tracker VO2max",
       lactate: "Umbral Lactato",
       export: "Exportar",
+      status: "Mi Estado",
       categories: {
         analytics: "Analítica",
         maps: "Mapas",

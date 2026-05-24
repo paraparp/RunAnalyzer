@@ -110,20 +110,27 @@ function buildChartData(data, sleepData = [], granularity = 'month') {
 // ---------------------------------------------------------------------------
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
+  const normKeys = new Set(['hrvNorm','hrNorm','bbHighNorm','bbLowNorm','sleepHistNorm','baselineHrvNorm','baselineHrNorm']);
+  const isNormMode = payload.some(p => normKeys.has(p.dataKey));
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 5 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
       className="bg-white/90 backdrop-blur-xl border border-white/40 rounded-2xl p-4 text-xs shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
     >
       <p className="font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">{label}</p>
+      {isNormMode && (
+        <p className="text-[10px] text-blue-500 font-semibold mb-2 uppercase tracking-wide">% mín–máx histórico</p>
+      )}
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-4 mb-1.5">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: p.color }} />
             <span className="text-slate-500 font-medium">{p.name}</span>
           </div>
-          <span className="font-bold text-slate-900">{p.value}</span>
+          <span className="font-bold text-slate-900">
+            {p.value != null ? (isNormMode ? `${p.value}%` : p.value) : '—'}
+          </span>
         </div>
       ))}
     </motion.div>
@@ -357,35 +364,6 @@ export default function GarminCardiac() {
   const [syncDays, setSyncDays] = useState(30);
   const importRef = useRef(null);
 
-  // ---- Load from server JSON file on mount ----
-  useEffect(() => {
-    fetch('/api/garmin/data')
-      .then(r => r.ok ? r.json() : null)
-      .then(db => {
-        if (!db || !db.data?.length) return;
-        setData(prev => {
-          if (prev && prev.length) {
-            const byDate = {};
-            [...db.data, ...prev].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-            const merged = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-            localStorage.setItem('garmin_cardiac_data', JSON.stringify(merged));
-            return merged;
-          }
-          localStorage.setItem('garmin_cardiac_data', JSON.stringify(db.data));
-          return db.data;
-        });
-        if (db.sleepData?.length) {
-          setSleepData(db.sleepData);
-          localStorage.setItem('garmin_sleep_data', JSON.stringify(db.sleepData));
-        }
-        if (db.lastSync) {
-          const t = new Date(db.lastSync).toLocaleString('es-ES');
-          setLastSync(t);
-          localStorage.setItem('garmin_last_sync', t);
-        }
-      })
-      .catch(() => { /* server not running, use localStorage */ });
-  }, []);
 
   // ---- Streaming fetch ----
   const fetchHealth = useCallback(async (usr, pwd, days, mergeExisting = false) => {
@@ -487,11 +465,6 @@ export default function GarminCardiac() {
       localStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
       setCreds({ username: usr, password: pwd });
     }
-    fetch('/api/garmin/data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: final, lastSync: new Date().toISOString() }),
-    }).catch(() => {});
   };
 
   // ---- Export JSON ----
@@ -547,7 +520,6 @@ export default function GarminCardiac() {
     localStorage.removeItem('garmin_cardiac_data');
     localStorage.removeItem('garmin_creds');
     localStorage.removeItem('garmin_last_sync');
-    fetch('/api/garmin/data', { method: 'DELETE' }).catch(() => {});
   };
 
   // ---- Derived stats ----
@@ -627,6 +599,37 @@ export default function GarminCardiac() {
     const bestBBMonth   = withBB.length  ? withBB.reduce((a,b)  => +a.avgBB  > +b.avgBB  ? a : b) : null;
     const worstBBMonth  = withBB.length  ? withBB.reduce((a,b)  => +a.avgBB  < +b.avgBB  ? a : b) : null;
 
+    // ── Calculate 15-day rolling averages for min/max peaks ──
+    const rolling15 = data.map((d, i) => {
+      const startIdx = Math.max(0, i - 14);
+      const window = data.slice(startIdx, i + 1);
+      
+      const hrVals = window.map(w => w.restingHR).filter(v => v != null && !isNaN(v));
+      const hrAvg15 = hrVals.length >= 5 ? +(hrVals.reduce((a,b)=>a+b,0)/hrVals.length).toFixed(1) : null;
+      
+      const hrvVals = window.map(w => w.hrv).filter(v => v != null && !isNaN(v));
+      const hrvAvg15 = hrvVals.length >= 5 ? +(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length).toFixed(1) : null;
+
+      return { date: d.date, hrAvg15, hrvAvg15 };
+    });
+
+    const rolling15Year = rolling15.filter(d => new Date(d.date).getTime() >= oneYearAgo);
+
+    const hrvAllTime = rolling15.map(d => d.hrvAvg15).filter(v => v != null);
+    const hrAllTime = rolling15.map(d => d.hrAvg15).filter(v => v != null);
+    const hrvYear = rolling15Year.map(d => d.hrvAvg15).filter(v => v != null);
+    const hrYear = rolling15Year.map(d => d.hrAvg15).filter(v => v != null);
+
+    const maxHRVAll = hrvAllTime.length ? Math.max(...hrvAllTime) : null;
+    const minHRVAll = hrvAllTime.length ? Math.min(...hrvAllTime) : null;
+    const maxHRVYear = hrvYear.length ? Math.max(...hrvYear) : null;
+    const minHRVYear = hrvYear.length ? Math.min(...hrvYear) : null;
+
+    const maxHRAll = hrAllTime.length ? Math.max(...hrAllTime) : null;
+    const minHRAll = hrAllTime.length ? Math.min(...hrAllTime) : null;
+    const maxHRYear = hrYear.length ? Math.max(...hrYear) : null;
+    const minHRYear = hrYear.length ? Math.min(...hrYear) : null;
+
     return {
       avgHR:    avgHR?.toFixed(1),
       avg7HR:   avg7HR?.toFixed(1),
@@ -653,18 +656,31 @@ export default function GarminCardiac() {
       bestHRVMonth, worstHRVMonth,
       bestHRMonth,  worstHRMonth,
       bestBBMonth,  worstBBMonth,
+      maxHRVAll, minHRVAll, maxHRVYear, minHRVYear,
+      maxHRAll, minHRAll, maxHRYear, minHRYear,
     };
   }, [data]);
 
   const chartData = useMemo(() => {
     if (!data) return [];
     const raw = buildChartData(data, sleepData || [], chartGranularity);
-    // Normalize HR and HRV to 0-100 so they share one axis
-    // HR is inverted (lower = better), HRV is direct (higher = better)
-    const hrs  = raw.map(d => d.restingHR).filter(v => v != null);
-    const hrvs = raw.map(d => d.hrv).filter(v => v != null);
-    const hrMin  = Math.min(...hrs),  hrMax  = Math.max(...hrs);
-    const hrvMin = Math.min(...hrvs), hrvMax = Math.max(...hrvs);
+    // Normalize each metric to 0-100 based on ALL-TIME historical min/max (raw daily data)
+    // HR is inverted (lower HR = higher %), HRV/BB/Sleep are direct (higher = higher %)
+    const rawHRs    = data.filter(d => d.restingHR).map(d => d.restingHR);
+    const rawHRVs   = data.filter(d => d.hrv).map(d => d.hrv);
+    const rawBBHigh = data.filter(d => d.bbHigh != null).map(d => d.bbHigh);
+    const rawBBLow  = data.filter(d => d.bbLow  != null).map(d => d.bbLow);
+    const rawSleep  = (sleepData || []).filter(s => s.score != null).map(s => s.score);
+    const hrMin      = rawHRs.length    ? Math.min(...rawHRs)    : 0;
+    const hrMax      = rawHRs.length    ? Math.max(...rawHRs)    : 100;
+    const hrvMin     = rawHRVs.length   ? Math.min(...rawHRVs)   : 0;
+    const hrvMax     = rawHRVs.length   ? Math.max(...rawHRVs)   : 100;
+    const bbHighMin  = rawBBHigh.length ? Math.min(...rawBBHigh) : 0;
+    const bbHighMax  = rawBBHigh.length ? Math.max(...rawBBHigh) : 100;
+    const bbLowMin   = rawBBLow.length  ? Math.min(...rawBBLow)  : 0;
+    const bbLowMax   = rawBBLow.length  ? Math.max(...rawBBLow)  : 100;
+    const sleepMin   = rawSleep.length  ? Math.min(...rawSleep)  : 0;
+    const sleepMax   = rawSleep.length  ? Math.max(...rawSleep)  : 100;
     const norm = (v, min, max) => max === min ? 50 : +((v - min) / (max - min) * 100).toFixed(1);
     
     return raw.map((d, i) => {
@@ -720,12 +736,15 @@ export default function GarminCardiac() {
 
       return {
         ...d,
-        hrNorm:  d.restingHR != null ? 100 - norm(d.restingHR, hrMin, hrMax) : null,
-        hrvNorm: d.hrv       != null ? norm(d.hrv, hrvMin, hrvMax)            : null,
+        hrNorm:       d.restingHR  != null ? 100 - norm(d.restingHR, hrMin, hrMax)   : null,
+        hrvNorm:      d.hrv        != null ? norm(d.hrv, hrvMin, hrvMax)              : null,
+        bbHighNorm:   d.bbHigh     != null ? norm(d.bbHigh, bbHighMin, bbHighMax)     : null,
+        bbLowNorm:    d.bbLow      != null ? norm(d.bbLow,  bbLowMin,  bbLowMax)      : null,
+        sleepHistNorm: d.sleepScore != null ? norm(d.sleepScore, sleepMin, sleepMax)  : null,
         baselineHrv,
         baselineHr,
-        baselineHrvNorm: baselineHrv != null ? norm(baselineHrv, hrvMin, hrvMax) : null,
-        baselineHrNorm:  baselineHr != null ? 100 - norm(baselineHr, hrMin, hrMax) : null,
+        baselineHrvNorm: baselineHrv != null ? norm(baselineHrv, hrvMin, hrvMax)        : null,
+        baselineHrNorm:  baselineHr  != null ? 100 - norm(baselineHr, hrMin, hrMax)    : null,
         sleepNorm: d.sleepScore,
         readinessScore,
         hrvMinusHr: d.restingHR != null && d.hrv != null ? +(d.hrv - d.restingHR).toFixed(1) : null,
@@ -770,7 +789,7 @@ export default function GarminCardiac() {
           </p>
           <p className="text-amber-700 text-xs leading-relaxed">
             Se usan para autenticarte en Garmin Connect y descargar FC reposo + HRV.
-            El proxy corre en <code className="bg-amber-100 rounded px-1 text-amber-900">localhost:3001</code> — nada va a internet salvo la petición a Garmin.
+            Las credenciales se usan únicamente para autenticarte en Garmin Connect — nada más va a internet.
           </p>
         </div>
 
@@ -897,7 +916,8 @@ export default function GarminCardiac() {
 
   const hrAxisOnly = stats?.hasHR && !(stats?.hasHRV && showHRV);
   const bothVisible = stats?.hasHR && showHR && stats?.hasHRV && showHRV;
-  const useNorm = normalizeChart && bothVisible;
+  const anyCardiacVisible = (stats?.hasHR && showHR) || (stats?.hasHRV && showHRV);
+  const useNorm = normalizeChart && anyCardiacVisible;
 
   const latestReadiness = chartData.length > 0 ? chartData[chartData.length - 1].readinessScore : null;
 
@@ -1332,19 +1352,29 @@ export default function GarminCardiac() {
                 <span className="text-slate-600">Sueño (pts)</span>
               </button>
             )}
-            {bothVisible && (
+            {(stats?.hasHRV || stats?.hasHR) && (
               <button
                 onClick={() => setNormalizeChart(v => !v)}
-                title="Normalizar VFC y FC al mismo eje para comparar tendencias"
-                className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-all ${
+                title="Ver como % del mínimo y máximo histórico de todos los datos"
+                className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border transition-all ${
                   normalizeChart
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-500'
                 }`}
               >
-                ~%
+                % hist.
               </button>
             )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 ml-2 text-[10px] text-slate-500">
+                <span className="w-3 h-3 bg-emerald-50 rounded-sm border border-emerald-100 flex items-center justify-center text-emerald-400">H</span>
+                Zona mejor hist. FC
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                <span className="w-3 h-3 bg-purple-50 rounded-sm border border-purple-100 flex items-center justify-center text-purple-400">H</span>
+                Zona mejor hist. VFC
+              </div>
+            </div>
             <button
               onClick={() => setShowBaseline(v => !v)}
               className={`flex items-center gap-1.5 text-xs font-medium transition-opacity ${showBaseline ? 'opacity-100' : 'opacity-35'}`}
@@ -1408,11 +1438,13 @@ export default function GarminCardiac() {
               {useNorm ? (
                 <YAxis
                   yAxisId="norm"
-                  domain={['auto', 'auto']}
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
                   tick={{ fontSize: 10, fill: '#94a3b8' }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={v => `${v}%`}
+                  label={{ value: '% hist.', angle: -90, position: 'insideLeft', offset: 8, style: { fill: '#94a3b8', fontSize: 9 } }}
                 />
               ) : (
                 <>
@@ -1441,7 +1473,7 @@ export default function GarminCardiac() {
                   )}
                 </>
               )}
-              {stats?.hasBB && (showBBHigh || showBBLow) && (
+              {stats?.hasBB && (showBBHigh || showBBLow) && !useNorm && (
                 <YAxis
                   yAxisId="bb"
                   orientation="right"
@@ -1463,6 +1495,51 @@ export default function GarminCardiac() {
                 />
               )}
               <Tooltip content={<CustomTooltip />} />
+              
+              {!useNorm && stats?.hasHRV && showHRV && stats.maxHRVYear && (
+                <>
+                  <ReferenceLine
+                    yAxisId="hrv"
+                    y={stats.maxHRVYear}
+                    stroke="#8b5cf6"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                    label={{ position: 'insideBottomRight', value: `Pico año ${stats.maxHRVYear}ms`, fill: '#8b5cf6', fontSize: 9 }}
+                  />
+                  {stats.maxHRVAll && stats.maxHRVAll > stats.maxHRVYear && (
+                    <ReferenceArea
+                      yAxisId="hrv"
+                      y1={stats.maxHRVYear}
+                      y2={stats.maxHRVAll}
+                      fill="#8b5cf6"
+                      fillOpacity={0.05}
+                    />
+                  )}
+                </>
+              )}
+              
+              {!useNorm && stats?.hasHR && showHR && stats.minHRYear && (
+                <>
+                  <ReferenceLine
+                    yAxisId="hr"
+                    y={stats.minHRYear}
+                    stroke="#10b981"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                    label={{ position: 'insideTopLeft', value: `Mejor año ${stats.minHRYear} bpm`, fill: '#10b981', fontSize: 9 }}
+                  />
+                  {stats.minHRAll && stats.minHRAll < stats.minHRYear && (
+                    <ReferenceArea
+                      yAxisId="hr"
+                      y1={stats.minHRAll}
+                      y2={stats.minHRYear}
+                      fill="#10b981"
+                      fillOpacity={0.05}
+                    />
+                  )}
+                </>
+              )}
+
               {stats?.hasHRV && showHRV && showBaseline && (
                 <Line
                   yAxisId={useNorm ? 'norm' : 'hrv'}
@@ -1521,10 +1598,10 @@ export default function GarminCardiac() {
               )}
               {stats?.hasBB && showBBHigh && (
                 <Area
-                  yAxisId="bb"
+                  yAxisId={useNorm ? 'norm' : 'bb'}
                   type="monotone"
-                  dataKey="bbHigh"
-                  name="BB máx"
+                  dataKey={useNorm ? 'bbHighNorm' : 'bbHigh'}
+                  name={useNorm ? 'BB máx (%)' : 'BB máx'}
                   stroke="#10b981"
                   fill="url(#colorBb)"
                   strokeWidth={2}
@@ -1535,10 +1612,10 @@ export default function GarminCardiac() {
               )}
               {stats?.hasBB && showBBLow && (
                 <Line
-                  yAxisId="bb"
+                  yAxisId={useNorm ? 'norm' : 'bb'}
                   type="monotone"
-                  dataKey="bbLow"
-                  name="BB mín"
+                  dataKey={useNorm ? 'bbLowNorm' : 'bbLow'}
+                  name={useNorm ? 'BB mín (%)' : 'BB mín'}
                   stroke="#10b981"
                   strokeWidth={1.5}
                   strokeDasharray="4 4"
@@ -1551,8 +1628,8 @@ export default function GarminCardiac() {
                 <Area
                   yAxisId={useNorm ? 'norm' : 'sleep'}
                   type="monotone"
-                  dataKey={useNorm ? 'sleepNorm' : 'sleepScore'}
-                  name="Puntuación Sueño"
+                  dataKey={useNorm ? 'sleepHistNorm' : 'sleepScore'}
+                  name={useNorm ? 'Sueño (%)' : 'Puntuación Sueño'}
                   stroke="#6366f1"
                   fill="url(#colorSleep)"
                   strokeWidth={3}
@@ -1566,7 +1643,7 @@ export default function GarminCardiac() {
                   yAxisId={useNorm ? 'norm' : 'hrv'}
                   type="monotone"
                   dataKey="readinessScore"
-                  name="Readiness Score"
+                  name={useNorm ? 'Readiness (%)' : 'Readiness Score'}
                   stroke="#eab308"
                   fill="url(#colorReadiness)"
                   strokeWidth={4}

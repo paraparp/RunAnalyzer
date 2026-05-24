@@ -11,6 +11,7 @@ import TrainingPlanner from './components/TrainingPlanner';
 import RacePredictor from './components/RacePredictor';
 import RunQA from './components/RunQA';
 import DataExporter from './components/DataExporter';
+import StatusSnapshot from './components/StatusSnapshot';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
@@ -66,7 +67,8 @@ import {
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: Squares2X2Icon },
+  { id: 'dashboard',  icon: Squares2X2Icon },
+  { id: 'status',     icon: TrophyIcon },
   { id: 'hranalysis', icon: HeartIcon },
   { id: 'fitness', icon: ChartPieIcon },
   { id: 'technique', icon: FireIcon },
@@ -91,7 +93,7 @@ const NAV_ITEMS = [
 ];
 
 const NAV_CATEGORIES = [
-  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
+  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
   { id: 'performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'cardiac', 'injury', 'vo2tracker', 'lactate'] },
@@ -1158,6 +1160,12 @@ const Dashboard = ({ user, handleLogout }) => {
               </div>
             )}
 
+            {currentView === 'status' && (
+              <div className="fade-in">
+                <StatusSnapshot activities={stravaData?.activities || []} />
+              </div>
+            )}
+
             {currentView === 'hranalysis' && (
               <div className="fade-in">
                 <HRAnalysis
@@ -1283,7 +1291,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {currentView === 'export' && (
               <div className="fade-in">
-                <DataExporter activities={runningActivities} onEnrichActivity={handleFetchDetails} />
+                <DataExporter activities={stravaData?.activities || []} onEnrichActivity={handleFetchDetails} />
               </div>
             )}
           </div>
