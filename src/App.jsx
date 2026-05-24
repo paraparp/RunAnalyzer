@@ -17,7 +17,6 @@ import CollapsibleSection from './components/CollapsibleSection';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
 import HRAnalysis from './components/HRAnalysis';
-import FitnessFatigue from './components/FitnessFatigue';
 import TechniqueAnalysis from './components/TechniqueAnalysis';
 import GlobalHeatmap from './components/GlobalHeatmap';
 import RouteGallery from './components/RouteGallery';
@@ -25,7 +24,6 @@ import TrainingZones from './components/TrainingZones';
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import VDOTEstimator from './components/VDOTEstimator';
 import GearTracker from './components/GearTracker';
-import WeeklyProgression from './components/WeeklyProgression';
 import SplitAnalysis from './components/SplitAnalysis';
 import RaceDetector from './components/RaceDetector';
 import CardiacDecoupling from './components/CardiacDecoupling';
@@ -34,7 +32,7 @@ import InjuryRisk from './components/InjuryRisk';
 import VO2MaxTracker from './components/VO2MaxTracker';
 import LactateThreshold from './components/LactateThreshold';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
-import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, TextInput, TabGroup, TabList, Tab } from "@tremor/react";
+import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
@@ -70,7 +68,6 @@ const NAV_ITEMS = [
   { id: 'dashboard',  icon: Squares2X2Icon },
   { id: 'status',     icon: TrophyIcon },
   { id: 'hranalysis', icon: HeartIcon },
-  { id: 'fitness', icon: ChartPieIcon },
   { id: 'technique', icon: FireIcon },
   { id: 'zones', icon: SignalIcon },
   { id: 'heatmap', icon: MapIcon },
@@ -81,9 +78,8 @@ const NAV_ITEMS = [
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'qa', icon: ChatBubbleLeftRightIcon },
-  { id: 'weekly', icon: ChartBarIcon },
   { id: 'splits', icon: BoltIcon },
-  { id: 'races', icon: FireIcon },
+  { id: 'records', icon: TrophyIcon },
   { id: 'decoupling', icon: SignalIcon },
   { id: 'cardiac', icon: HeartIcon },
   { id: 'injury', icon: ShieldExclamationIcon },
@@ -93,10 +89,10 @@ const NAV_ITEMS = [
 ];
 
 const NAV_CATEGORIES = [
-  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'fitness', 'technique', 'zones', 'consistency', 'gear'] },
+  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['weekly', 'splits', 'races', 'decoupling', 'cardiac', 'injury', 'vo2tracker', 'lactate'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['splits', 'records', 'decoupling', 'cardiac', 'injury', 'vo2tracker', 'lactate'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -1160,140 +1156,47 @@ const Dashboard = ({ user, handleLogout }) => {
               </div>
             )}
 
-            {currentView === 'status' && (
-              <div className="fade-in">
-                <StatusSnapshot activities={stravaData?.activities || []} />
-              </div>
-            )}
-
-            {currentView === 'hranalysis' && (
-              <div className="fade-in">
-                <HRAnalysis
-                  activities={runningActivities}
-                  onEnrichActivity={handleFetchDetails}
-                />
-              </div>
-            )}
-
-            {currentView === 'fitness' && (
-              <div className="fade-in">
-                <FitnessFatigue activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'technique' && (
-              <div className="fade-in">
-                <TechniqueAnalysis activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'zones' && (
-              <div className="fade-in">
-                <TrainingZones activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'heatmap' && (
-              <div className="fade-in">
-                <GlobalHeatmap activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'gallery' && (
-              <div className="fade-in">
-                <RouteGallery activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'consistency' && (
-              <div className="fade-in">
-                <ConsistencyHeatmap activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'vdot' && (
-              <div className="fade-in">
-                <VDOTEstimator activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'gear' && (
-              <div className="fade-in">
-                <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />
-              </div>
-            )}
-
-            {currentView === 'planner' && (
-              <div className="fade-in">
-                <TrainingPlanner activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'predictor' && (
-              <div className="fade-in">
-                <RacePredictor activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'qa' && (
-              <div className="fade-in">
-                <RunQA activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'weekly' && (
-              <div className="fade-in">
-                <WeeklyProgression activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'splits' && (
-              <div className="fade-in">
-                <SplitAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />
-              </div>
-            )}
-
-            {currentView === 'races' && (
-              <div className="fade-in">
-                <RaceDetector activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'decoupling' && (
-              <div className="fade-in">
-                <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />
-              </div>
-            )}
-
-            {currentView === 'cardiac' && (
-              <div className="fade-in">
-                <GarminCardiac />
-              </div>
-            )}
-
-            {currentView === 'injury' && (
-              <div className="fade-in">
-                <InjuryRisk activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'vo2tracker' && (
-              <div className="fade-in">
-                <VO2MaxTracker activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'lactate' && (
-              <div className="fade-in">
-                <LactateThreshold activities={runningActivities} />
-              </div>
-            )}
-
-            {currentView === 'export' && (
-              <div className="fade-in">
-                <DataExporter activities={stravaData?.activities || []} onEnrichActivity={handleFetchDetails} />
-              </div>
-            )}
+            {currentView !== 'dashboard' && (() => {
+              const allActivities = stravaData?.activities || [];
+              const viewMap = {
+                status:      <StatusSnapshot activities={allActivities} />,
+                hranalysis:  <HRAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
+                technique:   <TechniqueAnalysis activities={runningActivities} />,
+                zones:       <TrainingZones activities={runningActivities} />,
+                heatmap:     <GlobalHeatmap activities={runningActivities} />,
+                gallery:     <RouteGallery activities={runningActivities} />,
+                consistency: <ConsistencyHeatmap activities={runningActivities} />,
+                vdot:        <VDOTEstimator activities={runningActivities} />,
+                gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
+                planner:     <TrainingPlanner activities={runningActivities} />,
+                predictor:   <RacePredictor activities={runningActivities} />,
+                qa:          <RunQA activities={runningActivities} />,
+                splits:      <SplitAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
+                records: (
+                  <div className="space-y-6">
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800">{t('dashboard.personal_bests')}</h3>
+                          <p className="text-[11px] text-slate-400">{t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}</p>
+                        </div>
+                        <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
+                      </div>
+                      <PersonalBests activities={runningActivities} />
+                    </div>
+                    <RaceDetector activities={runningActivities} />
+                  </div>
+                ),
+                decoupling:  <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
+                cardiac:     <GarminCardiac />,
+                injury:      <InjuryRisk activities={runningActivities} />,
+                vo2tracker:  <VO2MaxTracker activities={runningActivities} />,
+                lactate:     <LactateThreshold activities={runningActivities} />,
+                export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
+              };
+              const view = viewMap[currentView];
+              return view ? <div className="fade-in">{view}</div> : null;
+            })()}
           </div>
         </main>
       </div>

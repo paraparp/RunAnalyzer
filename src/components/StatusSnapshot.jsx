@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Text } from '@tremor/react';
+import FitnessFatigue from './FitnessFatigue';
+import WeeklyProgression from './WeeklyProgression';
 import {
   ComposedChart, Area, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
@@ -578,9 +580,10 @@ export default function StatusSnapshot({ activities }) {
       const raw = localStorage.getItem('garmin_cardiac_data');
       if (raw) return computeGarminStats(JSON.parse(raw));
     } catch {}
-    // fallback: try the static JSON if available
     return null;
   }, []);
+
+  const [tab, setTab] = useState('estado');
 
   if (!stats) {
     return (
@@ -762,6 +765,26 @@ export default function StatusSnapshot({ activities }) {
 
   return (
     <div className="space-y-4">
+
+      {/* ── Tab bar ── */}
+      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1">
+        {[
+          { id: 'estado', label: 'Estado' },
+          { id: 'pmc',    label: 'PMC / Fitness' },
+          { id: 'semanal', label: 'Semanal' },
+        ].map(({ id, label }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+              tab === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'pmc'    && <FitnessFatigue activities={activities} />}
+      {tab === 'semanal' && <WeeklyProgression activities={activities} />}
+      {tab === 'estado' && <>
 
       {/* ── Phase Banner ── */}
       <PhaseBanner tsb={currentTSB} acwr={currentACWR} garmin={garmin} />
@@ -1253,6 +1276,7 @@ export default function StatusSnapshot({ activities }) {
         </>
       )}
 
+      </>}
     </div>
   );
 }

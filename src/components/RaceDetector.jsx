@@ -183,26 +183,6 @@ export default function RaceDetector({ activities }) {
         )}
       </div>
 
-      {/* PRs */}
-      {Object.keys(prs).length > 0 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-4">{t('races.personal_records')}</Title>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {DISTANCE_CATEGORIES.filter(c => c.id !== 'other' && prs[c.id]).map(cat => {
-              const pr = prs[cat.id];
-              return (
-                <div key={cat.id} className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200 p-4 text-center">
-                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">{cat.label}</p>
-                  <p className="text-xl font-black text-slate-900 tabular-nums">{pr.timeLabel}</p>
-                  <p className="text-xs text-slate-500 mt-1">{pr.paceLabel}/km</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{pr.dateLabel}</p>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
       {/* Progression charts */}
       {Object.entries(progressionData).filter(([, data]) => data.length >= 2).map(([catId, data]) => {
         const cat = DISTANCE_CATEGORIES.find(c => c.id === catId);
