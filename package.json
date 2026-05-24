@@ -12,7 +12,9 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.38",
     "@ai-sdk/google": "^3.0.22",
+    "@ai-sdk/groq": "^3.0.39",
     "@ai-sdk/openai": "^3.0.26",
+    "@ai-sdk/xai": "^3.0.92",
     "@heroicons/react": "^2.2.0",
     "@mapbox/polyline": "^1.2.1",
     "@react-oauth/google": "^0.13.4",

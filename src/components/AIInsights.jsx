@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGroq } from '@ai-sdk/groq';
 import { streamText } from 'ai';
 import {
   SparklesIcon,
@@ -99,25 +100,56 @@ const buildPrompt = (activities, garminData) => {
   const withHR = recentActs.filter(a => a.average_heartrate);
   const avgHR  = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
-  // Garmin biometrics — 7d vs 14d delta gives trend direction
+  // ── 30-day window ────────────────────────────────────────────────────────────
+  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
+
+  // Garmin: day-by-day log last 30d + summary averages
   let hrv14 = null, hrv7 = null, rhr14 = null, rhr7 = null, hrvStatus = null;
+  let garminLog = '';
   if (garminData?.length) {
+    const sorted = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
+    hrvStatus = sorted[0]?.hrvStatus ?? null;
+
     const w14 = new Date(now); w14.setDate(now.getDate() - 14);
     const w7  = new Date(now); w7.setDate(now.getDate() - 7);
-    const rec14 = garminData.filter(d => new Date(d.date) >= w14);
-    const rec7  = garminData.filter(d => new Date(d.date) >= w7);
+    const rec30 = sorted.filter(d => new Date(d.date) >= month1);
+    const rec14 = sorted.filter(d => new Date(d.date) >= w14);
+    const rec7  = sorted.filter(d => new Date(d.date) >= w7);
 
-    const hrv14arr = rec14.filter(d => d.hrv);
-    const hrv7arr  = rec7.filter(d => d.hrv);
-    const rhr14arr = rec14.filter(d => d.restingHR);
-    const rhr7arr  = rec7.filter(d => d.restingHR);
+    const avg = (arr, key) => arr.filter(d => d[key]).reduce((s, d) => s + d[key], 0) / (arr.filter(d => d[key]).length || 1);
+    hrv14 = rec14.some(d => d.hrv)      ? avg(rec14, 'hrv').toFixed(1)      : null;
+    hrv7  = rec7.some(d => d.hrv)       ? avg(rec7,  'hrv').toFixed(1)      : null;
+    rhr14 = rec14.some(d => d.restingHR) ? avg(rec14, 'restingHR').toFixed(0) : null;
+    rhr7  = rec7.some(d => d.restingHR)  ? avg(rec7,  'restingHR').toFixed(0) : null;
 
-    hrv14 = hrv14arr.length ? (hrv14arr.reduce((s, d) => s + d.hrv, 0) / hrv14arr.length).toFixed(1) : null;
-    hrv7  = hrv7arr.length  ? (hrv7arr.reduce((s, d) => s + d.hrv, 0) / hrv7arr.length).toFixed(1) : null;
-    rhr14 = rhr14arr.length ? (rhr14arr.reduce((s, d) => s + d.restingHR, 0) / rhr14arr.length).toFixed(0) : null;
-    rhr7  = rhr7arr.length  ? (rhr7arr.reduce((s, d) => s + d.restingHR, 0) / rhr7arr.length).toFixed(0) : null;
-    hrvStatus = garminData.sort((a, b) => b.date.localeCompare(a.date))[0]?.hrvStatus ?? null;
+    // Compact day-by-day: date|VFC|RHR|status|sleep|stress
+    garminLog = rec30.map(d => {
+      const parts = [d.date.slice(5)]; // MM-DD
+      if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
+      if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
+      if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
+      if (d.sleepHours) parts.push(`sueño=${d.sleepHours}h`);
+      if (d.sleepScore) parts.push(`sueñoScore=${d.sleepScore}`);
+      if (d.stress)     parts.push(`estrés=${d.stress}`);
+      return parts.join(' ');
+    }).join('\n');
   }
+
+  // ── Activity log last 30d (individual sessions) ───────────────────────────
+  const month1Acts = yearActs.filter(a => new Date(a.start_date) >= month1);
+  const actLog = month1Acts
+    .sort((a, b) => b.start_date.localeCompare(a.start_date))
+    .map(a => {
+      const km   = (a.distance / 1000).toFixed(1);
+      const min  = (a.moving_time || 0) / 60;
+      const pace = km > 0 ? (() => { const p = min / km; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })() : null;
+      const parts = [a.start_date.slice(5, 10), `${km}km`];
+      if (pace)              parts.push(`@${pace}/km`);
+      if (a.average_heartrate) parts.push(`FC=${Math.round(a.average_heartrate)}ppm`);
+      if (min > 0)           parts.push(`${Math.round(min)}min`);
+      if (a.suffer_score)    parts.push(`sufr=${a.suffer_score}`);
+      return parts.join(' ');
+    }).join('\n');
 
   const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} salidas)`).join(' | ');
 
@@ -126,7 +158,7 @@ const buildPrompt = (activities, garminData) => {
     hrv7  ? `VFC 7d=${hrv7}ms${hrv14 ? ` (${Number(hrv7) >= Number(hrv14) ? '↑ mejorando' : '↓ bajando'})` : ''}` : null,
     rhr14 ? `FC reposo 14d=${rhr14}ppm` : null,
     rhr7  ? `FC reposo 7d=${rhr7}ppm${rhr14 ? ` (${Number(rhr7) <= Number(rhr14) ? 'estable' : '↑ elevada'})` : ''}` : null,
-    hrvStatus ? `Estado Garmin: "${hrvStatus}"` : null,
+    hrvStatus ? `Estado Garmin hoy: "${hrvStatus}"` : null,
   ].filter(Boolean).join(', ');
 
   const trainingSection = [
@@ -161,9 +193,11 @@ Basándote en el estado actual y la carga de esta semana, diseña la sesión de 
 Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
 
 DATOS DEL ATLETA:
-${physioSection ? `Fisiología Garmin: ${physioSection}` : 'Sin datos de wearable.'}
-Entrenamiento: ${trainingSection}
-Desglose semanal reciente: ${weekTable}
+${physioSection ? `Fisiología Garmin (resumen): ${physioSection}` : 'Sin datos de wearable.'}
+${garminLog ? `Garmin día a día (últimos 30d):\n${garminLog}` : ''}
+Entrenamiento (resumen 4 sem): ${trainingSection}
+${actLog ? `Actividades últimos 30d (más reciente primero):\n${actLog}` : ''}
+Desglose semanal: ${weekTable}
 Historial mensual (mes:km/sesiones): ${monthHistory}
 
 REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente en segunda persona. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
@@ -182,16 +216,30 @@ const formatTs = (ts) => {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 };
 
+// ── Available Gemini models ──────────────────────────────────────────────────
+const GEMINI_MODELS = [
+  { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
+  { id: 'gemini-3.5-flash',      label: '3.5 Flash · mejor calidad'     },
+  { id: 'gemini-2.5-flash',      label: '2.5 Flash · equilibrado'       },
+];
+const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+
 // ── Main component ───────────────────────────────────────────────────────────
 const AIInsights = ({ activities }) => {
   const [cur, setCur]           = useState('');
   const [trend, setTrend]       = useState('');
   const [nextWork, setNextWork] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [loaded, setLoaded]     = useState(false);
-  const [garmin, setGarmin]     = useState(undefined);
-  const [cacheTs, setCacheTs]   = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [loaded, setLoaded]         = useState(false);
+  const [garmin, setGarmin]         = useState(undefined);
+  const [cacheTs, setCacheTs]       = useState(null);
   const [restoreWarning, setRestoreWarning] = useState(false);
+  const [providerLabel, setProviderLabel]   = useState('');
+  const [usedProvider, setUsedProvider]     = useState('');
+  const [isFallback, setIsFallback]         = useState(false);
+  const [selectedModel, setSelectedModel]   = useState(
+    () => localStorage.getItem('ai_insights_model') || DEFAULT_MODEL
+  );
 
   // Load Garmin data
   useEffect(() => {
@@ -230,69 +278,91 @@ const AIInsights = ({ activities }) => {
       }
     }
 
-    const key = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!key) {
-      setCur('**API Key no configurada** · Añade `VITE_GEMINI_API_KEY` en tu `.env` para activar el análisis.');
+    // Build provider chain from available keys
+    const providers = [
+      {
+        name: GEMINI_MODELS.find(m => m.id === selectedModel)?.label.split(' ·')[0] ?? 'Gemini',
+        key: import.meta.env.VITE_GEMINI_API_KEY,
+        getModel: (k) => createGoogleGenerativeAI({ apiKey: k })(selectedModel),
+      },
+      {
+        name: 'Groq Llama',
+        key: import.meta.env.VITE_GROQ_API_KEY,
+        getModel: (k) => createGroq({ apiKey: k })('llama-3.3-70b-versatile'),
+      },
+    ].filter(p => p.key);
+
+    if (!providers.length) {
+      setCur('**Sin API Key configurada** · Añade `VITE_GEMINI_API_KEY`, `VITE_OPENAI_API_KEY` o `VITE_ANTHROPIC_API_KEY` en tu `.env`.');
       setTrend('');
       return;
     }
 
-    // Save current recommendation as backup before wiping for new stream
-    const prevCur = cur;
-    const prevTrend = trend;
-    const prevNextWork = nextWork;
-    const prevTs = cacheTs;
+    // Save backup before wiping
+    const prevCur = cur; const prevTrend = trend; const prevNextWork = nextWork; const prevTs = cacheTs;
     try {
       localStorage.setItem('ai_insights_backup', JSON.stringify({
         cur: prevCur, trend: prevTrend, nextWork: prevNextWork, timestamp: prevTs,
       }));
     } catch {}
 
-    setLoading(true); setCur(''); setTrend(''); setNextWork('');
-    try {
-      const google = createGoogleGenerativeAI({ apiKey: key });
-      const res = streamText({
-        model: google('gemini-3.5-flash'),
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.4,
-      });
-      let full = '';
-      for await (const chunk of res.textStream) {
-        full += chunk;
+    setLoading(true); setCur(''); setTrend(''); setNextWork(''); setUsedProvider(''); setIsFallback(false);
+
+    let succeeded = false;
+    for (let i = 0; i < providers.length; i++) {
+      const provider = providers[i];
+      setIsFallback(i > 0);
+      setProviderLabel(i === 0 ? `Consultando ${provider.name}…` : `${providers[i-1].name} falló · probando ${provider.name}…`);
+      try {
+        const res = streamText({
+          model: provider.getModel(provider.key),
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.4,
+          maxRetries: 0,
+        });
+        let full = '';
+        for await (const chunk of res.textStream) {
+          full += chunk;
+          const parts = full.split('|||');
+          if (parts.length >= 1) setCur(parts[0].trim());
+          if (parts.length >= 2) setTrend(parts[1].trim());
+          if (parts.length >= 3) setNextWork(parts[2].trim());
+        }
+        setLoaded(true);
+        setUsedProvider(provider.name);
         const parts = full.split('|||');
-        if (parts.length >= 1) setCur(parts[0].trim());
-        if (parts.length >= 2) setTrend(parts[1].trim());
-        if (parts.length >= 3) setNextWork(parts[2].trim());
+        const ts = Date.now();
+        setCacheTs(ts);
+        localStorage.setItem('ai_insights_cache', JSON.stringify({
+          prompt,
+          cur: (parts[0] ?? '').trim(),
+          trend: (parts[1] ?? '').trim(),
+          nextWork: (parts[2] ?? '').trim(),
+          timestamp: ts,
+          provider: provider.name,
+        }));
+        localStorage.removeItem('ai_insights_backup');
+        succeeded = true;
+        break;
+      } catch (e) {
+        console.warn(`[AIInsights] ${provider.name} falló:`, e);
+        setCur(''); setTrend(''); setNextWork('');
       }
-      setLoaded(true);
-      const parts = full.split('|||');
-      const finalCur      = (parts[0] ?? '').trim();
-      const finalTrend    = (parts[1] ?? '').trim();
-      const finalNextWork = (parts[2] ?? '').trim();
-      const ts = Date.now();
-      setCacheTs(ts);
-      localStorage.setItem('ai_insights_cache', JSON.stringify({ prompt, cur: finalCur, trend: finalTrend, nextWork: finalNextWork, timestamp: ts }));
-      // Remove backup once successful
-      localStorage.removeItem('ai_insights_backup');
-    } catch (e) {
-      console.error(e);
-      // Restore previous valid recommendation if available
+    }
+
+    if (!succeeded) {
       if (prevCur) {
-        setCur(prevCur);
-        setTrend(prevTrend);
-        setNextWork(prevNextWork);
-        setCacheTs(prevTs);
+        setCur(prevCur); setTrend(prevTrend); setNextWork(prevNextWork); setCacheTs(prevTs);
         setRestoreWarning(true);
         setTimeout(() => setRestoreWarning(false), 6000);
       } else {
-        setCur('**Error de conexión** · Verifica tu API Key y tu red.');
-        setTrend('');
-        setNextWork('');
+        setCur('**Sin respuesta de ningún modelo** · El modelo puede estar saturado (429). Cambia de modelo en el selector o añade `VITE_XAI_API_KEY` para activar Grok como fallback.');
+        setTrend(''); setNextWork('');
       }
-    } finally {
-      setLoading(false);
     }
-  }, [activities, garmin]);
+    setProviderLabel('');
+    setLoading(false);
+  }, [activities, garmin, selectedModel]);
 
   useEffect(() => {
     if (!loaded && activities?.length >= 3 && garmin !== undefined) run(false);
@@ -326,6 +396,22 @@ const AIInsights = ({ activities }) => {
               {formatTs(cacheTs)}
             </span>
           )}
+          <select
+            value={selectedModel}
+            disabled={loading}
+            onChange={e => {
+              const m = e.target.value;
+              localStorage.setItem('ai_insights_model', m);
+              setSelectedModel(m);
+              setLoaded(false);
+            }}
+            className="text-[11px] text-slate-500 bg-transparent border border-slate-200 rounded-lg px-2 py-1.5 pr-6 font-medium hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+          >
+            {GEMINI_MODELS.map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => { setLoaded(false); run(true); }}
             disabled={loading}
@@ -333,10 +419,22 @@ const AIInsights = ({ activities }) => {
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 transition-all"
           >
             <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{loading ? 'Analizando…' : 'Recalcular'}</span>
+            <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
           </button>
         </div>
       </div>
+
+      {/* ── Loading status banner ── */}
+      {loading && providerLabel && (
+        <div className={`flex items-center gap-2 px-5 py-2 border-b text-[11px] font-medium ${
+          isFallback
+            ? 'bg-amber-50 border-amber-100 text-amber-700'
+            : 'bg-blue-50 border-blue-100 text-blue-600'
+        }`}>
+          <ArrowPathIcon className="w-3 h-3 animate-spin shrink-0" />
+          {providerLabel}
+        </div>
+      )}
 
       {/* ── Restore warning banner ── */}
       {restoreWarning && (
@@ -394,7 +492,7 @@ const AIInsights = ({ activities }) => {
       {/* ── Footer badge ── */}
       <div className="px-5 py-2 bg-slate-50/60 border-t border-slate-100 flex items-center gap-1.5">
         <SparklesIcon className="w-3 h-3 text-slate-300" />
-        <span className="text-[10px] text-slate-400 font-medium">Gemini 3.5 Flash · Los datos se cachean hasta que registres nueva actividad</span>
+        <span className="text-[10px] text-slate-400 font-medium">{usedProvider || 'IA'} · Los datos se cachean hasta que registres nueva actividad</span>
       </div>
     </div>
   );
