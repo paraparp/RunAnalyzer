@@ -7,6 +7,7 @@ import {
   HeartIcon,
   ArrowTrendingUpIcon,
   ClockIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
@@ -138,15 +139,26 @@ const buildPrompt = (activities, garminData) => {
 
   return `Eres un entrenador de running y fisiólogo deportivo de élite. Tu objetivo es dar un diagnóstico ACCIONABLE, no solo describir los datos.
 
-Devuelve EXACTAMENTE dos bloques separados por "|||", sin ningún texto fuera de ellos:
+Devuelve EXACTAMENTE tres bloques separados por "|||", sin ningún texto fuera de ellos:
 
-BLOQUE 1 — DIAGNÓSTICO Y RECOMENDACIÓN DE ESTA SEMANA:
-Con los datos fisiológicos (VFC/HRV + FC reposo) y la carga reciente, determina el estado real del atleta (recuperado, fatigado, sobreentrenado, en forma). Incluye UNA recomendación concreta de entrenamiento para los próximos 7 días (ej: "reduce intensidad", "añade una sesión de ritmo", "descansa 2 días"). Máx 3 bullets. Usa **negrita** para el diagnóstico y la recomendación clave.
+BLOQUE 1 — DIAGNÓSTICO DE ESTA SEMANA:
+Con los datos fisiológicos (VFC/HRV + FC reposo) y la carga reciente, determina el estado real (recuperado, fatigado, sobreentrenado, en forma). Incluye una recomendación semanal concreta. Máx 3 bullets. Usa **negrita** para el diagnóstico clave.
 
 |||
 
 BLOQUE 2 — TENDENCIA Y PATRÓN ANUAL:
-Identifica patrones en el historial mensual: ¿hay progresión, estancamiento, lesión encubierta, pico-caída? Señala el mejor período y el más débil. Finaliza con una recomendación de objetivo para las próximas 4-6 semanas basada en la tendencia. Máx 3 bullets. Usa **negrita** para el patrón detectado.
+Identifica patrones en el historial mensual: progresión, estancamiento, pico-caída, lesión encubierta. Señala el mejor y peor período. Recomendación de objetivo 4-6 semanas. Máx 3 bullets. Usa **negrita** para el patrón detectado.
+
+|||
+
+BLOQUE 3 — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
+Basándote en el estado actual y la carga de esta semana, diseña la sesión de running más adecuada para los próximos 1-2 días. Especifica EXACTAMENTE:
+- Tipo de sesión (regenerativo, aeróbico base, tempo, intervalos, rodaje largo)
+- Distancia en km (valor concreto, ej: 8-10 km)
+- Ritmo objetivo en min/km (ej: 5:30-5:45 min/km)
+- Zona de FC objetivo (ej: Zona 2 · 130-145 ppm) o esfuerzo percibido
+- Una advertencia o condición si aplica (ej: "para si FC>160", "no si llueve")
+Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
 
 DATOS DEL ATLETA:
 ${physioSection ? `Fisiología Garmin: ${physioSection}` : 'Sin datos de wearable.'}
@@ -154,7 +166,7 @@ Entrenamiento: ${trainingSection}
 Desglose semanal reciente: ${weekTable}
 Historial mensual (mes:km/sesiones): ${monthHistory}
 
-REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
+REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente en segunda persona. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
 };
 
 // ── Timestamp formatter ──────────────────────────────────────────────────────
@@ -172,12 +184,14 @@ const formatTs = (ts) => {
 
 // ── Main component ───────────────────────────────────────────────────────────
 const AIInsights = ({ activities }) => {
-  const [cur, setCur]       = useState('');
-  const [trend, setTrend]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded]   = useState(false);
-  const [garmin, setGarmin]   = useState(undefined);
-  const [cacheTs, setCacheTs] = useState(null);
+  const [cur, setCur]           = useState('');
+  const [trend, setTrend]       = useState('');
+  const [nextWork, setNextWork] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [loaded, setLoaded]     = useState(false);
+  const [garmin, setGarmin]     = useState(undefined);
+  const [cacheTs, setCacheTs]   = useState(null);
+  const [restoreWarning, setRestoreWarning] = useState(false);
 
   // Load Garmin data
   useEffect(() => {
@@ -205,6 +219,7 @@ const AIInsights = ({ activities }) => {
           if (parsed.prompt === prompt && parsed.cur && parsed.trend) {
             setCur(parsed.cur);
             setTrend(parsed.trend);
+            if (parsed.nextWork) setNextWork(parsed.nextWork);
             setCacheTs(parsed.timestamp);
             setLoaded(true);
             return;
@@ -225,14 +240,15 @@ const AIInsights = ({ activities }) => {
     // Save current recommendation as backup before wiping for new stream
     const prevCur = cur;
     const prevTrend = trend;
+    const prevNextWork = nextWork;
     const prevTs = cacheTs;
     try {
       localStorage.setItem('ai_insights_backup', JSON.stringify({
-        cur: prevCur, trend: prevTrend, timestamp: prevTs,
+        cur: prevCur, trend: prevTrend, nextWork: prevNextWork, timestamp: prevTs,
       }));
     } catch {}
 
-    setLoading(true); setCur(''); setTrend('');
+    setLoading(true); setCur(''); setTrend(''); setNextWork('');
     try {
       const google = createGoogleGenerativeAI({ apiKey: key });
       const res = streamText({
@@ -243,17 +259,19 @@ const AIInsights = ({ activities }) => {
       let full = '';
       for await (const chunk of res.textStream) {
         full += chunk;
-        const sep = full.indexOf('|||');
-        if (sep !== -1) { setCur(full.slice(0, sep).trim()); setTrend(full.slice(sep + 3).trim()); }
-        else setCur(full);
+        const parts = full.split('|||');
+        if (parts.length >= 1) setCur(parts[0].trim());
+        if (parts.length >= 2) setTrend(parts[1].trim());
+        if (parts.length >= 3) setNextWork(parts[2].trim());
       }
       setLoaded(true);
-      const sep = full.indexOf('|||');
-      const finalCur   = sep !== -1 ? full.slice(0, sep).trim() : full;
-      const finalTrend = sep !== -1 ? full.slice(sep + 3).trim() : '';
+      const parts = full.split('|||');
+      const finalCur      = (parts[0] ?? '').trim();
+      const finalTrend    = (parts[1] ?? '').trim();
+      const finalNextWork = (parts[2] ?? '').trim();
       const ts = Date.now();
       setCacheTs(ts);
-      localStorage.setItem('ai_insights_cache', JSON.stringify({ prompt, cur: finalCur, trend: finalTrend, timestamp: ts }));
+      localStorage.setItem('ai_insights_cache', JSON.stringify({ prompt, cur: finalCur, trend: finalTrend, nextWork: finalNextWork, timestamp: ts }));
       // Remove backup once successful
       localStorage.removeItem('ai_insights_backup');
     } catch (e) {
@@ -262,12 +280,14 @@ const AIInsights = ({ activities }) => {
       if (prevCur) {
         setCur(prevCur);
         setTrend(prevTrend);
+        setNextWork(prevNextWork);
         setCacheTs(prevTs);
         setRestoreWarning(true);
         setTimeout(() => setRestoreWarning(false), 6000);
       } else {
         setCur('**Error de conexión** · Verifica tu API Key y tu red.');
         setTrend('');
+        setNextWork('');
       }
     } finally {
       setLoading(false);
@@ -318,7 +338,19 @@ const AIInsights = ({ activities }) => {
         </div>
       </div>
 
-      {/* ── Content grid ── */}
+      {/* ── Restore warning banner ── */}
+      {restoreWarning && (
+        <div className="flex items-center gap-2 px-5 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 font-medium">
+          <span className="shrink-0">⚠</span>
+          Falló la actualización — mostrando la recomendación anterior guardada.
+          <button
+            onClick={() => setRestoreWarning(false)}
+            className="ml-auto text-amber-400 hover:text-amber-600 transition-colors font-bold leading-none"
+          >✕</button>
+        </div>
+      )}
+
+      {/* ── Content grid: Diagnosis + Trend ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
 
         {/* Block 1: Current state */}
@@ -328,10 +360,7 @@ const AIInsights = ({ activities }) => {
             <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Estado actual</span>
             <span className="text-[10px] text-slate-400 font-medium">· últimas 4 semanas</span>
           </div>
-          {loading && !cur
-            ? <Pulse />
-            : <MD text={cur} accent="text-blue-500" />
-          }
+          {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
         </div>
 
         {/* Block 2: Annual trend */}
@@ -341,12 +370,26 @@ const AIInsights = ({ activities }) => {
             <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia anual</span>
             <span className="text-[10px] text-slate-400 font-medium">· 12 meses</span>
           </div>
-          {loading && !trend
-            ? <Pulse />
-            : <MD text={trend} accent="text-indigo-500" />
-          }
+          {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
         </div>
       </div>
+
+      {/* ── Block 3: Next workout ── */}
+      {(nextWork || (loading && !nextWork)) && (
+        <div className="border-t border-slate-100 bg-blue-50/30 px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1 rounded-md bg-blue-100">
+              <BoltIcon className="w-3 h-3 text-blue-600" />
+            </div>
+            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Próximo entrenamiento</span>
+            <span className="text-[10px] text-slate-400 font-medium">· recomendación personalizada</span>
+          </div>
+          {loading && !nextWork
+            ? <Pulse />
+            : <MD text={nextWork} accent="text-blue-600" />
+          }
+        </div>
+      )}
 
       {/* ── Footer badge ── */}
       <div className="px-5 py-2 bg-slate-50/60 border-t border-slate-100 flex items-center gap-1.5">
