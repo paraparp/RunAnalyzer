@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
 import { streamText } from 'ai';
@@ -9,6 +9,7 @@ import {
   ArrowTrendingUpIcon,
   ClockIcon,
   BoltIcon,
+  MoonIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
@@ -52,26 +53,26 @@ const Pulse = () => (
 const buildPrompt = (activities, garminData) => {
   const now = new Date();
   const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-  const week4 = new Date(now); week4.setDate(now.getDate() - 28);
-  const week8 = new Date(now); week8.setDate(now.getDate() - 56);
+  const week4  = new Date(now); week4.setDate(now.getDate() - 28);
+  const week8  = new Date(now); week8.setDate(now.getDate() - 56);
+  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
 
   const yearActs = activities.filter(a => new Date(a.start_date) >= yearAgo);
   if (!yearActs.length) return null;
 
-  // Weekly breakdown of recent 4 weeks
+  // ── Weekly breakdown (4 weeks) ────────────────────────────────────────────
   const byWeek = [0, 1, 2, 3].map(w => {
     const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
     const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
-    const acts = yearActs.filter(a => {
-      const d = new Date(a.start_date);
-      return d >= wStart && d < wEnd;
-    });
-    const km = acts.reduce((s, a) => s + a.distance / 1000, 0);
-    const sessions = acts.length;
-    return { week: w === 0 ? 'Sem actual' : `Sem -${w}`, km: km.toFixed(0), sessions };
+    const acts = yearActs.filter(a => { const d = new Date(a.start_date); return d >= wStart && d < wEnd; });
+    return {
+      week: w === 0 ? 'Sem actual' : `Sem -${w}`,
+      km: acts.reduce((s, a) => s + a.distance / 1000, 0).toFixed(0),
+      sessions: acts.length,
+    };
   }).reverse();
 
-  // Monthly volume history
+  // ── Monthly volume (year) ─────────────────────────────────────────────────
   const byM = {};
   for (const a of yearActs) {
     const k = a.start_date.slice(0, 7);
@@ -83,48 +84,47 @@ const buildPrompt = (activities, garminData) => {
     .map(([m, s]) => `${m.slice(5)}:${s.km.toFixed(0)}km/${s.n}s`)
     .join(' ');
 
-  // Acute (4w) vs Chronic (8w) load for ACWR approximation
+  // ── ACWR (4w acute / 8w chronic) ─────────────────────────────────────────
   const recentActs = yearActs.filter(a => new Date(a.start_date) >= week4);
   const prevActs   = yearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
   const recentKm   = recentActs.reduce((s, a) => s + a.distance / 1000, 0);
   const prevKm     = prevActs.reduce((s, a) => s + a.distance / 1000, 0);
-  const chronicKm  = (recentKm + prevKm) / 2; // avg 4-week blocks as chronic
-  const acwr       = chronicKm > 0 ? (recentKm / chronicKm).toFixed(2) : null;
-  const loadDelta  = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
+  const chronicKm  = (recentKm + prevKm) / 2;
+  const acwr        = chronicKm > 0 ? (recentKm / chronicKm).toFixed(2) : null;
+  const loadDelta   = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
-  const recentMin  = recentActs.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
-  const avgPace    = recentKm > 0
+  const recentMin = recentActs.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
+  const avgPace   = recentKm > 0
     ? (() => { const p = recentMin / recentKm; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
     : null;
+  const withHR  = recentActs.filter(a => a.average_heartrate);
+  const avgHR   = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
-  const withHR = recentActs.filter(a => a.average_heartrate);
-  const avgHR  = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
-
-  // ── 30-day window ────────────────────────────────────────────────────────────
-  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
-
-  // Garmin: day-by-day log last 30d + summary averages
-  let hrv14 = null, hrv7 = null, rhr14 = null, rhr7 = null, hrvStatus = null;
+  // ── Garmin: day-by-day (30d) + summary averages ───────────────────────────
+  // Store as numbers to avoid string-comparison bugs
+  let hrv14n = null, hrv7n = null, rhr14n = null, rhr7n = null, hrvStatus = null;
   let garminLog = '';
   if (garminData?.length) {
     const sorted = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
     hrvStatus = sorted[0]?.hrvStatus ?? null;
 
-    const w14 = new Date(now); w14.setDate(now.getDate() - 14);
-    const w7  = new Date(now); w7.setDate(now.getDate() - 7);
+    const w14   = new Date(now); w14.setDate(now.getDate() - 14);
+    const w7    = new Date(now); w7.setDate(now.getDate() - 7);
     const rec30 = sorted.filter(d => new Date(d.date) >= month1);
     const rec14 = sorted.filter(d => new Date(d.date) >= w14);
     const rec7  = sorted.filter(d => new Date(d.date) >= w7);
 
-    const avg = (arr, key) => arr.filter(d => d[key]).reduce((s, d) => s + d[key], 0) / (arr.filter(d => d[key]).length || 1);
-    hrv14 = rec14.some(d => d.hrv)      ? avg(rec14, 'hrv').toFixed(1)      : null;
-    hrv7  = rec7.some(d => d.hrv)       ? avg(rec7,  'hrv').toFixed(1)      : null;
-    rhr14 = rec14.some(d => d.restingHR) ? avg(rec14, 'restingHR').toFixed(0) : null;
-    rhr7  = rec7.some(d => d.restingHR)  ? avg(rec7,  'restingHR').toFixed(0) : null;
+    const avg = (arr, key) => {
+      const valid = arr.filter(d => d[key]);
+      return valid.length ? valid.reduce((s, d) => s + d[key], 0) / valid.length : null;
+    };
+    hrv14n = avg(rec14, 'hrv');
+    hrv7n  = avg(rec7,  'hrv');
+    rhr14n = avg(rec14, 'restingHR');
+    rhr7n  = avg(rec7,  'restingHR');
 
-    // Compact day-by-day: date|VFC|RHR|status|sleep|stress
     garminLog = rec30.map(d => {
-      const parts = [d.date.slice(5)]; // MM-DD
+      const parts = [d.date.slice(5)];
       if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
       if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
       if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
@@ -135,38 +135,42 @@ const buildPrompt = (activities, garminData) => {
     }).join('\n');
   }
 
-  // ── Activity log last 30d (individual sessions) ───────────────────────────
-  const month1Acts = yearActs.filter(a => new Date(a.start_date) >= month1);
-  const actLog = month1Acts
+  // ── Activity log (30d individual) ────────────────────────────────────────
+  const actLog = yearActs
+    .filter(a => new Date(a.start_date) >= month1)
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
     .map(a => {
-      const km   = (a.distance / 1000).toFixed(1);
-      const min  = (a.moving_time || 0) / 60;
-      const pace = km > 0 ? (() => { const p = min / km; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })() : null;
+      const kmNum = a.distance / 1000;
+      const km    = kmNum.toFixed(1);
+      const min   = (a.moving_time || 0) / 60;
+      const pace  = kmNum > 0 && min > 0
+        ? (() => { const p = min / kmNum; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
+        : null;
       const parts = [a.start_date.slice(5, 10), `${km}km`];
-      if (pace)              parts.push(`@${pace}/km`);
+      if (pace)                parts.push(`@${pace}/km`);
       if (a.average_heartrate) parts.push(`FC=${Math.round(a.average_heartrate)}ppm`);
-      if (min > 0)           parts.push(`${Math.round(min)}min`);
-      if (a.suffer_score)    parts.push(`sufr=${a.suffer_score}`);
+      if (min > 0)             parts.push(`${Math.round(min)}min`);
+      if (a.suffer_score)      parts.push(`sufr=${a.suffer_score}`);
       return parts.join(' ');
     }).join('\n');
 
+  // ── Sections ─────────────────────────────────────────────────────────────
   const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} salidas)`).join(' | ');
 
   const physioSection = [
-    hrv14 ? `VFC 14d=${hrv14}ms` : null,
-    hrv7  ? `VFC 7d=${hrv7}ms${hrv14 ? ` (${Number(hrv7) >= Number(hrv14) ? '↑ mejorando' : '↓ bajando'})` : ''}` : null,
-    rhr14 ? `FC reposo 14d=${rhr14}ppm` : null,
-    rhr7  ? `FC reposo 7d=${rhr7}ppm${rhr14 ? ` (${Number(rhr7) <= Number(rhr14) ? 'estable' : '↑ elevada'})` : ''}` : null,
+    hrv14n != null ? `VFC 14d=${hrv14n.toFixed(1)}ms` : null,
+    hrv7n  != null ? `VFC 7d=${hrv7n.toFixed(1)}ms${hrv14n != null ? ` (${hrv7n >= hrv14n ? '↑ mejorando' : '↓ bajando'})` : ''}` : null,
+    rhr14n != null ? `FC reposo 14d=${rhr14n.toFixed(0)}ppm` : null,
+    rhr7n  != null ? `FC reposo 7d=${rhr7n.toFixed(0)}ppm${rhr14n != null ? ` (${rhr7n <= rhr14n ? 'estable' : '↑ elevada'})` : ''}` : null,
     hrvStatus ? `Estado Garmin hoy: "${hrvStatus}"` : null,
   ].filter(Boolean).join(', ');
 
   const trainingSection = [
     `Total 4 sem: ${recentKm.toFixed(0)}km en ${recentActs.length} salidas`,
-    avgPace ? `ritmo medio ${avgPace}min/km` : null,
-    avgHR ? `FC media carrera ${avgHR}ppm` : null,
-    loadDelta !== null ? `Carga vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
-    acwr !== null ? `ACWR aprox: ${acwr} (óptimo 0.8–1.3)` : null,
+    avgPace   ? `ritmo medio ${avgPace}min/km` : null,
+    avgHR     ? `FC media carrera ${avgHR}ppm` : null,
+    loadDelta != null ? `Carga vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
+    acwr      != null ? `ACWR aprox: ${acwr} (óptimo 0.8–1.3)` : null,
   ].filter(Boolean).join(', ');
 
   return `Eres un entrenador de running y fisiólogo deportivo de élite. Tu objetivo es dar un diagnóstico ACCIONABLE, no solo describir los datos.
@@ -229,10 +233,10 @@ const AIInsights = ({ activities }) => {
   const [cur, setCur]           = useState('');
   const [trend, setTrend]       = useState('');
   const [nextWork, setNextWork] = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [loaded, setLoaded]         = useState(false);
-  const [garmin, setGarmin]         = useState(undefined);
-  const [cacheTs, setCacheTs]       = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [loaded, setLoaded]     = useState(false);
+  const [garmin, setGarmin]     = useState(undefined);
+  const [cacheTs, setCacheTs]   = useState(null);
   const [restoreWarning, setRestoreWarning] = useState(false);
   const [providerLabel, setProviderLabel]   = useState('');
   const [usedProvider, setUsedProvider]     = useState('');
@@ -241,8 +245,16 @@ const AIInsights = ({ activities }) => {
     () => localStorage.getItem('ai_insights_model') || DEFAULT_MODEL
   );
 
+  // Ref to always-current state for backup/restore inside run (avoids stale closure)
+  const stateRef = useRef({ cur, trend, nextWork, cacheTs });
+  useEffect(() => { stateRef.current = { cur, trend, nextWork, cacheTs }; }, [cur, trend, nextWork, cacheTs]);
+
+  // Ref to abort ongoing stream on unmount or new run
+  const abortRef = useRef(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   // Load Garmin data
-  useEffect(() => {
+  const loadGarminData = () => {
     try {
       const s = localStorage.getItem('garmin_cardiac_data');
       if (s) { setGarmin(JSON.parse(s)); return; }
@@ -251,6 +263,12 @@ const AIInsights = ({ activities }) => {
       .then(r => r.ok ? r.json() : null)
       .then(j => setGarmin(j?.data ?? null))
       .catch(() => setGarmin(null));
+  };
+
+  useEffect(() => {
+    loadGarminData();
+    window.addEventListener('garmin_sync_complete', loadGarminData);
+    return () => window.removeEventListener('garmin_sync_complete', loadGarminData);
   }, []);
 
   const run = useCallback(async (force = false) => {
@@ -258,17 +276,18 @@ const AIInsights = ({ activities }) => {
     const prompt = buildPrompt(activities, garmin);
     if (!prompt) return;
 
-    // Check cache
+    // Check cache — key includes model so switching models bypasses cache
     if (!force) {
       try {
         const cached = localStorage.getItem('ai_insights_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed.prompt === prompt && parsed.cur && parsed.trend) {
+          if (parsed.prompt === prompt && parsed.model === selectedModel && parsed.cur && parsed.trend) {
             setCur(parsed.cur);
             setTrend(parsed.trend);
             if (parsed.nextWork) setNextWork(parsed.nextWork);
             setCacheTs(parsed.timestamp);
+            setUsedProvider(parsed.provider ?? '');
             setLoaded(true);
             return;
           }
@@ -293,106 +312,150 @@ const AIInsights = ({ activities }) => {
     ].filter(p => p.key);
 
     if (!providers.length) {
-      setCur('**Sin API Key configurada** · Añade `VITE_GEMINI_API_KEY`, `VITE_OPENAI_API_KEY` o `VITE_ANTHROPIC_API_KEY` en tu `.env`.');
+      setCur('**Sin API Key configurada** · Añade `VITE_GEMINI_API_KEY` o `VITE_GROQ_API_KEY` en tu `.env`.');
       setTrend('');
+      setLoaded(true);
       return;
     }
 
-    // Save backup before wiping
-    const prevCur = cur; const prevTrend = trend; const prevNextWork = nextWork; const prevTs = cacheTs;
+    // Snapshot current state via ref (avoids stale closure)
+    const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, cacheTs: prevTs } = stateRef.current;
     try {
       localStorage.setItem('ai_insights_backup', JSON.stringify({
         cur: prevCur, trend: prevTrend, nextWork: prevNextWork, timestamp: prevTs,
       }));
     } catch {}
 
+    // Abort any previous in-flight stream
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true); setCur(''); setTrend(''); setNextWork(''); setUsedProvider(''); setIsFallback(false);
 
     let succeeded = false;
-    for (let i = 0; i < providers.length; i++) {
-      const provider = providers[i];
-      setIsFallback(i > 0);
-      setProviderLabel(i === 0 ? `Consultando ${provider.name}…` : `${providers[i-1].name} falló · probando ${provider.name}…`);
-      try {
-        const res = streamText({
-          model: provider.getModel(provider.key),
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.4,
-          maxRetries: 0,
-        });
-        let full = '';
-        for await (const chunk of res.textStream) {
-          full += chunk;
+    try {
+      for (let i = 0; i < providers.length; i++) {
+        if (controller.signal.aborted) break;
+        const provider = providers[i];
+        setIsFallback(i > 0);
+        setProviderLabel(i === 0
+          ? `Consultando ${provider.name}…`
+          : `${providers[i - 1].name} falló · probando ${provider.name}…`
+        );
+        try {
+          const res = streamText({
+            model: provider.getModel(provider.key),
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.4,
+            maxRetries: 0,
+            abortSignal: controller.signal,
+          });
+          let full = '';
+          for await (const chunk of res.textStream) {
+            full += chunk;
+            const parts = full.split('|||');
+            if (parts.length >= 1) setCur(parts[0].trim());
+            if (parts.length >= 2) setTrend(parts[1].trim());
+            if (parts.length >= 3) setNextWork(parts[2].trim());
+          }
+          setUsedProvider(provider.name);
           const parts = full.split('|||');
-          if (parts.length >= 1) setCur(parts[0].trim());
-          if (parts.length >= 2) setTrend(parts[1].trim());
-          if (parts.length >= 3) setNextWork(parts[2].trim());
+          const ts = Date.now();
+          setCacheTs(ts);
+          localStorage.setItem('ai_insights_cache', JSON.stringify({
+            prompt,
+            model: selectedModel,
+            cur:      (parts[0] ?? '').trim(),
+            trend:    (parts[1] ?? '').trim(),
+            nextWork: (parts[2] ?? '').trim(),
+            timestamp: ts,
+            provider: provider.name,
+          }));
+          localStorage.removeItem('ai_insights_backup');
+          succeeded = true;
+          break;
+        } catch (e) {
+          if (controller.signal.aborted) break;
+          console.warn(`[AIInsights] ${provider.name} falló:`, e);
+          setCur(''); setTrend(''); setNextWork('');
         }
-        setLoaded(true);
-        setUsedProvider(provider.name);
-        const parts = full.split('|||');
-        const ts = Date.now();
-        setCacheTs(ts);
-        localStorage.setItem('ai_insights_cache', JSON.stringify({
-          prompt,
-          cur: (parts[0] ?? '').trim(),
-          trend: (parts[1] ?? '').trim(),
-          nextWork: (parts[2] ?? '').trim(),
-          timestamp: ts,
-          provider: provider.name,
-        }));
-        localStorage.removeItem('ai_insights_backup');
-        succeeded = true;
-        break;
-      } catch (e) {
-        console.warn(`[AIInsights] ${provider.name} falló:`, e);
-        setCur(''); setTrend(''); setNextWork('');
       }
-    }
 
-    if (!succeeded) {
-      if (prevCur) {
-        setCur(prevCur); setTrend(prevTrend); setNextWork(prevNextWork); setCacheTs(prevTs);
-        setRestoreWarning(true);
-        setTimeout(() => setRestoreWarning(false), 6000);
-      } else {
-        setCur('**Sin respuesta de ningún modelo** · El modelo puede estar saturado (429). Cambia de modelo en el selector o añade `VITE_XAI_API_KEY` para activar Grok como fallback.');
-        setTrend(''); setNextWork('');
+      if (!succeeded && !controller.signal.aborted) {
+        if (prevCur) {
+          setCur(prevCur); setTrend(prevTrend); setNextWork(prevNextWork); setCacheTs(prevTs);
+          setRestoreWarning(true);
+          setTimeout(() => setRestoreWarning(false), 6000);
+        } else {
+          setCur('**Sin respuesta de ningún modelo** · Puede ser rate-limit (429). Cambia de modelo en el selector o añade `VITE_GROQ_API_KEY` para activar el fallback.');
+          setTrend(''); setNextWork('');
+        }
       }
+    } finally {
+      setProviderLabel('');
+      setLoading(false);
+      setLoaded(true);
     }
-    setProviderLabel('');
-    setLoading(false);
   }, [activities, garmin, selectedModel]);
 
   useEffect(() => {
-    if (!loaded && activities?.length >= 3 && garmin !== undefined) run(false);
-  }, [activities, garmin, loaded, run]);
+    if (activities?.length >= 3 && garmin !== undefined) run(false);
+  }, [activities, garmin, run]);
 
   if (!activities || activities.length < 3) return null;
 
   const hasGarmin = garmin?.length > 0;
 
+  // ── Workout parser for the premium prescription ticket ──────────────────────
+  const parseWorkout = (text) => {
+    if (!text) return null;
+    let type = "Base Aeróbica";
+    const typeMatch = text.match(/\*\*(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)\*\*/i) 
+      || text.match(/(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)/i);
+    if (typeMatch) type = typeMatch[1];
+
+    let distance = null;
+    const distMatch = text.match(/\*\*([0-9]+(?:-[0-9]+)?\s*k?m)\*\*/i) 
+      || text.match(/([0-9]+(?:-[0-9]+)?\s*k?m)/i);
+    if (distMatch) distance = distMatch[1];
+
+    let pace = null;
+    const paceMatch = text.match(/\*\*([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?\s*min\/km)\*\*/i) 
+      || text.match(/([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?\s*min\/km)/i)
+      || text.match(/([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?)/i);
+    if (paceMatch) pace = paceMatch[1];
+
+    let hrZone = null;
+    const hrMatch = text.match(/\*\*(Zona \d+(?:\s*·\s*\d+-\d+\s*ppm)?)\*\*/i)
+      || text.match(/(Zona \d+(?:\s*·\s*\d+-\d+\s*ppm)?)/i)
+      || text.match(/(Zona \d+)/i);
+    if (hrMatch) hrZone = hrMatch[1];
+
+    return { type, distance, pace, hrZone };
+  };
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl overflow-hidden transition-all duration-300 relative">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100/60 bg-white/40">
         <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-lg bg-blue-50">
-            <SparklesIcon className="w-4 h-4 text-blue-600" />
+          <div className="p-2 rounded-xl bg-blue-50/80 text-blue-600 shadow-sm">
+            <SparklesIcon className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-800 leading-tight">Diagnóstico IA</h3>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              {hasGarmin ? 'VFC · FC reposo · Carga de entrenamiento' : 'Basado en actividad Strava'}
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+              {hasGarmin ? 'Wearable VFC & Pulso · Carga de Entrenamiento' : 'Carga & Ritmos de Actividad Strava'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {cacheTs && !loading && (
-            <span className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400">
-              <ClockIcon className="w-3 h-3" />
+            <span className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+              <ClockIcon className="w-3.5 h-3.5" />
               {formatTs(cacheTs)}
             </span>
           )}
@@ -405,8 +468,8 @@ const AIInsights = ({ activities }) => {
               setSelectedModel(m);
               setLoaded(false);
             }}
-            className="text-[11px] text-slate-500 bg-transparent border border-slate-200 rounded-lg px-2 py-1.5 pr-6 font-medium hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
           >
             {GEMINI_MODELS.map(m => (
               <option key={m.id} value={m.id}>{m.label}</option>
@@ -416,7 +479,7 @@ const AIInsights = ({ activities }) => {
             onClick={() => { setLoaded(false); run(true); }}
             disabled={loading}
             title="Recalcular diagnóstico"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 disabled:opacity-30 transition-all border border-transparent hover:border-blue-100"
           >
             <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
@@ -426,19 +489,19 @@ const AIInsights = ({ activities }) => {
 
       {/* ── Loading status banner ── */}
       {loading && providerLabel && (
-        <div className={`flex items-center gap-2 px-5 py-2 border-b text-[11px] font-medium ${
+        <div className={`flex items-center gap-2 px-5 py-2.5 border-b text-[11px] font-bold ${
           isFallback
-            ? 'bg-amber-50 border-amber-100 text-amber-700'
-            : 'bg-blue-50 border-blue-100 text-blue-600'
+            ? 'bg-amber-50/70 border-amber-100 text-amber-700'
+            : 'bg-blue-50/70 border-blue-100 text-blue-600'
         }`}>
-          <ArrowPathIcon className="w-3 h-3 animate-spin shrink-0" />
+          <ArrowPathIcon className="w-3.5 h-3.5 animate-spin shrink-0" />
           {providerLabel}
         </div>
       )}
 
       {/* ── Restore warning banner ── */}
       {restoreWarning && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 font-medium">
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-50/70 border-b border-amber-100 text-[11px] text-amber-700 font-bold">
           <span className="shrink-0">⚠</span>
           Falló la actualización — mostrando la recomendación anterior guardada.
           <button
@@ -449,50 +512,158 @@ const AIInsights = ({ activities }) => {
       )}
 
       {/* ── Content grid: Diagnosis + Trend ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100/60">
 
         {/* Block 1: Current state */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <HeartIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Estado actual</span>
-            <span className="text-[10px] text-slate-400 font-medium">· últimas 4 semanas</span>
+        <div className="p-5 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HeartIcon className="w-4 h-4 text-blue-500 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Estado actual</span>
+              <span className="text-[10px] text-slate-400 font-medium">· últimas 4 semanas</span>
+            </div>
+            {cur && (() => {
+              const text = cur.toLowerCase();
+              let badge = { text: 'Adaptativo 📈', color: 'bg-slate-50 text-slate-600 border-slate-200' };
+              if (text.includes('fatig') || text.includes('cansad')) {
+                badge = { text: 'Fatiga acumulada ⚠️', color: 'bg-orange-50 text-orange-700 border-orange-200' };
+              } else if (text.includes('recuperad') || text.includes('estable')) {
+                badge = { text: 'Recuperado ✅', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+              } else if (text.includes('sobreentren')) {
+                badge = { text: 'Sobreentrenamiento 🚨', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+              } else if (text.includes('forma') || text.includes('óptim') || text.includes('fuerte')) {
+                badge = { text: 'En forma ⚡', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+              }
+              return (
+                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.color}`}>
+                  {badge.text}
+                </span>
+              );
+            })()}
           </div>
-          {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
+          
+          <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
+            {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
+          </div>
         </div>
 
         {/* Block 2: Annual trend */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <ArrowTrendingUpIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia anual</span>
-            <span className="text-[10px] text-slate-400 font-medium">· 12 meses</span>
+        <div className="p-5 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia anual</span>
+              <span className="text-[10px] text-slate-400 font-medium">· 12 meses</span>
+            </div>
+            {trend && (() => {
+              const text = trend.toLowerCase();
+              let badge = { text: 'Estacional 📅', color: 'bg-slate-50 text-slate-600 border-slate-200' };
+              if (text.includes('progres') || text.includes('mejor')) {
+                badge = { text: 'Progresión constante 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+              } else if (text.includes('estanc') || text.includes('meseta') || text.includes('estabil')) {
+                badge = { text: 'Meseta / Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+              } else if (text.includes('lesi') || text.includes('dolor') || text.includes('riesgo')) {
+                badge = { text: 'Riesgo de lesión ⚠️', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+              }
+              return (
+                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.color}`}>
+                  {badge.text}
+                </span>
+              );
+            })()}
           </div>
-          {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
+          
+          <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
+            {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
+          </div>
         </div>
       </div>
 
       {/* ── Block 3: Next workout ── */}
-      {(nextWork || (loading && !nextWork)) && (
-        <div className="border-t border-slate-100 bg-blue-50/30 px-5 py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1 rounded-md bg-blue-100">
-              <BoltIcon className="w-3 h-3 text-blue-600" />
+      {(nextWork || (loading && cur && trend && !nextWork)) && (
+        <div className="border-t border-slate-100/60 bg-gradient-to-r from-blue-50/10 to-indigo-50/10 p-6">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600 shadow-sm border border-blue-100/40">
+              <BoltIcon className="w-4 h-4" />
             </div>
-            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Próximo entrenamiento</span>
-            <span className="text-[10px] text-slate-400 font-medium">· recomendación personalizada</span>
+            <div>
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Sesión Recomendada</span>
+              <span className="text-[10px] text-slate-400 font-semibold">Prescripción de running sugerida para tus próximos 1-2 días</span>
+            </div>
           </div>
-          {loading && !nextWork
-            ? <Pulse />
-            : <MD text={nextWork} accent="text-blue-600" />
-          }
+          
+          {loading && !nextWork ? (
+            <Pulse />
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-5 items-stretch">
+              {/* Prescription Ticket Badge */}
+              {(() => {
+                const w = parseWorkout(nextWork);
+                return (
+                  <>
+                    <div className="flex-1 bg-white border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between relative overflow-hidden">
+                      <div className="absolute right-0 top-0 w-24 h-24 rounded-full bg-blue-500/5 blur-2xl pointer-events-none" />
+                      
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Prescripción IA</span>
+                          <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                            w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60' :
+                            w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border border-amber-100/60' :
+                            w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border border-rose-100/60' :
+                            'bg-blue-50 text-blue-700 border border-blue-100/60'
+                          }`}>
+                            {w?.type || 'Sesión Base'}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Distancia</span>
+                            <span className="text-xs font-black text-slate-800 truncate block">
+                              {w?.distance || 'Varía'}
+                            </span>
+                          </div>
+                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Ritmo Objetivo</span>
+                            <span className="text-xs font-black text-slate-800 truncate block">
+                              {w?.pace || 'Aeróbico'}
+                            </span>
+                          </div>
+                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Intensidad</span>
+                            <span className="text-xs font-black text-slate-800 truncate block">
+                              {w?.hrZone || 'Zona 2'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-3 border-t border-slate-100/60 flex items-center gap-2 text-[10px] text-slate-400 font-semibold">
+                        <span className="text-xs">💡</span>
+                        <span>Sigue las pautas de ritmo y mantente hidratado.</span>
+                      </div>
+                    </div>
+                    
+                    {/* Full guidelines list */}
+                    <div className="flex-1 bg-white/40 border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-center">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Guías de Ejecución</span>
+                      <MD text={nextWork} accent="text-blue-600" />
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Footer badge ── */}
-      <div className="px-5 py-2 bg-slate-50/60 border-t border-slate-100 flex items-center gap-1.5">
-        <SparklesIcon className="w-3 h-3 text-slate-300" />
-        <span className="text-[10px] text-slate-400 font-medium">{usedProvider || 'IA'} · Los datos se cachean hasta que registres nueva actividad</span>
+      <div className="px-5 py-2.5 bg-slate-50/60 border-t border-slate-100/60 flex items-center gap-1.5 bg-white/40">
+        <SparklesIcon className="w-3.5 h-3.5 text-slate-400" />
+        <span className="text-[10px] text-slate-400 font-semibold">
+          {usedProvider || 'IA'} · Recomendación inteligente · Basada en tu carga de entrenamiento
+        </span>
       </div>
     </div>
   );

@@ -8,8 +8,10 @@ import {
   HeartIcon, ArrowPathIcon, TrashIcon, LockClosedIcon,
   CheckCircleIcon, ExclamationTriangleIcon,
   ArrowDownTrayIcon, ArrowUpTrayIcon, MoonIcon,
-  UserIcon, KeyIcon
+  UserIcon, KeyIcon, SparklesIcon, BoltIcon, ClockIcon,
+  ArrowTrendingUpIcon
 } from "@heroicons/react/24/outline";
+
 
 // ---------------------------------------------------------------------------
 // Math helpers
@@ -364,6 +366,22 @@ export default function GarminCardiac() {
   const [syncDays, setSyncDays] = useState(30);
   const importRef = useRef(null);
 
+  useEffect(() => {
+    const handleGarminSync = () => {
+      try {
+        const newData = JSON.parse(localStorage.getItem('garmin_cardiac_data') || 'null');
+        const newSleep = JSON.parse(localStorage.getItem('garmin_sleep_data') || 'null');
+        const newSync = localStorage.getItem('garmin_last_sync');
+        if (newData) setData(newData);
+        if (newSleep) setSleepData(newSleep);
+        if (newSync) setLastSync(newSync);
+      } catch (e) {
+        console.error("Failed to reload garmin data on sync complete", e);
+      }
+    };
+    window.addEventListener('garmin_sync_complete', handleGarminSync);
+    return () => window.removeEventListener('garmin_sync_complete', handleGarminSync);
+  }, []);
 
   // ---- Streaming fetch ----
   const fetchHealth = useCallback(async (usr, pwd, days, mergeExisting = false) => {
@@ -1058,25 +1076,204 @@ export default function GarminCardiac() {
 
       {/* ── Global Readiness ─────────────────────────────────────── */}
       {latestReadiness != null && (
-        <div className="mb-2">
-          <StatCard 
-            label="Recovery & Readiness Score" 
-            value={latestReadiness} 
-            unit="/100" 
-            sub="Combinación algorítmica de VFC, FC reposo, Sueño y Body Battery basada en las últimas 3 semanas (21 días)."
-            accent={latestReadiness >= 80 ? 'green' : latestReadiness >= 60 ? 'blue' : 'orange'}
-          />
+        <div className="mb-2 bg-gradient-to-br from-white/95 to-slate-50/95 backdrop-blur-3xl shadow-[0_12px_38px_rgba(0,0,0,0.06)] border border-slate-100/80 rounded-3xl p-6 transition-all duration-300 hover:shadow-[0_16px_48px_rgba(0,0,0,0.09)] relative overflow-hidden">
+          {/* Glowing background bubble matching the status */}
+          <div className={`absolute -right-16 -top-16 w-72 h-72 rounded-full blur-[65px] opacity-[0.08] pointer-events-none pointer-events-none ${
+            latestReadiness >= 80 ? 'bg-emerald-500' : latestReadiness >= 60 ? 'bg-blue-500' : 'bg-orange-500'
+          }`} />
+          
+          <div className="flex flex-col md:flex-row items-center md:items-start lg:items-center gap-6 lg:gap-8 relative z-10">
+            {/* SVG Circular Progress Ring */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className="relative w-32 h-32 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90">
+                  {/* Track circle */}
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="54"
+                    className="stroke-slate-100"
+                    strokeWidth="9"
+                    fill="transparent"
+                  />
+                  {/* Progress circle */}
+                  <motion.circle
+                    cx="64"
+                    cy="64"
+                    r="54"
+                    className={`${
+                      latestReadiness >= 80 ? 'stroke-emerald-500' : latestReadiness >= 60 ? 'stroke-blue-500' : 'stroke-orange-500'
+                    }`}
+                    strokeWidth="9"
+                    strokeDasharray={2 * Math.PI * 54}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 54 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 54 * (1 - latestReadiness / 100) }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    strokeLinecap="round"
+                    fill="transparent"
+                  />
+                </svg>
+                {/* Score Text */}
+                <div className="absolute flex flex-col items-center text-center">
+                  <span className="text-3xl font-black text-slate-800 tracking-tight leading-none">
+                    {latestReadiness}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Readiness</span>
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ring-4 ring-slate-50/50 ${
+                  latestReadiness >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : latestReadiness >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+                }`}>
+                  {latestReadiness >= 80 ? 'Recuperado' : latestReadiness >= 60 ? 'Moderado' : 'Fatigado'}
+                </span>
+              </div>
+            </div>
+            
+            {/* Factors breakdown */}
+            <div className="flex-1 w-full space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 leading-tight">Recovery & Readiness Details</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  Combinación algorítmica de VFC, FC reposo, Sueño y Body Battery basada en tus datos de las últimas 3 semanas (21 días).
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* factor 1: VFC */}
+                {stats?.hasHRV && (
+                  <div className="flex items-center gap-2.5 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+                    <div className={`p-1.5 rounded-xl shrink-0 ${
+                      stats.latestStatus === 'BALANCED' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
+                    }`}>
+                      <SparklesIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center gap-1">
+                        <span className="text-[11px] font-bold text-slate-700 truncate">VFC</span>
+                        <span className={`text-[8px] font-extrabold uppercase px-1 rounded ${
+                          stats.latestStatus === 'BALANCED' ? 'bg-emerald-100/70 text-emerald-800' : 'bg-rose-100/70 text-rose-800'
+                        }`}>
+                          {stats.latestStatus === 'BALANCED' ? 'Okey' : 'Baja'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        Hoy: <strong className="text-slate-700">{stats.latestHRV ?? '—'} ms</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* factor 2: FC Reposo */}
+                {stats?.hasHR && (
+                  <div className="flex items-center gap-2.5 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+                    <div className={`p-1.5 rounded-xl shrink-0 ${
+                      stats.latestHR && stats.avg21HR && stats.latestHR <= stats.avg21HR ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
+                    }`}>
+                      <HeartIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center gap-1">
+                        <span className="text-[11px] font-bold text-slate-700 truncate">FC Reposo</span>
+                        <span className={`text-[8px] font-extrabold uppercase px-1 rounded ${
+                          stats.latestHR && stats.avg21HR && stats.latestHR <= stats.avg21HR ? 'bg-emerald-100/70 text-emerald-800' : 'bg-rose-100/70 text-rose-800'
+                        }`}>
+                          {stats.latestHR && stats.avg21HR && stats.latestHR <= stats.avg21HR ? 'Okey' : 'Alta'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        Hoy: <strong className="text-slate-700">{stats.latestHR ?? '—'} ppm</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* factor 3: Body Battery */}
+                {stats?.hasBB && (
+                  <div className="flex items-center gap-2.5 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+                    <div className={`p-1.5 rounded-xl shrink-0 ${
+                      stats.latestBBHigh && stats.latestBBHigh >= 60 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
+                    }`}>
+                      <BoltIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center gap-1">
+                        <span className="text-[11px] font-bold text-slate-700 truncate">Body Bat.</span>
+                        <span className={`text-[8px] font-extrabold uppercase px-1 rounded ${
+                          stats.latestBBHigh && stats.latestBBHigh >= 60 ? 'bg-emerald-100/70 text-emerald-800' : 'bg-rose-100/70 text-rose-800'
+                        }`}>
+                          {stats.latestBBHigh && stats.latestBBHigh >= 60 ? 'Ok' : 'Bajo'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        Hoy: <strong className="text-slate-700">{stats.latestBBHigh ?? '—'}/100</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* factor 4: Sueño */}
+                {sleepData?.length > 0 ? (
+                  <div className="flex items-center gap-2.5 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+                    <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
+                      <MoonIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center gap-1">
+                        <span className="text-[11px] font-bold text-slate-700 truncate">Sueño</span>
+                        <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-indigo-100 text-indigo-800">
+                          Ok
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        Score: <strong className="text-slate-700">{sleepData[sleepData.length-1]?.score ?? '—'}/100</strong>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2.5 bg-slate-50/30 p-2.5 rounded-2xl border border-slate-100/50 text-slate-400">
+                    <MoonIcon className="w-4 h-4 shrink-0 text-slate-300" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-bold block truncate">Sueño</span>
+                      <p className="text-[9px] text-slate-400 mt-0.5">Sin wearables</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Interpretive text banner */}
+              <div className={`p-2.5 rounded-2xl border text-xs font-semibold flex items-start sm:items-center gap-2.5 ${
+                latestReadiness >= 80 
+                  ? 'bg-emerald-50/40 border-emerald-100/60 text-emerald-800' 
+                  : latestReadiness >= 60 
+                    ? 'bg-blue-50/40 border-blue-100/60 text-blue-800' 
+                    : 'bg-rose-50/40 border-rose-100/60 text-rose-800'
+              }`}>
+                <span className="text-base leading-none">
+                  {latestReadiness >= 80 ? '🟢' : latestReadiness >= 60 ? '🔵' : '⚠️'}
+                </span>
+                <span className="leading-relaxed">
+                  {latestReadiness >= 80 
+                    ? 'Excelente recuperación. Tu cuerpo está perfectamente adaptado para un entrenamiento de alta intensidad o rodaje exigente.' 
+                    : latestReadiness >= 60 
+                      ? 'Nivel de recuperación aceptable pero con fatiga residual acumulada. Opta por ritmos de base aeróbica moderados hoy.' 
+                      : 'Fatiga aguda detectada. La VFC baja y el pulso basal elevado reflejan estrés del sistema autónomo. Recomendamos descanso total o trote regenerativo suave.'
+                  }
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Fila 1: Estado actual ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* ── Fila 1: Estado actual (Upgraded visualization) ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-        {/* VFC + baseline */}
+        {/* VFC + baseline slider */}
         {stats?.hasHRV && (
-          <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-3">
+          <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">VFC nocturna</span>
+              <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">VFC nocturna</span>
               {stats.latestStatus && <HrvStatusBadge status={stats.latestStatus} />}
             </div>
             
@@ -1101,35 +1298,68 @@ export default function GarminCardiac() {
               />
             </div>
             
-            <div className="space-y-1">
-              {stats.latestBaseline && (() => {
+            {/* Upgraded Premium Baseline Gauge slider */}
+            <div className="space-y-2 pt-2 border-t border-slate-100/60">
+              {stats.latestBaseline ? (() => {
                 const { lowUpper, balancedLow, balancedUpper } = stats.latestBaseline;
                 const min = Math.max(0, lowUpper - 10);
                 const max = balancedUpper + 15;
                 const range = max - min;
                 const toX = v => `${((v - min) / range * 100).toFixed(1)}%`;
                 const hrv = stats.latestHRV;
+                
+                // Calculate percentage widths for the zones
+                const lowZoneWidth = toX(balancedLow);
+                const balancedWidth = `calc(${toX(balancedUpper)} - ${toX(balancedLow)})`;
+                
                 return (
-                  <>
-                    <div className="relative w-full h-3">
-                      <div className="absolute h-1.5 top-0.5 rounded-l-full bg-red-200" style={{ left: '0', width: toX(lowUpper) }} />
-                      <div className="absolute h-1.5 top-0.5 bg-emerald-200" style={{ left: toX(balancedLow), width: `calc(${toX(balancedUpper)} - ${toX(balancedLow)})` }} />
-                      <div className="absolute h-1.5 top-0.5 rounded-r-full bg-blue-200" style={{ left: toX(balancedUpper), right: '0' }} />
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      <span>Zonas VFC</span>
+                      <span className="text-emerald-600 font-extrabold">Equilibrio: {balancedLow}–{balancedUpper} ms</span>
+                    </div>
+                    {/* Visual Segmented Gauge Bar */}
+                    <div className="relative w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                      {/* Red low-hrv zone */}
+                      <div className="h-full bg-gradient-to-r from-red-400 to-amber-300" style={{ width: lowZoneWidth }} />
+                      {/* Green balanced zone */}
+                      <div className="h-full bg-emerald-400/90 border-x border-white/20" style={{ width: balancedWidth }} />
+                      {/* Blue high zone */}
+                      <div className="h-full bg-gradient-to-r from-blue-300 to-indigo-400 flex-1" />
+                      
+                      {/* Floating glowing cursor indicators */}
                       {hrv && hrv >= min && hrv <= max && (
-                        <div className="absolute w-2 h-3 top-0 rounded-full bg-slate-700 shadow" style={{ left: `calc(${toX(hrv)} - 4px)` }} />
+                        <div 
+                          className="absolute -top-[1.5px] w-[17px] h-[17px] bg-white border-[3px] border-slate-800 shadow-md rounded-full flex items-center justify-center transition-all duration-500" 
+                          style={{ left: `calc(${toX(hrv)} - 8.5px)` }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-800 animate-ping" />
+                        </div>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mb-1">Zona equilibrio: {balancedLow}–{balancedUpper} ms</p>
-                  </>
+                    
+                    {/* Helper description pointing status */}
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      Tu VFC de hoy (<strong className="text-slate-600">{hrv} ms</strong>) se encuentra{' '}
+                      {stats.latestStatus === 'BALANCED' 
+                        ? <span className="text-emerald-600 font-bold">dentro</span> 
+                        : <span className="text-orange-500 font-bold">por debajo</span>
+                      } de tu zona de equilibrio.
+                    </p>
+                  </div>
                 );
-              })()}
+              })() : (
+                <div className="text-[10px] text-slate-400 text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  Recopilando datos para establecer tu línea base de 21 días
+                </div>
+              )}
               
-              <div className={`flex items-center justify-between text-xs text-slate-400 pt-1 ${stats.latestBaseline ? 'border-t border-slate-100' : ''}`}>
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-slate-100/60">
                 <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgHRV} ms</span></span>
               </div>
 
               {stats.bestHRVMonth && (
-                <div className="flex gap-3 text-xs pt-1 border-t border-slate-100">
+                <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
                   <span className="text-emerald-600">↑ Mejor: <span className="font-semibold">{stats.bestHRVMonth.label}</span> · {stats.bestHRVMonth.avgHRV}</span>
                   <span className="text-slate-300">·</span>
                   <span className="text-orange-500">↓ Peor: <span className="font-semibold">{stats.worstHRVMonth.label}</span> · {stats.worstHRVMonth.avgHRV}</span>
@@ -1139,66 +1369,118 @@ export default function GarminCardiac() {
           </div>
         )}
 
-        {/* FC reposo */}
-        {stats?.hasHR && (
-          <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">FC Reposo</span>
-              {stats.avg21HR && stats.avgHR && (
-                <span className={`text-xs font-semibold ${+stats.avg21HR > +stats.avgHR ? 'text-red-500' : 'text-emerald-500'}`}>
-                  {+stats.avg21HR > +stats.avgHR ? '▲' : '▼'} {Math.abs(+stats.avg21HR - +stats.avgHR).toFixed(1)} vs media
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <MiniMetric 
-                label="Hoy" 
-                value={stats.latestHR} 
-                unit="ppm" 
-                colorClass="text-orange-500" 
-                trend={stats.latestHR && stats.avg7HR ? stats.latestHR - stats.avg7HR : null}
-                isInverse={true}
-              />
-              <MiniMetric 
-                label="7 Días" 
-                value={stats.avg7HR} 
-                unit="ppm" 
-                trend={stats.avg7HR && stats.avg21HR ? stats.avg7HR - stats.avg21HR : null}
-                isInverse={true}
-              />
-              <MiniMetric 
-                label="21 Días" 
-                value={stats.avg21HR} 
-                unit="ppm" 
-              />
-            </div>
-
-            <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgHR} ppm</span></span>
-                <span className={`font-semibold ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
-                  {trendHRSign}{stats.trendHR} ppm/año
-                </span>
+        {/* FC reposo + baseline slider */}
+        {stats?.hasHR && (() => {
+          // Calculate dynamic RHR zones
+          const avgHRVal = Number(stats.avgHR || 55);
+          const balancedLow = Math.round(avgHRVal - 3.5);
+          const balancedUpper = Math.round(avgHRVal + 3.5);
+          const min = balancedLow - 8;
+          const max = balancedUpper + 12;
+          const range = max - min;
+          const toX = v => `${((v - min) / range * 100).toFixed(1)}%`;
+          const hr = stats.latestHR;
+          const lowZoneWidth = toX(balancedLow);
+          const balancedWidth = `calc(${toX(balancedUpper)} - ${toX(balancedLow)})`;
+          
+          return (
+            <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">FC Reposo</span>
+                {stats.avg21HR && stats.avgHR && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${+stats.avg21HR > +stats.avgHR ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {+stats.avg21HR > +stats.avgHR ? '▲ Alta' : '▼ Baja'} {Math.abs(+stats.avg21HR - +stats.avgHR).toFixed(1)} vs media
+                  </span>
+                )}
               </div>
-              {stats.bestHRMonth && (
-                <div className="flex gap-3 text-xs pt-1">
-                  <span className="text-emerald-600">↓ Mejor: <span className="font-semibold">{stats.bestHRMonth.label}</span> · {stats.bestHRMonth.avgHR}</span>
-                  <span className="text-slate-300">·</span>
-                  <span className="text-orange-500">↑ Peor: <span className="font-semibold">{stats.worstHRMonth.label}</span> · {stats.worstHRMonth.avgHR}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Body Battery */}
+              <div className="grid grid-cols-3 gap-2">
+                <MiniMetric 
+                  label="Hoy" 
+                  value={stats.latestHR} 
+                  unit="ppm" 
+                  colorClass="text-orange-500" 
+                  trend={stats.latestHR && stats.avg7HR ? stats.latestHR - stats.avg7HR : null}
+                  isInverse={true}
+                />
+                <MiniMetric 
+                  label="7 Días" 
+                  value={stats.avg7HR} 
+                  unit="ppm" 
+                  trend={stats.avg7HR && stats.avg21HR ? stats.avg7HR - stats.avg21HR : null}
+                  isInverse={true}
+                />
+                <MiniMetric 
+                  label="21 Días" 
+                  value={stats.avg21HR} 
+                  unit="ppm" 
+                />
+              </div>
+
+              {/* Upgraded Premium RHR Baseline Gauge Slider */}
+              <div className="space-y-2 pt-2 border-t border-slate-100/60">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    <span>Zonas FC Reposo</span>
+                    <span className="text-emerald-600 font-extrabold font-extrabold">Equilibrio: {balancedLow}–{balancedUpper} ppm</span>
+                  </div>
+                  {/* Visual Segmented Gauge Bar (for heart rate, lower is better, left is blue/emerald) */}
+                  <div className="relative w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                    {/* Blue/emerald low-hr zone (excellent) */}
+                    <div className="h-full bg-gradient-to-r from-sky-400 to-emerald-400" style={{ width: lowZoneWidth }} />
+                    {/* Green balanced zone */}
+                    <div className="h-full bg-emerald-400/90 border-x border-white/20" style={{ width: balancedWidth }} />
+                    {/* Orange/Red high zone (stress) */}
+                    <div className="h-full bg-gradient-to-r from-amber-300 to-rose-500 flex-1" />
+                    
+                    {/* Floating glowing cursor indicators */}
+                    {hr && hr >= min && hr <= max && (
+                      <div 
+                        className="absolute -top-[1.5px] w-[17px] h-[17px] bg-white border-[3px] border-slate-800 shadow-md rounded-full flex items-center justify-center transition-all duration-500" 
+                        style={{ left: `calc(${toX(hr)} - 8.5px)` }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-800 animate-ping" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Helper description pointing status */}
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Tu pulso basal hoy (<strong className="text-slate-600">{hr} ppm</strong>) está{' '}
+                    {hr > balancedUpper 
+                      ? <span className="text-rose-500 font-bold">elevado</span> 
+                      : hr < balancedLow 
+                        ? <span className="text-sky-600 font-bold">excelente (muy recuperado)</span> 
+                        : <span className="text-emerald-600 font-bold">estable</span>
+                    } respecto a tu media histórica.
+                  </p>
+                </div>
+                
+                <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-slate-100/60">
+                  <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgHR} ppm</span></span>
+                  <span className={`font-semibold ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
+                    {trendHRSign}{stats.trendHR} ppm/año
+                  </span>
+                </div>
+                {stats.bestHRMonth && (
+                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
+                    <span className="text-emerald-600">↓ Mejor: <span className="font-semibold">{stats.bestHRMonth.label}</span> · {stats.bestHRMonth.avgHR}</span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-orange-500">↑ Peor: <span className="font-semibold">{stats.worstHRMonth.label}</span> · {stats.worstHRMonth.avgHR}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Body Battery + battery gauge */}
         {stats?.hasBB && (
-          <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-3">
+          <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Body Battery (Máx)</span>
+              <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Body Battery (Máx)</span>
               {stats.latestBBLow != null && (
-                <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                   Mín hoy: {stats.latestBBLow}
                 </span>
               )}
@@ -1222,67 +1504,123 @@ export default function GarminCardiac() {
               />
             </div>
 
-            <div className="space-y-1.5 pt-1 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgBBHigh}/100</span></span>
-              </div>
-              {stats.bestBBMonth && (
-                <div className="flex gap-3 text-xs pt-1">
-                  <span className="text-emerald-600">↑ Mejor: <span className="font-semibold">{stats.bestBBMonth.label}</span> · {stats.bestBBMonth.avgBB}</span>
-                  <span className="text-slate-300">·</span>
-                  <span className="text-orange-500">↓ Peor: <span className="font-semibold">{stats.worstBBMonth.label}</span> · {stats.worstBBMonth.avgBB}</span>
+            {/* Upgraded Premium Battery Gauge widget */}
+            <div className="space-y-2 pt-2 border-t border-slate-100/60">
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Carga & Descarga diaria</span>
+                <div className="relative w-full h-[18px] bg-slate-100 rounded-lg border border-slate-200/60 p-0.5 overflow-hidden flex items-center shadow-inner">
+                  {/* Filled battery capacity */}
+                  <div 
+                    className={`h-full rounded-md transition-all duration-700 bg-gradient-to-r ${
+                      stats.latestBBHigh >= 75 ? 'from-emerald-400 to-teal-400' : stats.latestBBHigh >= 45 ? 'from-blue-400 to-cyan-400' : 'from-amber-400 to-orange-400'
+                    }`}
+                    style={{ width: `${stats.latestBBHigh}%` }}
+                  />
+                  
+                  {/* Overlay text */}
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-700 drop-shadow-[0_0_2px_white]">
+                    Hoy cargó al {stats.latestBBHigh}%
+                  </span>
+                  
+                  {/* Today's Min threshold */}
+                  {stats.latestBBLow != null && (
+                    <div 
+                      className="absolute top-0 bottom-0 w-[2px] bg-rose-500/80 shadow flex items-center justify-center cursor-help"
+                      style={{ left: `${stats.latestBBLow}%` }}
+                      title={`Mínimo de hoy: ${stats.latestBBLow}`}
+                    >
+                      <span className="absolute w-1.5 h-1.5 rounded-full bg-rose-600" />
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+              
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-100/60">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgBBHigh}/100</span></span>
+                </div>
+                {stats.bestBBMonth && (
+                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
+                    <span className="text-emerald-600">↑ Mejor: <span className="font-semibold">{stats.bestBBMonth.label}</span> · {stats.bestBBMonth.avgBB}</span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-orange-500">↓ Peor: <span className="font-semibold">{stats.worstBBMonth.label}</span> · {stats.worstBBMonth.avgBB}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Fila 2: Tendencias y correlación ─────────────────────────── */}
+      {/* ── Fila 2: Tendencias y correlación (Upgraded Widget Styling) ─────────────────────────── */}
       {(stats?.hasHRV || stats?.hasHR) && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {stats?.hasHRV && (
-            <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Tendencia VFC</span>
-              <div className={`text-2xl font-bold leading-tight ${trendHRVAccent === 'blue' ? 'text-blue-500' : 'text-orange-500'}`}>
-                {trendHRVSign}{stats.trendHRV ?? '—'}
-                {stats.trendHRV && <span className="text-xs font-semibold text-slate-400 ml-1">ms/año</span>}
+            <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
+              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Tendencia VFC</span>
+              <div className="flex items-baseline gap-1">
+                <div className={`text-2xl font-black leading-none ${trendHRVAccent === 'blue' ? 'text-blue-500' : 'text-orange-500'}`}>
+                  {trendHRVSign}{stats.trendHRV ?? '—'}
+                </div>
+                {stats.trendHRV && <span className="text-[10px] font-bold text-slate-400">ms/año</span>}
               </div>
-              <span className="text-xs text-slate-400">{+stats.trendHRV > 0 ? '↑ Mejorando con el tiempo' : '↓ Bajando con el tiempo'}</span>
+              <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                {+stats.trendHRV > 0 
+                  ? '📈 Tendencia alcista: Tu capacidad cardiovascular y adaptativa está mejorando.' 
+                  : '📉 Tendencia bajista: Recomienda mayor descanso o reducción de cargas crónicas.'
+                }
+              </p>
             </div>
           )}
           {stats?.hasHR && (
-            <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Tendencia FC</span>
-              <div className={`text-2xl font-bold leading-tight ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
-                {trendHRSign}{stats.trendHR ?? '—'}
-                {stats.trendHR && <span className="text-xs font-semibold text-slate-400 ml-1">ppm/año</span>}
+            <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
+              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Tendencia FC</span>
+              <div className="flex items-baseline gap-1">
+                <div className={`text-2xl font-black leading-none ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
+                  {trendHRSign}{stats.trendHR ?? '—'}
+                </div>
+                {stats.trendHR && <span className="text-[10px] font-bold text-slate-400">ppm/año</span>}
               </div>
-              <span className="text-xs text-slate-400">{+stats.trendHR > 0 ? '↑ Sube — revisar carga' : '↓ Baja — buena adaptación'}</span>
+              <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                {+stats.trendHR > 0 
+                  ? '⚠️ Frecuencia subiendo: Posible fatiga residual o sobrecarga crónica.' 
+                  : '📉 Frecuencia bajando: Adaptación aeróbica positiva y mayor eficiencia cardíaca.'
+                }
+              </p>
             </div>
           )}
           {stats?.hasHRV && stats?.hasHR && stats.corr && (
-            <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Correlación VFC↔FC</span>
-              <div className={`text-2xl font-bold leading-tight ${Math.abs(+stats.corr) > 0.6 ? 'text-blue-600' : 'text-slate-500'}`}>
+            <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
+              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Correlación VFC↔FC</span>
+              <div className={`text-2xl font-black leading-none ${Math.abs(+stats.corr) > 0.6 ? 'text-indigo-600' : 'text-slate-500'}`}>
                 r = {stats.corr}
               </div>
-              <span className="text-xs text-slate-400">{+stats.corr < -0.6 ? '✓ Inversa fuerte — señal sana' : +stats.corr < -0.4 ? 'Inversa moderada' : 'Correlación débil'}</span>
+              <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                {+stats.corr < -0.6 
+                  ? '✓ Relación inversa fuerte: Signo muy saludable de reactividad nerviosa parasimpática.' 
+                  : '⚠️ Relación débil: Pulso e HRV desacoplados temporalmente.'
+                }
+              </p>
             </div>
           )}
           {stats?.hasHRV && stats?.avg21HRV && stats?.avgHRV && (
-            <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-4 flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">VFC 21d vs histórica</span>
+            <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
+              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">VFC 21d vs histórica</span>
               {(() => {
                 const delta = (+stats.avg21HRV - +stats.avgHRV).toFixed(1);
                 const pct   = ((+stats.avg21HRV - +stats.avgHRV) / +stats.avgHRV * 100).toFixed(0);
                 const good  = +delta >= 0;
                 return (
                   <>
-                    <div className={`text-2xl font-bold leading-tight ${good ? 'text-emerald-500' : 'text-orange-500'}`}>
+                    <div className={`text-2xl font-black leading-none ${good ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {good ? '+' : ''}{delta} ms
                     </div>
-                    <span className="text-xs text-slate-400">{good ? `▲ ${pct}% sobre tu media` : `▼ ${Math.abs(pct)}% bajo tu media`}</span>
+                    <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                      {good 
+                        ? `▲ ${pct}% sobre tu media. Tu recuperación de mediano plazo está bien consolidada.` 
+                        : `▼ ${Math.abs(pct)}% por debajo. Tu sistema nervioso está bajo estrés continuado.`
+                      }
+                    </p>
                   </>
                 );
               })()}
@@ -1290,6 +1628,7 @@ export default function GarminCardiac() {
           )}
         </div>
       )}
+
 
       {/* Chart */}
       {chartData.length > 0 && (
