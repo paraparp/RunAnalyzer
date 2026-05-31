@@ -149,6 +149,10 @@ const TypingIndicator = () => (
 const RunQA = ({ activities }) => {
     const [question, setQuestion] = useState('');
     const [numRaces, setNumRaces] = useState('10');
+    const [filterMode, setFilterMode] = useState('count'); // 'count' | 'period'
+    const [selectedPeriod, setSelectedPeriod] = useState('30d');
+    const [garmin, setGarmin] = useState(null);
+    const [garminPeriod, setGarminPeriod] = useState('none'); // 'none' | '30d' | '90d'
     const [loading, setLoading] = useState(false);
     const [conversation, setConversation] = useState([]);
     const [error, setError] = useState('');
@@ -157,6 +161,17 @@ const RunQA = ({ activities }) => {
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+
+    useEffect(() => {
+        try {
+            const s = localStorage.getItem('garmin_cardiac_data');
+            if (s) { setGarmin(JSON.parse(s)); return; }
+        } catch {}
+        fetch('/garmin_data.json')
+            .then(r => r.ok ? r.json() : null)
+            .then(j => setGarmin(j?.data ?? null))
+            .catch(() => setGarmin(null));
+    }, []);
 
     const apiKeys = {
         gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
@@ -172,12 +187,18 @@ const RunQA = ({ activities }) => {
         scrollToBottom();
     }, [conversation, loading]);
 
+    const periodDays = { '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 };
+    const periodLabels = { '7d': 'última semana', '30d': 'último mes', '90d': 'últimos 3 meses', '180d': 'últimos 6 meses', '365d': 'último año' };
+
     const getSelectedActivities = () => {
         if (!activities || activities.length === 0) return [];
-        const count = parseInt(numRaces);
-        return activities
-            .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
-            .slice(0, count);
+        const sorted = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        if (filterMode === 'period') {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - periodDays[selectedPeriod]);
+            return sorted.filter(a => new Date(a.start_date) >= cutoff);
+        }
+        return sorted.slice(0, parseInt(numRaces));
     };
 
     const formatActivitiesForPrompt = (acts) => {
@@ -187,19 +208,36 @@ const RunQA = ({ activities }) => {
             const timeSec = a.moving_time % 60;
             const pace = (a.moving_time / 60 / (a.distance / 1000)).toFixed(2);
             const date = new Date(a.start_date).toLocaleDateString('es-ES', {
-                weekday: 'short',
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
             });
-            const hr = a.average_heartrate ? `FC media: ${Math.round(a.average_heartrate)} ppm` : '';
-            const elev = `Desnivel: +${Math.round(a.total_elevation_gain)}m`;
-            const maxSpeed = a.max_speed ? `Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h` : '';
-
+            const extras = [];
+            if (a.average_heartrate) extras.push(`FC: ${Math.round(a.average_heartrate)} ppm`);
+            if (a.total_elevation_gain) extras.push(`Desnivel: +${Math.round(a.total_elevation_gain)}m`);
+            if (a.max_speed) extras.push(`Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h`);
+            if (a.average_cadence) extras.push(`Cadencia: ${Math.round(a.average_cadence * 2)} spm`);
             return `${idx + 1}. "${a.name}" - ${date}
-   • Distancia: ${distKm} km | Tiempo: ${timeMin}:${timeSec.toString().padStart(2, '0')} | Ritmo: ${pace} min/km
-   • ${elev} | ${hr} ${maxSpeed ? '| ' + maxSpeed : ''}`;
+   • Distancia: ${distKm} km | Tiempo: ${timeMin}:${timeSec.toString().padStart(2, '0')} | Ritmo: ${pace} min/km${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
         }).join('\n\n');
+    };
+
+    const formatGarminForPrompt = () => {
+        if (!garmin?.length || garminPeriod === 'none') return null;
+        const days = garminPeriod === '30d' ? 30 : 90;
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+        const filtered = [...garmin]
+            .filter(d => new Date(d.date) >= cutoff)
+            .sort((a, b) => b.date.localeCompare(a.date));
+        if (!filtered.length) return null;
+        const lines = filtered.map(d => {
+            const parts = [d.date.slice(5)];
+            if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
+            if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
+            if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
+            if (d.sleepHours) parts.push(`sueño=${d.sleepHours}h`);
+            if (d.stress)     parts.push(`estrés=${d.stress}`);
+            return parts.join(' ');
+        });
+        return `DATOS GARMIN (últimos ${days} días):\n${lines.join('\n')}`;
     };
 
     const handleSubmit = async (e) => {
@@ -228,12 +266,14 @@ const RunQA = ({ activities }) => {
 
         try {
             const activitiesText = formatActivitiesForPrompt(selectedActs);
+            const garminText = formatGarminForPrompt();
 
             const systemPrompt = `Eres un analista experto de running y entrenamiento deportivo.
 El usuario te proporcionará sus últimas carreras/entrenamientos y te hará preguntas sobre ellas.
 
 DATOS DE LAS ÚLTIMAS ${selectedActs.length} CARRERAS/ENTRENAMIENTOS:
 ${activitiesText}
+${garminText ? '\n' + garminText : ''}
 
 INSTRUCCIONES:
 - Responde de forma clara, directa y útil
@@ -311,7 +351,7 @@ INSTRUCCIONES:
         { text: "Dame un resumen de mi entrenamiento", icon: "📋" }
     ];
 
-    const selectedCount = Math.min(parseInt(numRaces), activities?.length || 0);
+    const selectedCount = getSelectedActivities().length;
 
     return (
         <div className="space-y-4">
@@ -332,26 +372,79 @@ INSTRUCCIONES:
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
-                        <Select
-                            value={numRaces}
-                            onValueChange={setNumRaces}
-                            enableClear={false}
-                            className="w-full sm:w-44"
-                        >
-                            <SelectItem value="5">Últimas 5</SelectItem>
-                            <SelectItem value="10">Últimas 10</SelectItem>
-                            <SelectItem value="20">Últimas 20</SelectItem>
-                            <SelectItem value="30">Últimas 30</SelectItem>
-                            <SelectItem value="50">Últimas 50</SelectItem>
-                        </Select>
-                        <ModelSelector
-                            provider={provider}
-                            setProvider={setProvider}
-                            selectedModel={selectedModel}
-                            setSelectedModel={setSelectedModel}
-                            showLabel={false}
-                        />
+                    <div className="flex flex-col gap-3 w-full lg:w-auto">
+                        {/* Filter mode toggle + selector */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                            {/* Toggle buttons */}
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium flex-shrink-0">
+                                <button
+                                    onClick={() => setFilterMode('count')}
+                                    className={`px-3 py-2 transition-colors ${filterMode === 'count' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    Por número
+                                </button>
+                                <button
+                                    onClick={() => setFilterMode('period')}
+                                    className={`px-3 py-2 transition-colors ${filterMode === 'period' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    Por periodo
+                                </button>
+                            </div>
+
+                            {filterMode === 'count' ? (
+                                <Select value={numRaces} onValueChange={setNumRaces} enableClear={false} className="w-full sm:w-40">
+                                    <SelectItem value="5">Últimas 5</SelectItem>
+                                    <SelectItem value="10">Últimas 10</SelectItem>
+                                    <SelectItem value="20">Últimas 20</SelectItem>
+                                    <SelectItem value="30">Últimas 30</SelectItem>
+                                    <SelectItem value="50">Últimas 50</SelectItem>
+                                </Select>
+                            ) : (
+                                <Select value={selectedPeriod} onValueChange={setSelectedPeriod} enableClear={false} className="w-full sm:w-44">
+                                    <SelectItem value="7d">Última semana</SelectItem>
+                                    <SelectItem value="30d">Último mes</SelectItem>
+                                    <SelectItem value="90d">Últimos 3 meses</SelectItem>
+                                    <SelectItem value="180d">Últimos 6 meses</SelectItem>
+                                    <SelectItem value="365d">Último año</SelectItem>
+                                </Select>
+                            )}
+
+                            <ModelSelector
+                                provider={provider}
+                                setProvider={setProvider}
+                                selectedModel={selectedModel}
+                                setSelectedModel={setSelectedModel}
+                                showLabel={false}
+                            />
+                        </div>
+
+                        {/* Garmin period selector */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 flex-shrink-0">Garmin:</span>
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium">
+                                {[
+                                    { value: 'none', label: 'Sin datos' },
+                                    { value: '30d', label: '30 días' },
+                                    { value: '90d', label: '90 días' },
+                                ].map(({ value, label }) => (
+                                    <button
+                                        key={value}
+                                        onClick={() => setGarminPeriod(value)}
+                                        className={`px-3 py-1.5 transition-colors ${garminPeriod === value ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            {garmin && garminPeriod !== 'none' && (
+                                <span className="text-xs text-slate-400">
+                                    {[...garmin].filter(d => {
+                                        const c = new Date(); c.setDate(c.getDate() - (garminPeriod === '30d' ? 30 : 90));
+                                        return new Date(d.date) >= c;
+                                    }).length} registros
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             </Card>
@@ -371,7 +464,7 @@ INSTRUCCIONES:
 
                             <h3 className="text-xl font-bold text-slate-800 mb-2">¿Qué quieres saber?</h3>
                             <Text className="text-slate-500 mb-8 text-center max-w-md">
-                                Analizo tus {selectedCount} últimas carreras y respondo cualquier pregunta sobre tu rendimiento
+                                Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">

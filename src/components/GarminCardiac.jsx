@@ -257,6 +257,7 @@ const PeriodSelector = ({ value, onChange, label }) => {
     { label: '6M', days: 180 },
     { label: '1A', days: 365 },
     { label: '2A', days: 730 },
+    { label: '3A', days: 1095 },
     { label: '5A', days: 1825 },
   ];
 
@@ -1632,140 +1633,197 @@ export default function GarminCardiac() {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-5">
-          {/* Legend / toggles */}
-          <div className="flex items-center gap-4 mb-5 flex-wrap">
-            {latestReadiness != null && (
-              <button
-                onClick={() => setShowReadiness(v => !v)}
-                className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showReadiness ? 'opacity-100' : 'opacity-35'}`}
-              >
-                <span className="w-6 h-0.5 bg-yellow-500 inline-block rounded-full shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
-                <span className="text-slate-600 font-bold">Readiness Score</span>
-              </button>
-            )}
-            {stats?.hasHRV && (
-              <button
-                onClick={() => setShowHRV(v => !v)}
-                className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showHRV ? 'opacity-100' : 'opacity-35'}`}
-              >
-                <span className="w-6 h-0.5 bg-blue-500 inline-block rounded-full" />
-                <span className="text-slate-600">VFC nocturna (ms)</span>
-              </button>
-            )}
-            {stats?.hasHR && (
-              <button
-                onClick={() => setShowHR(v => !v)}
-                className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showHR ? 'opacity-100' : 'opacity-35'}`}
-              >
-                <span className="w-6 h-0.5 bg-orange-400 inline-block rounded-full" />
-                <span className="text-slate-600">FC reposo (ppm)</span>
-              </button>
-            )}
-            {stats?.hasBB && (
-              <>
-                <button
-                  onClick={() => setShowBBHigh(v => !v)}
-                  className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showBBHigh ? 'opacity-100' : 'opacity-35'}`}
-                >
-                  <span className="w-6 h-0.5 bg-emerald-500 inline-block rounded-full" />
-                  <span className="text-slate-600">BB máx</span>
-                </button>
-                <button
-                  onClick={() => setShowBBLow(v => !v)}
-                  className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showBBLow ? 'opacity-100' : 'opacity-35'}`}
-                >
-                  <span className="w-6 h-4 inline-flex items-center">
-                    <span className="w-6 border-t-2 border-dashed border-emerald-400 inline-block" />
-                  </span>
-                  <span className="text-slate-600">BB mín</span>
-                </button>
-              </>
-            )}
-            {sleepData?.length > 0 && (
-              <button
-                onClick={() => setShowSleep(v => !v)}
-                className={`flex items-center gap-2 text-xs font-medium transition-opacity ${showSleep ? 'opacity-100' : 'opacity-35'}`}
-              >
-                <span className="w-6 h-0.5 bg-indigo-500 inline-block rounded-full" />
-                <span className="text-slate-600">Sueño (pts)</span>
-              </button>
-            )}
-            {(stats?.hasHRV || stats?.hasHR) && (
-              <button
-                onClick={() => setNormalizeChart(v => !v)}
-                title="Ver como % del mínimo y máximo histórico de todos los datos"
-                className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border transition-all ${
-                  normalizeChart
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-500'
-                }`}
-              >
-                % hist.
-              </button>
-            )}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 ml-2 text-[10px] text-slate-500">
-                <span className="w-3 h-3 bg-emerald-50 rounded-sm border border-emerald-100 flex items-center justify-center text-emerald-400">H</span>
-                Zona mejor hist. FC
+        <div className="bg-white/80 backdrop-blur-3xl shadow-[0_4px_32px_rgba(0,0,0,0.07),0_0_0_1px_rgba(148,163,184,0.12)] rounded-3xl overflow-hidden">
+
+          {/* ── Chart header ── */}
+          <div className="px-6 pt-5 pb-4 border-b border-slate-100/80">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 tracking-tight">Tendencias Cardíacas</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                  {[showHRV && stats?.hasHRV && 'VFC nocturna', showHR && stats?.hasHR && 'FC reposo', showReadiness && 'Readiness', showSleep && sleepData?.length && 'Sueño'].filter(Boolean).join(' · ') || 'Selecciona métricas abajo'}
+                </p>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                <span className="w-3 h-3 bg-purple-50 rounded-sm border border-purple-100 flex items-center justify-center text-purple-400">H</span>
-                Zona mejor hist. VFC
+              {/* Granularity pills */}
+              <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5 self-start">
+                {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
+                  <button
+                    key={g}
+                    onClick={() => setChartGranularity(g)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      chartGranularity === g
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
-            <button
-              onClick={() => setShowBaseline(v => !v)}
-              className={`flex items-center gap-1.5 text-xs font-medium transition-opacity ${showBaseline ? 'opacity-100' : 'opacity-35'}`}
-            >
-              <span className="w-6 h-4 inline-flex items-center">
-                <span className="w-6 border-t-2 border-dashed border-slate-400 inline-block" />
-              </span>
-              <span className="text-slate-600 font-bold">Línea Base (21d)</span>
-            </button>
-            <div className="ml-auto flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-              {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
+
+            {/* ── Metric toggle chips ── */}
+            <div className="flex items-center gap-2 mt-4 flex-wrap">
+              {latestReadiness != null && (
                 <button
-                  key={g}
-                  onClick={() => setChartGranularity(g)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                    chartGranularity === g
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
+                  onClick={() => setShowReadiness(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                    showReadiness
+                      ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
-                  {label}
+                  <span className={`w-2 h-2 rounded-full transition-colors ${showReadiness ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                  Readiness
                 </button>
-              ))}
+              )}
+              {stats?.hasHRV && (
+                <button
+                  onClick={() => setShowHRV(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                    showHRV
+                      ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full transition-colors ${showHRV ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                  VFC nocturna
+                </button>
+              )}
+              {stats?.hasHR && (
+                <button
+                  onClick={() => setShowHR(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                    showHR
+                      ? 'bg-orange-50 text-orange-700 border-orange-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full transition-colors ${showHR ? 'bg-orange-400' : 'bg-slate-300'}`} />
+                  FC Reposo
+                </button>
+              )}
+              {stats?.hasBB && (
+                <>
+                  <button
+                    onClick={() => setShowBBHigh(v => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                      showBBHigh
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full transition-colors ${showBBHigh ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    BB máx
+                  </button>
+                  <button
+                    onClick={() => setShowBBLow(v => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed transition-all duration-150 ${
+                      showBBLow
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full transition-colors ${showBBLow ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                    BB mín
+                  </button>
+                </>
+              )}
+              {sleepData?.length > 0 && (
+                <button
+                  onClick={() => setShowSleep(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                    showSleep
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full transition-colors ${showSleep ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                  Sueño
+                </button>
+              )}
+
+              <span className="w-px h-5 bg-slate-200 mx-0.5 self-center" />
+
+              {(stats?.hasHRV || stats?.hasHR) && (
+                <button
+                  onClick={() => setNormalizeChart(v => !v)}
+                  title="Ver como % del mínimo y máximo histórico de todos los datos"
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-150 ${
+                    normalizeChart
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  % hist.
+                </button>
+              )}
+              <button
+                onClick={() => setShowBaseline(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                  showBaseline
+                    ? 'bg-slate-100 text-slate-700 border-slate-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                    : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                }`}
+              >
+                <span className="w-4 border-t border-dashed border-current inline-block" />
+                Base 21d
+              </button>
             </div>
+
+            {/* Reference zone legend */}
+            {!useNorm && (stats?.hasHR || stats?.hasHRV) && (
+              <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-400 font-medium">
+                {stats?.hasHR && showHR && stats.minHRYear && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-2.5 rounded-sm bg-emerald-50 border border-emerald-200 inline-block" />
+                    Mejor zona FC anual
+                  </span>
+                )}
+                {stats?.hasHRV && showHRV && stats.maxHRVYear && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-2.5 rounded-sm bg-purple-50 border border-purple-100 inline-block" />
+                    Pico VFC anual
+                  </span>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* ── Chart body ── */}
+          <div className="px-5 pt-5 pb-4">
 
           <div className="w-full relative z-10" style={{ aspectRatio: '16/7' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart key={chartGranularity} data={chartData} margin={{ top: 12, right: hrAxisOnly ? 8 : 24, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25}/>
+                  <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.08}/>
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#f97316" stopOpacity={0.25}/>
+                  <stop offset="60%" stopColor="#f97316" stopOpacity={0.08}/>
+                  <stop offset="100%" stopColor="#f97316" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorBb" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.25}/>
+                  <stop offset="60%" stopColor="#10b981" stopOpacity={0.08}/>
+                  <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorSleep" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25}/>
+                  <stop offset="60%" stopColor="#6366f1" stopOpacity={0.08}/>
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorReadiness" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#eab308" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#eab308" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35}/>
+                  <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" strokeOpacity={0.8} vertical={false} />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }}
@@ -2012,14 +2070,15 @@ export default function GarminCardiac() {
           </div>
 
           {stats?.hasHRV && stats?.hasHR && stats.corr && (
-            <p className="text-center text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
-              Correlación VFC↔FC reposo:{' '}
-              <span className="text-blue-600 font-semibold">r = {stats.corr}</span>
+            <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-100">
+              <span className="text-xs text-slate-400">Correlación VFC↔FC:</span>
+              <span className="text-xs font-bold text-blue-600">r = {stats.corr}</span>
               {+stats.corr < -0.5 && (
-                <span className="text-slate-400"> — relación inversa esperada: buena señal fisiológica</span>
+                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">relación inversa — señal fisiológica correcta</span>
               )}
-            </p>
+            </div>
           )}
+          </div>
         </div>
       )}
 
@@ -2033,36 +2092,49 @@ export default function GarminCardiac() {
 
       {/* ── Índice de Adaptación (VFC - FC) ─────────────────────────────── */}
       {stats?.hasHRV && stats?.hasHR && chartData.length > 0 && (
-        <div className="bg-white/60 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 rounded-3xl p-5 mt-5">
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Adaptación (VFC - FC Reposo)</span>
-            <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">↑ Valores altos = Mejor recuperación</span>
-            <div className="ml-auto flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-              {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
-                <button
-                  key={g}
-                  onClick={() => setChartGranularity(g)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                    chartGranularity === g
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+        <div className="bg-white/80 backdrop-blur-3xl shadow-[0_4px_32px_rgba(0,0,0,0.07),0_0_0_1px_rgba(148,163,184,0.12)] rounded-3xl overflow-hidden">
+          {/* Header */}
+          <div className="px-6 pt-5 pb-4 border-b border-slate-100/80">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 tracking-tight">Índice de Adaptación</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">VFC − FC Reposo · valores altos indican mejor recuperación</p>
+              </div>
+              <div className="flex items-center gap-2 self-start">
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                  ↑ Alto = Recuperado
+                </span>
+                <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5">
+                  {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
+                    <button
+                      key={g}
+                      onClick={() => setChartGranularity(g)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        chartGranularity === g
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="w-full relative z-10" style={{ height: 280 }}>
+
+          <div className="px-5 pt-5 pb-4">
+          <div className="w-full relative z-10" style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorAdaptation" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.35}/>
+                    <stop offset="55%" stopColor="#10b981" stopOpacity={0.08}/>
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" strokeOpacity={0.8} vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} tickMargin={10} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                 {adaptationLimits && (
@@ -2127,6 +2199,7 @@ export default function GarminCardiac() {
                 )}
               </AreaChart>
             </ResponsiveContainer>
+          </div>
           </div>
         </div>
       )}

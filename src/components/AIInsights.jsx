@@ -55,7 +55,7 @@ const buildPrompt = (activities, garminData) => {
   const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
   const week4  = new Date(now); week4.setDate(now.getDate() - 28);
   const week8  = new Date(now); week8.setDate(now.getDate() - 56);
-  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
+  const month1 = new Date(now); month1.setDate(now.getDate() - 90);
 
   const yearActs = activities.filter(a => new Date(a.start_date) >= yearAgo);
   if (!yearActs.length) return null;
