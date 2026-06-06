@@ -49,8 +49,135 @@ const Pulse = () => (
   </div>
 );
 
+// ── Scientific helpers ───────────────────────────────────────────────────────
+const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Per-session training load (TRIMP proxy). Prefers Strava's suffer_score
+ * (Banister-derived), then a HR-weighted minutes model, then distance.
+ * Mirrors FitnessFatigue.jsx so the whole app shares one load definition.
+ */
+function estimateLoad(a) {
+  const mins = (a.moving_time || 0) / 60;
+  if (a.suffer_score) return a.suffer_score;
+  if (a.average_heartrate) return mins * (a.average_heartrate / 180) * 1.92;
+  if (a.distance) return (a.distance / 1000) * 0.8;
+  return mins * 0.4;
+}
+
+/**
+ * Banister / Coggan Performance Management Chart (TrainingPeaks standard).
+ * CTL = 42-day EWMA (Fitness), ATL = 7-day EWMA (Fatigue),
+ * TSB = CTL − ATL (Form), ACWR = ATL/CTL (acute:chronic, Gabbett injury model),
+ * ramp = CTL change per week. Uses ALL sports (cardiovascular load is global).
+ */
+function computePMC(activities) {
+  if (!activities?.length) return null;
+  const daily = {};
+  let minTs = Infinity;
+  for (const a of activities) {
+    const ds = a.start_date?.slice(0, 10);
+    if (!ds) continue;
+    const ts = new Date(ds).getTime();
+    if (ts < minTs) minTs = ts;
+    daily[ds] = (daily[ds] || 0) + estimateLoad(a);
+  }
+  if (minTs === Infinity) return null;
+
+  const kC = Math.exp(-1 / 42), kA = Math.exp(-1 / 7);
+  let ctl = 0, atl = 0, peak = 0;
+  const ctlSeries = [];
+  for (let ts = minTs; ts <= Date.now(); ts += 86400000) {
+    const ds = new Date(ts).toISOString().slice(0, 10);
+    const load = daily[ds] || 0;
+    ctl = ctl * kC + load * (1 - kC);
+    atl = atl * kA + load * (1 - kA);
+    if (ctl > peak) peak = ctl;
+    ctlSeries.push(ctl);
+  }
+  const n = ctlSeries.length;
+  const ctl28 = n > 28 ? ctlSeries[n - 29] : 0;
+  const ctl7  = n > 7  ? ctlSeries[n - 8]  : 0;
+  const ramp  = n > 28 ? (ctl - ctl28) / 4 : (ctl - ctl7);
+  return {
+    ctl: Math.round(ctl),
+    atl: Math.round(atl),
+    tsb: Math.round(ctl - atl),
+    acwr: ctl > 0 ? +(atl / ctl).toFixed(2) : null,
+    ramp: Math.round(ramp * 10) / 10,
+    peak: Math.round(peak),
+    pctPeak: peak > 0 ? Math.round((ctl / peak) * 100) : 0,
+  };
+}
+
+/**
+ * HRV (rMSSD) analysis vs the athlete's PERSONAL baseline range.
+ * Following Plews/Buchheit HRV-guided training: a single night means little,
+ * what matters is position vs your own balanced range + the 7-day trend + the
+ * coefficient of variation (rising CV = poor adaptation / accumulating fatigue).
+ */
+function analyzeHRV(garmin, now) {
+  if (!garmin?.length) return null;
+  const sorted = [...garmin].sort((a, b) => b.date.localeCompare(a.date));
+  const latest = sorted.find(d => d.hrv);
+  if (!latest) return null;
+  const w7  = new Date(now); w7.setDate(now.getDate() - 7);
+  const w14 = new Date(now); w14.setDate(now.getDate() - 14);
+  const w28 = new Date(now); w28.setDate(now.getDate() - 28);
+  const vals7  = sorted.filter(d => new Date(d.date) >= w7 && d.hrv).map(d => d.hrv);
+  const hrv7   = mean(vals7);
+  const hrv28  = mean(sorted.filter(d => new Date(d.date) >= w28 && d.hrv).map(d => d.hrv));
+  const prev7  = mean(sorted.filter(d => { const x = new Date(d.date); return x >= w14 && x < w7 && d.hrv; }).map(d => d.hrv));
+  let cv = null;
+  if (vals7.length >= 3 && hrv7) {
+    const sd = Math.sqrt(mean(vals7.map(v => (v - hrv7) ** 2)));
+    cv = +(sd / hrv7 * 100).toFixed(1);
+  }
+  return { latest: latest.hrv, status: latest.hrvStatus, baseline: latest.baseline, hrv7, hrv28, prev7, cv };
+}
+
+/**
+ * Composite recovery readiness 0–100 (deterministic, NOT LLM-generated).
+ * Evidence-weighted blend: HRV-vs-baseline 30% · Body Battery 20% · sleep 20%
+ * · resting-HR trend 15% · TSB/form 15%. This is the number the athlete can
+ * trust blindly; the LLM is told to align its prescription to it.
+ */
+function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
+  const parts = [];
+  if (hrv) {
+    let s = 70;
+    const b = hrv.baseline;
+    if (b?.balancedLow && b?.balancedUpper) {
+      if (hrv.latest >= b.balancedUpper) s = 95;
+      else if (hrv.latest >= b.balancedLow) s = 70 + (hrv.latest - b.balancedLow) / (b.balancedUpper - b.balancedLow) * 20;
+      else s = clamp(70 * (hrv.latest / b.balancedLow), 20, 70);
+    } else if (hrv.status) {
+      const map = { BALANCED: 82, LOW: 38, UNBALANCED: 45, POOR: 30, GOOD: 88 };
+      s = map[hrv.status] ?? 70;
+    }
+    parts.push([clamp(s, 10, 100), 0.30]);
+  }
+  if (bb?.high != null) parts.push([clamp(bb.high, 5, 100), 0.20]);
+  if (sleep?.score != null) parts.push([clamp(sleep.score, 20, 100), 0.20]);
+  if (rhr?.r7 && rhr?.r28) {
+    const delta = (rhr.r7 - rhr.r28) / rhr.r28;      // >0 = elevated = worse
+    parts.push([clamp(78 - delta * 100 * 3.5, 15, 100), 0.15]);
+  }
+  if (pmc) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
+  if (!parts.length) return null;
+  const wsum  = parts.reduce((s, [, w]) => s + w, 0);
+  const score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
+  let label, band;
+  if (score >= 80)      { label = 'Óptimo · listo para calidad';        band = 'high'; }
+  else if (score >= 62) { label = 'Bueno · entreno normal';             band = 'good'; }
+  else if (score >= 45) { label = 'Moderado · precaución, baja carga';   band = 'mod';  }
+  else                  { label = 'Bajo · prioriza recuperación';        band = 'low';  }
+  return { score, label, band };
+}
+
 // ── Prompt builder ───────────────────────────────────────────────────────────
-const buildPrompt = (activities, garminData) => {
+const buildPrompt = (activities, garminData, sleepData) => {
   const now = new Date();
   const yearAgo  = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
   const twoMonthsAgo = new Date(now); twoMonthsAgo.setMonth(now.getMonth() - 2);
@@ -66,6 +193,9 @@ const buildPrompt = (activities, garminData) => {
   const isSwimming = (a) => ['Swim'].includes(a.type);
 
   const runningYearActs = yearActs.filter(isRunning);
+
+  // ── Banister PMC over ALL sports (cardiovascular load is global) ───────────
+  const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo));
 
   // ── Weekly breakdown (4 weeks) ────────────────────────────────────────────
   const byWeek = [0, 1, 2, 3].map(w => {
@@ -92,13 +222,11 @@ const buildPrompt = (activities, garminData) => {
     .map(([m, s]) => `${m.slice(5)}:${s.km.toFixed(0)}km/${s.n}s`)
     .join(' ');
 
-  // ── ACWR (4w acute / 8w chronic) ─────────────────────────────────────────
+  // ── Recent running volume (4w vs prior 4w) ────────────────────────────────
   const recentRuns = runningYearActs.filter(a => new Date(a.start_date) >= week4);
   const prevRuns   = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
   const recentKm   = recentRuns.reduce((s, a) => s + a.distance / 1000, 0);
   const prevKm     = prevRuns.reduce((s, a) => s + a.distance / 1000, 0);
-  const chronicKm  = (recentKm + prevKm) / 2;
-  const acwr       = chronicKm > 0 ? (recentKm / chronicKm).toFixed(2) : null;
   const loadDelta  = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
   const recentMin = recentRuns.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
@@ -184,40 +312,56 @@ const buildPrompt = (activities, garminData) => {
     `Karvonen Z2 (base): ${kZ2lo}-${kZ2hi}ppm | Z3 (aeróbico intenso): ${kZ3lo}-${kZ3hi}ppm | Z4 (umbral/tempo): ${kZ4lo}-${kZ4hi}ppm`,
   ].join('\n');
 
-  // ── Garmin: day-by-day (30d) + summary averages ───────────────────────────
-  let hrv14n = null, hrv7n = null, rhr14n = null, rhr7n = null, rhrLatest = null, hrvStatus = null;
-  let garminLog = '';
+  // ── Garmin: HRV (vs baseline), resting-HR trend, Body Battery, day-by-day ──
+  const hrv = analyzeHRV(garminData, now);
+  let rhr = null, bb = null, garminLog = '';
   if (garminData?.length) {
     const sorted = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
-    hrvStatus  = sorted[0]?.hrvStatus ?? null;
-    rhrLatest  = sorted.find(d => d.restingHR)?.restingHR ?? null;
-
     const w14   = new Date(now); w14.setDate(now.getDate() - 14);
     const w7    = new Date(now); w7.setDate(now.getDate() - 7);
+    const w28   = new Date(now); w28.setDate(now.getDate() - 28);
     const rec30 = sorted.filter(d => new Date(d.date) >= month1);
-    const rec14 = sorted.filter(d => new Date(d.date) >= w14);
-    const rec7  = sorted.filter(d => new Date(d.date) >= w7);
 
-    const avg = (arr, key) => {
-      const valid = arr.filter(d => d[key]);
-      return valid.length ? valid.reduce((s, d) => s + d[key], 0) / valid.length : null;
+    rhr = {
+      latest: sorted.find(d => d.restingHR)?.restingHR ?? null,
+      r7:  mean(sorted.filter(d => new Date(d.date) >= w7  && d.restingHR).map(d => d.restingHR)),
+      r14: mean(sorted.filter(d => new Date(d.date) >= w14 && d.restingHR).map(d => d.restingHR)),
+      r28: mean(sorted.filter(d => new Date(d.date) >= w28 && d.restingHR).map(d => d.restingHR)),
     };
-    hrv14n = avg(rec14, 'hrv');
-    hrv7n  = avg(rec7,  'hrv');
-    rhr14n = avg(rec14, 'restingHR');
-    rhr7n  = avg(rec7,  'restingHR');
+    // Body Battery (Firstbeat): peak charge reached today/yesterday = recovery state
+    const latestBB = sorted.find(d => d.bbHigh != null);
+    if (latestBB) bb = { high: latestBB.bbHigh, low: latestBB.bbLow ?? null };
 
     garminLog = rec30.map(d => {
       const parts = [d.date.slice(5)];
       if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
-      if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
       if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
-      if (d.sleepHours) parts.push(`sueño=${d.sleepHours}h`);
-      if (d.sleepScore) parts.push(`sueñoScore=${d.sleepScore}`);
-      if (d.stress)     parts.push(`estrés=${d.stress}`);
+      if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
+      if (d.bbHigh != null) parts.push(`BB=${d.bbLow ?? '?'}→${d.bbHigh}`);
       return parts.join(' ');
     }).join('\n');
   }
+
+  // ── Sleep (weekly, Garmin sleep-service) ──────────────────────────────────
+  let sleep = null;
+  if (sleepData?.length) {
+    const sortedS = [...sleepData].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+    const last = sortedS.find(w => w.score != null) ?? sortedS[0];
+    if (last) {
+      sleep = {
+        score: last.score ?? null,
+        quality: last.quality ?? null,
+        durationMin: last.durationMin ?? null,
+        needMin: last.needMin ?? null,
+        deepMin: last.deepMin ?? null,
+        remMin: last.remMin ?? null,
+        weekStart: last.weekStart,
+      };
+    }
+  }
+
+  // ── Composite readiness score (deterministic) ─────────────────────────────
+  const readiness = computeReadiness({ hrv, rhr, bb, sleep, pmc });
 
   // ── Activity log (30d individual) ────────────────────────────────────────
   const actLog = yearActs
@@ -277,58 +421,101 @@ const buildPrompt = (activities, garminData) => {
   // ── Sections ─────────────────────────────────────────────────────────────
   const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} carreras)`).join(' | ');
 
+  // ── Intensity distribution (Seiler 3-zone polarized model) ────────────────
+  // Classifies last-4-week runs by avg HR vs LTHR into easy/threshold/hard and
+  // computes the % of TIME in each. Endurance science target: ≈80% easy.
+  let polarized = null;
+  const hrRuns4w = recentRuns.filter(a => a.average_heartrate && a.moving_time);
+  if (hrRuns4w.length >= 3) {
+    let easy = 0, thr = 0, hard = 0;
+    for (const a of hrRuns4w) {
+      const r = a.average_heartrate / lthr;
+      const t = a.moving_time;
+      if (r < 0.92) easy += t; else if (r < 1.0) thr += t; else hard += t;
+    }
+    const tot = easy + thr + hard;
+    if (tot > 0) polarized = {
+      easy: Math.round(easy / tot * 100),
+      thr:  Math.round(thr  / tot * 100),
+      hard: Math.round(hard / tot * 100),
+    };
+  }
+
   const physioSection = [
-    rhrLatest != null ? `FC reposo HOY=${rhrLatest}ppm (dato Garmin más reciente)` : null,
-    hrv14n != null ? `VFC 14d=${hrv14n.toFixed(1)}ms` : null,
-    hrv7n  != null ? `VFC 7d=${hrv7n.toFixed(1)}ms${hrv14n != null ? ` (${hrv7n >= hrv14n ? '↑ mejorando' : '↓ bajando'})` : ''}` : null,
-    rhr14n != null ? `FC reposo 14d=${rhr14n.toFixed(0)}ppm` : null,
-    rhr7n  != null ? `FC reposo 7d=${rhr7n.toFixed(0)}ppm${rhr14n != null ? ` (${rhr7n <= rhr14n ? 'estable' : '↑ elevada'})` : ''}` : null,
-    hrvStatus ? `Estado Garmin hoy: "${hrvStatus}"` : null,
-  ].filter(Boolean).join(', ');
+    rhr?.latest != null ? `FC reposo HOY=${rhr.latest}ppm` : null,
+    hrv ? `VFC HOY=${hrv.latest}ms${hrv.status ? ` [estado Garmin: ${hrv.status}]` : ''}` : null,
+    hrv?.baseline?.balancedLow != null
+      ? `Baseline VFC personal: ${hrv.baseline.balancedLow}-${hrv.baseline.balancedUpper}ms (rango equilibrado) → ${hrv.latest < hrv.baseline.balancedLow ? '⚠ POR DEBAJO (carga parasimpática suprimida)' : hrv.latest > hrv.baseline.balancedUpper ? '↑ por encima (muy recuperado)' : 'dentro de rango'}`
+      : null,
+    hrv?.hrv7 != null ? `VFC media 7d=${hrv.hrv7.toFixed(1)}ms${hrv.prev7 != null ? ` (${hrv.hrv7 >= hrv.prev7 ? '↑ mejorando' : '↓ bajando'} vs 7d previos)` : ''}` : null,
+    hrv?.cv != null ? `Coef. variación VFC 7d=${hrv.cv}% (${hrv.cv > 10 ? 'alto → adaptación pobre/fatiga' : 'estable → buena adaptación'})` : null,
+    rhr?.r7 != null && rhr?.r28 != null ? `FC reposo 7d=${rhr.r7.toFixed(0)}ppm vs 28d=${rhr.r28.toFixed(0)}ppm (${rhr.r7 <= rhr.r28 * 1.03 ? 'estable' : '⚠ elevada → fatiga/estrés'})` : null,
+    bb?.high != null ? `Body Battery: recarga máx=${bb.high}/100${bb.low != null ? `, mín=${bb.low}` : ''} (${bb.high >= 70 ? 'bien recuperado' : bb.high >= 40 ? 'recuperación parcial' : 'reservas bajas'})` : null,
+    sleep?.score != null ? `Sueño (media semana): score=${sleep.score}/100${sleep.durationMin ? `, ${(sleep.durationMin/60).toFixed(1)}h` : ''}${sleep.needMin && sleep.durationMin ? ` vs necesidad ${(sleep.needMin/60).toFixed(1)}h` : ''}${sleep.deepMin ? `, profundo ${sleep.deepMin}min` : ''}` : null,
+  ].filter(Boolean).join('\n');
+
+  const pmcSection = pmc ? [
+    `Fitness (CTL, EWMA 42d)=${pmc.ctl} · ${pmc.pctPeak}% de tu pico histórico (${pmc.peak})`,
+    `Fatiga (ATL, EWMA 7d)=${pmc.atl}`,
+    `Forma (TSB=CTL−ATL)=${pmc.tsb > 0 ? '+' : ''}${pmc.tsb} (${pmc.tsb > 15 ? 'muy fresco/desentrenando' : pmc.tsb > 5 ? 'fresco' : pmc.tsb >= -10 ? 'óptimo' : pmc.tsb >= -20 ? 'cargado' : 'sobrecargado'})`,
+    `ACWR (agudo:crónico, Gabbett)=${pmc.acwr} (óptimo 0.8–1.3; >1.5 riesgo alto lesión)`,
+    `Rampa CTL=${pmc.ramp > 0 ? '+' : ''}${pmc.ramp}/sem (no superar +5/sem)`,
+  ].join('\n') : 'Sin datos suficientes para el modelo PMC.';
 
   const trainingSection = [
     `Total 4 sem (carrera): ${recentKm.toFixed(0)}km en ${recentRuns.length} sesiones`,
     avgPace   ? `ritmo medio ${avgPace}min/km` : null,
     avgHR     ? `FC media carrera ${avgHR}ppm (=${avgHR ? Math.round(avgHR/fcmax*100) : '?'}% FCmax)` : null,
-    loadDelta != null ? `Carga vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
-    acwr      != null ? `ACWR aprox: ${acwr} (óptimo 0.8–1.3)` : null,
+    loadDelta != null ? `Carga km vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
+    polarized ? `Distribución de intensidad 4 sem (tiempo): fácil ${polarized.easy}% / umbral ${polarized.thr}% / duro ${polarized.hard}% (objetivo Seiler ≈80% fácil)` : null,
   ].filter(Boolean).join(', ');
 
-  return `Eres un entrenador de running y fisiólogo deportivo de élite. Tu objetivo es dar un diagnóstico ACCIONABLE, no solo describir los datos. El atleta realiza entrenamiento cruzado (como ciclismo, natación, fuerza o caminata) además de correr. Considera la carga cardiovascular y fatiga que generan estas otras disciplinas al evaluar su estado general, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie (running).
+  const readinessLine = readiness
+    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).`
+    : 'READINESS SCORE: no disponible (faltan datos de wearable) — sé más conservador.';
+
+  const prompt = `Eres un entrenador de running y fisiólogo deportivo de élite que aplica EXCLUSIVAMENTE modelos validados por la ciencia del entrenamiento actual: el modelo de impulso-respuesta de Banister (CTL/ATL/TSB, estándar de TrainingPeaks), el modelo polarizado 80/20 de Seiler, el entrenamiento guiado por VFC de Plews & Buchheit, el ratio agudo:crónico de Gabbett para riesgo de lesión, y el umbral de lactato de Friel. Tu objetivo es un diagnóstico ACCIONABLE y FIABLE en el que el atleta pueda confiar a ciegas, no describir datos. El atleta hace entrenamiento cruzado además de correr: considera su carga cardiovascular y fatiga al evaluar el estado, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie.
 
 Devuelve EXACTAMENTE tres bloques separados por "|||", sin ningún texto fuera de ellos:
 
 BLOQUE 1 — DIAGNÓSTICO DE ESTA SEMANA:
-Con los datos fisiológicos (VFC/HRV + FC reposo) y la carga reciente, determina el estado real (recuperado, fatigado, sobreentrenado, en forma). Incluye una recomendación semanal concreta. Máx 3 bullets. Usa **negrita** para el diagnóstico clave.
+Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score. Máx 3 bullets. Usa **negrita** para el diagnóstico clave.
 
 |||
 
 BLOQUE 2 — TENDENCIA Y PATRÓN (ÚLTIMOS 2 MESES):
-Identifica patrones en el historial mensual: progresión, estancamiento, pico-caída, lesión encubierta. Señala el mejor y peor período. Recomendación de objetivo 4-6 semanas. Máx 3 bullets. Usa **negrita** para el patrón detectado.
+Cruza el historial mensual con la evolución de CTL/forma para detectar progresión, estancamiento, pico-caída o lesión encubierta. Señala el mejor y peor período y si la rampa de carga es segura. Recomendación de objetivo 4-6 semanas. Máx 3 bullets. Usa **negrita** para el patrón detectado.
 
 |||
 
 BLOQUE 3 — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
-Basándote en el estado actual y la carga de esta semana, diseña la sesión de running más adecuada para los próximos 1-2 días. USA LAS ZONAS DE FC CALCULADAS (abajo) para dar rangos concretos en ppm. Especifica EXACTAMENTE:
+Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERENTE con el READINESS SCORE y la forma actual. USA LAS ZONAS DE FC CALCULADAS (abajo) para dar rangos concretos en ppm. Especifica EXACTAMENTE:
 - Tipo de sesión (regenerativo, aeróbico base, tempo, intervalos, rodaje largo)
 - Distancia en km (valor concreto, ej: 8-10 km)
 - Ritmo objetivo en min/km (ej: 5:30-5:45 min/km)
 - Zona de FC objetivo con los ppm exactos calculados (ej: "Zona 2 aeróbica · 128-142 ppm")
-- Una advertencia o condición si aplica (ej: "para si FC>165ppm", "reduce si VFC baja mañana")
-Refleja la fatiga del entrenamiento cruzado reciente si es elevada. Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
+- Una advertencia o condición fisiológica (ej: "para si FC>165ppm", "si VFC sigue bajo baseline mañana, pásalo a regenerativo")
+Si la distribución de intensidad reciente se aleja del 80% fácil, corrígela. Refleja la fatiga del cruzado si es elevada. Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
 
 DATOS DEL ATLETA:
+${readinessLine}
+
 ZONAS DE FC CALCULADAS (usa estas referencias exactas en el bloque 3):
 ${hrZonesSummary}
 
-${physioSection ? `Fisiología Garmin (resumen): ${physioSection}` : 'Sin datos de wearable.'}
+MODELO DE CARGA (Banister PMC):
+${pmcSection}
+
+${physioSection ? `FISIOLOGÍA (wearable Garmin):\n${physioSection}` : 'Sin datos de wearable.'}
 ${garminLog ? `Garmin día a día (últimos 30d):\n${garminLog}` : ''}
-Entrenamiento (resumen 4 sem): ${trainingSection}
+ENTRENAMIENTO (resumen 4 sem): ${trainingSection}
 ${actLog ? `Actividades últimos 30d (más reciente primero, con deportes etiquetados):\n${actLog}` : ''}
 Desglose semanal (carrera): ${weekTable}
 Historial mensual de carrera (últimos 2 meses): ${monthHistory}
 
 REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente en segunda persona. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
+
+  return { prompt, sci: { readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr } };
 };
 
 
@@ -361,6 +548,8 @@ const AIInsights = ({ activities }) => {
   const [loading, setLoading]   = useState(false);
   const [loaded, setLoaded]     = useState(false);
   const [garmin, setGarmin]     = useState(undefined);
+  const [sleep, setSleep]       = useState(undefined);
+  const [sci, setSci]           = useState(null);
   const [cacheTs, setCacheTs]   = useState(null);
   const [restoreWarning, setRestoreWarning] = useState(false);
   const [providerLabel, setProviderLabel]   = useState('');
@@ -378,16 +567,23 @@ const AIInsights = ({ activities }) => {
   const abortRef = useRef(null);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Load Garmin data
+  // Load Garmin cardiac (HRV/RHR/Body Battery) + weekly sleep data
   const loadGarminData = () => {
     try {
       const s = localStorage.getItem('garmin_cardiac_data');
-      if (s) { setGarmin(JSON.parse(s)); return; }
-    } catch {}
-    fetch('/garmin_data.json')
-      .then(r => r.ok ? r.json() : null)
-      .then(j => setGarmin(j?.data ?? null))
-      .catch(() => setGarmin(null));
+      if (s) { setGarmin(JSON.parse(s)); }
+      else {
+        fetch('/garmin_data.json')
+          .then(r => r.ok ? r.json() : null)
+          .then(j => setGarmin(j?.data ?? null))
+          .catch(() => setGarmin(null));
+      }
+    } catch { setGarmin(null); }
+
+    try {
+      const sl = localStorage.getItem('garmin_sleep_data');
+      setSleep(sl ? JSON.parse(sl) : null);
+    } catch { setSleep(null); }
   };
 
   useEffect(() => {
@@ -398,8 +594,10 @@ const AIInsights = ({ activities }) => {
 
   const run = useCallback(async (force = false) => {
     if (!activities?.length || activities.length < 3) return;
-    const prompt = buildPrompt(activities, garmin);
-    if (!prompt) return;
+    const built = buildPrompt(activities, garmin, sleep);
+    if (!built) return;
+    const { prompt, sci: builtSci } = built;
+    setSci(builtSci);
 
     // Check cache — key includes model so switching models bypasses cache
     if (!force) {
@@ -522,11 +720,11 @@ const AIInsights = ({ activities }) => {
       setLoading(false);
       setLoaded(true);
     }
-  }, [activities, garmin, selectedModel]);
+  }, [activities, garmin, sleep, selectedModel]);
 
   useEffect(() => {
-    if (activities?.length >= 3 && garmin !== undefined) run(false);
-  }, [activities, garmin, run]);
+    if (activities?.length >= 3 && garmin !== undefined && sleep !== undefined) run(false);
+  }, [activities, garmin, sleep, run]);
 
   if (!activities || activities.length < 3) return null;
 
@@ -611,6 +809,51 @@ const AIInsights = ({ activities }) => {
           </button>
         </div>
       </div>
+
+      {/* ── Scientific readiness panel ── */}
+      {sci?.readiness && (() => {
+        const { score, label, band } = sci.readiness;
+        const ring = band === 'high' ? 'text-emerald-600' : band === 'good' ? 'text-blue-600' : band === 'mod' ? 'text-amber-600' : 'text-rose-600';
+        const ringBg = band === 'high' ? 'stroke-emerald-500' : band === 'good' ? 'stroke-blue-500' : band === 'mod' ? 'stroke-amber-500' : 'stroke-rose-500';
+        const chips = [];
+        const h = sci.hrv;
+        if (h) {
+          const inBase = h.baseline?.balancedLow != null
+            ? (h.latest < h.baseline.balancedLow ? 'bajo baseline' : h.latest > h.baseline.balancedUpper ? 'sobre baseline' : 'en rango')
+            : (h.status || '');
+          chips.push({ k: 'VFC', v: `${h.latest}ms`, s: inBase });
+        }
+        if (sci.bb?.high != null) chips.push({ k: 'Body Battery', v: `${sci.bb.high}/100`, s: sci.bb.high >= 70 ? 'recuperado' : sci.bb.high >= 40 ? 'parcial' : 'bajo' });
+        if (sci.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin/60).toFixed(1)}h` : '' });
+        if (sci.pmc) chips.push({ k: 'Forma TSB', v: `${sci.pmc.tsb > 0 ? '+' : ''}${sci.pmc.tsb}`, s: `ACWR ${sci.pmc.acwr ?? '—'}` });
+        const R = 22, C = 2 * Math.PI * R, off = C * (1 - score / 100);
+        return (
+          <div className="flex items-center gap-4 px-5 py-3 border-b border-slate-100/60 bg-gradient-to-r from-slate-50/40 to-white/20">
+            <div className="relative shrink-0 w-[58px] h-[58px]">
+              <svg viewBox="0 0 56 56" className="w-full h-full -rotate-90">
+                <circle cx="28" cy="28" r={R} className="stroke-slate-100" strokeWidth="5" fill="none" />
+                <circle cx="28" cy="28" r={R} className={ringBg} strokeWidth="5" fill="none"
+                  strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off}
+                  style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+              </svg>
+              <div className={`absolute inset-0 flex items-center justify-center font-black text-base tabular-nums ${ring}`}>{score}</div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Readiness</span>
+                <span className={`text-[10px] font-bold ${ring}`}>{label}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                {chips.map(c => (
+                  <span key={c.k} className="text-[10px] text-slate-400 font-medium">
+                    {c.k} <span className="font-bold text-slate-600 tabular-nums">{c.v}</span>{c.s ? ` · ${c.s}` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Loading status banner ── */}
       {loading && providerLabel && (
