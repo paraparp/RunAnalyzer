@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -184,21 +184,68 @@ export default function TrainingZones({ activities }) {
   const [userRest,  setUserRest]  = useState('');
   const [userLTHR,  setUserLTHR]  = useState('');
 
+  // ── Fetch Garmin Data ──
+  const [garmin, setGarmin] = useState(undefined);
+  useEffect(() => {
+    const loadGarminData = () => {
+      try {
+        const s = localStorage.getItem('garmin_cardiac_data');
+        if (s) { setGarmin(JSON.parse(s)); return; }
+      } catch {}
+      fetch('/garmin_data.json')
+        .then(r => r.ok ? r.json() : null)
+        .then(j => setGarmin(j?.data ?? null))
+        .catch(() => setGarmin(null));
+    };
+    loadGarminData();
+    window.addEventListener('garmin_sync_complete', loadGarminData);
+    return () => window.removeEventListener('garmin_sync_complete', loadGarminData);
+  }, []);
+
+  // ── Filter to Last 2 Months ──
+  const recentActivities = useMemo(() => {
+    if (!activities?.length) return [];
+    const now = new Date();
+    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+    return activities.filter(a => new Date(a.start_date) >= twoMonthsAgo);
+  }, [activities]);
+
   // ── Auto-detected parameters ──
   const autoMaxHR = useMemo(() => {
     if (!activities?.length) return 185;
-    const hrs = activities
-      .filter(a => a.max_heartrate)
+    
+    // 1. Filter out impossible physiological values (> 215) or invalid data
+    const topHRs = activities
+      .filter(a => a.max_heartrate > 140 && a.max_heartrate < 215)
       .map(a => a.max_heartrate)
-      .sort((a, b) => b - a)
-      .slice(0, 10);
-    if (!hrs.length) return 185;
-    return Math.round(hrs.reduce((s, v) => s + v, 0) / hrs.length);
+      .sort((a, b) => b - a); // Descending order
+      
+    if (!topHRs.length) return 185;
+    
+    // 2. Take the Top 5% of their highest recorded HRs (minimum 5 activities)
+    // This isolates their true all-out efforts (races, intervals, sprint finishes)
+    const sampleSize = Math.min(topHRs.length, Math.max(5, Math.floor(topHRs.length * 0.05)));
+    const peaks = topHRs.slice(0, sampleSize);
+    
+    // 3. Take the median of this top sample.
+    // Why median? Optical HR sensors often produce 1-2 false spikes ("cadence lock" at ~180-200 bpm).
+    // The median safely ignores these extreme upper outliers while capturing the true sustained max capability.
+    const robustMax = peaks[Math.floor(peaks.length / 2)];
+    
+    return Math.round(robustMax);
   }, [activities]);
 
-  const autoRestHR = useMemo(() => detectRestHR(activities ?? []), [activities]);
+  const autoRestHR = useMemo(() => {
+    if (garmin?.length > 0) {
+      // Get the most recent resting HR from Garmin data
+      const sorted = [...garmin].sort((a, b) => b.date.localeCompare(a.date));
+      const recentValid = sorted.find(d => d.restingHR);
+      if (recentValid) return recentValid.restingHR;
+    }
+    return detectRestHR(recentActivities ?? []);
+  }, [recentActivities, garmin]);
 
-  const lthrResult = useMemo(() => detectLTHR(activities ?? [], autoMaxHR), [activities, autoMaxHR]);
+  const lthrResult = useMemo(() => detectLTHR(recentActivities ?? [], autoMaxHR), [recentActivities, autoMaxHR]);
 
   // ── Effective parameters (manual overrides take priority) ──
   const hrmax  = userMax  ? +userMax  : autoMaxHR;
@@ -262,10 +309,10 @@ export default function TrainingZones({ activities }) {
 
   // ── Time-in-zones distribution ──
   const zoneStats = useMemo(() => {
-    if (!activities?.length) return [];
+    if (!recentActivities?.length) return [];
     const times = new Array(bounds.length).fill(0);
     let total = 0;
-    activities.forEach(a => {
+    recentActivities.forEach(a => {
       if (!a.average_heartrate || !a.moving_time) return;
       const z = classifyHR(a.average_heartrate, bounds);
       if (z >= 0) { times[z] += a.moving_time; total += a.moving_time; }
@@ -276,13 +323,13 @@ export default function TrainingZones({ activities }) {
       hours: +(times[i] / 3600).toFixed(1),
       pct:   +((times[i] / total) * 100).toFixed(1),
     }));
-  }, [activities, bounds, model]);
+  }, [recentActivities, bounds, model]);
 
   // ── Weekly / Monthly evolution ──
   const evolutionData = useMemo(() => {
-    if (!activities?.length) return [];
+    if (!recentActivities?.length) return [];
     const buckets = {};
-    activities.forEach(a => {
+    recentActivities.forEach(a => {
       if (!a.average_heartrate || !a.moving_time) return;
       const d = new Date(a.start_date);
       let key;
@@ -304,7 +351,7 @@ export default function TrainingZones({ activities }) {
       model.zones.forEach((z, i) => { row[z.name] = +(b.zones[i] / 3600).toFixed(2); });
       return row;
     });
-  }, [activities, bounds, model, groupBy]);
+  }, [recentActivities, bounds, model, groupBy]);
 
   // ── Seiler polarization analysis ──
   const polarization = useMemo(() => {
@@ -339,7 +386,7 @@ export default function TrainingZones({ activities }) {
     none:    t('zones.method_none'),
   }[lthrResult.method];
 
-  const activitiesWithHR = activities?.filter(a => a.average_heartrate)?.length ?? 0;
+  const activitiesWithHR = recentActivities?.filter(a => a.average_heartrate)?.length ?? 0;
 
   // ── BPM range string ──
   const bpmRange = (lo, hi) =>

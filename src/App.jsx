@@ -793,7 +793,7 @@ const Dashboard = ({ user, handleLogout }) => {
                       {/* Left Column: Progress Chart & AI Insights */}
                       <div className="lg:col-span-8 flex flex-col gap-4">
                         {/* Standalone Section 1: AI Insights */}
-                        <AIInsights activities={runningActivities} />
+                        <AIInsights activities={stravaData.activities || []} />
 
                         {/* Standalone Section 2: Progress Chart */}
                         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col flex-1">

@@ -52,29 +52,37 @@ const Pulse = () => (
 // ── Prompt builder ───────────────────────────────────────────────────────────
 const buildPrompt = (activities, garminData) => {
   const now = new Date();
-  const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const yearAgo  = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const twoMonthsAgo = new Date(now); twoMonthsAgo.setMonth(now.getMonth() - 2);
   const week4  = new Date(now); week4.setDate(now.getDate() - 28);
   const week8  = new Date(now); week8.setDate(now.getDate() - 56);
-  const month1 = new Date(now); month1.setDate(now.getDate() - 90);
+  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
 
-  const yearActs = activities.filter(a => new Date(a.start_date) >= yearAgo);
+  const yearActs   = activities.filter(a => new Date(a.start_date) >= yearAgo);
   if (!yearActs.length) return null;
+
+  const isRunning  = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
+  const isCycling  = (a) => ['Ride', 'VirtualRide'].includes(a.type);
+  const isSwimming = (a) => ['Swim'].includes(a.type);
+
+  const runningYearActs = yearActs.filter(isRunning);
 
   // ── Weekly breakdown (4 weeks) ────────────────────────────────────────────
   const byWeek = [0, 1, 2, 3].map(w => {
     const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
     const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
-    const acts = yearActs.filter(a => { const d = new Date(a.start_date); return d >= wStart && d < wEnd; });
+    const runs = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= wStart && d < wEnd; });
     return {
       week: w === 0 ? 'Sem actual' : `Sem -${w}`,
-      km: acts.reduce((s, a) => s + a.distance / 1000, 0).toFixed(0),
-      sessions: acts.length,
+      km: runs.reduce((s, a) => s + a.distance / 1000, 0).toFixed(0),
+      sessions: runs.length,
     };
   }).reverse();
 
-  // ── Monthly volume (year) ─────────────────────────────────────────────────
+  // ── Monthly volume (last 2 months for current fitness) ────────────────────
+  const twoMonthActs = runningYearActs.filter(a => new Date(a.start_date) >= twoMonthsAgo);
   const byM = {};
-  for (const a of yearActs) {
+  for (const a of twoMonthActs) {
     const k = a.start_date.slice(0, 7);
     if (!byM[k]) byM[k] = { km: 0, n: 0 };
     byM[k].km += a.distance / 1000; byM[k].n++;
@@ -85,28 +93,104 @@ const buildPrompt = (activities, garminData) => {
     .join(' ');
 
   // ── ACWR (4w acute / 8w chronic) ─────────────────────────────────────────
-  const recentActs = yearActs.filter(a => new Date(a.start_date) >= week4);
-  const prevActs   = yearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
-  const recentKm   = recentActs.reduce((s, a) => s + a.distance / 1000, 0);
-  const prevKm     = prevActs.reduce((s, a) => s + a.distance / 1000, 0);
+  const recentRuns = runningYearActs.filter(a => new Date(a.start_date) >= week4);
+  const prevRuns   = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
+  const recentKm   = recentRuns.reduce((s, a) => s + a.distance / 1000, 0);
+  const prevKm     = prevRuns.reduce((s, a) => s + a.distance / 1000, 0);
   const chronicKm  = (recentKm + prevKm) / 2;
-  const acwr        = chronicKm > 0 ? (recentKm / chronicKm).toFixed(2) : null;
-  const loadDelta   = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
+  const acwr       = chronicKm > 0 ? (recentKm / chronicKm).toFixed(2) : null;
+  const loadDelta  = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
-  const recentMin = recentActs.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
+  const recentMin = recentRuns.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
   const avgPace   = recentKm > 0
     ? (() => { const p = recentMin / recentKm; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
     : null;
-  const withHR  = recentActs.filter(a => a.average_heartrate);
-  const avgHR   = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
+  const withHR = recentRuns.filter(a => a.average_heartrate);
+  const avgHR  = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
+
+  // ── Robust FCmax detection (all-time, median of top 5%) ───────────────────
+  // Using all activities (not just recent) since FCmax is a stable physiological trait.
+  // We filter <140 and >215 to eliminate sensor glitches, then take the median of the
+  // top 5% of peaks to resist cadence-lock false spikes from optical sensors.
+  const allMaxHRs = activities
+    .filter(a => a.max_heartrate > 140 && a.max_heartrate < 215)
+    .map(a => a.max_heartrate)
+    .sort((a, b) => b - a);
+  let fcmax = 185;
+  if (allMaxHRs.length > 0) {
+    const sampleSize = Math.min(allMaxHRs.length, Math.max(5, Math.floor(allMaxHRs.length * 0.05)));
+    const peaks = allMaxHRs.slice(0, sampleSize);
+    fcmax = Math.round(peaks[Math.floor(peaks.length / 2)]);
+  }
+
+  // ── Resting HR: prefer latest Garmin reading, fallback to activity estimate ─
+  let fcRest = 60;
+  if (garminData?.length) {
+    const sortedG = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
+    const recentRHR = sortedG.find(d => d.restingHR);
+    if (recentRHR) fcRest = recentRHR.restingHR;
+  } else {
+    const easyRunHRs = runningYearActs
+      .filter(a => a.average_heartrate && a.moving_time > 2400)
+      .map(a => a.average_heartrate)
+      .sort((a, b) => a - b);
+    if (easyRunHRs.length) {
+      const easy = easyRunHRs[Math.floor(easyRunHRs.length * 0.15)];
+      fcRest = Math.max(38, Math.min(78, Math.round(easy * 0.56)));
+    }
+  }
+
+  // ── LTHR detection (last 2 months for current fitness state) ─────────────
+  // Strategy 1: sustained hard efforts 18-70min where avg HR > 82% FCmax and
+  //   avg/max ratio > 0.92 (to confirm effort was sustained, not a spike).
+  //   → median of qualifying runs' avg HR = LTHR estimate
+  // Strategy 2: fall back to Friel's approximation: LTHR ≈ 87.5% FCmax
+  let lthr = Math.round(fcmax * 0.875);
+  let lthrMethod = 'Friel approx (87.5% FCmax)';
+  const thresholdRuns2m = twoMonthActs.filter(a => {
+    if (!a.average_heartrate || !a.max_heartrate || !a.moving_time) return false;
+    const mins    = a.moving_time / 60;
+    const avgPct  = a.average_heartrate / fcmax;
+    const sustain = a.average_heartrate / a.max_heartrate;
+    return mins >= 18 && mins <= 70 && avgPct >= 0.82 && avgPct < 0.97 && sustain >= 0.92;
+  });
+  if (thresholdRuns2m.length >= 2) {
+    const hrs = thresholdRuns2m.map(a => a.average_heartrate).sort((a, b) => a - b);
+    lthr = Math.round(hrs[Math.floor(hrs.length / 2)]);
+    lthrMethod = `campo (${thresholdRuns2m.length} esfuerzos umbral detectados)`;
+  }
+
+  // ── HR zones (Seiler polarized, based on LTHR) ────────────────────────────
+  const z1hi  = Math.round(lthr * 0.925) - 1;
+  const z2lo  = Math.round(lthr * 0.925);
+  const z2hi  = lthr - 1;
+  const z3lo  = lthr;
+  // Karvonen supplementary (for the recommended session prescription)
+  const hrr   = fcmax - fcRest;
+  const kZ2lo = Math.round(fcRest + 0.50 * hrr);
+  const kZ2hi = Math.round(fcRest + 0.60 * hrr);
+  const kZ3lo = Math.round(fcRest + 0.60 * hrr);
+  const kZ3hi = Math.round(fcRest + 0.70 * hrr);
+  const kZ4lo = Math.round(fcRest + 0.70 * hrr);
+  const kZ4hi = Math.round(fcRest + 0.85 * hrr);
+
+  const hrZonesSummary = [
+    `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
+    `FC reposo=${fcRest}ppm (Garmin más reciente)`,
+    `LTHR=${lthr}ppm [método: ${lthrMethod}]`,
+    `Z1 aeróbica base: <${z1hi+1}ppm`,
+    `Z2 zona umbral (gris): ${z2lo}-${z2hi}ppm`,
+    `Z3 alta intensidad: ≥${z3lo}ppm`,
+    `Karvonen Z2 (base): ${kZ2lo}-${kZ2hi}ppm | Z3 (aeróbico intenso): ${kZ3lo}-${kZ3hi}ppm | Z4 (umbral/tempo): ${kZ4lo}-${kZ4hi}ppm`,
+  ].join('\n');
 
   // ── Garmin: day-by-day (30d) + summary averages ───────────────────────────
-  // Store as numbers to avoid string-comparison bugs
-  let hrv14n = null, hrv7n = null, rhr14n = null, rhr7n = null, hrvStatus = null;
+  let hrv14n = null, hrv7n = null, rhr14n = null, rhr7n = null, rhrLatest = null, hrvStatus = null;
   let garminLog = '';
   if (garminData?.length) {
     const sorted = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
-    hrvStatus = sorted[0]?.hrvStatus ?? null;
+    hrvStatus  = sorted[0]?.hrvStatus ?? null;
+    rhrLatest  = sorted.find(d => d.restingHR)?.restingHR ?? null;
 
     const w14   = new Date(now); w14.setDate(now.getDate() - 14);
     const w7    = new Date(now); w7.setDate(now.getDate() - 7);
@@ -143,21 +227,58 @@ const buildPrompt = (activities, garminData) => {
       const kmNum = a.distance / 1000;
       const km    = kmNum.toFixed(1);
       const min   = (a.moving_time || 0) / 60;
-      const pace  = kmNum > 0 && min > 0
-        ? (() => { const p = min / kmNum; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
-        : null;
-      const parts = [a.start_date.slice(5, 10), `${km}km`];
-      if (pace)                parts.push(`@${pace}/km`);
+
+      let typeLabel = '[Otro]';
+      let performance = '';
+
+      if (isRunning(a)) {
+        typeLabel = '[Carrera]';
+        if (kmNum > 0 && min > 0) {
+          const p = min / kmNum;
+          performance = `@${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+        }
+      } else if (isCycling(a)) {
+        typeLabel = '[Ciclismo]';
+        if (kmNum > 0 && min > 0) {
+          const speed = kmNum / (min / 60);
+          performance = `@${speed.toFixed(1)}km/h`;
+        }
+      } else if (isSwimming(a)) {
+        typeLabel = '[Natación]';
+        if (kmNum > 0 && min > 0) {
+          const pace100m = min / (a.distance / 100);
+          const paceMin = Math.floor(pace100m);
+          const paceSec = Math.round((pace100m % 1) * 60).toString().padStart(2, '0');
+          performance = `@${paceMin}:${paceSec}/100m`;
+        }
+      } else if (a.type === 'Walk' || a.type === 'Hike') {
+        typeLabel = `[Caminata]`;
+        if (kmNum > 0 && min > 0) {
+          const p = min / kmNum;
+          performance = `@${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+        }
+      } else if (a.type === 'WeightTraining') {
+        typeLabel = '[Fuerza]';
+      } else if (a.type === 'Yoga') {
+        typeLabel = '[Yoga]';
+      } else {
+        typeLabel = `[${a.type || 'Actividad'}]`;
+      }
+
+      const parts = [a.start_date.slice(5, 10), typeLabel];
+      if (a.distance > 0) parts.push(`${km}km`);
+      if (performance)    parts.push(performance);
       if (a.average_heartrate) parts.push(`FC=${Math.round(a.average_heartrate)}ppm`);
-      if (min > 0)             parts.push(`${Math.round(min)}min`);
-      if (a.suffer_score)      parts.push(`sufr=${a.suffer_score}`);
+      if (min > 0)        parts.push(`${Math.round(min)}min`);
+      if (a.suffer_score) parts.push(`sufr=${a.suffer_score}`);
       return parts.join(' ');
     }).join('\n');
 
   // ── Sections ─────────────────────────────────────────────────────────────
-  const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} salidas)`).join(' | ');
+  const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} carreras)`).join(' | ');
 
   const physioSection = [
+    rhrLatest != null ? `FC reposo HOY=${rhrLatest}ppm (dato Garmin más reciente)` : null,
     hrv14n != null ? `VFC 14d=${hrv14n.toFixed(1)}ms` : null,
     hrv7n  != null ? `VFC 7d=${hrv7n.toFixed(1)}ms${hrv14n != null ? ` (${hrv7n >= hrv14n ? '↑ mejorando' : '↓ bajando'})` : ''}` : null,
     rhr14n != null ? `FC reposo 14d=${rhr14n.toFixed(0)}ppm` : null,
@@ -166,14 +287,14 @@ const buildPrompt = (activities, garminData) => {
   ].filter(Boolean).join(', ');
 
   const trainingSection = [
-    `Total 4 sem: ${recentKm.toFixed(0)}km en ${recentActs.length} salidas`,
+    `Total 4 sem (carrera): ${recentKm.toFixed(0)}km en ${recentRuns.length} sesiones`,
     avgPace   ? `ritmo medio ${avgPace}min/km` : null,
-    avgHR     ? `FC media carrera ${avgHR}ppm` : null,
+    avgHR     ? `FC media carrera ${avgHR}ppm (=${avgHR ? Math.round(avgHR/fcmax*100) : '?'}% FCmax)` : null,
     loadDelta != null ? `Carga vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
     acwr      != null ? `ACWR aprox: ${acwr} (óptimo 0.8–1.3)` : null,
   ].filter(Boolean).join(', ');
 
-  return `Eres un entrenador de running y fisiólogo deportivo de élite. Tu objetivo es dar un diagnóstico ACCIONABLE, no solo describir los datos.
+  return `Eres un entrenador de running y fisiólogo deportivo de élite. Tu objetivo es dar un diagnóstico ACCIONABLE, no solo describir los datos. El atleta realiza entrenamiento cruzado (como ciclismo, natación, fuerza o caminata) además de correr. Considera la carga cardiovascular y fatiga que generan estas otras disciplinas al evaluar su estado general, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie (running).
 
 Devuelve EXACTAMENTE tres bloques separados por "|||", sin ningún texto fuera de ellos:
 
@@ -182,30 +303,34 @@ Con los datos fisiológicos (VFC/HRV + FC reposo) y la carga reciente, determina
 
 |||
 
-BLOQUE 2 — TENDENCIA Y PATRÓN ANUAL:
+BLOQUE 2 — TENDENCIA Y PATRÓN (ÚLTIMOS 2 MESES):
 Identifica patrones en el historial mensual: progresión, estancamiento, pico-caída, lesión encubierta. Señala el mejor y peor período. Recomendación de objetivo 4-6 semanas. Máx 3 bullets. Usa **negrita** para el patrón detectado.
 
 |||
 
 BLOQUE 3 — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
-Basándote en el estado actual y la carga de esta semana, diseña la sesión de running más adecuada para los próximos 1-2 días. Especifica EXACTAMENTE:
+Basándote en el estado actual y la carga de esta semana, diseña la sesión de running más adecuada para los próximos 1-2 días. USA LAS ZONAS DE FC CALCULADAS (abajo) para dar rangos concretos en ppm. Especifica EXACTAMENTE:
 - Tipo de sesión (regenerativo, aeróbico base, tempo, intervalos, rodaje largo)
 - Distancia en km (valor concreto, ej: 8-10 km)
 - Ritmo objetivo en min/km (ej: 5:30-5:45 min/km)
-- Zona de FC objetivo (ej: Zona 2 · 130-145 ppm) o esfuerzo percibido
-- Una advertencia o condición si aplica (ej: "para si FC>160", "no si llueve")
-Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
+- Zona de FC objetivo con los ppm exactos calculados (ej: "Zona 2 aeróbica · 128-142 ppm")
+- Una advertencia o condición si aplica (ej: "para si FC>165ppm", "reduce si VFC baja mañana")
+Refleja la fatiga del entrenamiento cruzado reciente si es elevada. Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
 
 DATOS DEL ATLETA:
+ZONAS DE FC CALCULADAS (usa estas referencias exactas en el bloque 3):
+${hrZonesSummary}
+
 ${physioSection ? `Fisiología Garmin (resumen): ${physioSection}` : 'Sin datos de wearable.'}
 ${garminLog ? `Garmin día a día (últimos 30d):\n${garminLog}` : ''}
 Entrenamiento (resumen 4 sem): ${trainingSection}
-${actLog ? `Actividades últimos 30d (más reciente primero):\n${actLog}` : ''}
-Desglose semanal: ${weekTable}
-Historial mensual (mes:km/sesiones): ${monthHistory}
+${actLog ? `Actividades últimos 30d (más reciente primero, con deportes etiquetados):\n${actLog}` : ''}
+Desglose semanal (carrera): ${weekTable}
+Historial mensual de carrera (últimos 2 meses): ${monthHistory}
 
 REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente en segunda persona. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
 };
+
 
 // ── Timestamp formatter ──────────────────────────────────────────────────────
 const formatTs = (ts) => {
@@ -510,6 +635,56 @@ const AIInsights = ({ activities }) => {
           >✕</button>
         </div>
       )}
+
+      {/* ── Últimas actividades analizadas ── */}
+      <div className="px-5 py-2.5 border-b border-slate-100/60 bg-slate-50/30 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+          <ClockIcon className="w-3.5 h-3.5" />
+          Últimas 5 actividades
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {[...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)).slice(0, 5).map(a => {
+            const tooltipParts = [];
+            if (a.name) tooltipParts.push(a.name);
+            tooltipParts.push(new Date(a.start_date).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+            if (a.total_elevation_gain) tooltipParts.push(`Desnivel: +${Math.round(a.total_elevation_gain)}m`);
+            if (a.average_heartrate) tooltipParts.push(`FC Media: ${Math.round(a.average_heartrate)} ppm`);
+            if (a.suffer_score) tooltipParts.push(`Esfuerzo: ${a.suffer_score}`);
+
+            return (
+            <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-help hover:bg-slate-50 transition-colors">
+              <span className="text-[9px] text-slate-400 font-medium border-r border-slate-100 pr-1.5">
+                {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+              </span>
+              <span className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                <span>
+                  {a.type === 'Ride' || a.type === 'VirtualRide' ? '🚴' :
+                   a.type === 'Run' || a.type === 'TrailRun' || a.type === 'VirtualRun' ? '🏃' :
+                   a.type === 'Swim' ? '🏊' :
+                   a.type === 'Walk' || a.type === 'Hike' ? '🚶' :
+                   a.type === 'WeightTraining' ? '🏋️' :
+                   a.type === 'Yoga' ? '🧘' : '👟'}
+                </span>
+                {a.distance > 0 ? `${(a.distance / 1000).toFixed(1)}k` : `${Math.round((a.moving_time || 0) / 60)}min`}
+              </span>
+              {a.moving_time > 0 && a.distance > 0 && ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(a.type) && (
+                <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                  {(() => {
+                    const p = (a.moving_time / 60) / (a.distance / 1000);
+                    return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+                  })()}
+                </span>
+              )}
+              {a.moving_time > 0 && a.distance > 0 && ['Ride', 'VirtualRide'].includes(a.type) && (
+                <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                  {((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1)} km/h
+                </span>
+              )}
+            </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ── Content grid: Diagnosis + Trend ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100/60">
