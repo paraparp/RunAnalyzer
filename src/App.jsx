@@ -29,6 +29,7 @@ import RaceDetector from './components/RaceDetector';
 import AIInsights from './components/AIInsights';
 import CardiacDecoupling from './components/CardiacDecoupling';
 import GarminCardiac from './components/GarminCardiac';
+import VitalsOverview from './components/VitalsOverview';
 import InjuryRisk from './components/InjuryRisk';
 import VO2MaxTracker from './components/VO2MaxTracker';
 import LactateThreshold from './components/LactateThreshold';
@@ -83,6 +84,7 @@ const NAV_ITEMS = [
   { id: 'records', icon: TrophyIcon },
   { id: 'decoupling', icon: SignalIcon },
   { id: 'cardiac', icon: HeartIcon },
+  { id: 'vitals', icon: ArrowTrendingUpIcon },
   { id: 'injury', icon: ShieldExclamationIcon },
   { id: 'vo2tracker', icon: ArrowTrendingUpIcon },
   { id: 'lactate', icon: SignalIcon },
@@ -93,7 +95,7 @@ const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['splits', 'records', 'decoupling', 'cardiac', 'injury', 'vo2tracker', 'lactate'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['splits', 'records', 'decoupling', 'cardiac', 'vitals', 'injury', 'vo2tracker', 'lactate'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -1251,6 +1253,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 ),
                 decoupling:  <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
                 cardiac:     <GarminCardiac />,
+                vitals:      <VitalsOverview activities={runningActivities} />,
                 injury:      <InjuryRisk activities={runningActivities} />,
                 vo2tracker:  <VO2MaxTracker activities={runningActivities} />,
                 lactate:     <LactateThreshold activities={runningActivities} />,
