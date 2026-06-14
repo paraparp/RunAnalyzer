@@ -23,19 +23,6 @@ const fmtDateFull = (ms) => {
   return `${d.getDate()} ${MONTHS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
 };
 
-// Rolling average over a value series (array of {ms, v}); returns smoothed v per point
-function rollingAvg(points, windowDays, decimals = 1) {
-  return points.map((p, i) => {
-    const from = p.ms - windowDays * MS_DAY;
-    let sum = 0, n = 0;
-    for (let j = i; j >= 0 && points[j].ms >= from; j--) {
-      sum += points[j].v;
-      n++;
-    }
-    return n ? +(sum / n).toFixed(decimals) : p.v;
-  });
-}
-
 // Bucket a point's timestamp to the start of its day/week/month/year
 function bucketStartMs(ms, gran) {
   const d = new Date(ms);
@@ -65,6 +52,52 @@ function aggregate(points, gran, decimals = 1) {
     .sort((a, b) => a.ms - b.ms);
 }
 
+// Floor a timestamp to local midnight (unifies the day basis across all series)
+function dayMs(ms) {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+// Average points [{ms,v}] that fall on the same local day → sorted [{ms(day), v}]
+function mergeByDay(points) {
+  const m = {};
+  points.forEach((p) => {
+    const k = dayMs(p.ms);
+    if (!m[k]) m[k] = { s: 0, n: 0 };
+    m[k].s += p.v;
+    m[k].n++;
+  });
+  return Object.entries(m)
+    .map(([k, x]) => ({ ms: +k, v: x.s / x.n }))
+    .sort((a, b) => a.ms - b.ms);
+}
+
+// Expand sparse points into a continuous daily grid with a trailing rolling mean.
+// Every day gets a point (ms at local midnight) so cross-chart hover sync always matches.
+// raw = that day's actual value (or null); smooth = trailing-window mean (or null).
+function densifyDaily(points, windowDays, dec = 1) {
+  const pts = mergeByDay(points);
+  if (!pts.length) return [];
+  const rawMap = new Map(pts.map((p) => [p.ms, p.v]));
+  const out = [];
+  const endMs = pts[pts.length - 1].ms;
+  const d = new Date(pts[0].ms);
+  for (let cur = pts[0].ms; cur <= endMs; d.setDate(d.getDate() + 1), cur = dayMs(d.getTime())) {
+    const from = cur - windowDays * MS_DAY;
+    let sum = 0, n = 0;
+    for (let i = pts.length - 1; i >= 0 && pts[i].ms >= from; i--) {
+      if (pts[i].ms <= cur) { sum += pts[i].v; n++; }
+    }
+    out.push({
+      ms: cur,
+      raw: rawMap.has(cur) ? +rawMap.get(cur).toFixed(dec) : null,
+      smooth: n ? +(sum / n).toFixed(dec) : null,
+    });
+  }
+  return out;
+}
+
 // Contiguous time ranges where a series' smoothed value is >= threshold
 function buildBands(data, threshold) {
   if (threshold == null) return [];
@@ -80,6 +113,15 @@ function buildBands(data, threshold) {
     bands.push({ x1: start, x2: end > start ? end : start + 3 * MS_DAY });
   }
   return bands;
+}
+
+// Minetti (2002) energy cost of running vs gradient → flat-equivalent speed factor.
+// i = gradient as fraction (gain/distance). factor = C(i)/C(0); >1 uphill (would run faster on flat).
+function minettiFactor(i) {
+  const g = Math.max(0, Math.min(i, 0.30)); // gain/distance is non-negativo; cap a 30%
+  const C0 = 3.6;
+  const C = 155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6;
+  return C / C0;
 }
 
 // Lightweight per-run VO2max estimate (HRR + %HRmax, same formulas as VO2max Tracker)
@@ -156,22 +198,32 @@ const PERIODS = [
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-const SharedTooltip = ({ active, payload, unit, label: name }) => {
+const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media" }) => {
   if (!active || !payload?.length) return null;
-  const p = payload.find((x) => x.value != null);
-  if (!p) return null;
+  const pt = payload[0]?.payload;
+  if (!pt || pt.ms == null) return null;
+  const U = unit ? <span className="text-slate-400 font-medium ml-0.5">{unit}</span> : null;
   return (
-    <div className="bg-white/90 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg">
-      <p className="font-semibold text-slate-500 mb-1">{fmtDateFull(p.payload.ms)}</p>
-      <p className="font-bold text-slate-900">
-        {name}: {p.value}
-        {unit && <span className="text-slate-400 font-medium ml-0.5">{unit}</span>}
-      </p>
+    <div className="bg-white/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
+      <p className="font-semibold text-slate-500">{fmtDateFull(pt.ms)}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{metric}</p>
+      {pt.smooth != null && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-slate-500">{avgLabel}</span>
+          <span className="font-bold text-slate-900">{pt.smooth}{U}</span>
+        </div>
+      )}
+      {pt.raw != null && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-slate-400">Diario</span>
+          <span className="font-semibold text-slate-600">{pt.raw}{U}</span>
+        </div>
+      )}
     </div>
   );
 };
 
-function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [] }) {
+function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media" }) {
   const A = {
     rose:    { stroke: "#f43f5e", fill: "rgba(244,63,94,0.10)",  chip: "bg-rose-50 text-rose-600",       icon: "bg-rose-50 text-rose-500" },
     emerald: { stroke: "#10b981", fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
@@ -254,7 +306,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                 tickFormatter={(v) => v.toFixed(decimals)}
               />
               <Tooltip
-                content={<SharedTooltip unit={unit} label={title} />}
+                content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} />}
                 cursor={{ stroke: "#64748b", strokeWidth: 1.5, strokeDasharray: "4 4" }}
               />
               {refValue != null && (
@@ -296,6 +348,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
 export default function VitalsOverview({ activities = [] }) {
   const [days, setDays] = useState(180);
   const [gran, setGran] = useState("day"); // day | week | month | year
+  const [gapAdjust, setGapAdjust] = useState(false); // ajustar eficiencia por desnivel (GAP)
 
   const garmin = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("garmin_cardiac_data") || "null") || []; }
@@ -313,11 +366,8 @@ export default function VitalsOverview({ activities = [] }) {
     // Build display series from raw points [{ms,v}]:
     // - Diario: puntos crudos + línea de media móvil
     // - Semanal/Mensual/Anual: media de cada bucket (sin puntos crudos)
-    const series = (pts, smoothWindow, dec = 1) => {
-      if (!isDay) return aggregate(pts, gran, dec);
-      const smooth = rollingAvg(pts, smoothWindow, dec);
-      return pts.map((p, i) => ({ ms: p.ms, raw: +p.v.toFixed(dec), smooth: smooth[i] }));
-    };
+    const series = (pts, smoothWindow, dec = 1) =>
+      isDay ? densifyDaily(pts, smoothWindow, dec) : aggregate(pts, gran, dec);
 
     // ── Garmin daily series (HRV / resting HR) ──
     const g = garmin
@@ -352,9 +402,9 @@ export default function VitalsOverview({ activities = [] }) {
 
     // ── Carga de entrenamiento acumulada (CTL) — window slice of full series ──
     const ctlPts = ctlSeries.filter((d) => d.ms >= cutoff).map((d) => ({ ms: d.ms, v: d.ctl }));
-    // CTL ya es una EWMA; en diario se muestra tal cual (sin segundo suavizado ni puntos crudos)
+    // CTL ya es una EWMA; en diario se muestra tal cual (ms a medianoche local para que el sync cuadre)
     const loadData = isDay
-      ? ctlPts.map((p) => ({ ms: p.ms, smooth: p.v, raw: null }))
+      ? ctlPts.map((p) => ({ ms: dayMs(p.ms), smooth: p.v, raw: null }))
       : aggregate(ctlPts, gran, 1);
 
     // ── Eficiencia aeróbica (metros por latido) ──
@@ -362,6 +412,7 @@ export default function VitalsOverview({ activities = [] }) {
     // y de duración media (15-120 min) → descarta series, tempos y deriva de tiradas largas.
     const zLow = hrMax * 0.68;
     const zHigh = hrMax * 0.90;
+    const gradCap = gapAdjust ? 4 : 1; // GAP permite hasta 4% de desnivel medio; llano solo <1%
     const effRunsAll = activities
       .filter((a) => {
         if (!a.average_heartrate || a.average_heartrate < zLow || a.average_heartrate > zHigh) return false;
@@ -370,13 +421,14 @@ export default function VitalsOverview({ activities = [] }) {
         const dur = a.moving_time || 0;
         if (dur < 900 || dur > 7200) return false; // 15-120 min
         const gradient = Math.abs((a.total_elevation_gain || 0) / a.distance) * 100;
-        return gradient < 1; // terreno casi llano
+        return gradient < gradCap;
       })
-      .map((a) => ({
-        ms: new Date(a.start_date).getTime(),
+      .map((a) => {
+        const gradeFrac = (a.total_elevation_gain || 0) / a.distance;
+        const speed = gapAdjust ? a.average_speed * minettiFactor(gradeFrac) : a.average_speed;
         // m/latido = velocidad(m/s) · 60 / FC(ppm)
-        v: +((a.average_speed * 60) / a.average_heartrate).toFixed(3),
-      }))
+        return { ms: new Date(a.start_date).getTime(), v: +((speed * 60) / a.average_heartrate).toFixed(3) };
+      })
       .sort((a, b) => a.ms - b.ms);
     // Compute over full history (true "histórico"), then slice to the visible window
     const effDataAll = series(effRunsAll, 28, 2);
@@ -384,7 +436,7 @@ export default function VitalsOverview({ activities = [] }) {
 
     // ── Banda "buena forma": eficiencia ≥ 90% del máximo histórico ──
     const effMax = effDataAll.reduce((m, d) => (d.smooth != null && d.smooth > m ? d.smooth : m), 0);
-    const effThreshold = effMax > 0 ? +(effMax * 0.9).toFixed(2) : null;
+    const effThreshold = effMax > 0 ? +(effMax * 0.85).toFixed(2) : null;
     const goodBands = buildBands(effData, effThreshold);
 
     // ── Shared X domain ──
@@ -412,7 +464,7 @@ export default function VitalsOverview({ activities = [] }) {
         eff: { current: lastOf(effData), trend: deltaOf(effData, 2) },
       },
     };
-  }, [garmin, activities, ctlSeries, days, gran]);
+  }, [garmin, activities, ctlSeries, days, gran, gapAdjust]);
 
   // X-axis label format depends on granularity
   const xFmt = useMemo(() => {
@@ -424,6 +476,7 @@ export default function VitalsOverview({ activities = [] }) {
   }, [gran]);
 
   const granLabel = { day: "media móvil diaria", week: "media semanal", month: "media mensual", year: "media anual" }[gran];
+  const avgLabel = { day: "Media móvil", week: "Media sem.", month: "Media mes", year: "Media año" }[gran];
 
   // Shared evenly-spaced ticks so the 5 axes line up exactly
   const xTicks = useMemo(() => {
@@ -482,6 +535,20 @@ export default function VitalsOverview({ activities = [] }) {
               </button>
             ))}
           </div>
+
+          {/* GAP toggle (afecta solo a Eficiencia aeróbica) */}
+          <label
+            title="Ajusta la eficiencia por desnivel (modelo de Minetti) e incluye rodajes de hasta 4% de pendiente. Aproximado: solo usa el desnivel medio."
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white cursor-pointer select-none hover:border-sky-300 transition-colors"
+          >
+            <input
+              type="checkbox"
+              checked={gapAdjust}
+              onChange={(e) => setGapAdjust(e.target.checked)}
+              className="w-3.5 h-3.5 accent-sky-500"
+            />
+            <span className="text-xs font-semibold text-slate-600">Ajustar por desnivel</span>
+          </label>
         </div>
       </div>
 
@@ -514,6 +581,7 @@ export default function VitalsOverview({ activities = [] }) {
           ticks={xTicks}
           xFmt={xFmt}
           bands={goodBands}
+          avgLabel={avgLabel}
         />
         <VitalPanel
           title="FC en reposo"
@@ -529,6 +597,7 @@ export default function VitalsOverview({ activities = [] }) {
           ticks={xTicks}
           xFmt={xFmt}
           bands={goodBands}
+          avgLabel={avgLabel}
         />
         <VitalPanel
           title="Forma física"
@@ -543,6 +612,7 @@ export default function VitalsOverview({ activities = [] }) {
           ticks={xTicks}
           xFmt={xFmt}
           bands={goodBands}
+          avgLabel={avgLabel}
         />
         <VitalPanel
           title="Carga acumulada"
@@ -557,10 +627,11 @@ export default function VitalsOverview({ activities = [] }) {
           ticks={xTicks}
           xFmt={xFmt}
           bands={goodBands}
+          avgLabel={avgLabel}
         />
         <VitalPanel
           title="Eficiencia aeróbica"
-          subtitle={`m/latido · rodajes aeróbicos (68-90% FCmax), <1% desnivel, 15-120 min · ${granLabel}`}
+          subtitle={`m/latido · rodajes aeróbicos 68-90% FCmax, 15-120 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
           icon={ArrowTrendingUpIcon}
           accent="sky"
           data={effData}
@@ -571,6 +642,7 @@ export default function VitalsOverview({ activities = [] }) {
           ticks={xTicks}
           xFmt={xFmt}
           bands={goodBands}
+          avgLabel={avgLabel}
           decimals={2}
           yPad={0.1}
         />
@@ -581,7 +653,7 @@ export default function VitalsOverview({ activities = [] }) {
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             <span className="inline-block w-4 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/30" />
             <span>
-              Franja verde = eficiencia aeróbica ≥ 90 % de tu máximo histórico
+              Franja verde = eficiencia aeróbica ≥ 85 % de tu máximo histórico
               <span className="text-slate-400"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
             </span>
           </div>
