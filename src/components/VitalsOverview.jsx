@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 import {
-  HeartIcon, BoltIcon, ArrowTrendingUpIcon, ExclamationTriangleIcon, FireIcon,
+  HeartIcon, BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, ExclamationTriangleIcon, FireIcon,
 } from "@heroicons/react/24/outline";
 
 // ---------------------------------------------------------------------------
@@ -115,6 +115,20 @@ function buildBands(data, threshold) {
   return bands;
 }
 
+// Aerobic decoupling (Pa:HR drift) within a run: 2nd-half vs 1st-half HR/pace ratio.
+// <5% = buena resistencia aeróbica (TrainingPeaks / Jones 2023). Necesita parciales (splits_metric).
+function calcDecoupling(splits) {
+  if (!splits || splits.length < 4) return null;
+  const valid = splits.filter((s) => s.average_speed > 0 && s.average_heartrate > 0 && s.distance > 500);
+  if (valid.length < 4) return null;
+  const mid = Math.floor(valid.length / 2);
+  const ratio = (arr) =>
+    arr.reduce((s, sp) => s + sp.average_heartrate / (1000 / (sp.average_speed * 60)), 0) / arr.length;
+  const r1 = ratio(valid.slice(0, mid));
+  const r2 = ratio(valid.slice(mid));
+  return r1 === 0 ? null : ((r2 - r1) / r1) * 100;
+}
+
 // Minetti (2002) energy cost of running vs gradient → flat-equivalent speed factor.
 // i = gradient as fraction (gain/distance). factor = C(i)/C(0); >1 uphill (would run faster on flat).
 function minettiFactor(i) {
@@ -191,7 +205,7 @@ const PERIODS = [
   { label: "3M", days: 90 },
   { label: "6M", days: 180 },
   { label: "1A", days: 365 },
-  { label: "2A", days: 730 },
+  { label: "3A", days: 1096 },
   { label: "Todo", days: 99999 },
 ];
 
@@ -225,12 +239,17 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media" }) =>
 
 function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media" }) {
   const A = {
-    rose:    { stroke: "#f43f5e", fill: "rgba(244,63,94,0.10)",  chip: "bg-rose-50 text-rose-600",       icon: "bg-rose-50 text-rose-500" },
+    rose: { stroke: "#f43f5e", fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
     emerald: { stroke: "#10b981", fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
-    violet:  { stroke: "#8b5cf6", fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600",   icon: "bg-violet-50 text-violet-500" },
-    amber:   { stroke: "#f59e0b", fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600",     icon: "bg-amber-50 text-amber-500" },
-    sky:     { stroke: "#0ea5e9", fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600",         icon: "bg-sky-50 text-sky-500" },
+    violet: { stroke: "#8b5cf6", fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
+    amber: { stroke: "#f59e0b", fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
+    sky: { stroke: "#0ea5e9", fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
+    indigo: { stroke: "#6366f1", fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
   }[accent];
+
+  const vals = data.map((d) => d.smooth).filter((v) => v != null);
+  const maxV = vals.length ? Math.max(...vals) : null;
+  const minV = vals.length ? Math.min(...vals) : null;
 
   let trendBadge = null;
   const trendThreshold = decimals > 0 ? Math.pow(10, -decimals) : 0.1;
@@ -312,6 +331,24 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               {refValue != null && (
                 <ReferenceLine y={refValue} stroke={A.stroke} strokeDasharray="4 4" strokeOpacity={0.4} />
               )}
+              {maxV != null && (
+                <ReferenceLine
+                  y={maxV}
+                  stroke={A.stroke}
+                  strokeDasharray="2 4"
+                  strokeOpacity={0.35}
+                  label={{ value: `máx ${maxV}`, position: "insideTopRight", fontSize: 9, fill: A.stroke, opacity: 0.8 }}
+                />
+              )}
+              {minV != null && minV !== maxV && (
+                <ReferenceLine
+                  y={minV}
+                  stroke={A.stroke}
+                  strokeDasharray="2 4"
+                  strokeOpacity={0.35}
+                  label={{ value: `mín ${minV}`, position: "insideBottomRight", fontSize: 9, fill: A.stroke, opacity: 0.8 }}
+                />
+              )}
               <Area
                 type="monotone"
                 dataKey="smooth"
@@ -358,7 +395,7 @@ export default function VitalsOverview({ activities = [] }) {
   // CTL runs over full history (EWMA needs the warm-up), filtered to the window below
   const ctlSeries = useMemo(() => computeCTLSeries(activities), [activities]);
 
-  const { hrvData, hrData, vo2Data, loadData, effData, domain, summary, hasGarmin, goodBands, effThreshold } = useMemo(() => {
+  const { hrvData, hrData, vo2Data, loadData, effData, decData, domain, summary, hasGarmin, goodBands, effThreshold, hasDecoupling } = useMemo(() => {
     const now = Date.now();
     const cutoff = now - days * MS_DAY;
     const isDay = gran === "day";
@@ -410,8 +447,10 @@ export default function VitalsOverview({ activities = [] }) {
     // ── Eficiencia aeróbica (metros por latido) ──
     // Normalizado: solo carreras aeróbicas (70-88% FCmax), llanas (<1% desnivel)
     // y de duración media (15-120 min) → descarta series, tempos y deriva de tiradas largas.
-    const zLow = hrMax * 0.68;
-    const zHigh = hrMax * 0.90;
+    // EF fiable solo en esfuerzo aeróbico sub-umbral (TrainingPeaks / Jones 2023):
+    // por encima del umbral la relación pace/FC se rompe. Banda 70-85% FCmax.
+    const zLow = hrMax * 0.70;
+    const zHigh = hrMax * 0.85;
     const gradCap = gapAdjust ? 4 : 1; // GAP permite hasta 4% de desnivel medio; llano solo <1%
     const effRunsAll = activities
       .filter((a) => {
@@ -439,8 +478,26 @@ export default function VitalsOverview({ activities = [] }) {
     const effThreshold = effMax > 0 ? +(effMax * 0.85).toFixed(2) : null;
     const goodBands = buildBands(effData, effThreshold);
 
+    // ── Decoupling aeróbico (Pa:HR) — solo actividades con parciales (splits_metric) ──
+    const decRuns = activities
+      .filter((a) => {
+        const ms = new Date(a.start_date).getTime();
+        if (ms < cutoff) return false;
+        if (!a.splits_metric || a.splits_metric.length < 4) return false;
+        if (!a.average_heartrate || (a.moving_time || 0) < 1800) return false; // ≥30 min, estable
+        return true;
+      })
+      .map((a) => {
+        const dc = calcDecoupling(a.splits_metric);
+        return dc == null ? null : { ms: new Date(a.start_date).getTime(), v: +dc.toFixed(2) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.ms - b.ms);
+    const decData = series(decRuns, 28, 1);
+    const hasDecoupling = decRuns.length > 0;
+
     // ── Shared X domain ──
-    const allMs = [...hrvData, ...hrData, ...vo2Data, ...loadData, ...effData].map((d) => d.ms);
+    const allMs = [...hrvData, ...hrData, ...vo2Data, ...loadData, ...effData, ...decData].map((d) => d.ms);
     const domain = allMs.length ? [Math.min(...allMs), Math.max(...allMs)] : [cutoff, now];
 
     // ── Summary (current value + delta vs first half of period) ──
@@ -454,7 +511,7 @@ export default function VitalsOverview({ activities = [] }) {
     };
 
     return {
-      hrvData, hrData, vo2Data, loadData, effData, domain, goodBands, effThreshold,
+      hrvData, hrData, vo2Data, loadData, effData, decData, domain, goodBands, effThreshold, hasDecoupling,
       hasGarmin: garmin.length > 0,
       summary: {
         hrv: { current: lastOf(hrvData), trend: deltaOf(hrvData) },
@@ -462,6 +519,7 @@ export default function VitalsOverview({ activities = [] }) {
         vo2: { current: lastOf(vo2Data), trend: deltaOf(vo2Data) },
         load: { current: lastOf(loadData), trend: deltaOf(loadData) },
         eff: { current: lastOf(effData), trend: deltaOf(effData, 2) },
+        dec: { current: lastOf(decData), trend: deltaOf(decData) },
       },
     };
   }, [garmin, activities, ctlSeries, days, gran, gapAdjust]);
@@ -512,9 +570,8 @@ export default function VitalsOverview({ activities = [] }) {
               <button
                 key={gr.id}
                 onClick={() => setGran(gr.id)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  gran === gr.id ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 {gr.label}
               </button>
@@ -527,9 +584,8 @@ export default function VitalsOverview({ activities = [] }) {
               <button
                 key={p.days}
                 onClick={() => setDays(p.days)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  days === p.days ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${days === p.days ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 {p.label}
               </button>
@@ -616,7 +672,7 @@ export default function VitalsOverview({ activities = [] }) {
         />
         <VitalPanel
           title="Carga acumulada"
-          subtitle={`Carga crónica de entrenamiento (CTL · EWMA 42 días) · ${granLabel}`}
+          subtitle={`CTL · carga crónica de entrenamiento (EWMA 42 días, estándar)${gran === "day" ? "" : " · " + granLabel}`}
           icon={FireIcon}
           accent="amber"
           data={loadData}
@@ -631,7 +687,7 @@ export default function VitalsOverview({ activities = [] }) {
         />
         <VitalPanel
           title="Eficiencia aeróbica"
-          subtitle={`m/latido · rodajes aeróbicos 68-90% FCmax, 15-120 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
+          subtitle={`m/latido (EF) · zona aeróbica sub-umbral 70-85% FCmax, 15-120 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
           icon={ArrowTrendingUpIcon}
           accent="sky"
           data={effData}
@@ -646,6 +702,27 @@ export default function VitalsOverview({ activities = [] }) {
           decimals={2}
           yPad={0.1}
         />
+        {hasDecoupling && (
+          <VitalPanel
+            title="Decoupling aeróbico"
+            subtitle={`Deriva Pa:HR (2ª vs 1ª mitad) · solo carreras con parciales, ≥30 min · ${granLabel}`}
+            icon={ArrowTrendingDownIcon}
+            accent="indigo"
+            data={decData}
+            unit="%"
+            current={summary.dec.current}
+            trend={summary.dec.trend}
+            trendInverse
+            domain={domain}
+            ticks={xTicks}
+            xFmt={xFmt}
+            bands={goodBands}
+            avgLabel={avgLabel}
+            decimals={1}
+            yPad={1}
+            refValue={5}
+          />
+        )}
       </motion.div>
 
       <div className="flex flex-col items-center gap-1.5 px-4">
@@ -658,8 +735,13 @@ export default function VitalsOverview({ activities = [] }) {
             </span>
           </div>
         )}
+        {!hasDecoupling && (
+          <p className="text-[11px] text-slate-400 text-center">
+            El panel de <strong>decoupling</strong> aparecerá cuando tengas carreras con parciales cargados (expándelas en el listado del Dashboard).
+          </p>
+        )}
         <p className="text-[11px] text-slate-400 text-center">
-          Los cinco ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad del período.
+          Las líneas punteadas marcan el máx/mín del período. Los ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad.
         </p>
       </div>
     </div>
