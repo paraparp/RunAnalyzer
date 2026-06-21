@@ -122,10 +122,13 @@ export async function fetchSleepBulk(client, numWeeks) {
   const allRows = [];
   const CHUNK_WEEKS = 52;
 
-  const start = new Date();
-  start.setDate(start.getDate() - numWeeks * 7);
-  const day = start.getDay() || 7;
-  start.setDate(start.getDate() - day + 1);
+  // Anclar al lunes de la semana actual y retroceder N-1 semanas,
+  // así el rango cubre hasta la semana en curso (incluida).
+  const monday = new Date();
+  const d = monday.getDay() || 7;
+  monday.setDate(monday.getDate() - d + 1);
+  const start = new Date(monday);
+  start.setDate(start.getDate() - (numWeeks - 1) * 7);
 
   let weeksRemaining = numWeeks;
   let currentStart = new Date(start);

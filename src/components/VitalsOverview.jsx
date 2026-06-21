@@ -237,7 +237,7 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media" }) =>
   );
 };
 
-function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media" }) {
+function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false }) {
   const A = {
     rose: { stroke: "#f43f5e", fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
     emerald: { stroke: "#10b981", fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
@@ -317,6 +317,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               />
               <YAxis
                 domain={[`dataMin - ${yPad}`, `dataMax + ${yPad}`]}
+                reversed={invertY}
                 tick={{ fontSize: 10, fill: "#94a3b8" }}
                 axisLine={false}
                 tickLine={false}
@@ -449,8 +450,11 @@ export default function VitalsOverview({ activities = [] }) {
     // y de duración media (15-120 min) → descarta series, tempos y deriva de tiradas largas.
     // EF fiable solo en esfuerzo aeróbico sub-umbral (TrainingPeaks / Jones 2023):
     // por encima del umbral la relación pace/FC se rompe. Banda 70-85% FCmax.
-    const zLow = hrMax * 0.70;
-    const zHigh = hrMax * 0.85;
+    // Suelo de FCmax: la FC máx registrada por Strava infravalora la real si no haces
+    // esfuerzos máximos → sin suelo, la zona excluiría rodajes normales a FC 145-155.
+    const hrMaxZone = Math.max(maxObserved, 185);
+    const zLow = hrMaxZone * 0.70;
+    const zHigh = hrMaxZone * 0.85;
     const gradCap = gapAdjust ? 4 : 1; // GAP permite hasta 4% de desnivel medio; llano solo <1%
     const effRunsAll = activities
       .filter((a) => {
@@ -458,7 +462,9 @@ export default function VitalsOverview({ activities = [] }) {
         if (!a.average_speed || a.average_speed < 1.5) return false;
         if (!a.distance || a.distance < 2000) return false;
         const dur = a.moving_time || 0;
-        if (dur < 900 || dur > 7200) return false; // 15-120 min
+        // 20-75 min: ventana donde la deriva cardíaca se mantiene <~5% (evidencia),
+        // así el EF sale limpio sin corrección artificial por duración.
+        if (dur < 1200 || dur > 4500) return false;
         const gradient = Math.abs((a.total_elevation_gain || 0) / a.distance) * 100;
         return gradient < gradCap;
       })
@@ -641,7 +647,7 @@ export default function VitalsOverview({ activities = [] }) {
         />
         <VitalPanel
           title="FC en reposo"
-          subtitle={`Frecuencia cardíaca en reposo · ${granLabel}`}
+          subtitle={`Frecuencia cardíaca en reposo · eje invertido (arriba = mejor) · ${granLabel}`}
           icon={HeartIcon}
           accent="rose"
           data={hrData}
@@ -649,6 +655,7 @@ export default function VitalsOverview({ activities = [] }) {
           current={summary.rhr.current}
           trend={summary.rhr.trend}
           trendInverse
+          invertY
           domain={domain}
           ticks={xTicks}
           xFmt={xFmt}
@@ -687,7 +694,7 @@ export default function VitalsOverview({ activities = [] }) {
         />
         <VitalPanel
           title="Eficiencia aeróbica"
-          subtitle={`m/latido (EF) · zona aeróbica sub-umbral 70-85% FCmax, 15-120 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
+          subtitle={`m/latido (EF) · ${effData.filter((d) => d.raw != null).length} carreras · zona aeróbica 70-85% FCmax, 20-75 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
           icon={ArrowTrendingUpIcon}
           accent="sky"
           data={effData}

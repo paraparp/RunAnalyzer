@@ -180,6 +180,82 @@ const Dashboard = ({ user, handleLogout }) => {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Calcula cuántos días sincronizar de Garmin: desde el último registro que
+  // tenemos guardado, o el último mes (30 días) por defecto si no hay ninguno.
+  const computeGarminSyncDays = () => {
+    try {
+      const existingStr = localStorage.getItem('garmin_cardiac_data');
+      if (existingStr) {
+        const existing = JSON.parse(existingStr);
+        if (Array.isArray(existing) && existing.length > 0) {
+          const lastDate = existing.reduce((max, r) => (r.date > max ? r.date : max), existing[0].date);
+          const last = new Date(lastDate);
+          if (!isNaN(last.getTime())) {
+            const diffDays = Math.ceil((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            return Math.max(1, Math.min(diffDays, 90));
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return 30; // último mes por defecto
+  };
+
+  // Sincroniza datos de Garmin en segundo plano, fusionando con lo existente.
+  const syncGarminData = async () => {
+    try {
+      const garminCredsStr = localStorage.getItem('garmin_creds');
+      if (!garminCredsStr) return;
+      const creds = JSON.parse(garminCredsStr);
+      if (!creds || !creds.username || !creds.password) return;
+
+      const days = computeGarminSyncDays();
+      const res = await fetch('/api/garmin/health/recent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: creds.username, password: creds.password, days }),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+
+      const existingDataStr = localStorage.getItem('garmin_cardiac_data');
+      let existingData = [];
+      if (existingDataStr) {
+        try { existingData = JSON.parse(existingDataStr); } catch (e) {}
+      }
+
+      const newData = json.data || [];
+      let finalData = newData;
+      if (existingData && existingData.length > 0) {
+        const byDate = {};
+        [...existingData, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
+        finalData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+      }
+      localStorage.setItem('garmin_cardiac_data', JSON.stringify(finalData));
+
+      const newSleepData = json.sleepData || [];
+      const existingSleepStr = localStorage.getItem('garmin_sleep_data');
+      let existingSleepData = [];
+      if (existingSleepStr) {
+        try { existingSleepData = JSON.parse(existingSleepStr); } catch(e) {}
+      }
+
+      if (newSleepData.length > 0) {
+        const mergedSleep = (() => {
+          const byWeek = {};
+          [...existingSleepData, ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
+          return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+        })();
+        localStorage.setItem('garmin_sleep_data', JSON.stringify(mergedSleep));
+      }
+
+      const syncTime = new Date().toLocaleString('es-ES');
+      localStorage.setItem('garmin_last_sync', syncTime);
+      window.dispatchEvent(new Event('garmin_sync_complete'));
+    } catch (err) {
+      console.error("Failed to sync Garmin data in background", err);
+    }
+  };
+
   const syncData = async () => {
     if (!stravaData) return;
     setIsSyncing(true);
@@ -209,59 +285,7 @@ const Dashboard = ({ user, handleLogout }) => {
       localStorage.setItem('stravaData', JSON.stringify(updated));
 
       // Sincronizar datos de Garmin en segundo plano
-      try {
-        const garminCredsStr = localStorage.getItem('garmin_creds');
-        if (garminCredsStr) {
-          const creds = JSON.parse(garminCredsStr);
-          if (creds && creds.username && creds.password) {
-            const res = await fetch('/api/garmin/health/recent', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: creds.username, password: creds.password, days: 30 }),
-            });
-            if (res.ok) {
-              const json = await res.json();
-              
-              const existingDataStr = localStorage.getItem('garmin_cardiac_data');
-              let existingData = [];
-              if (existingDataStr) {
-                try { existingData = JSON.parse(existingDataStr); } catch (e) {}
-              }
-              
-              const newData = json.data || [];
-              let finalData = newData;
-              if (existingData && existingData.length > 0) {
-                const byDate = {};
-                [...existingData, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-                finalData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-              }
-              localStorage.setItem('garmin_cardiac_data', JSON.stringify(finalData));
-
-              const newSleepData = json.sleepData || [];
-              const existingSleepStr = localStorage.getItem('garmin_sleep_data');
-              let existingSleepData = [];
-              if (existingSleepStr) {
-                try { existingSleepData = JSON.parse(existingSleepStr); } catch(e) {}
-              }
-              
-              if (newSleepData.length > 0) {
-                const mergedSleep = (() => {
-                  const byWeek = {};
-                  [...existingSleepData, ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
-                  return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-                })();
-                localStorage.setItem('garmin_sleep_data', JSON.stringify(mergedSleep));
-              }
-
-              const syncTime = new Date().toLocaleString('es-ES');
-              localStorage.setItem('garmin_last_sync', syncTime);
-              window.dispatchEvent(new Event('garmin_sync_complete'));
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to sync Garmin data in background", err);
-      }
+      await syncGarminData();
 
     } catch (err) {
       console.error("Sync failed", err);
@@ -326,6 +350,10 @@ const Dashboard = ({ user, handleLogout }) => {
             localStorage.removeItem('stravaData');
           }
         }
+
+        // Sincronizar Garmin automáticamente al entrar (incremental desde el
+        // último registro guardado, o el último mes por defecto).
+        syncGarminData();
       };
 
       checkAndRefreshData();

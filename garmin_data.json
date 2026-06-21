@@ -10124,10 +10124,332 @@
         "markerValue": 0.017791748
       },
       "bbLow": 14,
-      "bbHigh": 49
+      "bbHigh": 52
+    },
+    {
+      "date": "2026-05-29",
+      "restingHR": 58,
+      "hrv": 27,
+      "hrvStatus": "LOW",
+      "baseline": {
+        "lowUpper": 29,
+        "balancedLow": 31,
+        "balancedUpper": 38,
+        "markerValue": 0
+      },
+      "bbLow": 19,
+      "bbHigh": 60
+    },
+    {
+      "date": "2026-05-30",
+      "restingHR": 55,
+      "hrv": 32,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 39,
+        "markerValue": 0.13111877
+      },
+      "bbLow": 26,
+      "bbHigh": 76
+    },
+    {
+      "date": "2026-05-31",
+      "restingHR": 54,
+      "hrv": 29,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 31,
+        "balancedUpper": 39,
+        "markerValue": 0.21539307
+      },
+      "bbLow": 26,
+      "bbHigh": 71
+    },
+    {
+      "date": "2026-06-01",
+      "restingHR": 54,
+      "hrv": 32,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 39,
+        "markerValue": 0.19560242
+      },
+      "bbLow": 28,
+      "bbHigh": 76
+    },
+    {
+      "date": "2026-06-02",
+      "restingHR": 55,
+      "hrv": 37,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 39,
+        "markerValue": 0.25
+      },
+      "bbLow": 21,
+      "bbHigh": 85
+    },
+    {
+      "date": "2026-06-03",
+      "restingHR": 57,
+      "hrv": 29,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.25
+      },
+      "bbLow": 21,
+      "bbHigh": 62
+    },
+    {
+      "date": "2026-06-04",
+      "restingHR": 56,
+      "hrv": 36,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 25,
+      "bbHigh": 75
+    },
+    {
+      "date": "2026-06-05",
+      "restingHR": 57,
+      "hrv": 32,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 20,
+      "bbHigh": 67
+    },
+    {
+      "date": "2026-06-06",
+      "restingHR": 58,
+      "hrv": 32,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 16,
+      "bbHigh": 56
+    },
+    {
+      "date": "2026-06-07",
+      "restingHR": 57,
+      "hrv": 28,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 14,
+      "bbHigh": 59
+    },
+    {
+      "date": "2026-06-08",
+      "restingHR": 57,
+      "hrv": 29,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 14,
+      "bbHigh": 62
+    },
+    {
+      "date": "2026-06-09",
+      "restingHR": 54,
+      "hrv": 34,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.3125
+      },
+      "bbLow": 24,
+      "bbHigh": 78
+    },
+    {
+      "date": "2026-06-10",
+      "restingHR": 57,
+      "hrv": 31,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.375
+      },
+      "bbLow": 27,
+      "bbHigh": 66
+    },
+    {
+      "date": "2026-06-11",
+      "restingHR": 57,
+      "hrv": 33,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.3125
+      },
+      "bbLow": 19,
+      "bbHigh": 69
+    },
+    {
+      "date": "2026-06-12",
+      "restingHR": 59,
+      "hrv": 29,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.3125
+      },
+      "bbLow": 14,
+      "bbHigh": 57
+    },
+    {
+      "date": "2026-06-13",
+      "restingHR": 58,
+      "hrv": 30,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.3125
+      },
+      "bbLow": 5,
+      "bbHigh": 59
+    },
+    {
+      "date": "2026-06-14",
+      "restingHR": 61,
+      "hrv": 22,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.21655273
+      },
+      "bbLow": 5,
+      "bbHigh": 24
+    },
+    {
+      "date": "2026-06-15",
+      "restingHR": 56,
+      "hrv": 29,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.21842957
+      },
+      "bbLow": 15,
+      "bbHigh": 71
+    },
+    {
+      "date": "2026-06-16",
+      "restingHR": 55,
+      "hrv": 32,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.19984436
+      },
+      "bbLow": 17,
+      "bbHigh": 81
+    },
+    {
+      "date": "2026-06-17",
+      "restingHR": 58,
+      "hrv": 28,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.17237854
+      },
+      "bbLow": 17,
+      "bbHigh": 65
+    },
+    {
+      "date": "2026-06-18",
+      "restingHR": 55,
+      "hrv": 35,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.18858337
+      },
+      "bbLow": 23,
+      "bbHigh": 82
+    },
+    {
+      "date": "2026-06-19",
+      "restingHR": 59,
+      "hrv": 28,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.17877197
+      },
+      "bbLow": 22,
+      "bbHigh": 62
+    },
+    {
+      "date": "2026-06-20",
+      "restingHR": 55,
+      "hrv": 33,
+      "hrvStatus": "UNBALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 30,
+        "balancedUpper": 38,
+        "markerValue": 0.20924377
+      },
+      "bbLow": 32,
+      "bbHigh": 78
     }
   ],
-  "lastSync": "2026-05-28T06:38:39.680Z",
+  "lastSync": "2026-06-21T07:31:12.716Z",
   "sleepData": [
     {
       "weekStart": "2023-07-04",
@@ -11469,6 +11791,32 @@
       "daysCount": 7
     },
     {
+      "weekStart": "2026-04-21",
+      "weekEnd": "2026-04-27",
+      "score": 74,
+      "quality": "FAIR",
+      "durationMin": 463,
+      "remMin": 50,
+      "deepMin": 90,
+      "lightMin": 323,
+      "awakeMin": 14,
+      "needMin": 460,
+      "daysCount": 7
+    },
+    {
+      "weekStart": "2026-04-28",
+      "weekEnd": "2026-05-04",
+      "score": 72,
+      "quality": "FAIR",
+      "durationMin": 448,
+      "remMin": 45,
+      "deepMin": 93,
+      "lightMin": 311,
+      "awakeMin": 11,
+      "needMin": 460,
+      "daysCount": 7
+    },
+    {
       "weekStart": "2026-05-05",
       "weekEnd": "2026-05-11",
       "score": 81,
@@ -11492,6 +11840,19 @@
       "lightMin": 289,
       "awakeMin": 10,
       "needMin": 439,
+      "daysCount": 7
+    },
+    {
+      "weekStart": "2026-06-02",
+      "weekEnd": "2026-06-08",
+      "score": 76,
+      "quality": "FAIR",
+      "durationMin": 443,
+      "remMin": 56,
+      "deepMin": 94,
+      "lightMin": 293,
+      "awakeMin": 10,
+      "needMin": 450,
       "daysCount": 7
     }
   ]
