@@ -5,6 +5,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 import { Card, Title, Text, Badge, Callout } from '@tremor/react';
+import { seilerBounds, karvonenBounds, frielBounds, acsmBounds, estimateLTHR } from '../lib/hrZones';
 
 // ─── Scientific References ────────────────────────────────────────────────────
 // [1] Karvonen et al. (1957) Ann Med Exp Biol Fenn — Heart Rate Reserve: %HRR ≈ %VO2R
@@ -38,11 +39,7 @@ const MODELS = {
       { id: 1, name: 'Z2', label: 'Zona Umbral',       desc: '"Zona gris" — fisiológicamente costosa pero sin las adaptaciones de Z1 o Z3.', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', target: 5 },
       { id: 2, name: 'Z3', label: 'Alta Intensidad',   desc: 'Intervalos, VO2max, anaeróbico. Adaptaciones neuromusculares y cardíacas.', color: '#f87171', bg: 'rgba(248,113,113,0.10)', target: 20 },
     ],
-    getBounds: ({ lthr }) => [
-      { lo: 0,                         hi: Math.round(lthr * 0.925) - 1 },
-      { lo: Math.round(lthr * 0.925),  hi: lthr - 1                     },
-      { lo: lthr,                       hi: 999                          },
-    ],
+    getBounds: seilerBounds,
   },
 
   karvonen: {
@@ -57,17 +54,7 @@ const MODELS = {
       { id: 3, name: 'Z4', label: 'Umbral Lactato',   desc: '70–85% HRR. Tempo, LT2, ~4 mmol/L lactato.',             color: '#fb923c', bg: 'rgba(251,146,60,0.10)'    },
       { id: 4, name: 'Z5', label: 'VO2max / Sprint',  desc: '>85% HRR. Anaeróbico, capacidad máxima, sprints.',        color: '#f87171', bg: 'rgba(248,113,113,0.10)'   },
     ],
-    getBounds: ({ hrmax, hrrest }) => {
-      const hrr = hrmax - hrrest;
-      const b = (p) => Math.round(hrrest + p * hrr);
-      return [
-        { lo: 0,       hi: b(0.50) - 1 },
-        { lo: b(0.50), hi: b(0.60) - 1 },
-        { lo: b(0.60), hi: b(0.70) - 1 },
-        { lo: b(0.70), hi: b(0.85) - 1 },
-        { lo: b(0.85), hi: 999          },
-      ];
-    },
+    getBounds: karvonenBounds,
   },
 
   friel: {
@@ -84,18 +71,7 @@ const MODELS = {
       { id: 5, name: 'Z5b', label: 'Anaeróbico',          desc: '103–106% LTHR. Alta acumulación de lactato.', color: '#f87171', bg: 'rgba(248,113,113,0.10)'    },
       { id: 6, name: 'Z5c', label: 'Pico Neuromuscular',  desc: '>106% LTHR. Sprints y arranques máximos.',    color: '#e879f9', bg: 'rgba(232,121,249,0.10)'    },
     ],
-    getBounds: ({ lthr }) => {
-      const z = (p) => Math.round(lthr * p);
-      return [
-        { lo: 0,       hi: z(0.85) - 1 },
-        { lo: z(0.85), hi: z(0.90) - 1 },
-        { lo: z(0.90), hi: z(0.95) - 1 },
-        { lo: z(0.95), hi: z(1.00) - 1 },
-        { lo: z(1.00), hi: z(1.03) - 1 },
-        { lo: z(1.03), hi: z(1.06) - 1 },
-        { lo: z(1.06), hi: 999          },
-      ];
-    },
+    getBounds: frielBounds,
   },
 
   acsm: {
@@ -110,16 +86,7 @@ const MODELS = {
       { id: 3, name: 'Z4', label: 'Vigoroso',      desc: '77–95% FCmax. Umbral de lactato, esfuerzo alto.', color: '#fb923c', bg: 'rgba(251,146,60,0.10)'   },
       { id: 4, name: 'Z5', label: 'Muy Vigoroso',  desc: '>95% FCmax. Anaeróbico, pico absoluto.',          color: '#ef4444', bg: 'rgba(239,68,68,0.10)'    },
     ],
-    getBounds: ({ hrmax }) => {
-      const z = (p) => Math.round(hrmax * p);
-      return [
-        { lo: 0,       hi: z(0.57) - 1 },
-        { lo: z(0.57), hi: z(0.64) - 1 },
-        { lo: z(0.64), hi: z(0.77) - 1 },
-        { lo: z(0.77), hi: z(0.95) - 1 },
-        { lo: z(0.95), hi: 999          },
-      ];
-    },
+    getBounds: acsmBounds,
   },
 };
 
@@ -160,7 +127,7 @@ function detectLTHR(activities, maxHR) {
     return { lthr: Math.round(p75 * 0.97), confidence: 45, method: 'race', n: raceRuns.length };
   }
 
-  return { lthr: Math.round(maxHR * 0.875), confidence: 25, method: 'formula', n: 0 };
+  return { lthr: estimateLTHR(maxHR), confidence: 25, method: 'formula', n: 0 };
 }
 
 // Estimate resting HR from easy long runs (15th percentile HR × 0.56)
@@ -250,7 +217,7 @@ export default function TrainingZones({ activities }) {
   // ── Effective parameters (manual overrides take priority) ──
   const hrmax  = userMax  ? +userMax  : autoMaxHR;
   const hrrest = userRest ? +userRest : autoRestHR;
-  const lthr   = userLTHR ? +userLTHR : (lthrResult.lthr ?? Math.round(hrmax * 0.875));
+  const lthr   = userLTHR ? +userLTHR : (lthrResult.lthr ?? estimateLTHR(hrmax));
   const hrr    = hrmax - hrrest;
 
   const translatedModels = useMemo(() => ({

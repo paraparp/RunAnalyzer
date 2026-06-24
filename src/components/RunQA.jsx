@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText } from 'ai';
 import { Card, Title, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
-import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon } from "@heroicons/react/24/solid";
-import ModelSelector from './ModelSelector';
+import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon } from "@heroicons/react/24/solid";
+import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 
 // Simple markdown parser component
 const MarkdownText = ({ content }) => {
@@ -146,6 +144,32 @@ const TypingIndicator = () => (
     </div>
 );
 
+// Convierte el análisis del panel (AIInsights) en texto markdown reutilizable
+// tanto para la tarjeta de contexto visible como para el system prompt del chat.
+const seedToText = (seed) => {
+    if (!seed?.blocks) return '';
+    const b = seed.blocks;
+    const s = seed.sci;
+    const lines = [];
+    if (b.cur) lines.push(`**Estado actual**\n${b.cur}`);
+    if (b.trend) lines.push(`**Tendencia y patrón**\n${b.trend}`);
+    if (b.nextWork) lines.push(`**Sesión recomendada**\n${b.nextWork}`);
+    if (b.lastWork) lines.push(`**Análisis del último entrenamiento**\n${b.lastWork}`);
+    if (s) {
+        const parts = [];
+        if (s.readiness != null) parts.push(`Readiness ${s.readiness}/100${s.readinessLabel ? ` (${s.readinessLabel})` : ''}`);
+        if (s.ctl != null) parts.push(`CTL ${s.ctl}`);
+        if (s.atl != null) parts.push(`ATL ${s.atl}`);
+        if (s.tsb != null) parts.push(`TSB ${s.tsb > 0 ? '+' : ''}${s.tsb}`);
+        if (s.acwr != null) parts.push(`ACWR ${s.acwr}`);
+        if (s.fcmax != null) parts.push(`FCmax ${s.fcmax}ppm`);
+        if (s.lthr != null) parts.push(`LTHR ${s.lthr}ppm`);
+        if (s.fcRest != null) parts.push(`FC reposo ${s.fcRest}ppm`);
+        if (parts.length) lines.push(`**Métricas clave:** ${parts.join(' · ')}`);
+    }
+    return lines.join('\n\n');
+};
+
 const RunQA = ({ activities }) => {
     const [question, setQuestion] = useState('');
     const [numRaces, setNumRaces] = useState('10');
@@ -155,12 +179,33 @@ const RunQA = ({ activities }) => {
     const [garminPeriod, setGarminPeriod] = useState('none'); // 'none' | '30d' | '90d'
     const [loading, setLoading] = useState(false);
     const [conversation, setConversation] = useState([]);
+    const [seed, setSeed] = useState(null);
     const [error, setError] = useState('');
-    const [provider, setProvider] = useState('groq');
-    const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
+    const provider = 'gemini'; // chat usa exclusivamente Google Gemini
+    const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
+    const [copiedIdx, setCopiedIdx] = useState(null);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const abortRef = useRef(null);
+
+    // Persist the model choice across sessions.
+    useEffect(() => { try { localStorage.setItem('runqa_model', selectedModel); } catch {} }, [selectedModel]);
+    // Abort any in-flight stream on unmount.
+    useEffect(() => () => abortRef.current?.abort(), []);
+
+    // Recoge el análisis del panel (AIInsights) si el usuario llegó vía "Seguir
+    // preguntando en el chat". Se consume una sola vez y se inyecta como contexto.
+    useEffect(() => {
+        try {
+            const s = localStorage.getItem('runqa_seed');
+            if (s) {
+                const parsed = JSON.parse(s);
+                if (parsed?.blocks) setSeed(parsed);
+                localStorage.removeItem('runqa_seed');
+            }
+        } catch {}
+    }, []);
 
     useEffect(() => {
         try {
@@ -175,8 +220,6 @@ const RunQA = ({ activities }) => {
 
     const apiKeys = {
         gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-        groq: import.meta.env.VITE_GROQ_API_KEY || '',
-        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     };
 
     const scrollToBottom = () => {
@@ -240,41 +283,16 @@ const RunQA = ({ activities }) => {
         return `DATOS GARMIN (últimos ${days} días):\n${lines.join('\n')}`;
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!question.trim()) return;
-
-        const activeKey = apiKeys[provider];
-        if (!activeKey) {
-            setError(`Configura la API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
-            return;
-        }
-
-        const selectedActs = getSelectedActivities();
-        if (selectedActs.length === 0) {
-            setError('No hay carreras disponibles para analizar.');
-            return;
-        }
-
-        const userQuestion = question.trim();
-        setQuestion('');
-        setLoading(true);
-        setError('');
-
-        const newHistory = [...conversation, { role: 'user', content: userQuestion, timestamp: new Date() }];
-        setConversation(newHistory);
-
-        try {
-            const activitiesText = formatActivitiesForPrompt(selectedActs);
-            const garminText = formatGarminForPrompt();
-
-            const systemPrompt = `Eres un analista experto de running y entrenamiento deportivo.
+    const buildSystemPrompt = (selectedActs) => {
+        const activitiesText = formatActivitiesForPrompt(selectedActs);
+        const garminText = formatGarminForPrompt();
+        return `Eres un analista experto de running y entrenamiento deportivo.
 El usuario te proporcionará sus últimas carreras/entrenamientos y te hará preguntas sobre ellas.
 
 DATOS DE LAS ÚLTIMAS ${selectedActs.length} CARRERAS/ENTRENAMIENTOS:
 ${activitiesText}
 ${garminText ? '\n' + garminText : ''}
-
+${seed ? `\nANÁLISIS PREVIO DEL PANEL DE IA (el usuario viene de aquí; sus preguntas son SEGUIMIENTO de este diagnóstico — trátalo como contexto principal y mantén coherencia con él):\n${seedToText(seed)}\n` : ''}
 INSTRUCCIONES:
 - Responde de forma clara, directa y útil
 - Usa los datos proporcionados para dar respuestas precisas
@@ -283,73 +301,125 @@ INSTRUCCIONES:
 - Responde en español
 - Sé conciso pero completo
 - Usa formato markdown: **negrita** para destacar, listas con - o números`;
+    };
 
-            // Initialize Provider
-            let model;
-            if (provider === 'groq') {
-                const groq = createOpenAI({
-                    baseURL: 'https://api.groq.com/openai/v1',
-                    apiKey: activeKey,
-                });
-                model = groq(selectedModel);
-            } else if (provider === 'anthropic') {
-                const anthropic = createAnthropic({ apiKey: activeKey });
-                model = anthropic(selectedModel);
-            } else {
-                const google = createGoogleGenerativeAI({ apiKey: activeKey });
-                model = google(selectedModel);
-            }
+    const initModel = (activeKey) => {
+        const google = createGoogleGenerativeAI({ apiKey: activeKey });
+        return google(selectedModel);
+    };
 
-            // Messages for the AI
+    // Core: stream a response for the given history (which must end with a user
+    // turn). Shared by submit, suggestion chips and regenerate.
+    const runQuery = async (history) => {
+        const activeKey = apiKeys[provider];
+        if (!activeKey) {
+            setError(`Configura la API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
+            return;
+        }
+        const selectedActs = getSelectedActivities();
+        if (selectedActs.length === 0) {
+            setError('No hay carreras disponibles para analizar.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        try {
             const messages = [
-                { role: "system", content: systemPrompt },
-                ...newHistory.map(m => ({ role: m.role, content: m.content }))
+                { role: 'system', content: buildSystemPrompt(selectedActs) },
+                ...history.map(m => ({ role: m.role, content: m.content })),
             ];
 
             const result = await streamText({
-                model: model,
-                messages: messages,
+                model: initModel(activeKey),
+                messages,
                 temperature: 0.7,
+                abortSignal: controller.signal,
             });
 
-            // Add placeholder for AI response
-            let aiContent = "";
+            let aiContent = '';
             setConversation(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
-
             for await (const textPart of result.textStream) {
                 aiContent += textPart;
                 setConversation(prev => {
-                    const newConv = [...prev];
-                    newConv[newConv.length - 1] = {
-                        ...newConv[newConv.length - 1],
-                        content: aiContent
-                    };
-                    return newConv;
+                    const next = [...prev];
+                    next[next.length - 1] = { ...next[next.length - 1], content: aiContent };
+                    return next;
                 });
             }
-
         } catch (err) {
-            console.error("Error en la consulta:", err);
-            setError(`Error: ${err.message}`);
-            // Remove the user message if it failed immediately, or just leave it.
-            // Better to show error.
+            if (err?.name === 'AbortError' || /abort/i.test(err?.message || '')) {
+                // user stopped the stream — keep whatever streamed so far
+            } else {
+                console.error('Error en la consulta:', err);
+                setError(`Error: ${err.message}`);
+            }
         } finally {
             setLoading(false);
+            abortRef.current = null;
             inputRef.current?.focus();
         }
     };
 
+    const handleSubmit = (e) => {
+        e?.preventDefault?.();
+        const q = question.trim();
+        if (!q || loading) return;
+        const newHistory = [...conversation, { role: 'user', content: q, timestamp: new Date() }];
+        setQuestion('');
+        if (inputRef.current) inputRef.current.style.height = 'auto';
+        setConversation(newHistory);
+        runQuery(newHistory);
+    };
+
+    const sendSuggestion = (text) => {
+        if (loading) return;
+        const newHistory = [...conversation, { role: 'user', content: text, timestamp: new Date() }];
+        setConversation(newHistory);
+        runQuery(newHistory);
+    };
+
+    const stopGeneration = () => abortRef.current?.abort();
+
+    const regenerate = () => {
+        if (loading) return;
+        const conv = [...conversation];
+        while (conv.length && conv[conv.length - 1].role === 'assistant') conv.pop();
+        if (!conv.length) return;
+        setConversation(conv);
+        runQuery(conv);
+    };
+
+    const copyMessage = async (text, idx) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedIdx(idx);
+            setTimeout(() => setCopiedIdx(c => (c === idx ? null : c)), 1500);
+        } catch {}
+    };
+
     const clearConversation = () => {
+        abortRef.current?.abort();
         setConversation([]);
         setError('');
     };
 
-    const suggestedQuestions = [
-        { text: "¿Cuál fue mi mejor carrera?", icon: "🏆" },
-        { text: "¿Cómo ha evolucionado mi ritmo?", icon: "📈" },
-        { text: "¿Cuál es mi distancia promedio?", icon: "📊" },
-        { text: "Dame un resumen de mi entrenamiento", icon: "📋" }
-    ];
+    const suggestedQuestions = seed
+        ? [
+            { text: "¿Por qué me recomiendas esa sesión y no intervalos?", icon: "🤔" },
+            { text: "¿Cómo subo volumen sin pasarme de carga?", icon: "📈" },
+            { text: "¿Llego en forma al maratón con esta tendencia?", icon: "🎯" },
+            { text: "Explícame mi readiness y mi forma (TSB) actual", icon: "🔋" }
+        ]
+        : [
+            { text: "¿Cuál fue mi mejor carrera?", icon: "🏆" },
+            { text: "¿Cómo ha evolucionado mi ritmo?", icon: "📈" },
+            { text: "¿Cuál es mi distancia promedio?", icon: "📊" },
+            { text: "Dame un resumen de mi entrenamiento", icon: "📋" }
+        ];
 
     const selectedCount = getSelectedActivities().length;
 
@@ -410,8 +480,6 @@ INSTRUCCIONES:
                             )}
 
                             <ModelSelector
-                                provider={provider}
-                                setProvider={setProvider}
                                 selectedModel={selectedModel}
                                 setSelectedModel={setSelectedModel}
                                 showLabel={false}
@@ -449,6 +517,29 @@ INSTRUCCIONES:
                 </div>
             </Card>
 
+            {/* Context from the AI panel (when arriving via "Seguir preguntando en el chat") */}
+            {seed && (
+                <Card className="p-4 ring-1 ring-blue-200 shadow-sm bg-blue-50/40">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                            <SparklesIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Análisis del panel · contexto de la conversación</span>
+                        </div>
+                        <button
+                            onClick={() => setSeed(null)}
+                            title="Quitar contexto"
+                            className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <TrashIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <div className="text-sm text-slate-700 max-h-48 overflow-y-auto pr-1">
+                        <MarkdownText content={seedToText(seed)} />
+                    </div>
+                    <Text className="text-[11px] text-blue-700/80 mt-2">Pregunta lo que quieras sobre este diagnóstico; lo tendré en cuenta al responder.</Text>
+                </Card>
+            )}
+
             {/* Chat Container */}
             <Card className="ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col" style={{ height: '600px' }}>
                 {/* Messages Area */}
@@ -467,62 +558,90 @@ INSTRUCCIONES:
                                 Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
                                 {suggestedQuestions.map((q, idx) => (
                                     <button
                                         key={idx}
-                                        onClick={() => setQuestion(q.text)}
-                                        className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all text-left group"
+                                        onClick={() => sendSuggestion(q.text)}
+                                        disabled={loading}
+                                        className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                     >
-                                        <span className="text-2xl">{q.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 group-hover:text-blue-700">{q.text}</span>
+                                        <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-base transition-colors">{q.icon}</span>
+                                        <span className="text-sm font-medium text-slate-700 group-hover:text-blue-700 leading-snug">{q.text}</span>
                                     </button>
                                 ))}
                             </div>
                         </div>
                     ) : (
-                        <div className="p-4 space-y-4">
-                            {conversation.map((msg, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                                >
-                                    {/* Avatar */}
-                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === 'user'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
-                                        }`}>
-                                        {msg.role === 'user' ? 'Tú' : '🏃'}
-                                    </div>
+                        <div className="p-4 space-y-5">
+                            {conversation.map((msg, idx) => {
+                                const isUser = msg.role === 'user';
+                                const isLastAssistant = !isUser && idx === conversation.length - 1;
+                                const streaming = isLastAssistant && loading;
+                                return (
+                                    <div key={idx} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
+                                        {/* Avatar */}
+                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isUser
+                                                ? 'bg-blue-600 text-white text-xs font-bold'
+                                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                            }`}>
+                                            {isUser ? 'Tú' : <SparklesIcon className="w-4 h-4" />}
+                                        </div>
 
-                                    {/* Message Bubble */}
-                                    <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                        <div
-                                            className={`rounded-2xl px-4 py-3 ${msg.role === 'user'
+                                        {/* Message Bubble */}
+                                        <div className={`flex flex-col max-w-[82%] ${isUser ? 'items-end' : 'items-start'}`}>
+                                            <div className={`rounded-2xl px-4 py-3 ${isUser
                                                     ? 'bg-blue-600 text-white rounded-tr-sm'
                                                     : 'bg-white ring-1 ring-slate-200 shadow-sm rounded-tl-sm'
-                                                }`}
-                                        >
-                                            {msg.role === 'assistant' ? (
-                                                <div className="text-sm">
-                                                    <MarkdownText content={msg.content} />
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                            )}
+                                                }`}>
+                                                {isUser ? (
+                                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                ) : (
+                                                    <div className="text-sm">
+                                                        <MarkdownText content={msg.content} />
+                                                        {streaming && <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-blue-500 animate-pulse rounded-sm" />}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Meta + actions */}
+                                            <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+                                                <span className="text-xs text-slate-400">
+                                                    {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                                {!isUser && msg.content && !streaming && (
+                                                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyMessage(msg.content, idx)}
+                                                            title="Copiar respuesta"
+                                                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                        >
+                                                            {copiedIdx === idx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                        {isLastAssistant && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={regenerate}
+                                                                disabled={loading}
+                                                                title="Regenerar respuesta"
+                                                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
+                                                            >
+                                                                <ArrowPathIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <span className="text-xs text-slate-400 mt-1 px-1">
-                                            {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
 
-                            {/* Loading indicator */}
+                            {/* Loading indicator (only before the assistant bubble appears) */}
                             {loading && (conversation.length === 0 || conversation[conversation.length - 1].role !== 'assistant' || conversation[conversation.length - 1].content === '') && (
                                 <div className="flex gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                                        <span>🏃</span>
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                                        <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="bg-white ring-1 ring-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                                         <TypingIndicator />
@@ -544,6 +663,22 @@ INSTRUCCIONES:
 
                 {/* Input Area */}
                 <div className="border-t border-slate-100 bg-slate-50 p-4">
+                    {/* Quick follow-up chips (once the conversation has started) */}
+                    {conversation.length > 0 && !loading && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                            {suggestedQuestions.slice(0, 3).map((q, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => sendSuggestion(q.text)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 hover:text-blue-700 transition-colors"
+                                >
+                                    <span>{q.icon}</span>
+                                    {q.text}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <form onSubmit={handleSubmit} className="flex items-end gap-3">
                         <div className="flex-1 relative">
                             <textarea
@@ -565,7 +700,7 @@ INSTRUCCIONES:
                                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                                 }}
                             />
-                            {conversation.length > 0 && (
+                            {conversation.length > 0 && !loading && (
                                 <button
                                     type="button"
                                     onClick={clearConversation}
@@ -576,19 +711,31 @@ INSTRUCCIONES:
                                 </button>
                             )}
                         </div>
-                        <Button
-                            type="submit"
-                            icon={PaperAirplaneIcon}
-                            loading={loading}
-                            disabled={!question.trim() || loading}
-                            color="blue"
-                            className="h-12 px-5"
-                        >
-                            Enviar
-                        </Button>
+                        {loading ? (
+                            <Button
+                                type="button"
+                                icon={StopIcon}
+                                onClick={stopGeneration}
+                                color="rose"
+                                variant="secondary"
+                                className="h-12 px-5"
+                            >
+                                Detener
+                            </Button>
+                        ) : (
+                            <Button
+                                type="submit"
+                                icon={PaperAirplaneIcon}
+                                disabled={!question.trim()}
+                                color="blue"
+                                className="h-12 px-5"
+                            >
+                                Enviar
+                            </Button>
+                        )}
                     </form>
                     <p className="text-xs text-slate-400 mt-2 text-center">
-                        Presiona Enter para enviar • Shift+Enter para nueva línea
+                        Enter para enviar • Shift+Enter para nueva línea
                     </p>
                 </div>
             </Card>

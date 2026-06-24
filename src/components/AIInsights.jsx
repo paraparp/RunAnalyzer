@@ -10,7 +10,10 @@ import {
   ClockIcon,
   BoltIcon,
   MoonIcon,
+  FireIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
+import { seilerBounds, karvonenBounds } from '../lib/hrZones';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
 const MD = ({ text, accent }) => {
@@ -98,8 +101,8 @@ function computePMC(activities) {
   }
   const n = ctlSeries.length;
   const ctl28 = n > 28 ? ctlSeries[n - 29] : 0;
-  const ctl7  = n > 7  ? ctlSeries[n - 8]  : 0;
-  const ramp  = n > 28 ? (ctl - ctl28) / 4 : (ctl - ctl7);
+  const ctl7 = n > 7 ? ctlSeries[n - 8] : 0;
+  const ramp = n > 28 ? (ctl - ctl28) / 4 : (ctl - ctl7);
   return {
     ctl: Math.round(ctl),
     atl: Math.round(atl),
@@ -122,13 +125,13 @@ function analyzeHRV(garmin, now) {
   const sorted = [...garmin].sort((a, b) => b.date.localeCompare(a.date));
   const latest = sorted.find(d => d.hrv);
   if (!latest) return null;
-  const w7  = new Date(now); w7.setDate(now.getDate() - 7);
+  const w7 = new Date(now); w7.setDate(now.getDate() - 7);
   const w14 = new Date(now); w14.setDate(now.getDate() - 14);
   const w28 = new Date(now); w28.setDate(now.getDate() - 28);
-  const vals7  = sorted.filter(d => new Date(d.date) >= w7 && d.hrv).map(d => d.hrv);
-  const hrv7   = mean(vals7);
-  const hrv28  = mean(sorted.filter(d => new Date(d.date) >= w28 && d.hrv).map(d => d.hrv));
-  const prev7  = mean(sorted.filter(d => { const x = new Date(d.date); return x >= w14 && x < w7 && d.hrv; }).map(d => d.hrv));
+  const vals7 = sorted.filter(d => new Date(d.date) >= w7 && d.hrv).map(d => d.hrv);
+  const hrv7 = mean(vals7);
+  const hrv28 = mean(sorted.filter(d => new Date(d.date) >= w28 && d.hrv).map(d => d.hrv));
+  const prev7 = mean(sorted.filter(d => { const x = new Date(d.date); return x >= w14 && x < w7 && d.hrv; }).map(d => d.hrv));
   let cv = null;
   if (vals7.length >= 3 && hrv7) {
     const sd = Math.sqrt(mean(vals7.map(v => (v - hrv7) ** 2)));
@@ -166,33 +169,96 @@ function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
   }
   if (pmc) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
   if (!parts.length) return null;
-  const wsum  = parts.reduce((s, [, w]) => s + w, 0);
+  const wsum = parts.reduce((s, [, w]) => s + w, 0);
   const score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
   let label, band;
-  if (score >= 80)      { label = 'Óptimo · listo para calidad';        band = 'high'; }
-  else if (score >= 62) { label = 'Bueno · entreno normal';             band = 'good'; }
-  else if (score >= 45) { label = 'Moderado · precaución, baja carga';   band = 'mod';  }
-  else                  { label = 'Bajo · prioriza recuperación';        band = 'low';  }
+  if (score >= 80) { label = 'Óptimo · listo para calidad'; band = 'high'; }
+  else if (score >= 62) { label = 'Bueno · entreno normal'; band = 'good'; }
+  else if (score >= 45) { label = 'Moderado · precaución, baja carga'; band = 'mod'; }
+  else { label = 'Bajo · prioriza recuperación'; band = 'low'; }
   return { score, label, band };
 }
 
 // ── Prompt builder ───────────────────────────────────────────────────────────
-const buildPrompt = (activities, garminData, sleepData) => {
+const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goal) => {
   const now = new Date();
-  const yearAgo  = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const yearAgo = new Date(now); yearAgo.setFullYear(yearAgo.getFullYear() - 1);
   const twoMonthsAgo = new Date(now); twoMonthsAgo.setMonth(now.getMonth() - 2);
-  const week4  = new Date(now); week4.setDate(now.getDate() - 28);
-  const week8  = new Date(now); week8.setDate(now.getDate() - 56);
-  const month1 = new Date(now); month1.setDate(now.getDate() - 30);
+  const week4 = new Date(now); week4.setDate(now.getDate() - 28);
+  const week8 = new Date(now); week8.setDate(now.getDate() - 56);
 
-  const yearActs   = activities.filter(a => new Date(a.start_date) >= yearAgo);
+  const yearActs = activities.filter(a => new Date(a.start_date) >= yearAgo);
   if (!yearActs.length) return null;
 
-  const isRunning  = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
-  const isCycling  = (a) => ['Ride', 'VirtualRide'].includes(a.type);
+  const isRunning = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
+  const isCycling = (a) => ['Ride', 'VirtualRide'].includes(a.type);
   const isSwimming = (a) => ['Swim'].includes(a.type);
 
   const runningYearActs = yearActs.filter(isRunning);
+
+  // ── Personal bests per canonical distance (ALL-TIME ceiling) ───────────────
+  // The athlete's "tope": fastest valid effort per distance. Gives the model a
+  // realistic performance ceiling to calibrate target paces and 4-6w goals.
+  const PB_RANGES = [
+    { id: '5K', min: 4900, max: 5200 },
+    { id: '10K', min: 9900, max: 10500 },
+    { id: 'Media maratón', min: 21000, max: 21500 },
+    { id: 'Maratón', min: 42000, max: 43000 },
+  ];
+  const fmtPbTime = (s) => {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.round(s % 60);
+    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${x.toString().padStart(2, '0')}` : `${m}:${x.toString().padStart(2, '0')}`;
+  };
+  const pbLines = PB_RANGES.map(r => {
+    const best = activities
+      .filter(a => isRunning(a) && a.distance >= r.min && a.distance <= r.max && (a.elapsed_time || a.moving_time) > 0)
+      .sort((a, b) => (a.elapsed_time || a.moving_time) / a.distance - (b.elapsed_time || b.moving_time) / b.distance)[0];
+    if (!best) return null;
+    const t = best.elapsed_time || best.moving_time;
+    const pace = t / (best.distance / 1000);
+    const pm = Math.floor(pace / 60), ps = Math.round(pace % 60).toString().padStart(2, '0');
+    return `${r.id}: ${fmtPbTime(t)} @${pm}:${ps}/km (${new Date(best.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })})`;
+  }).filter(Boolean);
+  const pbSection = pbLines.length ? pbLines.join('\n') : null;
+
+  // ── Weekly training availability/intent (athlete-selected) ─────────────────
+  const dispoLine = weeklyTarget
+    ? `DISPONIBILIDAD / OBJETIVO: quieres entrenar ${weeklyTarget} sesión(es) de CARRERA por semana. Ajusta el volumen semanal del BLOQUE 2 y la cadencia de sesiones a esa frecuencia: no propongas más carreras de las que puedes asumir, y reparte calidad vs. fácil respetando el 80/20 DENTRO de ese número de sesiones.`
+    : '';
+
+  // ── Race goal (athlete-selected target distance + optional pace + date) ────
+  const GOAL_KM = { '5K': 5, '10K': 10, '21K': 21.0975, '42K': 42.195 };
+  let goalLine = '';
+  if (goal?.distance && GOAL_KM[goal.distance]) {
+    const km = GOAL_KM[goal.distance];
+    let extra;
+    if (goal.pace && /^\d{1,2}:\d{2}$/.test(goal.pace.trim())) {
+      const [pm, ps] = goal.pace.trim().split(':').map(Number);
+      const finish = fmtPbTime(Math.round((pm * 60 + ps) * km));
+      extra = ` con RITMO OBJETIVO ${goal.pace.trim()}/km (tiempo meta ≈ ${finish})`;
+    } else {
+      extra = ' (sin ritmo objetivo fijado: propón uno realista según mis marcas personales y mi forma actual)';
+    }
+    // Time-to-race: drives the periodization horizon (base → build → taper).
+    let when = '';
+    if (goal.date) {
+      const raceTs = new Date(goal.date + 'T00:00:00');
+      if (!isNaN(raceTs)) {
+        const days = Math.round((raceTs - new Date(now.toDateString())) / 86400000);
+        const dateStr = raceTs.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (days < 0) when = ` La fecha objetivo (${dateStr}) YA PASÓ: pide al atleta fijar una nueva o trátalo como mantenimiento.`;
+        else {
+          const weeks = (days / 7).toFixed(1);
+          const phase = days <= 10 ? 'TAPER/afinamiento (baja volumen, mantén intensidad específica)'
+            : days <= 28 ? 'fase específica/pico (trabajo a ritmo objetivo)'
+            : days <= 56 ? 'fase de construcción (sube carga y mete calidad)'
+            : 'fase de base aeróbica (construye volumen, poca intensidad)';
+          when = ` Fecha: ${dateStr} → faltan ${days} días (${weeks} semanas). Periodiza en consecuencia: ahora estás en ${phase}. Ajusta la rampa de CTL para llegar en forma y descansado (TSB positivo el día de la carrera) sin superar +5 CTL/sem.`;
+        }
+      }
+    }
+    goalLine = `OBJETIVO DE CARRERA: estás preparando un ${goal.distance}${extra}.${when} Orienta la rampa de carga (BLOQUE 2) y las sesiones de calidad/ritmo (BLOQUE 3) HACIA este objetivo: deriva los ritmos de tempo/intervalos del ritmo objetivo y de tus marcas. En el BLOQUE 2 indica explícitamente si el objetivo es realista, ambicioso o conservador dado tu tope (marcas personales), tu CTL/forma actuales y el tiempo disponible, y qué falta para alcanzarlo.`;
+  }
 
   // ── Banister PMC over ALL sports (cardiovascular load is global) ───────────
   const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo));
@@ -200,7 +266,7 @@ const buildPrompt = (activities, garminData, sleepData) => {
   // ── Weekly breakdown (4 weeks) ────────────────────────────────────────────
   const byWeek = [0, 1, 2, 3].map(w => {
     const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
-    const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
+    const wEnd = new Date(now); wEnd.setDate(now.getDate() - w * 7);
     const runs = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= wStart && d < wEnd; });
     return {
       week: w === 0 ? 'Sem actual' : `Sem -${w}`,
@@ -224,17 +290,17 @@ const buildPrompt = (activities, garminData, sleepData) => {
 
   // ── Recent running volume (4w vs prior 4w) ────────────────────────────────
   const recentRuns = runningYearActs.filter(a => new Date(a.start_date) >= week4);
-  const prevRuns   = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
-  const recentKm   = recentRuns.reduce((s, a) => s + a.distance / 1000, 0);
-  const prevKm     = prevRuns.reduce((s, a) => s + a.distance / 1000, 0);
-  const loadDelta  = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
+  const prevRuns = runningYearActs.filter(a => { const d = new Date(a.start_date); return d >= week8 && d < week4; });
+  const recentKm = recentRuns.reduce((s, a) => s + a.distance / 1000, 0);
+  const prevKm = prevRuns.reduce((s, a) => s + a.distance / 1000, 0);
+  const loadDelta = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
   const recentMin = recentRuns.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
-  const avgPace   = recentKm > 0
+  const avgPace = recentKm > 0
     ? (() => { const p = recentMin / recentKm; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
     : null;
   const withHR = recentRuns.filter(a => a.average_heartrate);
-  const avgHR  = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
+  const avgHR = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
   // ── Robust FCmax detection (all-time, median of top 5%) ───────────────────
   // Using all activities (not just recent) since FCmax is a stable physiological trait.
@@ -275,10 +341,11 @@ const buildPrompt = (activities, garminData, sleepData) => {
   // Strategy 2: fall back to Friel's approximation: LTHR ≈ 87.5% FCmax
   let lthr = Math.round(fcmax * 0.875);
   let lthrMethod = 'Friel approx (87.5% FCmax)';
+  let lthrIsEstimate = true;
   const thresholdRuns2m = twoMonthActs.filter(a => {
     if (!a.average_heartrate || !a.max_heartrate || !a.moving_time) return false;
-    const mins    = a.moving_time / 60;
-    const avgPct  = a.average_heartrate / fcmax;
+    const mins = a.moving_time / 60;
+    const avgPct = a.average_heartrate / fcmax;
     const sustain = a.average_heartrate / a.max_heartrate;
     return mins >= 18 && mins <= 70 && avgPct >= 0.82 && avgPct < 0.97 && sustain >= 0.92;
   });
@@ -286,45 +353,71 @@ const buildPrompt = (activities, garminData, sleepData) => {
     const hrs = thresholdRuns2m.map(a => a.average_heartrate).sort((a, b) => a - b);
     lthr = Math.round(hrs[Math.floor(hrs.length / 2)]);
     lthrMethod = `campo (${thresholdRuns2m.length} esfuerzos umbral detectados)`;
+    lthrIsEstimate = false;
   }
 
-  // ── HR zones (Seiler polarized, based on LTHR) ────────────────────────────
-  const z1hi  = Math.round(lthr * 0.925) - 1;
-  const z2lo  = Math.round(lthr * 0.925);
-  const z2hi  = lthr - 1;
-  const z3lo  = lthr;
-  // Karvonen supplementary (for the recommended session prescription)
-  const hrr   = fcmax - fcRest;
-  const kZ2lo = Math.round(fcRest + 0.50 * hrr);
-  const kZ2hi = Math.round(fcRest + 0.60 * hrr);
-  const kZ3lo = Math.round(fcRest + 0.60 * hrr);
-  const kZ3hi = Math.round(fcRest + 0.70 * hrr);
-  const kZ4lo = Math.round(fcRest + 0.70 * hrr);
-  const kZ4hi = Math.round(fcRest + 0.85 * hrr);
+  // ── HR zones (shared formulas with the TrainingZones tab — src/lib/hrZones) ─
+  // Seiler polarized (LTHR-based) = primary anchor for the polarized 80/20 call.
+  const [, sZ2, sZ3] = seilerBounds({ lthr });
+  // Karvonen (HRR-based) supplementary — for the session-prescription ppm ranges.
+  const [, kZ2, kZ3, kZ4] = karvonenBounds({ hrmax: fcmax, hrrest: fcRest });
 
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
     `FC reposo=${fcRest}ppm (Garmin más reciente)`,
-    `LTHR=${lthr}ppm [método: ${lthrMethod}]`,
-    `Z1 aeróbica base: <${z1hi+1}ppm`,
-    `Z2 zona umbral (gris): ${z2lo}-${z2hi}ppm`,
-    `Z3 alta intensidad: ≥${z3lo}ppm`,
-    `Karvonen Z2 (base): ${kZ2lo}-${kZ2hi}ppm | Z3 (aeróbico intenso): ${kZ3lo}-${kZ3hi}ppm | Z4 (umbral/tempo): ${kZ4lo}-${kZ4hi}ppm`,
-  ].join('\n');
+    `LTHR=${lthr}ppm [método: ${lthrMethod}]${lthrIsEstimate ? ' (ESTIMADO por fórmula, sin umbral de campo detectado → trata los límites de zona como aproximados, no absolutos)' : ''}`,
+    `Z1 aeróbica base (regenerativo/rodaje fácil): <${sZ2.lo}ppm`,
+    `Z2 zona umbral baja (gris): ${sZ2.lo}-${sZ2.hi}ppm`,
+    `Z3 alta intensidad (umbral+): ≥${sZ3.lo}ppm`,
+    `Karvonen Z2 (base): ${kZ2.lo}-${kZ2.hi}ppm | Z3 (aeróbico intenso): ${kZ3.lo}-${kZ3.hi}ppm | Z4 (umbral/tempo): ${kZ4.lo}-${kZ4.hi}ppm`,
+    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax). ÚSALA como centro de la zona fácil/base: las fórmulas Karvonen/Friel son aproximadas y aquí subestiman tu FC real. El tope de seguridad del rodaje fácil debe ir POR ENCIMA de esta FC observada (≈ +8/+12ppm), NUNCA por debajo.` : null,
+  ].filter(Boolean).join('\n');
+
+  // Ancla del ritmo de rodaje FÁCIL: media de las carreras recientes hechas bajo
+  // umbral (FC media < LTHR). Evita que un ritmo medio lento (que mezcla todas las
+  // carreras) empuje la prescripción de base a un ritmo MÁS lento que el ya fácil.
+  let easyPaceSec = null;
+  const easyRuns = recentRuns.filter(a => a.average_heartrate && a.average_heartrate < lthr && a.distance > 0 && a.moving_time);
+  if (easyRuns.length) {
+    const ekm = easyRuns.reduce((s, a) => s + a.distance / 1000, 0);
+    const emin = easyRuns.reduce((s, a) => s + a.moving_time / 60, 0);
+    if (ekm > 0) easyPaceSec = (emin * 60) / ekm;
+  }
+
+  // Ritmos de referencia anclados al ritmo fácil real (no inventar):
+  // Da al modelo anclas concretas para no alucinar ritmos.
+  let paceRefs = 'No disponible (sin km/ritmo reciente suficiente).';
+  if (avgPace) {
+    const [m, s] = avgPace.split(':').map(Number);
+    const pSec = m * 60 + s; // segundos por km del ritmo medio 4 sem
+    const baseSec = easyPaceSec ?? pSec; // ancla fisiológica del rodaje fácil
+    const fmt = (sec) => `${Math.floor(sec / 60)}:${Math.round(sec % 60).toString().padStart(2, '0')}`;
+    paceRefs = [
+      `Ritmo medio real 4 sem = ${avgPace}/km (mezcla TODAS las carreras; solo referencia)`,
+      `Ritmo de rodaje fácil real (carreras bajo umbral) = ${fmt(baseSec)}/km (ESTA es tu ancla para base/fácil)`,
+      `Regenerativo (≈ +0:20/+0:40 sobre fácil): ${fmt(baseSec + 20)}-${fmt(baseSec + 40)}/km`,
+      `Aeróbico base (≈ -0:05/+0:15 sobre fácil): ${fmt(baseSec - 5)}-${fmt(baseSec + 15)}/km`,
+      `Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${fmt(baseSec - 25)}-${fmt(baseSec - 10)}/km`,
+      `REGLA: NO prescribas el rodaje fácil más lento que tu último rodaje si éste fue a ≤75% FCmax (ya era fácil; frenar más es contraproducente).`,
+    ].join('\n');
+  }
 
   // ── Garmin: HRV (vs baseline), resting-HR trend, Body Battery, day-by-day ──
   const hrv = analyzeHRV(garminData, now);
   let rhr = null, bb = null, garminLog = '';
   if (garminData?.length) {
     const sorted = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
-    const w14   = new Date(now); w14.setDate(now.getDate() - 14);
-    const w7    = new Date(now); w7.setDate(now.getDate() - 7);
-    const w28   = new Date(now); w28.setDate(now.getDate() - 28);
-    const rec30 = sorted.filter(d => new Date(d.date) >= month1);
+    const w14 = new Date(now); w14.setDate(now.getDate() - 14);
+    const w7 = new Date(now); w7.setDate(now.getDate() - 7);
+    const w28 = new Date(now); w28.setDate(now.getDate() - 28);
+    // Daily detail only for the acute window (last 7d): the trend beyond that is
+    // already captured by the 7/14/28d RHR means, the HRV baseline range and the
+    // readiness score — dumping 30 raw rows just burns output budget.
+    const rec7 = sorted.filter(d => new Date(d.date) >= w7);
 
     rhr = {
       latest: sorted.find(d => d.restingHR)?.restingHR ?? null,
-      r7:  mean(sorted.filter(d => new Date(d.date) >= w7  && d.restingHR).map(d => d.restingHR)),
+      r7: mean(sorted.filter(d => new Date(d.date) >= w7 && d.restingHR).map(d => d.restingHR)),
       r14: mean(sorted.filter(d => new Date(d.date) >= w14 && d.restingHR).map(d => d.restingHR)),
       r28: mean(sorted.filter(d => new Date(d.date) >= w28 && d.restingHR).map(d => d.restingHR)),
     };
@@ -332,11 +425,11 @@ const buildPrompt = (activities, garminData, sleepData) => {
     const latestBB = sorted.find(d => d.bbHigh != null);
     if (latestBB) bb = { high: latestBB.bbHigh, low: latestBB.bbLow ?? null };
 
-    garminLog = rec30.map(d => {
+    garminLog = rec7.map(d => {
       const parts = [d.date.slice(5)];
-      if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
-      if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
-      if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
+      if (d.hrv) parts.push(`VFC=${d.hrv}ms`);
+      if (d.hrvStatus) parts.push(`[${d.hrvStatus}]`);
+      if (d.restingHR) parts.push(`RHR=${d.restingHR}ppm`);
       if (d.bbHigh != null) parts.push(`BB=${d.bbLow ?? '?'}→${d.bbHigh}`);
       return parts.join(' ');
     }).join('\n');
@@ -363,20 +456,31 @@ const buildPrompt = (activities, garminData, sleepData) => {
   // ── Composite readiness score (deterministic) ─────────────────────────────
   const readiness = computeReadiness({ hrv, rhr, bb, sleep, pmc });
 
-  // ── Activity log (30d individual) ────────────────────────────────────────
+  // ── Data-availability flags (for graceful degradation in the prompt) ──────
+  const hasWearable = !!(garminData?.length);
+  const missing = [];
+  if (!hasWearable) missing.push('VFC/FC-reposo/Body Battery (sin Garmin)');
+  if (!sleep) missing.push('sueño');
+  if (!readiness) missing.push('readiness score');
+  if (!avgHR) missing.push('FC en carrera (carreras sin pulsómetro)');
+  if (lthrIsEstimate) missing.push('LTHR de campo (usando estimación por fórmula)');
+
+  // ── Activity log (56d individual, to ground the 2-month trend in BLOQUE 2) ─
   const actLog = yearActs
-    .filter(a => new Date(a.start_date) >= month1)
+    .filter(a => new Date(a.start_date) >= week8)
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
     .map(a => {
       const kmNum = a.distance / 1000;
-      const km    = kmNum.toFixed(1);
-      const min   = (a.moving_time || 0) / 60;
+      const km = kmNum.toFixed(1);
+      const min = (a.moving_time || 0) / 60;
 
       let typeLabel = '[Otro]';
       let performance = '';
 
       if (isRunning(a)) {
-        typeLabel = '[Carrera]';
+        // Strava workout_type for runs: 1=race, 2=long run, 3=workout/quality
+        const wt = { 1: '🏁OFICIAL', 2: 'tirada-larga', 3: 'calidad' }[a.workout_type];
+        typeLabel = wt ? `[Carrera·${wt}]` : '[Carrera]';
         if (kmNum > 0 && min > 0) {
           const p = min / kmNum;
           performance = `@${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
@@ -411,9 +515,10 @@ const buildPrompt = (activities, garminData, sleepData) => {
 
       const parts = [a.start_date.slice(5, 10), typeLabel];
       if (a.distance > 0) parts.push(`${km}km`);
-      if (performance)    parts.push(performance);
+      if (performance) parts.push(performance);
       if (a.average_heartrate) parts.push(`FC=${Math.round(a.average_heartrate)}ppm`);
-      if (min > 0)        parts.push(`${Math.round(min)}min`);
+      if (a.total_elevation_gain > 0) parts.push(`+${Math.round(a.total_elevation_gain)}m`);
+      if (min > 0) parts.push(`${Math.round(min)}min`);
       if (a.suffer_score) parts.push(`sufr=${a.suffer_score}`);
       return parts.join(' ');
     }).join('\n');
@@ -436,7 +541,7 @@ const buildPrompt = (activities, garminData, sleepData) => {
     const tot = easy + thr + hard;
     if (tot > 0) polarized = {
       easy: Math.round(easy / tot * 100),
-      thr:  Math.round(thr  / tot * 100),
+      thr: Math.round(thr / tot * 100),
       hard: Math.round(hard / tot * 100),
     };
   }
@@ -451,7 +556,7 @@ const buildPrompt = (activities, garminData, sleepData) => {
     hrv?.cv != null ? `Coef. variación VFC 7d=${hrv.cv}% (${hrv.cv > 10 ? 'alto → adaptación pobre/fatiga' : 'estable → buena adaptación'})` : null,
     rhr?.r7 != null && rhr?.r28 != null ? `FC reposo 7d=${rhr.r7.toFixed(0)}ppm vs 28d=${rhr.r28.toFixed(0)}ppm (${rhr.r7 <= rhr.r28 * 1.03 ? 'estable' : '⚠ elevada → fatiga/estrés'})` : null,
     bb?.high != null ? `Body Battery: recarga máx=${bb.high}/100${bb.low != null ? `, mín=${bb.low}` : ''} (${bb.high >= 70 ? 'bien recuperado' : bb.high >= 40 ? 'recuperación parcial' : 'reservas bajas'})` : null,
-    sleep?.score != null ? `Sueño (media semana): score=${sleep.score}/100${sleep.durationMin ? `, ${(sleep.durationMin/60).toFixed(1)}h` : ''}${sleep.needMin && sleep.durationMin ? ` vs necesidad ${(sleep.needMin/60).toFixed(1)}h` : ''}${sleep.deepMin ? `, profundo ${sleep.deepMin}min` : ''}` : null,
+    sleep?.score != null ? `Sueño (media semana): score=${sleep.score}/100${sleep.durationMin ? `, ${(sleep.durationMin / 60).toFixed(1)}h` : ''}${sleep.needMin && sleep.durationMin ? ` vs necesidad ${(sleep.needMin / 60).toFixed(1)}h` : ''}${sleep.deepMin ? `, profundo ${sleep.deepMin}min` : ''}` : null,
   ].filter(Boolean).join('\n');
 
   const pmcSection = pmc ? [
@@ -464,56 +569,133 @@ const buildPrompt = (activities, garminData, sleepData) => {
 
   const trainingSection = [
     `Total 4 sem (carrera): ${recentKm.toFixed(0)}km en ${recentRuns.length} sesiones`,
-    avgPace   ? `ritmo medio ${avgPace}min/km` : null,
-    avgHR     ? `FC media carrera ${avgHR}ppm (=${avgHR ? Math.round(avgHR/fcmax*100) : '?'}% FCmax)` : null,
+    avgPace ? `ritmo medio ${avgPace}min/km` : null,
+    avgHR ? `FC media carrera ${avgHR}ppm (=${avgHR ? Math.round(avgHR / fcmax * 100) : '?'}% FCmax)` : null,
     loadDelta != null ? `Carga km vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
-    polarized ? `Distribución de intensidad 4 sem (tiempo): fácil ${polarized.easy}% / umbral ${polarized.thr}% / duro ${polarized.hard}% (objetivo Seiler ≈80% fácil)` : null,
+    polarized ? `Distribución de intensidad 4 sem (SOLO carrera, tiempo): fácil ${polarized.easy}% / umbral ${polarized.thr}% / duro ${polarized.hard}%. CLAVE: el 80/20 de Seiler se mide sobre la carga TOTAL (carrera + cruzado), NO solo carrera. Si el cruzado ya aporta intensidad y tu base (CTL) es baja, un 100% fácil EN CARRERA es CORRECTO, no un déficit que corregir. Tu limitante real es el VOLUMEN/frecuencia de carrera, no la falta de intensidad.` : null,
   ].filter(Boolean).join(', ');
 
+  // ── High-intensity cross-training in the last 4 weeks (covers the "hard"
+  // bucket that the running-only polarized % can't see — e.g. football/soccer) ─
+  const crossActs = activities.filter(a => { const d = new Date(a.start_date); return d >= week4 && !isRunning(a); });
+  const crossIntense = crossActs.filter(a => (a.suffer_score && a.suffer_score >= 40) || (a.average_heartrate && fcmax && a.average_heartrate / fcmax > 0.85));
+  const crossNote = crossIntense.length
+    ? `AVISO CRUZADO: en las últimas 4 sem hiciste ${crossIntense.length} sesión(es) de cruzado de ALTA intensidad (${crossIntense.map(a => `${a.type} sufr=${a.suffer_score ?? '?'}`).join(', ')}). Tu carrera es 100% fácil PERO ya acumulas intensidad ahí: NO prescribas intervalos solo para "rellenar" el 0% de umbral en carrera; computa esa carga dura en la fatiga y el riesgo de lesión.`
+    : null;
+
+  // ── Last training session (detailed micro-analysis for BLOQUE 4) ──────────
+  const lastAct = [...yearActs].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+  let lastSection = '';
+  if (lastAct) {
+    const kmNum = lastAct.distance / 1000;
+    const min = (lastAct.moving_time || 0) / 60;
+    const ln = [
+      `Fecha: ${new Date(lastAct.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}`,
+      lastAct.name ? `Nombre: "${lastAct.name}"` : null,
+      `Tipo: ${lastAct.type}`,
+      kmNum > 0 ? `Distancia: ${kmNum.toFixed(2)}km` : null,
+      min > 0 ? `Duración: ${Math.round(min)}min` : null,
+    ];
+    if (kmNum > 0 && min > 0 && isRunning(lastAct)) {
+      const p = min / kmNum;
+      ln.push(`Ritmo: ${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km (ritmo medio 4 sem: ${avgPace ?? '?'}/km)`);
+    } else if (kmNum > 0 && min > 0 && isCycling(lastAct)) {
+      ln.push(`Velocidad: ${(kmNum / (min / 60)).toFixed(1)}km/h`);
+    }
+    if (lastAct.average_heartrate) ln.push(`FC media: ${Math.round(lastAct.average_heartrate)}ppm (${Math.round(lastAct.average_heartrate / fcmax * 100)}% FCmax · ${Math.round(lastAct.average_heartrate / lthr * 100)}% LTHR${avgHR ? ` · media 4 sem ${avgHR}ppm` : ''})`);
+    if (lastAct.max_heartrate) ln.push(`FC máx: ${Math.round(lastAct.max_heartrate)}ppm`);
+    if (lastAct.total_elevation_gain) ln.push(`Desnivel: +${Math.round(lastAct.total_elevation_gain)}m`);
+    if (lastAct.suffer_score) ln.push(`Esfuerzo Strava: ${lastAct.suffer_score}`);
+    ln.push(`Carga estimada (TRIMP): ${Math.round(estimateLoad(lastAct))}`);
+    lastSection = ln.filter(Boolean).join('\n');
+  }
+
+  // Fresh-by-detraining guard: a high readiness on top of a LOW chronic load
+  // (small CTL / ACWR<0.8) is freshness from under-training, not supercompensation.
+  const lowChronic = pmc && (pmc.ctl < 25 || (pmc.acwr != null && pmc.acwr < 0.8));
   const readinessLine = readiness
-    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).`
-    : 'READINESS SCORE: no disponible (faltan datos de wearable) — sé más conservador.';
+    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).${lowChronic ? ' MATIZ CRÍTICO: tu carga crónica es BAJA (CTL reducido y/o ACWR<0.8). Aquí un readiness alto significa que estás fresco por FALTA de entrenamiento acumulado, NO por supercompensación. Prioriza CONSTRUIR BASE AERÓBICA y subir volumen de forma progresiva y segura ANTES que sesiones de calidad/intervalos, aunque el score las permita. Forzar intensidad sobre una base baja dispara el riesgo de lesión.' : ''}`
+    : 'READINESS SCORE: no disponible (faltan datos de wearable) — sé MÁS CONSERVADOR: por defecto prescribe base aeróbica/rodaje fácil, no intervalos, y declara explícitamente que la recomendación es prudente por falta de datos de recuperación.';
+
+  // Temporal context: anchor "today" + staleness of last run (avoids the model
+  // guessing the current date from the most recent Garmin row).
+  const lastRunAct = [...runningYearActs].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+  const daysSinceRun = lastRunAct ? Math.floor((now - new Date(lastRunAct.start_date)) / 86400000) : null;
+  const contextoTemporal = `CONTEXTO TEMPORAL: Hoy es ${now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.${daysSinceRun != null ? ` Han pasado ${daysSinceRun} día(s) desde tu última carrera${daysSinceRun >= 4 ? ' (gap notable: tenlo en cuenta para la frescura y la prioridad de volver a rodar)' : ''}.` : ''}`;
+
+  const dataGaps = missing.length
+    ? `DATOS AUSENTES (NO los inventes; ajústate y, si afectan a una conclusión, dilo brevemente): ${missing.join('; ')}.`
+    : 'COBERTURA DE DATOS: completa (wearable + sueño + LTHR de campo).';
 
   const prompt = `Eres un entrenador de running y fisiólogo deportivo de élite que aplica EXCLUSIVAMENTE modelos validados por la ciencia del entrenamiento actual: el modelo de impulso-respuesta de Banister (CTL/ATL/TSB, estándar de TrainingPeaks), el modelo polarizado 80/20 de Seiler, el entrenamiento guiado por VFC de Plews & Buchheit, el ratio agudo:crónico de Gabbett para riesgo de lesión, y el umbral de lactato de Friel. Tu objetivo es un diagnóstico ACCIONABLE y FIABLE en el que el atleta pueda confiar a ciegas, no describir datos. El atleta hace entrenamiento cruzado además de correr: considera su carga cardiovascular y fatiga al evaluar el estado, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie.
 
-Devuelve EXACTAMENTE tres bloques separados por "|||", sin ningún texto fuera de ellos:
+Devuelve EXACTAMENTE cuatro bloques separados por "|||", sin ningún texto fuera de ellos.
 
 BLOQUE 1 — DIAGNÓSTICO DE ESTA SEMANA:
-Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score. Máx 3 bullets. Usa **negrita** para el diagnóstico clave.
+Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el diagnóstico clave.
 
 |||
 
 BLOQUE 2 — TENDENCIA Y PATRÓN (ÚLTIMOS 2 MESES):
-Cruza el historial mensual con la evolución de CTL/forma para detectar progresión, estancamiento, pico-caída o lesión encubierta. Señala el mejor y peor período y si la rampa de carga es segura. Recomendación de objetivo 4-6 semanas. Máx 3 bullets. Usa **negrita** para el patrón detectado.
+Cruza el historial mensual con la evolución de CTL/forma para detectar progresión, estancamiento, pico-caída o lesión encubierta. Señala el mejor y peor período y si la rampa de carga es segura. Fija una recomendación de objetivo 4-6 semanas REALISTA según tus MARCAS PERSONALES (tope) y la DISPONIBILIDAD semanal. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el patrón detectado.
 
 |||
 
 BLOQUE 3 — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
-Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERENTE con el READINESS SCORE y la forma actual. USA LAS ZONAS DE FC CALCULADAS (abajo) para dar rangos concretos en ppm. Especifica EXACTAMENTE:
-- Tipo de sesión (regenerativo, aeróbico base, tempo, intervalos, rodaje largo)
-- Distancia en km (valor concreto, ej: 8-10 km)
-- Ritmo objetivo en min/km (ej: 5:30-5:45 min/km)
-- Zona de FC objetivo con los ppm exactos calculados (ej: "Zona 2 aeróbica · 128-142 ppm")
-- Una advertencia o condición fisiológica (ej: "para si FC>165ppm", "si VFC sigue bajo baseline mañana, pásalo a regenerativo")
-Si la distribución de intensidad reciente se aleja del 80% fácil, corrígela. Refleja la fatiga del cruzado si es elevada. Máx 4 bullets muy concretos. Sin vaguedades. Usa **negrita** para el tipo de sesión y el dato clave de cada bullet.
+Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERENTE con el READINESS SCORE y la forma actual.
+
+EL PRIMER BULLET DEBE SEGUIR ESTA PLANTILLA LITERAL EXACTA (para parseo automático), con esos cuatro campos en negrita y separados por " · ":
+**{Tipo}** · **{X-Y km}** · **{M:SS-M:SS min/km}** · **Zona {N} · {ppm-ppm ppm}**
+Ejemplo válido: **Tempo** · **8-10 km** · **4:45-5:00 min/km** · **Zona 3 · 158-168 ppm**
+Donde {Tipo} es UNO de: Regenerativo, Aeróbico base, Tempo, Intervalos, Series, Rodaje largo. Usa SOLO rangos de ppm de "ZONAS DE FC CALCULADAS" y ritmos coherentes con "RITMOS DE REFERENCIA"; PROHIBIDO inventar cifras fuera de esos anclajes.
+
+Después, 2-3 bullets adicionales (máx 30 palabras cada uno) con:
+- Estructura de la sesión (calentamiento, bloques/series, vuelta a la calma) si aplica.
+- Una condición fisiológica de seguridad concreta (ej: "para si FC>{valor}ppm", "si VFC sigue bajo baseline mañana, pásalo a regenerativo").
+- Distribución de intensidad: cuenta el cruzado (fútbol, etc.) como la parte DURA del 80/20. Si tu carrera ya es 100% fácil y el cruzado cubre la intensidad, NO añadas calidad en carrera "para rellenar" el 0% de umbral. Con CTL bajo, el limitante es el VOLUMEN: prioriza progresar la tirada larga / km semanales, no frenar aún más el ritmo.
+Usa **negrita** para el dato clave de cada bullet.
+
+|||
+
+BLOQUE 4 — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
+Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual y la distribución polarizada 80/20 (medida sobre carga TOTAL: carrera + cruzado). Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Da exactamente 1 acierto y 1 ajuste accionable, y relaciónalo con tu fatiga/recuperación de hoy. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el veredicto clave de cada bullet.
 
 DATOS DEL ATLETA:
+${contextoTemporal}
+${dispoLine}
+${goalLine}
+${dataGaps}
 ${readinessLine}
 
-ZONAS DE FC CALCULADAS (usa estas referencias exactas en el bloque 3):
+${pbSection ? `MARCAS PERSONALES (tu tope actual por distancia — referencia de potencial para calibrar ritmos objetivo y objetivos realistas):\n${pbSection}` : ''}
+
+ZONAS DE FC CALCULADAS (usa estas referencias exactas de ppm en el bloque 3):
 ${hrZonesSummary}
+
+RITMOS DE REFERENCIA (usa estas anclas para el ritmo del bloque 3, NO inventes):
+${paceRefs}
 
 MODELO DE CARGA (Banister PMC):
 ${pmcSection}
 
 ${physioSection ? `FISIOLOGÍA (wearable Garmin):\n${physioSection}` : 'Sin datos de wearable.'}
-${garminLog ? `Garmin día a día (últimos 30d):\n${garminLog}` : ''}
+${garminLog ? `Garmin día a día (últimos 7d · ventana aguda; tendencia previa ya resumida en medias 7/14/28d):\n${garminLog}` : ''}
 ENTRENAMIENTO (resumen 4 sem): ${trainingSection}
-${actLog ? `Actividades últimos 30d (más reciente primero, con deportes etiquetados):\n${actLog}` : ''}
+${crossNote ?? ''}
+${lastSection ? `ÚLTIMO ENTRENAMIENTO (sesión más reciente, analízala en el BLOQUE 4):\n${lastSection}` : ''}
+${actLog ? `Actividades últimas 8 semanas (más reciente primero; etiquetas: tipo de deporte y, en carreras, 🏁OFICIAL/tirada-larga/calidad según Strava; +Xm = desnivel):\n${actLog}` : ''}
 Desglose semanal (carrera): ${weekTable}
 Historial mensual de carrera (últimos 2 meses): ${monthHistory}
 
-REGLAS ESTRICTAS: Sin introducción. Sin "el atleta". Habla directamente en segunda persona. Cada bullet empieza con el concepto en **negrita**. Máx 16 palabras por bullet. No repitas datos sin interpretarlos.`;
+REGLAS ESTRICTAS DE SALIDA:
+- Sin introducción. Sin "el atleta". Habla directamente en segunda persona.
+- Cada bullet empieza con el concepto en **negrita**.
+- Límites de longitud: BLOQUES 1, 2 y 4 = máx 16 palabras por bullet. BLOQUE 3 = máx 30 palabras por bullet (necesita datos concretos).
+- PROHIBIDO inventar cifras: usa SOLO los ppm de "ZONAS DE FC CALCULADAS" y los ritmos de "RITMOS DE REFERENCIA". Si un dato no está disponible, dilo, no lo estimes.
+- Si faltan datos de wearable / readiness, sé conservador y prioriza base aeróbica.
+- No repitas datos sin interpretarlos.
+- COHERENCIA OBLIGATORIA: la prescripción del BLOQUE 3 debe ser coherente con el diagnóstico de los BLOQUES 1-2. Si el limitante es el bajo VOLUMEN y tu intensidad ya es correcta, la sesión recomendada debe CONSTRUIR volumen (rodaje más largo o tirada larga progresiva), nunca presentarse como "otro rodaje aún más lento/suave". No prescribas bajar el ritmo de un rodaje que ya fue fácil.
+- Respeta EXACTAMENTE el formato de plantilla del primer bullet del BLOQUE 3.`;
 
   return { prompt, sci: { readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr } };
 };
@@ -532,36 +714,87 @@ const formatTs = (ts) => {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 };
 
+// ── Data-freshness formatter (whole-day granularity) ─────────────────────────
+const formatDataDate = (input) => {
+  if (!input) return null;
+  const d = new Date(input);
+  if (isNaN(d)) return null;
+  const day0 = (x) => { const c = new Date(x); c.setHours(0, 0, 0, 0); return c.getTime(); };
+  const days = Math.round((day0(new Date()) - day0(d)) / 86400000);
+  if (days <= 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days}d`;
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+};
+
 // ── Available Gemini models ──────────────────────────────────────────────────
 const GEMINI_MODELS = [
   { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
-  { id: 'gemini-3.5-flash',      label: '3.5 Flash · mejor calidad'     },
-  { id: 'gemini-2.5-flash',      label: '2.5 Flash · equilibrado'       },
+  { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' },
+  { id: 'gemini-2.5-flash', label: '2.5 Flash · equilibrado' },
 ];
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
 
 // ── Main component ───────────────────────────────────────────────────────────
-const AIInsights = ({ activities }) => {
-  const [cur, setCur]           = useState('');
-  const [trend, setTrend]       = useState('');
+const AIInsights = ({ activities, onOpenChat }) => {
+  const [cur, setCur] = useState('');
+  const [trend, setTrend] = useState('');
   const [nextWork, setNextWork] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [loaded, setLoaded]     = useState(false);
-  const [garmin, setGarmin]     = useState(undefined);
-  const [sleep, setSleep]       = useState(undefined);
-  const [sci, setSci]           = useState(null);
-  const [cacheTs, setCacheTs]   = useState(null);
+  const [lastWork, setLastWork] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [garmin, setGarmin] = useState(undefined);
+  const [sleep, setSleep] = useState(undefined);
+  const [stravaFetch, setStravaFetch] = useState(null);
+  const [sci, setSci] = useState(null);
+  const [cacheTs, setCacheTs] = useState(null);
   const [restoreWarning, setRestoreWarning] = useState(false);
-  const [providerLabel, setProviderLabel]   = useState('');
-  const [usedProvider, setUsedProvider]     = useState('');
-  const [isFallback, setIsFallback]         = useState(false);
-  const [selectedModel, setSelectedModel]   = useState(
+  const [providerLabel, setProviderLabel] = useState('');
+  const [usedProvider, setUsedProvider] = useState('');
+  const [isFallback, setIsFallback] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(
     () => localStorage.getItem('ai_insights_model') || DEFAULT_MODEL
   );
+  const [weeklyTarget, setWeeklyTarget] = useState(
+    () => localStorage.getItem('ai_weekly_target') || '2'
+  );
+  // Defaults: 42K @ 5:30/km, Zurich Maratón de San Sebastián (47ª ed., dom 22 nov 2026).
+  const [goalDist, setGoalDist] = useState(() => localStorage.getItem('ai_goal_distance') ?? '42K');
+  const [goalPace, setGoalPace] = useState(() => localStorage.getItem('ai_goal_pace') ?? '5:30');
+  const [goalDate, setGoalDate] = useState(() => localStorage.getItem('ai_goal_date') ?? '2026-11-22');
+  // Local, uncommitted text for the pace field — committed to goalPace on blur/Enter
+  // so typing doesn't fire a recompute (and a streaming API call) per keystroke.
+  const [paceInput, setPaceInput] = useState(() => localStorage.getItem('ai_goal_pace') ?? '5:30');
+  // Model list — starts with the hardcoded fallback, replaced by the live
+  // ListModels response when the API key is available.
+  const [availableModels, setAvailableModels] = useState(GEMINI_MODELS);
+
+  // Fetch the real list of Gemini models for this API key (ListModels endpoint).
+  useEffect(() => {
+    const key = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!key) return;
+    const ctrl = new AbortController();
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        // Exclude non-chat variants: robotics, TTS, image gen (Nano Banana),
+        // audio, embeddings, vision-only, etc.
+        const EXCLUDE = /robotics|tts|image|audio|embedding|aqa|vision|nano|gemma|learnlm/i;
+        const models = (j?.models ?? [])
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+          .filter(m => m.name?.includes('gemini'))
+          .filter(m => !EXCLUDE.test(m.name) && !EXCLUDE.test(m.displayName || ''))
+          .map(m => ({ id: m.name.replace('models/', ''), label: m.displayName || m.name.replace('models/', '') }))
+          .sort((a, b) => b.id.localeCompare(a.id));
+        if (models.length) setAvailableModels(models);
+      })
+      .catch(() => { /* keep hardcoded fallback */ });
+    return () => ctrl.abort();
+  }, []);
 
   // Ref to always-current state for backup/restore inside run (avoids stale closure)
-  const stateRef = useRef({ cur, trend, nextWork, cacheTs });
-  useEffect(() => { stateRef.current = { cur, trend, nextWork, cacheTs }; }, [cur, trend, nextWork, cacheTs]);
+  const stateRef = useRef({ cur, trend, nextWork, lastWork, cacheTs });
+  useEffect(() => { stateRef.current = { cur, trend, nextWork, lastWork, cacheTs }; }, [cur, trend, nextWork, lastWork, cacheTs]);
 
   // Ref to abort ongoing stream on unmount or new run
   const abortRef = useRef(null);
@@ -584,6 +817,11 @@ const AIInsights = ({ activities }) => {
       const sl = localStorage.getItem('garmin_sleep_data');
       setSleep(sl ? JSON.parse(sl) : null);
     } catch { setSleep(null); }
+
+    try {
+      const sd = localStorage.getItem('stravaData');
+      setStravaFetch(sd ? (JSON.parse(sd).lastFetchDate ?? null) : null);
+    } catch { setStravaFetch(null); }
   };
 
   useEffect(() => {
@@ -594,7 +832,7 @@ const AIInsights = ({ activities }) => {
 
   const run = useCallback(async (force = false) => {
     if (!activities?.length || activities.length < 3) return;
-    const built = buildPrompt(activities, garmin, sleep);
+    const built = buildPrompt(activities, garmin, sleep, weeklyTarget, { distance: goalDist, pace: goalPace, date: goalDate });
     if (!built) return;
     const { prompt, sci: builtSci } = built;
     setSci(builtSci);
@@ -609,6 +847,7 @@ const AIInsights = ({ activities }) => {
             setCur(parsed.cur);
             setTrend(parsed.trend);
             if (parsed.nextWork) setNextWork(parsed.nextWork);
+            if (parsed.lastWork) setLastWork(parsed.lastWork);
             setCacheTs(parsed.timestamp);
             setUsedProvider(parsed.provider ?? '');
             setLoaded(true);
@@ -642,19 +881,19 @@ const AIInsights = ({ activities }) => {
     }
 
     // Snapshot current state via ref (avoids stale closure)
-    const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, cacheTs: prevTs } = stateRef.current;
+    const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, cacheTs: prevTs } = stateRef.current;
     try {
       localStorage.setItem('ai_insights_backup', JSON.stringify({
-        cur: prevCur, trend: prevTrend, nextWork: prevNextWork, timestamp: prevTs,
+        cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, timestamp: prevTs,
       }));
-    } catch {}
+    } catch { }
 
     // Abort any previous in-flight stream
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setLoading(true); setCur(''); setTrend(''); setNextWork(''); setUsedProvider(''); setIsFallback(false);
+    setLoading(true); setCur(''); setTrend(''); setNextWork(''); setLastWork(''); setUsedProvider(''); setIsFallback(false);
 
     let succeeded = false;
     try {
@@ -681,6 +920,7 @@ const AIInsights = ({ activities }) => {
             if (parts.length >= 1) setCur(parts[0].trim());
             if (parts.length >= 2) setTrend(parts[1].trim());
             if (parts.length >= 3) setNextWork(parts[2].trim());
+            if (parts.length >= 4) setLastWork(parts[3].trim());
           }
           setUsedProvider(provider.name);
           const parts = full.split('|||');
@@ -689,9 +929,10 @@ const AIInsights = ({ activities }) => {
           localStorage.setItem('ai_insights_cache', JSON.stringify({
             prompt,
             model: selectedModel,
-            cur:      (parts[0] ?? '').trim(),
-            trend:    (parts[1] ?? '').trim(),
+            cur: (parts[0] ?? '').trim(),
+            trend: (parts[1] ?? '').trim(),
             nextWork: (parts[2] ?? '').trim(),
+            lastWork: (parts[3] ?? '').trim(),
             timestamp: ts,
             provider: provider.name,
           }));
@@ -701,18 +942,18 @@ const AIInsights = ({ activities }) => {
         } catch (e) {
           if (controller.signal.aborted) break;
           console.warn(`[AIInsights] ${provider.name} falló:`, e);
-          setCur(''); setTrend(''); setNextWork('');
+          setCur(''); setTrend(''); setNextWork(''); setLastWork('');
         }
       }
 
       if (!succeeded && !controller.signal.aborted) {
         if (prevCur) {
-          setCur(prevCur); setTrend(prevTrend); setNextWork(prevNextWork); setCacheTs(prevTs);
+          setCur(prevCur); setTrend(prevTrend); setNextWork(prevNextWork); setLastWork(prevLastWork); setCacheTs(prevTs);
           setRestoreWarning(true);
           setTimeout(() => setRestoreWarning(false), 6000);
         } else {
           setCur('**Sin respuesta de ningún modelo** · Puede ser rate-limit (429). Cambia de modelo en el selector o añade `VITE_GROQ_API_KEY` para activar el fallback.');
-          setTrend(''); setNextWork('');
+          setTrend(''); setNextWork(''); setLastWork('');
         }
       }
     } finally {
@@ -720,7 +961,7 @@ const AIInsights = ({ activities }) => {
       setLoading(false);
       setLoaded(true);
     }
-  }, [activities, garmin, sleep, selectedModel]);
+  }, [activities, garmin, sleep, selectedModel, weeklyTarget, goalDist, goalPace, goalDate]);
 
   useEffect(() => {
     if (activities?.length >= 3 && garmin !== undefined && sleep !== undefined) run(false);
@@ -730,32 +971,121 @@ const AIInsights = ({ activities }) => {
 
   const hasGarmin = garmin?.length > 0;
 
+  // ── Data freshness (last sync of each source) ───────────────────────────────
+  const garminDataDate = hasGarmin
+    ? [...garmin].sort((a, b) => b.date.localeCompare(a.date))[0]?.date
+    : null;
+  const stravaFresh = formatDataDate(stravaFetch);
+  const garminFresh = formatDataDate(garminDataDate);
+
   // ── Workout parser for the premium prescription ticket ──────────────────────
+  // El BLOQUE 3 ahora emite un primer bullet con plantilla fija:
+  //   **{Tipo}** · **{X-Y km}** · **{M:SS-M:SS min/km}** · **Zona {N} · {ppm-ppm ppm}**
+  // Parseamos PRIMERO esa línea estructurada (alta confianza). Si no aparece
+  // (modelo de fallback que no respeta formato), caemos a heurísticas laxas.
   const parseWorkout = (text) => {
     if (!text) return null;
-    let type = "Base Aeróbica";
-    const typeMatch = text.match(/\*\*(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)\*\*/i) 
-      || text.match(/(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)/i);
-    if (typeMatch) type = typeMatch[1];
 
-    let distance = null;
-    const distMatch = text.match(/\*\*([0-9]+(?:-[0-9]+)?\s*k?m)\*\*/i) 
-      || text.match(/([0-9]+(?:-[0-9]+)?\s*k?m)/i);
-    if (distMatch) distance = distMatch[1];
+    const result = { type: null, distance: null, pace: null, hrZone: null };
 
-    let pace = null;
-    const paceMatch = text.match(/\*\*([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?\s*min\/km)\*\*/i) 
-      || text.match(/([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?\s*min\/km)/i)
-      || text.match(/([0-9]+:[0-9]+(?:-[0-9]+:[0-9]+)?)/i);
-    if (paceMatch) pace = paceMatch[1];
+    // ── 1) Plantilla estructurada: localizar la línea con ≥2 separadores " · "
+    //        y al menos una unidad km o ppm → es el bullet de prescripción.
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const ticketLine = lines.find(l => {
+      const sepCount = (l.match(/·/g) || []).length;
+      return sepCount >= 2 && /km/i.test(l) && /(ppm|zona)/i.test(l);
+    });
 
-    let hrZone = null;
-    const hrMatch = text.match(/\*\*(Zona \d+(?:\s*·\s*\d+-\d+\s*ppm)?)\*\*/i)
-      || text.match(/(Zona \d+(?:\s*·\s*\d+-\d+\s*ppm)?)/i)
-      || text.match(/(Zona \d+)/i);
-    if (hrMatch) hrZone = hrMatch[1];
+    const stripBold = (s) => s.replace(/\*\*/g, '').trim();
 
-    return { type, distance, pace, hrZone };
+    if (ticketLine) {
+      // Quitar viñeta inicial y partir por " · "
+      const clean = ticketLine.replace(/^[-•*▸]\s*/, '');
+      const fields = clean.split('·').map(f => stripBold(f));
+
+      const TYPES = /(Regenerativo|Aeróbico base|Aerobico base|Tempo|Intervalos|Series|Rodaje largo|Fartlek|Base)/i;
+
+      for (const f of fields) {
+        if (!result.type && TYPES.test(f)) {
+          result.type = f.match(TYPES)[1];
+          continue;
+        }
+        if (!result.distance) {
+          const dm = f.match(/[0-9]+(?:[.,][0-9]+)?(?:\s*-\s*[0-9]+(?:[.,][0-9]+)?)?\s*k?m\b/i);
+          if (dm) { result.distance = dm[0].replace(/\s+/g, ' ').trim(); continue; }
+        }
+        if (!result.pace) {
+          const pm = f.match(/[0-9]+:[0-9]{2}(?:\s*-\s*[0-9]+:[0-9]{2})?\s*(?:min\/km)?/i);
+          if (pm && /min\/km|:/.test(f)) { result.pace = pm[0].replace(/\s+/g, ' ').trim(); continue; }
+        }
+        if (!result.hrZone) {
+          const zm = f.match(/Zona\s*\d+(?:\s*·?\s*[0-9]+-[0-9]+\s*ppm)?/i)
+            || f.match(/[0-9]+-[0-9]+\s*ppm/i);
+          if (zm) { result.hrZone = zm[0].replace(/\s+/g, ' ').trim(); continue; }
+        }
+      }
+      // La zona puede haber quedado en el último campo combinada con ppm:
+      if (!result.hrZone) {
+        const zAll = clean.match(/Zona\s*\d+(?:\s*·?\s*[0-9]+-[0-9]+\s*ppm)?/i);
+        if (zAll) result.hrZone = zAll[0].replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    // ── 2) Fallback heurístico sobre todo el texto para campos que falten ────
+    if (!result.type) {
+      const tm = text.match(/\*\*(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)\*\*/i)
+        || text.match(/(Regenerativo|Aeróbico base|Tempo|Intervalos|Rodaje largo|Fartlek|Series|Base)/i);
+      if (tm) result.type = tm[1];
+    }
+    if (!result.distance) {
+      const dm = text.match(/\*\*([0-9]+(?:[.,][0-9]+)?(?:\s*-\s*[0-9]+(?:[.,][0-9]+)?)?\s*k?m)\*\*/i)
+        || text.match(/([0-9]+(?:[.,][0-9]+)?(?:\s*-\s*[0-9]+(?:[.,][0-9]+)?)?\s*km)\b/i);
+      if (dm) result.distance = dm[1].replace(/\s+/g, ' ').trim();
+    }
+    if (!result.pace) {
+      const pm = text.match(/\*\*([0-9]+:[0-9]{2}(?:\s*-\s*[0-9]+:[0-9]{2})?\s*min\/km)\*\*/i)
+        || text.match(/([0-9]+:[0-9]{2}(?:\s*-\s*[0-9]+:[0-9]{2})?\s*min\/km)/i)
+        || text.match(/([0-9]+:[0-9]{2}(?:\s*-\s*[0-9]+:[0-9]{2}))/i);
+      if (pm) result.pace = pm[1].replace(/\s+/g, ' ').trim();
+    }
+    if (!result.hrZone) {
+      const hm = text.match(/\*\*(Zona \d+(?:\s*·\s*[0-9]+-[0-9]+\s*ppm)?)\*\*/i)
+        || text.match(/(Zona \d+\s*·?\s*[0-9]+-[0-9]+\s*ppm)/i)
+        || text.match(/(Zona \d+)/i)
+        || text.match(/([0-9]+-[0-9]+\s*ppm)/i);
+      if (hm) result.hrZone = hm[1].replace(/\s+/g, ' ').trim();
+    }
+
+    // Normaliza defaults sólo en el render (mantén null aquí para distinguir).
+    return {
+      type: result.type || 'Base Aeróbica',
+      distance: result.distance,
+      pace: result.pace,
+      hrZone: result.hrZone,
+    };
+  };
+
+  // Pasa el análisis actual al chat (RunQA) como contexto para preguntas de seguimiento.
+  const openInChat = () => {
+    try {
+      const seed = {
+        ts: Date.now(),
+        blocks: { cur, trend, nextWork, lastWork },
+        sci: sci ? {
+          readiness: sci.readiness?.score ?? null,
+          readinessLabel: sci.readiness?.label ?? null,
+          ctl: sci.pmc?.ctl ?? null,
+          atl: sci.pmc?.atl ?? null,
+          tsb: sci.pmc?.tsb ?? null,
+          acwr: sci.pmc?.acwr ?? null,
+          fcmax: sci.fcmax ?? null,
+          fcRest: sci.fcRest ?? null,
+          lthr: sci.lthr ?? null,
+        } : null,
+      };
+      localStorage.setItem('runqa_seed', JSON.stringify(seed));
+    } catch { /* ignore quota/serialization errors */ }
+    onOpenChat?.();
   };
 
   return (
@@ -783,6 +1113,76 @@ const AIInsights = ({ activities }) => {
             </span>
           )}
           <select
+            value={weeklyTarget}
+            disabled={loading}
+            title="Sesiones de carrera por semana que quieres hacer"
+            onChange={e => {
+              const v = e.target.value;
+              localStorage.setItem('ai_weekly_target', v);
+              setWeeklyTarget(v);
+              setLoaded(false);
+            }}
+            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+          >
+            {[2, 3, 4, 5, 6].map(n => (
+              <option key={n} value={String(n)}>{n}×/sem</option>
+            ))}
+          </select>
+          <select
+            value={goalDist}
+            disabled={loading}
+            title="Objetivo de carrera"
+            onChange={e => {
+              const v = e.target.value;
+              localStorage.setItem('ai_goal_distance', v);
+              setGoalDist(v);
+              setLoaded(false);
+            }}
+            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+          >
+            <option value="">Sin objetivo</option>
+            {['5K', '10K', '21K', '42K'].map(d => (
+              <option key={d} value={d}>Obj {d}</option>
+            ))}
+          </select>
+          {goalDist && (
+            <input
+              type="text"
+              inputMode="numeric"
+              value={paceInput}
+              disabled={loading}
+              placeholder="4:30"
+              title="Ritmo objetivo (min/km) — opcional, Enter para aplicar"
+              onChange={e => setPaceInput(e.target.value)}
+              onBlur={() => {
+                const v = paceInput.trim();
+                if (v === goalPace) return;
+                localStorage.setItem('ai_goal_pace', v);
+                setGoalPace(v);
+                setLoaded(false);
+              }}
+              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              className="w-[58px] text-[11px] text-slate-600 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold text-center hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors shadow-sm placeholder:text-slate-300 placeholder:font-medium"
+            />
+          )}
+          {goalDist && (
+            <input
+              type="date"
+              value={goalDate}
+              disabled={loading}
+              title="Fecha de la carrera objetivo"
+              onChange={e => {
+                const v = e.target.value;
+                localStorage.setItem('ai_goal_date', v);
+                setGoalDate(v);
+                setLoaded(false);
+              }}
+              className="text-[11px] text-slate-600 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors shadow-sm cursor-pointer"
+            />
+          )}
+          <select
             value={selectedModel}
             disabled={loading}
             onChange={e => {
@@ -794,7 +1194,7 @@ const AIInsights = ({ activities }) => {
             className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
           >
-            {GEMINI_MODELS.map(m => (
+            {availableModels.map(m => (
               <option key={m.id} value={m.id}>{m.label}</option>
             ))}
           </select>
@@ -824,7 +1224,7 @@ const AIInsights = ({ activities }) => {
           chips.push({ k: 'VFC', v: `${h.latest}ms`, s: inBase });
         }
         if (sci.bb?.high != null) chips.push({ k: 'Body Battery', v: `${sci.bb.high}/100`, s: sci.bb.high >= 70 ? 'recuperado' : sci.bb.high >= 40 ? 'parcial' : 'bajo' });
-        if (sci.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin/60).toFixed(1)}h` : '' });
+        if (sci.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin / 60).toFixed(1)}h` : '' });
         if (sci.pmc) chips.push({ k: 'Forma TSB', v: `${sci.pmc.tsb > 0 ? '+' : ''}${sci.pmc.tsb}`, s: `ACWR ${sci.pmc.acwr ?? '—'}` });
         const R = 22, C = 2 * Math.PI * R, off = C * (1 - score / 100);
         return (
@@ -857,11 +1257,10 @@ const AIInsights = ({ activities }) => {
 
       {/* ── Loading status banner ── */}
       {loading && providerLabel && (
-        <div className={`flex items-center gap-2 px-5 py-2.5 border-b text-[11px] font-bold ${
-          isFallback
-            ? 'bg-amber-50/70 border-amber-100 text-amber-700'
-            : 'bg-blue-50/70 border-blue-100 text-blue-600'
-        }`}>
+        <div className={`flex items-center gap-2 px-5 py-2.5 border-b text-[11px] font-bold ${isFallback
+          ? 'bg-amber-50/70 border-amber-100 text-amber-700'
+          : 'bg-blue-50/70 border-blue-100 text-blue-600'
+          }`}>
           <ArrowPathIcon className="w-3.5 h-3.5 animate-spin shrink-0" />
           {providerLabel}
         </div>
@@ -895,39 +1294,103 @@ const AIInsights = ({ activities }) => {
             if (a.suffer_score) tooltipParts.push(`Esfuerzo: ${a.suffer_score}`);
 
             return (
-            <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-help hover:bg-slate-50 transition-colors">
-              <span className="text-[9px] text-slate-400 font-medium border-r border-slate-100 pr-1.5">
-                {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-              </span>
-              <span className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
-                <span>
-                  {a.type === 'Ride' || a.type === 'VirtualRide' ? '🚴' :
-                   a.type === 'Run' || a.type === 'TrailRun' || a.type === 'VirtualRun' ? '🏃' :
-                   a.type === 'Swim' ? '🏊' :
-                   a.type === 'Walk' || a.type === 'Hike' ? '🚶' :
-                   a.type === 'WeightTraining' ? '🏋️' :
-                   a.type === 'Yoga' ? '🧘' : '👟'}
+              <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-help hover:bg-slate-50 transition-colors">
+                <span className="text-[9px] text-slate-400 font-medium border-r border-slate-100 pr-1.5">
+                  {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 </span>
-                {a.distance > 0 ? `${(a.distance / 1000).toFixed(1)}k` : `${Math.round((a.moving_time || 0) / 60)}min`}
-              </span>
-              {a.moving_time > 0 && a.distance > 0 && ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(a.type) && (
-                <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
-                  {(() => {
-                    const p = (a.moving_time / 60) / (a.distance / 1000);
-                    return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
-                  })()}
+                <span className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                  <span>
+                    {a.type === 'Ride' || a.type === 'VirtualRide' ? '🚴' :
+                      a.type === 'Run' || a.type === 'TrailRun' || a.type === 'VirtualRun' ? '🏃' :
+                        a.type === 'Swim' ? '🏊' :
+                          a.type === 'Walk' || a.type === 'Hike' ? '🚶' :
+                            a.type === 'WeightTraining' ? '🏋️' :
+                              a.type === 'Yoga' ? '🧘' : '👟'}
+                  </span>
+                  {a.distance > 0 ? `${(a.distance / 1000).toFixed(1)}k` : `${Math.round((a.moving_time || 0) / 60)}min`}
                 </span>
-              )}
-              {a.moving_time > 0 && a.distance > 0 && ['Ride', 'VirtualRide'].includes(a.type) && (
-                <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
-                  {((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1)} km/h
-                </span>
-              )}
-            </div>
+                {a.moving_time > 0 && a.distance > 0 && ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(a.type) && (
+                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                    {(() => {
+                      const p = (a.moving_time / 60) / (a.distance / 1000);
+                      return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+                    })()}
+                  </span>
+                )}
+                {a.moving_time > 0 && a.distance > 0 && ['Ride', 'VirtualRide'].includes(a.type) && (
+                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                    {((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1)} km/h
+                  </span>
+                )}
+              </div>
             );
           })}
         </div>
+
+        {(stravaFresh || garminFresh) && (
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {stravaFresh && (
+              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Última actualización de datos de Strava">
+                <ArrowPathIcon className="w-3 h-3 text-orange-400" />
+                <span className="text-slate-500">Strava</span>
+                <span className="text-slate-400 font-medium">{stravaFresh}</span>
+              </span>
+            )}
+            {garminFresh && (
+              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Datos de Garmin disponibles hasta esta fecha">
+                <ArrowPathIcon className="w-3 h-3 text-blue-400" />
+                <span className="text-slate-500">Garmin</span>
+                <span className="text-slate-400 font-medium">{garminFresh}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── Análisis del último entrenamiento ── */}
+      {(lastWork || (loading && cur)) && (() => {
+        const last = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
+        if (!last) return null;
+        const km = last.distance / 1000;
+        const min = (last.moving_time || 0) / 60;
+        const isRun = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(last.type);
+        const meta = [];
+        if (km > 0) meta.push(`${km.toFixed(1)} km`);
+        if (min > 0) meta.push(`${Math.round(min)} min`);
+        if (km > 0 && min > 0 && isRun) {
+          const p = min / km;
+          meta.push(`${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`);
+        } else if (km > 0 && min > 0 && ['Ride', 'VirtualRide'].includes(last.type)) {
+          meta.push(`${(km / (min / 60)).toFixed(1)} km/h`);
+        }
+        if (last.average_heartrate) meta.push(`${Math.round(last.average_heartrate)} ppm`);
+        if (last.total_elevation_gain) meta.push(`+${Math.round(last.total_elevation_gain)} m`);
+        const icon = last.type === 'Ride' || last.type === 'VirtualRide' ? '🚴'
+          : last.type === 'Swim' ? '🏊'
+            : last.type === 'Walk' || last.type === 'Hike' ? '🚶'
+              : last.type === 'WeightTraining' ? '🏋️'
+                : last.type === 'Yoga' ? '🧘'
+                  : isRun ? '🏃' : '👟';
+        return (
+          <div className="border-b border-slate-100/60 bg-gradient-to-r from-amber-50/20 to-rose-50/10 px-5 py-4">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="p-1.5 rounded-xl bg-amber-50 text-amber-600 shadow-sm border border-amber-100/40">
+                <FireIcon className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Análisis del último entrenamiento</span>
+                <span className="text-[10px] text-slate-400 font-semibold truncate block">
+                  {icon} {last.name ? `${last.name} · ` : ''}{new Date(last.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
+                  {meta.length ? ` · ${meta.join(' · ')}` : ''}
+                </span>
+              </div>
+            </div>
+            <div className="bg-white/60 rounded-2xl p-4 border border-slate-100/60">
+              {loading && !lastWork ? <Pulse /> : <MD text={lastWork} accent="text-amber-500" />}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Content grid: Diagnosis + Trend ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100/60">
@@ -959,7 +1422,7 @@ const AIInsights = ({ activities }) => {
               );
             })()}
           </div>
-          
+
           <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
             {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
           </div>
@@ -970,18 +1433,21 @@ const AIInsights = ({ activities }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia anual</span>
-              <span className="text-[10px] text-slate-400 font-medium">· 12 meses</span>
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia y patrón</span>
+              <span className="text-[10px] text-slate-400 font-medium">· últimos 2 meses</span>
             </div>
             {trend && (() => {
               const text = trend.toLowerCase();
               let badge = { text: 'Estacional 📅', color: 'bg-slate-50 text-slate-600 border-slate-200' };
-              if (text.includes('progres') || text.includes('mejor')) {
-                badge = { text: 'Progresión constante 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-              } else if (text.includes('estanc') || text.includes('meseta') || text.includes('estabil')) {
-                badge = { text: 'Meseta / Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-              } else if (text.includes('lesi') || text.includes('dolor') || text.includes('riesgo')) {
+              // Prioridad: riesgo > meseta/interrumpida > progresión. Evita que
+              // "progresión interrumpida/estancada" se etiquete como progresión real.
+              const negated = /interrump|estanc|meseta|estabil|caíd|caid|pérdida|perdida|insuficien|frena|detien/.test(text);
+              if (text.includes('lesi') || text.includes('dolor') || text.includes('riesgo')) {
                 badge = { text: 'Riesgo de lesión ⚠️', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+              } else if (text.includes('estanc') || text.includes('meseta') || text.includes('estabil') || text.includes('interrump') || text.includes('insuficien')) {
+                badge = { text: 'Meseta / Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+              } else if ((text.includes('progres') || text.includes('mejor')) && !negated) {
+                badge = { text: 'Progresión constante 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
               }
               return (
                 <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.color}`}>
@@ -990,7 +1456,7 @@ const AIInsights = ({ activities }) => {
               );
             })()}
           </div>
-          
+
           <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
             {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
           </div>
@@ -1009,7 +1475,7 @@ const AIInsights = ({ activities }) => {
               <span className="text-[10px] text-slate-400 font-semibold">Prescripción de running sugerida para tus próximos 1-2 días</span>
             </div>
           </div>
-          
+
           {loading && !nextWork ? (
             <Pulse />
           ) : (
@@ -1021,20 +1487,19 @@ const AIInsights = ({ activities }) => {
                   <>
                     <div className="flex-1 bg-white border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between relative overflow-hidden">
                       <div className="absolute right-0 top-0 w-24 h-24 rounded-full bg-blue-500/5 blur-2xl pointer-events-none" />
-                      
+
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Prescripción IA</span>
-                          <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                            w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60' :
+                          <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60' :
                             w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border border-amber-100/60' :
-                            w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border border-rose-100/60' :
-                            'bg-blue-50 text-blue-700 border border-blue-100/60'
-                          }`}>
+                              w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border border-rose-100/60' :
+                                'bg-blue-50 text-blue-700 border border-blue-100/60'
+                            }`}>
                             {w?.type || 'Sesión Base'}
                           </span>
                         </div>
-                        
+
                         <div className="grid grid-cols-3 gap-3">
                           <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
                             <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Distancia</span>
@@ -1056,13 +1521,13 @@ const AIInsights = ({ activities }) => {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="mt-4 pt-3 border-t border-slate-100/60 flex items-center gap-2 text-[10px] text-slate-400 font-semibold">
                         <span className="text-xs">💡</span>
                         <span>Sigue las pautas de ritmo y mantente hidratado.</span>
                       </div>
                     </div>
-                    
+
                     {/* Full guidelines list */}
                     <div className="flex-1 bg-white/40 border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-center">
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Guías de Ejecución</span>
@@ -1077,11 +1542,23 @@ const AIInsights = ({ activities }) => {
       )}
 
       {/* ── Footer badge ── */}
-      <div className="px-5 py-2.5 bg-slate-50/60 border-t border-slate-100/60 flex items-center gap-1.5 bg-white/40">
-        <SparklesIcon className="w-3.5 h-3.5 text-slate-400" />
-        <span className="text-[10px] text-slate-400 font-semibold">
-          {usedProvider || 'IA'} · Recomendación inteligente · Basada en tu carga de entrenamiento
-        </span>
+      <div className="px-5 py-2.5 bg-slate-50/60 border-t border-slate-100/60 flex items-center justify-between gap-2 bg-white/40">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <SparklesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-[10px] text-slate-400 font-semibold truncate">
+            {usedProvider || 'IA'} · Recomendación inteligente · Basada en tu carga de entrenamiento
+          </span>
+        </div>
+        {onOpenChat && (cur || trend || nextWork) && (
+          <button
+            onClick={openInChat}
+            title="Abrir el chat con este análisis como contexto"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors"
+          >
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+            Seguir preguntando en el chat
+          </button>
+        )}
       </div>
     </div>
   );

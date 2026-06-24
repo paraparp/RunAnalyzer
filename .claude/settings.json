@@ -3,7 +3,8 @@
     "allow": [
       "Bash(perl -0pi -e 's/\\(\\\\n          bands=\\\\{goodBands\\\\}\\)/$1\\\\n          avgLabel={avgLabel}/g' src/components/VitalsOverview.jsx)",
       "WebSearch",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "PowerShell(npx vite build --logLevel error 2>&1)"
     ]
   }
 }

@@ -1,80 +1,87 @@
-import React, { useEffect } from 'react';
-import { Text, Select, SelectItem, TabGroup, TabList, Tab } from "@tremor/react";
-import { BoltIcon, SparklesIcon, CpuChipIcon } from "@heroicons/react/24/solid";
+import React, { useEffect, useState } from 'react';
+import { Text, Select, SelectItem } from "@tremor/react";
+import { SparklesIcon } from "@heroicons/react/24/solid";
 
 /**
- * Reusable AI Model Selector component
- * Includes provider selection (Groq/Gemini/Anthropic) and model selection
+ * Google Gemini model selector.
+ * Fetches the live list of available models from the ListModels endpoint (same
+ * source as the AI panel) and falls back to a static list when unavailable.
  */
-const ModelSelector = ({
-    provider,
-    setProvider,
-    selectedModel,
-    setSelectedModel,
-    showLabel = true,
-    className = ""
-}) => {
-    // Reset model when provider changes
+
+// Fallback list used when the ListModels API can't be reached.
+const FALLBACK_GEMINI = [
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+];
+
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+
+// Short capability hint derived from the model id.
+const tierOf = (id) => {
+    if (/pro/i.test(id)) return 'Máxima calidad';
+    if (/flash-?lite/i.test(id)) return 'Económico';
+    if (/flash/i.test(id)) return 'Equilibrado';
+    return '';
+};
+
+const ModelSelector = ({ selectedModel, setSelectedModel, showLabel = true, className = "" }) => {
+    const [models, setModels] = useState(FALLBACK_GEMINI);
+
+    // Fetch the live list of Gemini models for this API key (mirrors AIInsights).
     useEffect(() => {
-        if (provider === 'groq') setSelectedModel(m => m.startsWith('llama') || m.startsWith('mixtral') ? m : 'llama-3.1-8b-instant');
-        else if (provider === 'gemini') setSelectedModel(m => m.startsWith('gemini') ? m : 'gemini-3.5-flash');
-        else if (provider === 'anthropic') setSelectedModel(m => m.startsWith('claude') ? m : 'claude-3-5-sonnet-latest');
-    }, [provider, setSelectedModel]);
+        const key = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!key) return;
+        const ctrl = new AbortController();
+        fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, { signal: ctrl.signal })
+            .then(r => r.ok ? r.json() : null)
+            .then(j => {
+                // Exclude non-chat variants: robotics, TTS, image gen, audio, embeddings, etc.
+                const EXCLUDE = /robotics|tts|image|audio|embedding|aqa|vision|nano|gemma|learnlm/i;
+                const list = (j?.models ?? [])
+                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                    .filter(m => m.name?.includes('gemini'))
+                    .filter(m => !EXCLUDE.test(m.name) && !EXCLUDE.test(m.displayName || ''))
+                    .map(m => ({ id: m.name.replace('models/', ''), label: m.displayName || m.name.replace('models/', '') }))
+                    .sort((a, b) => b.id.localeCompare(a.id));
+                if (list.length) setModels(list);
+            })
+            .catch(() => { /* keep fallback */ });
+        return () => ctrl.abort();
+    }, []);
 
-    const getProviderIndex = (p) => {
-        if (p === 'groq') return 0;
-        if (p === 'gemini') return 1;
-        if (p === 'anthropic') return 2;
-        return 0;
-    };
-
-    const handleIndexChange = (i) => {
-        if (i === 0) setProvider('groq');
-        else if (i === 1) setProvider('gemini');
-        else if (i === 2) setProvider('anthropic');
-    };
+    // Keep the selected model valid against the available list.
+    useEffect(() => {
+        if (models.length && !models.some(m => m.id === selectedModel)) {
+            setSelectedModel(models[0].id);
+        }
+    }, [models, selectedModel, setSelectedModel]);
 
     return (
-        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 ${className}`}>
-            {/* Provider Tabs */}
-            <div className="flex-none">
-                <TabGroup
-                    index={getProviderIndex(provider)}
-                    onIndexChange={handleIndexChange}
-                >
-                    <TabList variant="solid" className="bg-slate-100 dark:bg-slate-800">
-                        <Tab icon={BoltIcon}>Groq</Tab>
-                        <Tab icon={SparklesIcon}>Gemini</Tab>
-                        <Tab icon={CpuChipIcon}>Claude</Tab>
-                    </TabList>
-                </TabGroup>
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 ${className}`}>
+            <div className="flex items-center gap-1.5 flex-none px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-100">
+                <SparklesIcon className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-bold text-blue-700 whitespace-nowrap">Google Gemini</span>
             </div>
-
-            {/* Model Selection */}
-            <div className="flex-1 min-w-[200px] w-full">
+            <div className="flex-1 min-w-[210px] w-full">
                 {showLabel && (
                     <Text className="mb-1 font-bold text-xs uppercase text-slate-400">Modelo</Text>
                 )}
                 <Select value={selectedModel} onValueChange={setSelectedModel} enableClear={false}>
-                    {/* Groq Models */}
-                    {provider === 'groq' && <SelectItem value="llama-3.1-8b-instant">⚡ Llama 3.1 8B Instant</SelectItem>}
-                    {provider === 'groq' && <SelectItem value="llama-3.3-70b-versatile">🧠 Llama 3.3 70B</SelectItem>}
-                    {provider === 'groq' && <SelectItem value="mixtral-8x7b-32768">🌀 Mixtral 8x7B</SelectItem>}
-
-                    {/* Gemini Models */}
-                    {provider === 'gemini' && <SelectItem value="gemini-3.5-flash">🆕 Gemini 3.5 Flash</SelectItem>}
-                    {provider === 'gemini' && <SelectItem value="gemini-3.1-pro">🧠 Gemini 3.1 Pro</SelectItem>}
-                    {provider === 'gemini' && <SelectItem value="gemini-2.5-flash">⚡ Gemini 2.5 Flash</SelectItem>}
-                    {provider === 'gemini' && <SelectItem value="gemini-2.5-flash-lite">🌀 Gemini 2.5 Flash Lite</SelectItem>}
-
-                    {/* Anthropic Models */}
-                    {provider === 'anthropic' && <SelectItem value="claude-3-5-sonnet-latest">🧠 Claude 3.5 Sonnet</SelectItem>}
-                    {provider === 'anthropic' && <SelectItem value="claude-3-5-haiku-20241022">⚡ Claude 3.5 Haiku</SelectItem>}
-                    {provider === 'anthropic' && <SelectItem value="claude-3-opus-latest">🎓 Claude 3 Opus</SelectItem>}
+                    {models.map(m => (
+                        <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                                <span className="font-medium text-slate-700">{m.label}</span>
+                                {tierOf(m.id) && <span className="text-[11px] text-slate-400 font-medium">{tierOf(m.id)}</span>}
+                            </span>
+                        </SelectItem>
+                    ))}
                 </Select>
             </div>
         </div>
     );
 };
 
+export { DEFAULT_GEMINI_MODEL, FALLBACK_GEMINI };
 export default ModelSelector;

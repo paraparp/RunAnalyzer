@@ -819,14 +819,23 @@ const Dashboard = ({ user, handleLogout }) => {
 
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-                      {/* Left Column: Progress Chart & AI Insights */}
-                      <div className="lg:col-span-8 flex flex-col gap-4">
-                        {/* Standalone Section 1: AI Insights */}
-                        <AIInsights activities={stravaData.activities || []} />
+                    {/* Section 1: AI Insights (full width) */}
+                    <AIInsights activities={stravaData.activities || []} onOpenChat={() => setCurrentView('qa')} />
 
-                        {/* Standalone Section 2: Progress Chart */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col flex-1">
+                    {/* Section 2: Personal Bests — horizontal row below the diagnosis */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800">{t('dashboard.personal_bests')}</h3>
+                          <p className="text-[11px] text-slate-400">{t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}</p>
+                        </div>
+                        <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
+                      </div>
+                      <PersonalBests activities={filteredActivities} horizontal />
+                    </div>
+
+                    {/* Section 3: Progress Chart (full width) */}
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
                           {/* Single header row: title + metric pills + group toggle */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                             <div>
@@ -869,24 +878,8 @@ const Dashboard = ({ user, handleLogout }) => {
                             </div>
                           </div>
 
-                          <div className="flex-grow flex flex-col justify-end min-h-[160px]">
-                            <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Column: Personal Bests */}
-                      <div className="lg:col-span-4">
-                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                          <div className="flex items-center justify-between mb-4">
-                            <div>
-                              <h3 className="text-sm font-bold text-slate-800">{t('dashboard.personal_bests')}</h3>
-                              <p className="text-[11px] text-slate-400">{t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}</p>
-                            </div>
-                            <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
-                          </div>
-                          <PersonalBests activities={filteredActivities} />
-                        </div>
+                      <div className="flex-grow flex flex-col justify-end min-h-[160px]">
+                        <MonthlyChart activities={sortedActivities} selectedMetric={chartMetrics[selectedChartIndex]} groupBy={chartGroupBy} />
                       </div>
                     </div>
 

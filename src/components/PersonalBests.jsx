@@ -119,7 +119,7 @@ function DistanceRecord({ record, t }) {
   );
 }
 
-const PersonalBests = ({ activities }) => {
+const PersonalBests = ({ activities, horizontal = false }) => {
   const { t } = useTranslation();
 
   const records = useMemo(() => {
@@ -149,7 +149,9 @@ const PersonalBests = ({ activities }) => {
   if (records.length === 0) return null;
 
   return (
-    <div className="space-y-3">
+    <div className={horizontal
+      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start'
+      : 'space-y-3'}>
       {records.map(record => (
         <DistanceRecord key={record.id} record={record} t={t} />
       ))}
