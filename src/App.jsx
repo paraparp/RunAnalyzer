@@ -27,6 +27,8 @@ import GearTracker from './components/GearTracker';
 import SplitAnalysis from './components/SplitAnalysis';
 import RaceDetector from './components/RaceDetector';
 import AIInsights from './components/AIInsights';
+import TargetRaces from './components/TargetRaces';
+import NextRaceBanner from './components/NextRaceBanner';
 import CardiacDecoupling from './components/CardiacDecoupling';
 import GarminCardiac from './components/GarminCardiac';
 import VitalsOverview from './components/VitalsOverview';
@@ -64,6 +66,7 @@ import {
   ShieldExclamationIcon,
   RectangleGroupIcon,
   TrophyIcon,
+  FlagIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -77,6 +80,7 @@ const NAV_ITEMS = [
   { id: 'consistency', icon: CalendarDaysIcon },
   { id: 'vdot', icon: BeakerIcon },
   { id: 'gear', icon: StarIcon },
+  { id: 'targets', icon: FlagIcon },
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'qa', icon: ChatBubbleLeftRightIcon },
@@ -94,7 +98,7 @@ const NAV_ITEMS = [
 const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
-  { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'vdot', 'qa'] },
+  { id: 'ai', icon: SparklesIcon, itemIds: ['targets', 'planner', 'predictor', 'vdot', 'qa'] },
   { id: 'performance', icon: BoltIcon, itemIds: ['splits', 'records', 'decoupling', 'cardiac', 'vitals', 'injury', 'vo2tracker', 'lactate'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
@@ -788,6 +792,9 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView === 'dashboard' && (
               <div className="fade-in space-y-6">
 
+                {/* Next target race countdown */}
+                <NextRaceBanner onManage={() => setCurrentView('targets')} />
+
                 {/* Mobile year filter */}
                 <div className="sm:hidden flex items-center gap-2 px-1">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('hr_analysis.filters.year')}:</span>
@@ -1289,6 +1296,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 vdot:        <VDOTEstimator activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
+                targets:     <TargetRaces />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 qa:          <RunQA activities={runningActivities} />,

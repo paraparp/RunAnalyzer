@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text } from "@tremor/react";
 import { SparklesIcon } from "@heroicons/react/24/solid";
+import { fetchGeminiModels } from '../services/ai';
 
 /**
  * Google Gemini model selector — unified across every AI feature (AI suggestion,
@@ -23,24 +24,11 @@ const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const ModelSelector = ({ selectedModel, setSelectedModel, disabled = false, showLabel = true, className = "" }) => {
     const [models, setModels] = useState(FALLBACK_GEMINI);
 
-    // Fetch the live list of Gemini models for this API key (mirrors AIInsights).
+    // Fetch the live list of Gemini models via the server proxy (/api/ai/models).
     useEffect(() => {
-        const key = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!key) return;
         const ctrl = new AbortController();
-        fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, { signal: ctrl.signal })
-            .then(r => r.ok ? r.json() : null)
-            .then(j => {
-                // Exclude non-chat variants: robotics, TTS, image gen, audio, embeddings, etc.
-                const EXCLUDE = /robotics|tts|image|audio|embedding|aqa|vision|nano|gemma|learnlm/i;
-                const list = (j?.models ?? [])
-                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-                    .filter(m => m.name?.includes('gemini'))
-                    .filter(m => !EXCLUDE.test(m.name) && !EXCLUDE.test(m.displayName || ''))
-                    .map(m => ({ id: m.name.replace('models/', ''), label: m.displayName || m.name.replace('models/', '') }))
-                    .sort((a, b) => b.id.localeCompare(a.id));
-                if (list.length) setModels(list);
-            })
+        fetchGeminiModels(ctrl.signal)
+            .then(list => { if (list.length) setModels(list); })
             .catch(() => { /* keep fallback */ });
         return () => ctrl.abort();
     }, []);

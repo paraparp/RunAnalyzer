@@ -13,6 +13,7 @@ import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipI
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import { buildPrompt } from '../lib/athleteContext';
+import { getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // Define the schema for the training plan
 const PlanSchema = z.object({
@@ -46,25 +47,33 @@ const PlanSchema = z.object({
 
 const TrainingPlanner = ({ activities }) => {
     const { t } = useTranslation();
-    const [goalDist, setGoalDist] = useState('21k');
-
-    const calculateSuggestedTime = () => {
-        if (!activities || activities.length === 0) return '';
-        const recentRuns = activities
-            .filter(a => (a.distance / 1000) >= 3)
-            .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
-            .slice(0, 5);
-        if (recentRuns.length === 0) return '';
-        const avgPaceMinKm = recentRuns.reduce((acc, run) => acc + ((run.moving_time / 60) / (run.distance / 1000)), 0) / recentRuns.length;
-        const targetPaceMinKm = avgPaceMinKm * 0.90;
-        const suggestedTime = Math.round(targetPaceMinKm * 21);
-        return suggestedTime.toString();
-    };
-
-    const [goalTime, setGoalTime] = useState(calculateSuggestedTime);
-    const [weeks, setWeeks] = useState(4);
     const [selectedDays, setSelectedDays] = useState(['Mi', 'Sa']);
     const [provider] = useState('gemini');
+
+    // El objetivo del plan es la carrera objetivo seleccionada (gestionadas en la
+    // sección "Carreras Objetivo"). Distancia, tiempo meta y duración del plan se
+    // derivan de ella; aquí solo se eligen los días de entrenamiento.
+    const [targetRaces, setTargetRaces] = useState(getTargetRaces);
+    const [selectedRaceId, setSelectedRaceId] = useState(() => getTargetRaces()[0]?.id || '');
+    useEffect(() => {
+        const reload = () => {
+            const list = getTargetRaces();
+            setTargetRaces(list);
+            setSelectedRaceId(prev => (list.some(r => r.id === prev) ? prev : (list[0]?.id || '')));
+        };
+        window.addEventListener(TARGET_RACES_EVENT, reload);
+        return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
+    }, []);
+
+    const selectedRace = targetRaces.find(r => r.id === selectedRaceId) || null;
+    const goalDist = selectedRace?.distance || '21k';
+    const goalTime = selectedRace?.goalTimeMin != null ? String(Math.round(selectedRace.goalTimeMin)) : '';
+    // Duración del plan = semanas hasta la carrera (acotado 1–24); 8 si no hay fecha.
+    const weeks = (() => {
+        const d = selectedRace ? daysUntil(selectedRace.date) : null;
+        if (d == null) return 8;
+        return Math.min(24, Math.max(1, Math.round(d / 7)));
+    })();
 
     const apiKeys = {
         gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
@@ -139,6 +148,10 @@ const TrainingPlanner = ({ activities }) => {
 
     const generateAIPlan = async (e) => {
         e.preventDefault();
+        if (!selectedRace) {
+            setError(t('planner.no_target_desc'));
+            return;
+        }
         const activeKey = apiKeys[provider];
         if (!activeKey) {
             setError(t('auth.login_error', { provider: provider.charAt(0).toUpperCase() + provider.slice(1) }));
@@ -235,46 +248,61 @@ const TrainingPlanner = ({ activities }) => {
             {/* Config Card */}
             <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm mb-8">
                 <form onSubmit={generateAIPlan} className="space-y-8">
-                    <Grid numItems={1} numItemsSm={3} className="gap-8">
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('planner.goal_dist')}</label>
-                            <Select value={goalDist} onValueChange={setGoalDist} enableClear={false}>
-                                <SelectItem value="5k">{t('planner.distances.5k')}</SelectItem>
-                                <SelectItem value="10k">{t('planner.distances.10k')}</SelectItem>
-                                <SelectItem value="21k">{t('planner.distances.21k')}</SelectItem>
-                                <SelectItem value="42k">{t('planner.distances.42k')}</SelectItem>
-                            </Select>
+                    {targetRaces.length === 0 ? (
+                        <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl">
+                            <FlagIcon className="w-10 h-10 text-blue-400 mx-auto mb-3" />
+                            <h3 className="text-base font-black text-slate-900 mb-1">{t('planner.no_target_title')}</h3>
+                            <p className="text-slate-500 text-sm font-medium max-w-sm mx-auto">{t('planner.no_target_desc')}</p>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('planner.goal_time')}</label>
-                            <NumberInput value={goalTime} onValueChange={setGoalTime} placeholder="ej. 45" min={15} />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('planner.weeks')}</label>
-                            <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))} enableClear={false}>
-                                {[3, 4, 6, 8, 12, 16].map(w => <SelectItem key={w} value={String(w)}>{w} {t('planner.weeks_unit')}</SelectItem>)}
-                            </Select>
-                        </div>
-                    </Grid>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('planner.target_race')}</label>
+                                <Select value={selectedRaceId} onValueChange={setSelectedRaceId} enableClear={false}>
+                                    {targetRaces.map(r => (
+                                        <SelectItem key={r.id} value={r.id}>
+                                            {r.name}{r.date ? ` · ${new Date(r.date + 'T00:00:00').toLocaleDateString()}` : ''}
+                                        </SelectItem>
+                                    ))}
+                                </Select>
+                            </div>
 
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('planner.days')}</label>
-                        <div className="flex flex-wrap gap-2">
-                            {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(day => (
-                                <button
-                                    key={day}
-                                    type="button"
-                                    onClick={() => setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])}
-                                    className={`px-5 py-2.5 text-xs font-black transition-all rounded-xl border-2 ${selectedDays.includes(day) ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 scale-105' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'}`}
-                                >
-                                    {day}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                            {/* Objetivo derivado de la carrera seleccionada */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('planner.goal_dist')}</p>
+                                    <p className="text-sm font-black text-slate-900">{t(`planner.distances.${goalDist}`)}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('targets.goal_time')}</p>
+                                    <p className="text-sm font-black text-slate-900">{selectedRace?.goalTimeMin != null ? formatMinutes(selectedRace.goalTimeMin) : '—'}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('planner.weeks')}</p>
+                                    <p className="text-sm font-black text-slate-900">{weeks} {t('planner.weeks_unit')}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('planner.days')}</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(day => (
+                                        <button
+                                            key={day}
+                                            type="button"
+                                            onClick={() => setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])}
+                                            className={`px-5 py-2.5 text-xs font-black transition-all rounded-xl border-2 ${selectedDays.includes(day) ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 scale-105' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'}`}
+                                        >
+                                            {day}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     <button
-                        disabled={loading}
+                        disabled={loading || targetRaces.length === 0}
                         type="submit"
                         className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl ${loading ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'}`}
                     >

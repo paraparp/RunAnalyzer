@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
@@ -15,6 +15,7 @@ import {
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { buildPrompt } from '../lib/athleteContext';
+import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
 const MD = ({ text, accent }) => {
@@ -110,13 +111,26 @@ const AIInsights = ({ activities, onOpenChat }) => {
   const [weeklyTarget, setWeeklyTarget] = useState(
     () => cloudStorage.getItem('ai_weekly_target') || '2'
   );
-  // Defaults: 42K @ 5:30/km, Zurich Maratón de San Sebastián (47ª ed., dom 22 nov 2026).
-  const [goalDist, setGoalDist] = useState(() => cloudStorage.getItem('ai_goal_distance') ?? '42K');
-  const [goalPace, setGoalPace] = useState(() => cloudStorage.getItem('ai_goal_pace') ?? '5:30');
-  const [goalDate, setGoalDate] = useState(() => cloudStorage.getItem('ai_goal_date') ?? '2026-11-22');
-  // Local, uncommitted text for the pace field — committed to goalPace on blur/Enter
-  // so typing doesn't fire a recompute (and a streaming API call) per keystroke.
-  const [paceInput, setPaceInput] = useState(() => cloudStorage.getItem('ai_goal_pace') ?? '5:30');
+  // El objetivo de carrera ya no se configura aquí: se deriva de la próxima
+  // "carrera objetivo" guardada (sección Carreras Objetivo). Así no duplicamos
+  // el selector con la info de Next Target que ya se muestra arriba.
+  const [nextRace, setNextRace] = useState(getNextTargetRace);
+  useEffect(() => {
+    const reload = () => setNextRace(getNextTargetRace());
+    window.addEventListener(TARGET_RACES_EVENT, reload);
+    return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
+  }, []);
+  const goal = useMemo(() => {
+    if (!nextRace) return undefined;
+    const distance = (nextRace.distance || '').toUpperCase(); // '42k' -> '42K'
+    let pace;
+    const km = DISTANCES[nextRace.distance];
+    if (nextRace.goalTimeMin != null && km) {
+      const p = nextRace.goalTimeMin / km;
+      pace = `${Math.floor(p)}:${String(Math.round((p % 1) * 60)).padStart(2, '0')}`;
+    }
+    return { distance, pace, date: nextRace.date };
+  }, [nextRace]);
   // Model list — starts with the hardcoded fallback, replaced by the live
   // ListModels response when the API key is available.
   const [availableModels, setAvailableModels] = useState(GEMINI_MODELS);
@@ -184,7 +198,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
 
   const run = useCallback(async (force = false) => {
     if (!activities?.length || activities.length < 3) return;
-    const built = buildPrompt(activities, garmin, sleep, weeklyTarget, { distance: goalDist, pace: goalPace, date: goalDate });
+    const built = buildPrompt(activities, garmin, sleep, weeklyTarget, goal);
     if (!built) return;
     const { prompt, sci: builtSci } = built;
     setSci(builtSci);
@@ -313,7 +327,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
       setLoading(false);
       setLoaded(true);
     }
-  }, [activities, garmin, sleep, selectedModel, weeklyTarget, goalDist, goalPace, goalDate]);
+  }, [activities, garmin, sleep, selectedModel, weeklyTarget, goal]);
 
   useEffect(() => {
     if (activities?.length >= 3 && garmin !== undefined && sleep !== undefined) run(false);
@@ -481,58 +495,13 @@ const AIInsights = ({ activities, onOpenChat }) => {
               <option key={n} value={String(n)}>{n}×/sem</option>
             ))}
           </select>
-          <select
-            value={goalDist}
-            disabled={loading}
-            title="Objetivo de carrera"
-            onChange={e => {
-              const v = e.target.value;
-              cloudStorage.setItem('ai_goal_distance', v);
-              setGoalDist(v);
-              setLoaded(false);
-            }}
-            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
-          >
-            <option value="">Sin objetivo</option>
-            {['5K', '10K', '21K', '42K'].map(d => (
-              <option key={d} value={d}>Obj {d}</option>
-            ))}
-          </select>
-          {goalDist && (
-            <input
-              type="text"
-              inputMode="numeric"
-              value={paceInput}
-              disabled={loading}
-              placeholder="4:30"
-              title="Ritmo objetivo (min/km) — opcional, Enter para aplicar"
-              onChange={e => setPaceInput(e.target.value)}
-              onBlur={() => {
-                const v = paceInput.trim();
-                if (v === goalPace) return;
-                cloudStorage.setItem('ai_goal_pace', v);
-                setGoalPace(v);
-                setLoaded(false);
-              }}
-              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-              className="w-[58px] text-[11px] text-slate-600 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold text-center hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors shadow-sm placeholder:text-slate-300 placeholder:font-medium"
-            />
-          )}
-          {goalDist && (
-            <input
-              type="date"
-              value={goalDate}
-              disabled={loading}
-              title="Fecha de la carrera objetivo"
-              onChange={e => {
-                const v = e.target.value;
-                cloudStorage.setItem('ai_goal_date', v);
-                setGoalDate(v);
-                setLoaded(false);
-              }}
-              className="text-[11px] text-slate-600 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors shadow-sm cursor-pointer"
-            />
+          {goal && (
+            <span
+              title="Objetivo derivado de tu próxima carrera objetivo"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold shadow-sm"
+            >
+              🎯 {goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}
+            </span>
           )}
           <select
             value={selectedModel}

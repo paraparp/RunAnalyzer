@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { streamAI } from '../services/ai';
 import { Card, Title, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
@@ -219,10 +218,6 @@ const RunQA = ({ activities }) => {
             .catch(() => setGarmin(null));
     }, []);
 
-    const apiKeys = {
-        gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-    };
-
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -304,19 +299,9 @@ INSTRUCCIONES:
 - Usa formato markdown: **negrita** para destacar, listas con - o números`;
     };
 
-    const initModel = (activeKey) => {
-        const google = createGoogleGenerativeAI({ apiKey: activeKey });
-        return google(selectedModel);
-    };
-
     // Core: stream a response for the given history (which must end with a user
     // turn). Shared by submit, suggestion chips and regenerate.
     const runQuery = async (history) => {
-        const activeKey = apiKeys[provider];
-        if (!activeKey) {
-            setError(`Configura la API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
-            return;
-        }
         const selectedActs = getSelectedActivities();
         if (selectedActs.length === 0) {
             setError('No hay carreras disponibles para analizar.');
@@ -334,23 +319,17 @@ INSTRUCCIONES:
                 ...history.map(m => ({ role: m.role, content: m.content })),
             ];
 
-            const result = await streamText({
-                model: initModel(activeKey),
-                messages,
-                temperature: 0.7,
-                abortSignal: controller.signal,
-            });
-
-            let aiContent = '';
             setConversation(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
-            for await (const textPart of result.textStream) {
-                aiContent += textPart;
-                setConversation(prev => {
-                    const next = [...prev];
-                    next[next.length - 1] = { ...next[next.length - 1], content: aiContent };
-                    return next;
-                });
-            }
+            await streamAI(
+                { provider, model: selectedModel, messages, temperature: 0.7, signal: controller.signal },
+                (_chunk, aiContent) => {
+                    setConversation(prev => {
+                        const next = [...prev];
+                        next[next.length - 1] = { ...next[next.length - 1], content: aiContent };
+                        return next;
+                    });
+                }
+            );
         } catch (err) {
             if (err?.name === 'AbortError' || /abort/i.test(err?.message || '')) {
                 // user stopped the stream — keep whatever streamed so far

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { streamText, generateObject } from 'ai';
+import { resolveModel, SCHEMAS, listGeminiModels, pipeStream } from './api/_lib/ai.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
 
@@ -285,6 +287,39 @@ app.post('/api/strava/refresh', (req, res) => {
   const { refresh_token: refreshToken } = req.body ?? {};
   if (!refreshToken) return res.status(400).json({ error: 'refresh_token requerido' });
   stravaToken({ refresh_token: refreshToken, grant_type: 'refresh_token' }, res);
+});
+
+// ---------------------------------------------------------------------------
+// IA — proxy con las API keys del lado servidor (no en el bundle).
+// ---------------------------------------------------------------------------
+app.post('/api/ai/stream', async (req, res) => {
+  const { provider = 'gemini', model, messages, temperature = 0.7 } = req.body ?? {};
+  if (!model || !Array.isArray(messages)) return res.status(400).json({ error: 'model y messages son requeridos' });
+  try {
+    const result = streamText({ model: resolveModel(provider, model), messages, temperature, maxRetries: 0 });
+    await pipeStream(result, res);
+  } catch (e) {
+    if (res.headersSent) { res.end(); return; }
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/ai/object', async (req, res) => {
+  const { provider = 'gemini', model, prompt, temperature = 0.5, schema } = req.body ?? {};
+  const zodSchema = SCHEMAS[schema];
+  if (!zodSchema) return res.status(400).json({ error: `schema desconocido: ${schema}` });
+  if (!model || !prompt) return res.status(400).json({ error: 'model y prompt son requeridos' });
+  try {
+    const { object } = await generateObject({ model: resolveModel(provider, model), schema: zodSchema, prompt, temperature });
+    res.json({ object });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/ai/models', async (_req, res) => {
+  try { res.json({ models: await listGeminiModels() }); }
+  catch { res.json({ models: [] }); }
 });
 
 // ---------------------------------------------------------------------------

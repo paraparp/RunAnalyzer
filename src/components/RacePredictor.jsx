@@ -21,6 +21,8 @@ import {
 import { CalculatorIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import { buildPrompt } from '../lib/athleteContext';
+import NextRaceBanner from './NextRaceBanner';
+import { getNextTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // Define the schema for race predictions
 const PredictionSchema = z.object({
@@ -51,6 +53,15 @@ const RacePredictor = ({ activities }) => {
     const [predictions, setPredictions] = useState(null);
     const [error, setError] = useState('');
     const [analysis, setAnalysis] = useState('');
+
+    // Próxima carrera objetivo (gestionada en la sección "Carreras objetivo").
+    // Si existe, se inyecta en el prompt para evaluar la viabilidad del objetivo.
+    const [nextRace, setNextRace] = useState(getNextTargetRace);
+    useEffect(() => {
+        const reload = () => setNextRace(getNextTargetRace());
+        window.addEventListener(TARGET_RACES_EVENT, reload);
+        return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
+    }, []);
 
     // Wearable context (HRV / sleep), same sources as the AI suggestion panel.
     const [garmin, setGarmin] = useState(null);
@@ -144,6 +155,18 @@ const RacePredictor = ({ activities }) => {
 
         const richContext = buildRaceContext();
 
+        // Objetivo del corredor (si tiene una carrera futura guardada).
+        const distLabels = { '5k': '5K', '10k': '10K', '21k': 'Media Maratón', '42k': 'Maratón' };
+        let goalBlock = '';
+        if (nextRace) {
+            const d = daysUntil(nextRace.date);
+            const goalTimeStr = nextRace.goalTimeMin != null ? formatMinutes(nextRace.goalTimeMin) : null;
+            goalBlock = `\n\nOBJETIVO DEL CORREDOR: "${nextRace.name}" — ${distLabels[nextRace.distance] || nextRace.distance}` +
+                (goalTimeStr ? ` con tiempo objetivo ${goalTimeStr}` : '') +
+                (d != null ? `, dentro de ${d} días` : '') +
+                `. En el análisis indica explícitamente si su forma actual lo pone en camino de lograr ese objetivo y, si no, qué le falta (ritmo, volumen, semanas de trabajo).`;
+        }
+
         try {
             // Initialize Provider
             let model;
@@ -176,7 +199,7 @@ const RacePredictor = ({ activities }) => {
                 LAS PREDICCIONES DEBEN SER PARA CRONOS EN UNA CARRERA TOTALMENTE LLANA.
 
                 Usa fórmulas como Riegel pero ajústalas según la fatiga, consistencia, volumen semanal aparente y datos de frecuencia cardíaca si los hay.
-                Diferencia entre "Mejor Marca Teórica" y "Predicción Realista Actual". Danos la Realista en llano.
+                Diferencia entre "Mejor Marca Teórica" y "Predicción Realista Actual". Danos la Realista en llano.${goalBlock}
             `;
 
             const { object } = await generateObject({
@@ -234,6 +257,9 @@ const RacePredictor = ({ activities }) => {
                     />
                 </div>
             </Card>
+
+            {/* Próxima carrera objetivo */}
+            <NextRaceBanner />
 
             {/* Generate Button */}
             {!predictions && !loading && (
