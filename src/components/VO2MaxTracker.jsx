@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
@@ -331,7 +332,7 @@ export default function VO2MaxTracker({ activities }) {
   // El VO2max NO hace su propio login: reutiliza `garmin_cardiac_data`, que ya
   // genera la sincronización global (App.syncGarminData → restingHR por día).
   const readGarminCardiac = () => {
-    try { return JSON.parse(localStorage.getItem('garmin_cardiac_data') || 'null'); }
+    try { return JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null'); }
     catch { return null; }
   };
 

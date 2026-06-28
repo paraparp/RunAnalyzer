@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
 import { streamText } from 'ai';
@@ -104,18 +105,18 @@ const AIInsights = ({ activities, onOpenChat }) => {
   const [usedProvider, setUsedProvider] = useState('');
   const [isFallback, setIsFallback] = useState(false);
   const [selectedModel, setSelectedModel] = useState(
-    () => localStorage.getItem('ai_insights_model') || DEFAULT_MODEL
+    () => cloudStorage.getItem('ai_insights_model') || DEFAULT_MODEL
   );
   const [weeklyTarget, setWeeklyTarget] = useState(
-    () => localStorage.getItem('ai_weekly_target') || '2'
+    () => cloudStorage.getItem('ai_weekly_target') || '2'
   );
   // Defaults: 42K @ 5:30/km, Zurich Maratón de San Sebastián (47ª ed., dom 22 nov 2026).
-  const [goalDist, setGoalDist] = useState(() => localStorage.getItem('ai_goal_distance') ?? '42K');
-  const [goalPace, setGoalPace] = useState(() => localStorage.getItem('ai_goal_pace') ?? '5:30');
-  const [goalDate, setGoalDate] = useState(() => localStorage.getItem('ai_goal_date') ?? '2026-11-22');
+  const [goalDist, setGoalDist] = useState(() => cloudStorage.getItem('ai_goal_distance') ?? '42K');
+  const [goalPace, setGoalPace] = useState(() => cloudStorage.getItem('ai_goal_pace') ?? '5:30');
+  const [goalDate, setGoalDate] = useState(() => cloudStorage.getItem('ai_goal_date') ?? '2026-11-22');
   // Local, uncommitted text for the pace field — committed to goalPace on blur/Enter
   // so typing doesn't fire a recompute (and a streaming API call) per keystroke.
-  const [paceInput, setPaceInput] = useState(() => localStorage.getItem('ai_goal_pace') ?? '5:30');
+  const [paceInput, setPaceInput] = useState(() => cloudStorage.getItem('ai_goal_pace') ?? '5:30');
   // Model list — starts with the hardcoded fallback, replaced by the live
   // ListModels response when the API key is available.
   const [availableModels, setAvailableModels] = useState(GEMINI_MODELS);
@@ -154,7 +155,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
   // Load Garmin cardiac (HRV/RHR/Body Battery) + weekly sleep data
   const loadGarminData = () => {
     try {
-      const s = localStorage.getItem('garmin_cardiac_data');
+      const s = cloudStorage.getItem('garmin_cardiac_data');
       if (s) { setGarmin(JSON.parse(s)); }
       else {
         fetch('/garmin_data.json')
@@ -165,12 +166,12 @@ const AIInsights = ({ activities, onOpenChat }) => {
     } catch { setGarmin(null); }
 
     try {
-      const sl = localStorage.getItem('garmin_sleep_data');
+      const sl = cloudStorage.getItem('garmin_sleep_data');
       setSleep(sl ? JSON.parse(sl) : null);
     } catch { setSleep(null); }
 
     try {
-      const sd = localStorage.getItem('stravaData');
+      const sd = cloudStorage.getItem('stravaData');
       setStravaFetch(sd ? (JSON.parse(sd).lastFetchDate ?? null) : null);
     } catch { setStravaFetch(null); }
   };
@@ -191,7 +192,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
     // Check cache — key includes model so switching models bypasses cache
     if (!force) {
       try {
-        const cached = localStorage.getItem('ai_insights_cache');
+        const cached = cloudStorage.getItem('ai_insights_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed.prompt === prompt && parsed.model === selectedModel && parsed.cur && parsed.trend) {
@@ -234,7 +235,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
     // Snapshot current state via ref (avoids stale closure)
     const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, cacheTs: prevTs } = stateRef.current;
     try {
-      localStorage.setItem('ai_insights_backup', JSON.stringify({
+      cloudStorage.setItem('ai_insights_backup', JSON.stringify({
         cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, timestamp: prevTs,
       }));
     } catch { /* ignore */ }
@@ -277,7 +278,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           const parts = full.split('|||');
           const ts = Date.now();
           setCacheTs(ts);
-          localStorage.setItem('ai_insights_cache', JSON.stringify({
+          cloudStorage.setItem('ai_insights_cache', JSON.stringify({
             prompt,
             model: selectedModel,
             cur: (parts[0] ?? '').trim(),
@@ -287,7 +288,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             timestamp: ts,
             provider: provider.name,
           }));
-          localStorage.removeItem('ai_insights_backup');
+          cloudStorage.removeItem('ai_insights_backup');
           succeeded = true;
           break;
         } catch (e) {
@@ -434,7 +435,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           lthr: sci.lthr ?? null,
         } : null,
       };
-      localStorage.setItem('runqa_seed', JSON.stringify(seed));
+      cloudStorage.setItem('runqa_seed', JSON.stringify(seed));
     } catch { /* ignore quota/serialization errors */ }
     onOpenChat?.();
   };
@@ -469,7 +470,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             title="Sesiones de carrera por semana que quieres hacer"
             onChange={e => {
               const v = e.target.value;
-              localStorage.setItem('ai_weekly_target', v);
+              cloudStorage.setItem('ai_weekly_target', v);
               setWeeklyTarget(v);
               setLoaded(false);
             }}
@@ -486,7 +487,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             title="Objetivo de carrera"
             onChange={e => {
               const v = e.target.value;
-              localStorage.setItem('ai_goal_distance', v);
+              cloudStorage.setItem('ai_goal_distance', v);
               setGoalDist(v);
               setLoaded(false);
             }}
@@ -510,7 +511,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
               onBlur={() => {
                 const v = paceInput.trim();
                 if (v === goalPace) return;
-                localStorage.setItem('ai_goal_pace', v);
+                cloudStorage.setItem('ai_goal_pace', v);
                 setGoalPace(v);
                 setLoaded(false);
               }}
@@ -526,7 +527,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
               title="Fecha de la carrera objetivo"
               onChange={e => {
                 const v = e.target.value;
-                localStorage.setItem('ai_goal_date', v);
+                cloudStorage.setItem('ai_goal_date', v);
                 setGoalDate(v);
                 setLoaded(false);
               }}
@@ -538,7 +539,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             disabled={loading}
             onChange={e => {
               const m = e.target.value;
-              localStorage.setItem('ai_insights_model', m);
+              cloudStorage.setItem('ai_insights_model', m);
               setSelectedModel(m);
               setLoaded(false);
             }}

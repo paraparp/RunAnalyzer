@@ -1,7 +1,7 @@
-import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
 import { useEffect, useState, useMemo, Fragment } from 'react';
 import { Route, Routes, useNavigate } from 'react-router-dom';
+import { supabase } from './lib/supabase';
+import cloudStorage, { hydrate, reset as resetCloudStorage, flush as flushCloudStorage } from './lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import './App.css';
 import StravaCallback from './components/StravaCallback';
@@ -123,7 +123,7 @@ const slimActivity = (act, fallback = {}) => {
 // Guardado tolerante: si se excede la cuota, la app sigue con el dato en memoria
 const persistStravaData = (data) => {
   try {
-    localStorage.setItem('stravaData', JSON.stringify(data));
+    cloudStorage.setItem('stravaData', JSON.stringify(data));
   } catch (e) {
     console.warn('No se pudo guardar stravaData en localStorage (cuota excedida). Se mantiene en memoria.', e);
   }
@@ -141,7 +141,7 @@ const Dashboard = ({ user, handleLogout }) => {
   const changeLanguage = () => {
     const newLang = i18n.language.startsWith('en') ? 'es' : 'en';
     i18n.changeLanguage(newLang);
-    localStorage.setItem('app_language', newLang);
+    cloudStorage.setItem('app_language', newLang);
   };
 
   const [distanceRange, setDistanceRange] = useState({ min: '', max: '' });
@@ -214,7 +214,7 @@ const Dashboard = ({ user, handleLogout }) => {
   // tenemos guardado, o el último mes (30 días) por defecto si no hay ninguno.
   const computeGarminSyncDays = () => {
     try {
-      const existingStr = localStorage.getItem('garmin_cardiac_data');
+      const existingStr = cloudStorage.getItem('garmin_cardiac_data');
       if (existingStr) {
         const existing = JSON.parse(existingStr);
         if (Array.isArray(existing) && existing.length > 0) {
@@ -233,7 +233,7 @@ const Dashboard = ({ user, handleLogout }) => {
   // Sincroniza datos de Garmin en segundo plano, fusionando con lo existente.
   const syncGarminData = async () => {
     try {
-      const garminCredsStr = localStorage.getItem('garmin_creds');
+      const garminCredsStr = cloudStorage.getItem('garmin_creds');
       if (!garminCredsStr) return;
       const creds = JSON.parse(garminCredsStr);
       if (!creds || !creds.username || !creds.password) return;
@@ -247,7 +247,7 @@ const Dashboard = ({ user, handleLogout }) => {
       if (!res.ok) return;
       const json = await res.json();
 
-      const existingDataStr = localStorage.getItem('garmin_cardiac_data');
+      const existingDataStr = cloudStorage.getItem('garmin_cardiac_data');
       let existingData = [];
       if (existingDataStr) {
         try { existingData = JSON.parse(existingDataStr); } catch (e) {}
@@ -260,10 +260,10 @@ const Dashboard = ({ user, handleLogout }) => {
         [...existingData, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
         finalData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
       }
-      localStorage.setItem('garmin_cardiac_data', JSON.stringify(finalData));
+      cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(finalData));
 
       const newSleepData = json.sleepData || [];
-      const existingSleepStr = localStorage.getItem('garmin_sleep_data');
+      const existingSleepStr = cloudStorage.getItem('garmin_sleep_data');
       let existingSleepData = [];
       if (existingSleepStr) {
         try { existingSleepData = JSON.parse(existingSleepStr); } catch(e) {}
@@ -275,11 +275,11 @@ const Dashboard = ({ user, handleLogout }) => {
           [...existingSleepData, ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
           return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
         })();
-        localStorage.setItem('garmin_sleep_data', JSON.stringify(mergedSleep));
+        cloudStorage.setItem('garmin_sleep_data', JSON.stringify(mergedSleep));
       }
 
       const syncTime = new Date().toLocaleString('es-ES');
-      localStorage.setItem('garmin_last_sync', syncTime);
+      cloudStorage.setItem('garmin_last_sync', syncTime);
       window.dispatchEvent(new Event('garmin_sync_complete'));
     } catch (err) {
       console.error("Failed to sync Garmin data in background", err);
@@ -321,7 +321,7 @@ const Dashboard = ({ user, handleLogout }) => {
       console.error("Sync failed", err);
       if (err.message.includes('401') || err.message.includes('refresh')) {
         setStravaData(null);
-        localStorage.removeItem('stravaData');
+        cloudStorage.removeItem('stravaData');
       }
     } finally {
       setIsSyncing(false);
@@ -329,7 +329,7 @@ const Dashboard = ({ user, handleLogout }) => {
   };
 
   useEffect(() => {
-    const savedStrava = localStorage.getItem('stravaData');
+    const savedStrava = cloudStorage.getItem('stravaData');
     if (savedStrava) {
       const parsed = JSON.parse(savedStrava);
       // Saneo retroactivo: recorta payloads inflados guardados por versiones
@@ -365,7 +365,7 @@ const Dashboard = ({ user, handleLogout }) => {
               needsRefresh = true;
             } else {
               setStravaData(null);
-              localStorage.removeItem('stravaData');
+              cloudStorage.removeItem('stravaData');
               return;
             }
           }
@@ -383,7 +383,7 @@ const Dashboard = ({ user, handleLogout }) => {
           console.error("Failed to refresh Strava data:", err);
           if (err.message.includes('refresh') || err.message.includes('401')) {
             setStravaData(null);
-            localStorage.removeItem('stravaData');
+            cloudStorage.removeItem('stravaData');
           }
         }
 
@@ -1355,37 +1355,64 @@ const StatCard = ({ label, value, unit, icon: Icon, color = 'indigo' }) => {
 };
 
 function App() {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
   const navigate = useNavigate();
 
-  const handleLoginSuccess = (credentialResponse) => {
-    try {
-      const decoded = jwtDecode(credentialResponse.credential);
-      setUser(decoded);
-      localStorage.setItem('user', JSON.stringify(decoded));
-    } catch (error) {
-      console.error('Token decoding failed', error);
+  // Sesión de Supabase Auth (Google).
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthReady(true);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
+
+  // Hidratar la caché de cloudStorage cuando hay usuario.
+  const userId = session?.user?.id ?? null;
+  useEffect(() => {
+    let active = true;
+    if (userId) {
+      setStorageReady(false);
+      hydrate(userId).finally(() => { if (active) setStorageReady(true); });
+    } else {
+      resetCloudStorage();
+      setStorageReady(false);
     }
-  };
+    return () => { active = false; };
+  }, [userId]);
 
-  const handleLoginError = () => {};
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('stravaData');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    resetCloudStorage();
     navigate('/');
   };
 
-  const handleStravaConnected = (data) => {
+  const handleStravaConnected = async (data) => {
     const dataWithDate = { ...data, lastFetchDate: new Date().toDateString() };
     persistStravaData(dataWithDate);
+    // Esperar a que la escritura llegue a Supabase antes de navegar, para que el
+    // Dashboard (y un posible reload posterior) ya encuentre los datos.
+    await flushCloudStorage();
     navigate('/');
-    window.location.reload();
   };
+
+  // Mapear el usuario de Supabase a la forma { name, email, picture } que usa la UI.
+  const meta = session?.user?.user_metadata ?? {};
+  const user = session?.user ? {
+    name: meta.full_name || meta.name || session.user.email,
+    email: session.user.email,
+    picture: meta.avatar_url || meta.picture || '',
+  } : null;
+
+  if (!authReady) return null;
 
   return (
     <Routes>
@@ -1394,7 +1421,14 @@ function App() {
       } />
       <Route path="/" element={
         !user ? (
-          <LandingPage onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
+          <LandingPage />
+        ) : !storageReady ? (
+          <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+            <div className="flex flex-col items-center gap-3 text-slate-400">
+              <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
+              <span className="text-sm font-medium">Cargando tus datos…</span>
+            </div>
+          </div>
         ) : (
           <Dashboard user={user} handleLogout={handleLogout} />
         )

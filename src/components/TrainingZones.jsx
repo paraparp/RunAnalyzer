@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -156,7 +157,7 @@ export default function TrainingZones({ activities }) {
   useEffect(() => {
     const loadGarminData = () => {
       try {
-        const s = localStorage.getItem('garmin_cardiac_data');
+        const s = cloudStorage.getItem('garmin_cardiac_data');
         if (s) { setGarmin(JSON.parse(s)); return; }
       } catch {}
       fetch('/garmin_data.json')

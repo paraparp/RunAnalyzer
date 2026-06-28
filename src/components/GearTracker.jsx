@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { getAthleteProfile } from '../services/strava';
 import { 
@@ -41,7 +42,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
               setStravaData(prev => {
                 const updated = { ...prev, athlete: { ...prev.athlete, ...profile } };
                 try {
-                  localStorage.setItem('stravaData', JSON.stringify(updated));
+                  cloudStorage.setItem('stravaData', JSON.stringify(updated));
                 } catch (e) {
                   console.warn('No se pudo guardar stravaData (cuota excedida); se mantiene en memoria.', e);
                 }

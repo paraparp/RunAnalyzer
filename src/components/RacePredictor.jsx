@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -43,9 +44,9 @@ const RacePredictor = ({ activities }) => {
     };
 
     const [selectedModel, setSelectedModel] = useState(
-        () => localStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
+        () => cloudStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
     );
-    useEffect(() => { try { localStorage.setItem('racepredictor_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
+    useEffect(() => { try { cloudStorage.setItem('racepredictor_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
     const [loading, setLoading] = useState(false);
     const [predictions, setPredictions] = useState(null);
     const [error, setError] = useState('');
@@ -57,11 +58,11 @@ const RacePredictor = ({ activities }) => {
     useEffect(() => {
         const load = () => {
             try {
-                const s = localStorage.getItem('garmin_cardiac_data');
+                const s = cloudStorage.getItem('garmin_cardiac_data');
                 if (s) setGarmin(JSON.parse(s));
                 else fetch('/garmin_data.json').then(r => r.ok ? r.json() : null).then(j => setGarmin(j?.data ?? null)).catch(() => setGarmin(null));
             } catch { setGarmin(null); }
-            try { const sl = localStorage.getItem('garmin_sleep_data'); setSleep(sl ? JSON.parse(sl) : null); } catch { setSleep(null); }
+            try { const sl = cloudStorage.getItem('garmin_sleep_data'); setSleep(sl ? JSON.parse(sl) : null); } catch { setSleep(null); }
         };
         load();
         window.addEventListener('garmin_sync_complete', load);

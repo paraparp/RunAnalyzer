@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import cloudStorage from '../lib/cloudStorage';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush
@@ -336,13 +337,13 @@ const PeriodSelector = ({ value, onChange, label }) => {
 export default function GarminCardiac() {
   // Persisted state
   const [creds, setCreds] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('garmin_creds') || 'null'); } catch { return null; }
+    try { return JSON.parse(cloudStorage.getItem('garmin_creds') || 'null'); } catch { return null; }
   });
   const [data, setData] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('garmin_cardiac_data') || 'null'); } catch { return null; }
+    try { return JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null'); } catch { return null; }
   });
   const [sleepData, setSleepData] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('garmin_sleep_data') || 'null'); } catch { return null; }
+    try { return JSON.parse(cloudStorage.getItem('garmin_sleep_data') || 'null'); } catch { return null; }
   });
 
   // Form state
@@ -363,16 +364,16 @@ export default function GarminCardiac() {
   const [showBaseline, setShowBaseline] = useState(false);
   const [normalizeChart, setNormalizeChart] = useState(true);
   const [chartGranularity, setChartGranularity] = useState('day'); // changed default to day for better readiness view
-  const [lastSync, setLastSync] = useState(() => localStorage.getItem('garmin_last_sync') || null);
+  const [lastSync, setLastSync] = useState(() => cloudStorage.getItem('garmin_last_sync') || null);
   const [syncDays, setSyncDays] = useState(30);
   const importRef = useRef(null);
 
   useEffect(() => {
     const handleGarminSync = () => {
       try {
-        const newData = JSON.parse(localStorage.getItem('garmin_cardiac_data') || 'null');
-        const newSleep = JSON.parse(localStorage.getItem('garmin_sleep_data') || 'null');
-        const newSync = localStorage.getItem('garmin_last_sync');
+        const newData = JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null');
+        const newSleep = JSON.parse(cloudStorage.getItem('garmin_sleep_data') || 'null');
+        const newSync = cloudStorage.getItem('garmin_last_sync');
         if (newData) setData(newData);
         if (newSleep) setSleepData(newSleep);
         if (newSync) setLastSync(newSync);
@@ -467,7 +468,7 @@ export default function GarminCardiac() {
       final = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
     }
     setData(final);
-    localStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
+    cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
     if (newSleepData?.length) {
       const merged = (() => {
         const byWeek = {};
@@ -475,13 +476,13 @@ export default function GarminCardiac() {
         return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
       })();
       setSleepData(merged);
-      localStorage.setItem('garmin_sleep_data', JSON.stringify(merged));
+      cloudStorage.setItem('garmin_sleep_data', JSON.stringify(merged));
     }
     const syncTime = new Date().toLocaleString('es-ES');
     setLastSync(syncTime);
-    localStorage.setItem('garmin_last_sync', syncTime);
+    cloudStorage.setItem('garmin_last_sync', syncTime);
     if (usr) {
-      localStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
+      cloudStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
       setCreds({ username: usr, password: pwd });
     }
   };
@@ -536,9 +537,9 @@ export default function GarminCardiac() {
     setData(null);
     setCreds(null);
     setLastSync(null);
-    localStorage.removeItem('garmin_cardiac_data');
-    localStorage.removeItem('garmin_creds');
-    localStorage.removeItem('garmin_last_sync');
+    cloudStorage.removeItem('garmin_cardiac_data');
+    cloudStorage.removeItem('garmin_creds');
+    cloudStorage.removeItem('garmin_last_sync');
   };
 
   // ---- Derived stats ----

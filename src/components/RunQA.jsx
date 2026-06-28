@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { Card, Title, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
@@ -182,7 +183,7 @@ const RunQA = ({ activities }) => {
     const [seed, setSeed] = useState(null);
     const [error, setError] = useState('');
     const provider = 'gemini'; // chat usa exclusivamente Google Gemini
-    const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
+    const [selectedModel, setSelectedModel] = useState(() => cloudStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
     const [copiedIdx, setCopiedIdx] = useState(null);
 
     const messagesEndRef = useRef(null);
@@ -190,7 +191,7 @@ const RunQA = ({ activities }) => {
     const abortRef = useRef(null);
 
     // Persist the model choice across sessions.
-    useEffect(() => { try { localStorage.setItem('runqa_model', selectedModel); } catch {} }, [selectedModel]);
+    useEffect(() => { try { cloudStorage.setItem('runqa_model', selectedModel); } catch {} }, [selectedModel]);
     // Abort any in-flight stream on unmount.
     useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -198,18 +199,18 @@ const RunQA = ({ activities }) => {
     // preguntando en el chat". Se consume una sola vez y se inyecta como contexto.
     useEffect(() => {
         try {
-            const s = localStorage.getItem('runqa_seed');
+            const s = cloudStorage.getItem('runqa_seed');
             if (s) {
                 const parsed = JSON.parse(s);
                 if (parsed?.blocks) setSeed(parsed);
-                localStorage.removeItem('runqa_seed');
+                cloudStorage.removeItem('runqa_seed');
             }
         } catch {}
     }, []);
 
     useEffect(() => {
         try {
-            const s = localStorage.getItem('garmin_cardiac_data');
+            const s = cloudStorage.getItem('garmin_cardiac_data');
             if (s) { setGarmin(JSON.parse(s)); return; }
         } catch {}
         fetch('/garmin_data.json')

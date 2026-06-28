@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { exchangeToken, getActivities, getAthleteStats } from '../services/strava';
 import { Card, Title, Text, Flex } from "@tremor/react";
@@ -8,6 +8,9 @@ const StravaCallback = ({ onConnect }) => {
     const navigate = useNavigate();
     const code = searchParams.get('code');
     const [status, setStatus] = useState('Procesando autenticación con Strava...');
+    // El código de Strava es de un solo uso. StrictMode (dev) y los re-render de
+    // App montan el efecto más de una vez; sin este guard la 2ª llamada da 400.
+    const exchangedCode = useRef(null);
 
     useEffect(() => {
         const handleAuth = async () => {
@@ -15,6 +18,8 @@ const StravaCallback = ({ onConnect }) => {
                 setStatus('No se encontró código de autorización.');
                 return;
             }
+            if (exchangedCode.current === code) return;
+            exchangedCode.current = code;
 
             try {
                 setStatus('Validando credenciales...');

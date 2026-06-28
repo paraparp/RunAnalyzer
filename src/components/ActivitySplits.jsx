@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -297,7 +298,7 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
         const maxHR = globalMaxHR > sessionMaxHR ? globalMaxHR : sessionMaxHR;
         const fastestSpeed = Math.max(...splits.filter(s => s.average_speed > 0).map(s => s.average_speed));
 
-        const restingHR = parseInt(localStorage.getItem('garminRestHR')) || null;
+        const restingHR = parseInt(cloudStorage.getItem('garminRestHR')) || null;
 
         // Build a map of Strava's official GAP speed by split index
         const stravaGapMap = splitsMetric?.length

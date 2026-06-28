@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import cloudStorage from '../lib/cloudStorage';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
@@ -389,7 +390,7 @@ export default function VitalsOverview({ activities = [] }) {
   const [gapAdjust, setGapAdjust] = useState(false); // ajustar eficiencia por desnivel (GAP)
 
   const garmin = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("garmin_cardiac_data") || "null") || []; }
+    try { return JSON.parse(cloudStorage.getItem("garmin_cardiac_data") || "null") || []; }
     catch { return []; }
   }, []);
 

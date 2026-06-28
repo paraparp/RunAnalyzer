@@ -82,7 +82,7 @@
         "markerValue": 0.4166565
       },
       "bbLow": 26,
-      "bbHigh": 84
+      "bbHigh": 85
     }
   ],
   "sleepData": [
@@ -100,5 +100,5 @@
       "daysCount": 7
     }
   ],
-  "lastSync": "2026-06-28T07:02:19.735Z"
+  "lastSync": "2026-06-28T09:01:03.751Z"
 }

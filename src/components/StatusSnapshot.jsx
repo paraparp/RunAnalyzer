@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import cloudStorage from '../lib/cloudStorage';
 import { Card, Text } from '@tremor/react';
 import FitnessFatigue from './FitnessFatigue';
 import WeeklyProgression from './WeeklyProgression';
@@ -577,7 +578,7 @@ export default function StatusSnapshot({ activities }) {
   // Load Garmin data from localStorage (same source as GarminCardiac component)
   const garmin = useMemo(() => {
     try {
-      const raw = localStorage.getItem('garmin_cardiac_data');
+      const raw = cloudStorage.getItem('garmin_cardiac_data');
       if (raw) return computeGarminStats(JSON.parse(raw));
     } catch {}
     return null;
