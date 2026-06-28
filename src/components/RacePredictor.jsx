@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -18,7 +18,8 @@ import {
     Icon
 } from "@tremor/react";
 import { CalculatorIcon, SparklesIcon } from "@heroicons/react/24/solid";
-import ModelSelector from './ModelSelector';
+import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
+import { buildPrompt } from '../lib/athleteContext';
 
 // Define the schema for race predictions
 const PredictionSchema = z.object({
@@ -32,7 +33,7 @@ const PredictionSchema = z.object({
 });
 
 const RacePredictor = ({ activities }) => {
-    const [provider, setProvider] = useState('groq');
+    const [provider] = useState('gemini');
 
     // API keys from environment variables
     const apiKeys = {
@@ -41,11 +42,43 @@ const RacePredictor = ({ activities }) => {
         anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     };
 
-    const [selectedModel, setSelectedModel] = useState('llama-3.1-8b-instant');
+    const [selectedModel, setSelectedModel] = useState(
+        () => localStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
+    );
+    useEffect(() => { try { localStorage.setItem('racepredictor_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
     const [loading, setLoading] = useState(false);
     const [predictions, setPredictions] = useState(null);
     const [error, setError] = useState('');
     const [analysis, setAnalysis] = useState('');
+
+    // Wearable context (HRV / sleep), same sources as the AI suggestion panel.
+    const [garmin, setGarmin] = useState(null);
+    const [sleep, setSleep] = useState(null);
+    useEffect(() => {
+        const load = () => {
+            try {
+                const s = localStorage.getItem('garmin_cardiac_data');
+                if (s) setGarmin(JSON.parse(s));
+                else fetch('/garmin_data.json').then(r => r.ok ? r.json() : null).then(j => setGarmin(j?.data ?? null)).catch(() => setGarmin(null));
+            } catch { setGarmin(null); }
+            try { const sl = localStorage.getItem('garmin_sleep_data'); setSleep(sl ? JSON.parse(sl) : null); } catch { setSleep(null); }
+        };
+        load();
+        window.addEventListener('garmin_sync_complete', load);
+        return () => window.removeEventListener('garmin_sync_complete', load);
+    }, []);
+
+    // Rich athlete context (PMC, ACWR, HR zones, reference paces, PBs, polarized
+    // distribution, wearable) — same science as the AI suggestion. No race goal
+    // here: predictions cover all standard distances. Falls back to plain list.
+    const buildRaceContext = () => {
+        try {
+            const { athleteContext } = buildPrompt(activities, garmin, sleep, null, undefined);
+            return athleteContext || getRecentActivitiesSummary();
+        } catch {
+            return getRecentActivitiesSummary();
+        }
+    };
 
     // Model reset is handled by ModelSelector component
 
@@ -108,6 +141,8 @@ const RacePredictor = ({ activities }) => {
             return;
         }
 
+        const richContext = buildRaceContext();
+
         try {
             // Initialize Provider
             let model;
@@ -126,10 +161,10 @@ const RacePredictor = ({ activities }) => {
             }
 
             const prompt = `
-                Actúa como un experto fisiólogo deportivo y entrenador de running.
-                Analiza el siguiente historial de entrenamiento de los últimos 3 meses de un corredor:
-                
-                ${activityLog}
+                Actúa como un experto fisiólogo deportivo y entrenador de running que aplica ciencia validada (modelo PMC de Banister CTL/ATL/TSB, ratio agudo:crónico de Gabbett, umbral de lactato).
+                Analiza el siguiente contexto del corredor (datos científicos: carga de entrenamiento, ACWR, zonas de FC, ritmos de referencia, marcas personales, distribución polarizada, wearable):
+
+                ${richContext}
 
                 TAREA:
                 Predice de forma realista y precisa sus marcas potenciales ACTUALES (si compitiera hoy) para 5K, 10K, Media Maratón y Maratón.
@@ -191,10 +226,9 @@ const RacePredictor = ({ activities }) => {
                         </div>
                     </div>
                     <ModelSelector
-                        provider={provider}
-                        setProvider={setProvider}
                         selectedModel={selectedModel}
                         setSelectedModel={setSelectedModel}
+                        disabled={loading}
                         showLabel={false}
                     />
                 </div>

@@ -482,6 +482,7 @@ INSTRUCCIONES:
                             <ModelSelector
                                 selectedModel={selectedModel}
                                 setSelectedModel={setSelectedModel}
+                                disabled={loading}
                                 showLabel={false}
                             />
                         </div>

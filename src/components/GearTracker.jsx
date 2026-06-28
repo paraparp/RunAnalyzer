@@ -40,7 +40,11 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
             if (setStravaData) {
               setStravaData(prev => {
                 const updated = { ...prev, athlete: { ...prev.athlete, ...profile } };
-                localStorage.setItem('stravaData', JSON.stringify(updated));
+                try {
+                  localStorage.setItem('stravaData', JSON.stringify(updated));
+                } catch (e) {
+                  console.warn('No se pudo guardar stravaData (cuota excedida); se mantiene en memoria.', e);
+                }
                 return updated;
               });
             }

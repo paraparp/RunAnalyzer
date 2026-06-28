@@ -99,6 +99,36 @@ const NAV_CATEGORIES = [
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
+// Los "detailed activity" de Strava traen campos muy pesados que no usamos
+// (polyline completa del mapa, esfuerzos por segmento, splits estándar…).
+// Guardarlos por cada actividad enriquecida revienta la cuota de localStorage,
+// así que los recortamos y conservamos solo lo que la app consume
+// (laps, splits_metric, best_efforts y el summary_polyline del mapa).
+const HEAVY_DETAIL_FIELDS = [
+  'segment_efforts', 'splits_standard', 'similar_activities',
+  'description', 'photos', 'stats_visibility', 'available_zones', 'laps_raw',
+];
+
+const slimActivity = (act, fallback = {}) => {
+  const slim = { ...act };
+  for (const k of HEAVY_DETAIL_FIELDS) delete slim[k];
+  // Conservar solo el summary_polyline (heatmap/galería), descartar la polyline completa
+  const summaryPolyline = act.map?.summary_polyline || fallback.map?.summary_polyline;
+  if (act.map || summaryPolyline) {
+    slim.map = { id: act.map?.id ?? fallback.map?.id, summary_polyline: summaryPolyline };
+  }
+  return slim;
+};
+
+// Guardado tolerante: si se excede la cuota, la app sigue con el dato en memoria
+const persistStravaData = (data) => {
+  try {
+    localStorage.setItem('stravaData', JSON.stringify(data));
+  } catch (e) {
+    console.warn('No se pudo guardar stravaData en localStorage (cuota excedida). Se mantiene en memoria.', e);
+  }
+};
+
 const Dashboard = ({ user, handleLogout }) => {
   const { t, i18n } = useTranslation();
   const [stravaData, setStravaData] = useState(null);
@@ -157,9 +187,9 @@ const Dashboard = ({ user, handleLogout }) => {
 
       setStravaData(prev => {
         const updatedActivities = [...prev.activities];
-        updatedActivities[activityIndex] = detailedActivity;
+        updatedActivities[activityIndex] = slimActivity(detailedActivity, activity);
         const updatedData = { ...prev, activities: updatedActivities };
-        localStorage.setItem('stravaData', JSON.stringify(updatedData));
+        persistStravaData(updatedData);
         return updatedData;
       });
     } catch (err) {
@@ -271,7 +301,7 @@ const Dashboard = ({ user, handleLogout }) => {
           currentData.refreshToken = newTokens.refresh_token;
           currentData.expiresAt = newTokens.expires_at;
           accessToken = newTokens.access_token;
-          localStorage.setItem('stravaData', JSON.stringify(currentData));
+          persistStravaData(currentData);
         }
       }
 
@@ -282,7 +312,7 @@ const Dashboard = ({ user, handleLogout }) => {
         lastFetchDate: new Date().toDateString()
       };
       setStravaData(updated);
-      localStorage.setItem('stravaData', JSON.stringify(updated));
+      persistStravaData(updated);
 
       // Sincronizar datos de Garmin en segundo plano
       await syncGarminData();
@@ -302,6 +332,12 @@ const Dashboard = ({ user, handleLogout }) => {
     const savedStrava = localStorage.getItem('stravaData');
     if (savedStrava) {
       const parsed = JSON.parse(savedStrava);
+      // Saneo retroactivo: recorta payloads inflados guardados por versiones
+      // anteriores (segment_efforts, polylines completas…) y libera cuota.
+      if (Array.isArray(parsed.activities)) {
+        parsed.activities = parsed.activities.map(a => slimActivity(a, a));
+        persistStravaData(parsed);
+      }
       setStravaData(parsed);
 
       const checkAndRefreshData = async () => {
@@ -325,7 +361,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 expiresAt: newTokens.expires_at
               };
               setStravaData(updatedTokens);
-              localStorage.setItem('stravaData', JSON.stringify(updatedTokens));
+              persistStravaData(updatedTokens);
               needsRefresh = true;
             } else {
               setStravaData(null);
@@ -341,7 +377,7 @@ const Dashboard = ({ user, handleLogout }) => {
             const activities = await getActivities(accessToken, 1000);
             const updated = { ...parsed, activities, lastFetchDate: today };
             setStravaData(updated);
-            localStorage.setItem('stravaData', JSON.stringify(updated));
+            persistStravaData(updated);
           }
         } catch (err) {
           console.error("Failed to refresh Strava data:", err);
@@ -1346,7 +1382,7 @@ function App() {
 
   const handleStravaConnected = (data) => {
     const dataWithDate = { ...data, lastFetchDate: new Date().toDateString() };
-    localStorage.setItem('stravaData', JSON.stringify(dataWithDate));
+    persistStravaData(dataWithDate);
     navigate('/');
     window.location.reload();
   };

@@ -1,32 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { Text, Select, SelectItem } from "@tremor/react";
+import { Text } from "@tremor/react";
 import { SparklesIcon } from "@heroicons/react/24/solid";
 
 /**
- * Google Gemini model selector.
- * Fetches the live list of available models from the ListModels endpoint (same
- * source as the AI panel) and falls back to a static list when unavailable.
+ * Google Gemini model selector — unified across every AI feature (AI suggestion,
+ * planner, race predictor, chat). Renders the compact native <select> used by the
+ * AI suggestion panel. Fetches the live list of models from the ListModels
+ * endpoint and falls back to a static list when unavailable.
+ *
+ * Controlled component: the parent owns `selectedModel` (and any persistence).
  */
 
 // Fallback list used when the ListModels API can't be reached.
 const FALLBACK_GEMINI = [
-    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-    { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+    { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
+    { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' },
+    { id: 'gemini-2.5-flash', label: '2.5 Flash · equilibrado' },
 ];
 
-const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
-// Short capability hint derived from the model id.
-const tierOf = (id) => {
-    if (/pro/i.test(id)) return 'Máxima calidad';
-    if (/flash-?lite/i.test(id)) return 'Económico';
-    if (/flash/i.test(id)) return 'Equilibrado';
-    return '';
-};
-
-const ModelSelector = ({ selectedModel, setSelectedModel, showLabel = true, className = "" }) => {
+const ModelSelector = ({ selectedModel, setSelectedModel, disabled = false, showLabel = true, className = "" }) => {
     const [models, setModels] = useState(FALLBACK_GEMINI);
 
     // Fetch the live list of Gemini models for this API key (mirrors AIInsights).
@@ -59,26 +53,25 @@ const ModelSelector = ({ selectedModel, setSelectedModel, showLabel = true, clas
     }, [models, selectedModel, setSelectedModel]);
 
     return (
-        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 ${className}`}>
+        <div className={`flex items-center gap-2 ${className}`}>
             <div className="flex items-center gap-1.5 flex-none px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-100">
                 <SparklesIcon className="w-4 h-4 text-blue-600" />
                 <span className="text-xs font-bold text-blue-700 whitespace-nowrap">Google Gemini</span>
             </div>
-            <div className="flex-1 min-w-[210px] w-full">
-                {showLabel && (
-                    <Text className="mb-1 font-bold text-xs uppercase text-slate-400">Modelo</Text>
-                )}
-                <Select value={selectedModel} onValueChange={setSelectedModel} enableClear={false}>
-                    {models.map(m => (
-                        <SelectItem key={m.id} value={m.id}>
-                            <span className="flex items-center justify-between gap-3 w-full">
-                                <span className="font-medium text-slate-700">{m.label}</span>
-                                {tierOf(m.id) && <span className="text-[11px] text-slate-400 font-medium">{tierOf(m.id)}</span>}
-                            </span>
-                        </SelectItem>
-                    ))}
-                </Select>
-            </div>
+            {showLabel && (
+                <Text className="font-bold text-xs uppercase text-slate-400 whitespace-nowrap">Modelo</Text>
+            )}
+            <select
+                value={selectedModel}
+                disabled={disabled}
+                onChange={e => setSelectedModel(e.target.value)}
+                className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm max-w-[220px] truncate"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+            >
+                {models.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+            </select>
         </div>
     );
 };
