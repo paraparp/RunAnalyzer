@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Button, Select, SelectItem, Grid, NumberInput, DateRangePicker, ProgressBar } from "@tremor/react";
-import { ClipboardDocumentListIcon, CheckIcon, ArrowPathIcon, ArrowDownTrayIcon, TableCellsIcon, CodeBracketIcon } from "@heroicons/react/24/outline";
+import { ClipboardDocumentListIcon, CheckIcon, ArrowPathIcon, ArrowDownTrayIcon, TableCellsIcon, CodeBracketIcon, ChevronDownIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 import { es } from 'date-fns/locale';
 
 const ALL_FIELDS = [
@@ -48,6 +48,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
     const [exportAll, setExportAll] = useState(false);
     const [lapsFilter, setLapsFilter]   = useState('all'); // 'all' | 'with' | 'without'
     const [onlyRunning, setOnlyRunning] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [format, setFormat]                 = useState('json');
     const [selectedFields, setSelectedFields] = useState(DEFAULT_FIELDS);
     const [previewMode, setPreviewMode]       = useState('raw'); // 'raw' | 'table'
@@ -289,70 +290,87 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
 
                 {/* Main filters */}
                 <div className={`space-y-3 transition-opacity ${exportAll ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <Grid numItems={1} numItemsSm={2} numItemsMd={4} className="gap-4">
-                        <div>
-                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.date_range')}</Text>
-                            <DateRangePicker
-                                className="w-full"
-                                value={dateRange}
-                                onValueChange={setDateRange}
-                                locale={es}
-                                selectPlaceholder={t('exporter.select_range')}
-                                color="blue"
-                                enableSelect={false}
-                            />
-                        </div>
-                        <div>
-                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Dist. mínima (km)</Text>
-                            <NumberInput value={minDist} onValueChange={setMinDist} min={0} placeholder="0" />
-                        </div>
-                        <div>
-                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Desnivel mínimo (m)</Text>
-                            <NumberInput value={minElev} onValueChange={setMinElev} min={0} placeholder="0" />
-                        </div>
-                        <div>
-                            <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">FC Media (mín – máx)</Text>
-                            <div className="flex gap-2">
-                                <NumberInput value={minHR} onValueChange={setMinHR} min={0} placeholder="Min" />
-                                <NumberInput value={maxHR} onValueChange={setMaxHR} min={0} placeholder="Max" />
-                            </div>
-                        </div>
-                    </Grid>
-
-                    {/* Running only toggle */}
-                    <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                        <input
-                            id="only-running-check"
-                            type="checkbox"
-                            checked={onlyRunning}
-                            onChange={e => setOnlyRunning(e.target.checked)}
-                            className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    {/* Primary: date range */}
+                    <div>
+                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.date_range')}</Text>
+                        <DateRangePicker
+                            className="w-full"
+                            value={dateRange}
+                            onValueChange={setDateRange}
+                            locale={es}
+                            selectPlaceholder={t('exporter.select_range')}
+                            color="blue"
+                            enableSelect={false}
                         />
-                        <label htmlFor="only-running-check" className="text-sm font-semibold text-slate-700 cursor-pointer select-none">
-                            Solo actividades de running (Run, TrailRun, VirtualRun)
-                        </label>
                     </div>
 
-                    {/* Laps filter */}
-                    <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                        <span className="text-xs font-bold uppercase text-slate-500">Parciales</span>
-                        {[
-                            { value: 'all',     label: 'Indiferente' },
-                            { value: 'with',    label: 'Con parciales' },
-                            { value: 'without', label: 'Sin parciales' },
-                        ].map(opt => (
-                            <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-slate-700">
-                                <input
-                                    type="radio"
-                                    name="laps-filter"
-                                    value={opt.value}
-                                    checked={lapsFilter === opt.value}
-                                    onChange={() => setLapsFilter(opt.value)}
-                                    className="accent-slate-600 cursor-pointer"
-                                />
-                                {opt.label}
-                            </label>
-                        ))}
+                    {/* Primary: running toggle + laps filter side by side */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label htmlFor="only-running-check" className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
+                            <input
+                                id="only-running-check"
+                                type="checkbox"
+                                checked={onlyRunning}
+                                onChange={e => setOnlyRunning(e.target.checked)}
+                                className="w-4 h-4 accent-blue-600 cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-700">Solo running</span>
+                        </label>
+
+                        <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <span className="text-xs font-bold uppercase text-slate-500">Parciales</span>
+                            {[
+                                { value: 'all',     label: 'Indiferente' },
+                                { value: 'with',    label: 'Con' },
+                                { value: 'without', label: 'Sin' },
+                            ].map(opt => (
+                                <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-slate-700">
+                                    <input
+                                        type="radio"
+                                        name="laps-filter"
+                                        value={opt.value}
+                                        checked={lapsFilter === opt.value}
+                                        onChange={() => setLapsFilter(opt.value)}
+                                        className="accent-slate-600 cursor-pointer"
+                                    />
+                                    {opt.label}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Advanced filters — collapsed by default */}
+                    <div>
+                        <button
+                            onClick={() => setShowAdvanced(s => !s)}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                            <AdjustmentsHorizontalIcon className="w-4 h-4" />
+                            Filtros avanzados
+                            {(Number(minDist) > 0 || Number(minElev) > 0 || Number(minHR) > 0 || Number(maxHR) > 0) && (
+                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">activos</span>
+                            )}
+                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showAdvanced && (
+                            <Grid numItems={1} numItemsSm={3} className="gap-4 mt-3">
+                                <div>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Dist. mínima (km)</Text>
+                                    <NumberInput value={minDist} onValueChange={setMinDist} min={0} placeholder="0" />
+                                </div>
+                                <div>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Desnivel mínimo (m)</Text>
+                                    <NumberInput value={minElev} onValueChange={setMinElev} min={0} placeholder="0" />
+                                </div>
+                                <div>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">FC Media (mín – máx)</Text>
+                                    <div className="flex gap-2">
+                                        <NumberInput value={minHR} onValueChange={setMinHR} min={0} placeholder="Min" />
+                                        <NumberInput value={maxHR} onValueChange={setMaxHR} min={0} placeholder="Max" />
+                                    </div>
+                                </div>
+                            </Grid>
+                        )}
                     </div>
                 </div>
 
@@ -502,11 +520,35 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         </table>
                     </div>
                 ) : (
+                  <>
+                    {onEnrichActivity && missingLapsCount > 0 && (
+                        <div className="mb-3 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                            <Text className="text-xs font-bold uppercase text-slate-500 mb-2">
+                                Carreras sin parciales ({missingLapsCount}) — pulsa para obtenerlos
+                            </Text>
+                            <div className="flex flex-wrap gap-2 max-h-32 overflow-auto">
+                                {filteredActivities.filter(a => !a.laps).map(a => (
+                                    <button
+                                        key={a.id}
+                                        onClick={() => handleEnrichOne(a.id)}
+                                        disabled={enrichingId === a.id}
+                                        title="Obtener parciales de esta carrera"
+                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40 transition-colors"
+                                    >
+                                        <ArrowPathIcon className={`w-3.5 h-3.5 ${enrichingId === a.id ? 'animate-spin' : ''}`} />
+                                        <span className="truncate max-w-[12rem]">{a.name}</span>
+                                        <span className="text-slate-400">{new Date(a.start_date).toLocaleDateString('es-ES')}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <textarea
                         className="w-full h-96 p-4 font-mono text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
                         value={exportedData}
                         readOnly
                     />
+                  </>
                 )}
 
                 {/* Footer stats */}

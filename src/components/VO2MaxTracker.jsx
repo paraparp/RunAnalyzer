@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
@@ -14,8 +14,7 @@ import {
   ClockIcon,
   PlayCircleIcon,
   CpuChipIcon,
-  SparklesIcon,
-  ExclamationTriangleIcon
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 
 // ============================================================
@@ -328,97 +327,53 @@ export default function VO2MaxTracker({ activities }) {
   const [monthsToShow, setMonthsToShow] = useState('12');
   const [smoothing, setSmoothing] = useState('7');
 
-  // Garmin fetch states
-  const [garminSyncState, setGarminSyncState] = useState({ loading: false, error: null, success: false });
-  const [garminCredentials, setGarminCredentials] = useState({ email: '', password: '' });
-  const [garminRestHR, setGarminRestHR] = useState(() => {
-    const saved = localStorage.getItem('garminRestHR');
-    return saved ? parseInt(saved) : null;
-  });
-  const [garminHistory, setGarminHistory] = useState(() => {
-    const saved = localStorage.getItem('garminHistory');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [garminMaxHR, setGarminMaxHR] = useState(() => {
-    const saved = localStorage.getItem('garminMaxHR');
-    return saved ? parseInt(saved) : null;
-  });
-  const [garminOfficialVO2, setGarminOfficialVO2] = useState(() => {
-    const saved = localStorage.getItem('garminOfficialVO2');
-    return saved ? parseFloat(saved) : null;
-  });
-  const [syncProgress, setSyncProgress] = useState('');
-
-  const handleGarminSync = async () => {
-    if (!garminCredentials.email || !garminCredentials.password) return;
-    setGarminSyncState({ loading: true, error: null, success: false });
-
-    const daysToSync = Math.min(parseInt(monthsToShow) * 30, 365); // Cap at 1 year for safety
-
-    try {
-      const response = await fetch('/api/garmin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: garminCredentials.email,
-          password: garminCredentials.password,
-          days: daysToSync
-        })
-      });
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Keep last incomplete line
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-
-            if (data.message) setSyncProgress(data.message);
-
-            if (data.status === 'complete') {
-              if (data.success && data.restingHR) {
-                setGarminRestHR(data.restingHR);
-                localStorage.setItem('garminRestHR', data.restingHR);
-
-                if (data.maxHR) {
-                  setGarminMaxHR(data.maxHR);
-                  localStorage.setItem('garminMaxHR', data.maxHR);
-                }
-
-                if (data.officialVO2Max) {
-                  setGarminOfficialVO2(data.officialVO2Max);
-                  localStorage.setItem('garminOfficialVO2', data.officialVO2Max);
-                }
-
-                if (data.history) {
-                  setGarminHistory(data.history);
-                  localStorage.setItem('garminHistory', JSON.stringify(data.history));
-                }
-                setGarminSyncState({ loading: false, error: null, success: true });
-                setGarminCredentials({ email: '', password: '' });
-              }
-            } else if (data.status === 'error') {
-              throw new Error(data.error || 'Error en la sincronización');
-            }
-          }
-        }
-      }
-    } catch (err) {
-      setGarminSyncState({ loading: false, error: err.message, success: false });
-    } finally {
-      setSyncProgress('');
-    }
+  // ── Datos fisiológicos del sync global de Garmin ──────────────────────────
+  // El VO2max NO hace su propio login: reutiliza `garmin_cardiac_data`, que ya
+  // genera la sincronización global (App.syncGarminData → restingHR por día).
+  const readGarminCardiac = () => {
+    try { return JSON.parse(localStorage.getItem('garmin_cardiac_data') || 'null'); }
+    catch { return null; }
   };
+
+  const [garminCardiac, setGarminCardiac] = useState(readGarminCardiac);
+
+  // Refrescar cuando el sync global termine
+  useEffect(() => {
+    const refresh = () => setGarminCardiac(readGarminCardiac());
+    window.addEventListener('garmin_sync_complete', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('garmin_sync_complete', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  // FC reposo basal: mediana de los últimos ~14 días con dato (robusto a ruido)
+  const garminRestHR = useMemo(() => {
+    if (!garminCardiac?.length) return null;
+    const recent = garminCardiac
+      .filter(r => r.restingHR > 20)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 14)
+      .map(r => r.restingHR)
+      .sort((a, b) => a - b);
+    if (!recent.length) return null;
+    return recent[Math.floor(recent.length / 2)];
+  }, [garminCardiac]);
+
+  // Historial de FC reposo para la gráfica, acotado al rango seleccionado
+  const garminHistory = useMemo(() => {
+    if (!garminCardiac?.length) return [];
+    const cutoff = monthsToShow === '60' ? 0 : Date.now() - parseInt(monthsToShow) * 30 * 86400000;
+    return garminCardiac
+      .filter(r => r.restingHR > 20 && new Date(r.date).getTime() >= cutoff)
+      .map(r => ({ date: r.date, rhr: r.restingHR }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [garminCardiac, monthsToShow]);
+
+  // FCmax y VO2 oficial no los aporta el sync global → caen a estimación
+  const garminMaxHR = null;
+  const garminOfficialVO2 = null;
 
   const { trendData, weeklyData, stats, efficiencyData } = useMemo(() => {
     if (!activities || activities.length === 0)
@@ -748,77 +703,32 @@ export default function VO2MaxTracker({ activities }) {
         ))}
       </div>
 
-      {/* Garmin Sync Module */}
-      <div className={`rounded-2xl border-l-[12px] p-8 transition-all ${garminRestHR ? 'bg-white border-emerald-500 border border-slate-100 shadow-xl shadow-emerald-100/20' : 'bg-white border-blue-600 border border-slate-100 shadow-xl shadow-blue-100/20'}`}>
-        <div className="flex flex-col xl:flex-row gap-8 items-start xl:items-center justify-between">
+      {/* Estado de datos fisiológicos (proviene del sync global de Garmin) */}
+      <div className={`rounded-2xl border-l-[12px] p-8 transition-all bg-white border border-slate-100 ${garminRestHR ? 'border-l-emerald-500 shadow-xl shadow-emerald-100/20' : 'border-l-slate-300 shadow-sm'}`}>
+        <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between">
           <div className="flex-1">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
               <CpuChipIcon className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">{garminRestHR ? 'Bio-Sincronización Activa' : 'Mejora la precisión'}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">{garminRestHR ? 'Bio-Sincronización Activa' : 'Sin datos fisiológicos'}</span>
             </div>
             <h4 className="font-black text-2xl text-slate-900 tracking-tight mb-2">
-              {garminRestHR ? 'Sincronizado con Garmin Connect' : 'Conecta tu cuenta de Garmin'}
+              {garminRestHR ? 'Usando tus datos reales de Garmin' : 'Sincroniza Garmin para mayor precisión'}
             </h4>
             <p className="text-sm text-slate-500 max-w-2xl leading-relaxed font-medium">
               {garminRestHR
-                ? `Utilizando tu frecuencia cardíaca en reposo basal (${garminRestHR} bpm) para cálculos de precisión clínica.`
-                : 'Sincroniza tus datos fisiológicos reales para eliminar estimaciones. Tus credenciales se procesan de forma efímera y no se almacenan en servidores externos.'
+                ? `Frecuencia cardíaca en reposo basal de ${garminRestHR} bpm (mediana de tus últimos días) tomada de tu sincronización de Garmin. No hace falta volver a iniciar sesión aquí.`
+                : 'Este apartado reutiliza los datos de tu sincronización global de Garmin. Conéctate desde el botón de sincronización principal y la FC en reposo real se aplicará aquí automáticamente. Mientras tanto se usan estimaciones.'
               }
             </p>
           </div>
 
-          {!garminRestHR && (
-            <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-4 xl:mt-0">
-              <input
-                type="email"
-                placeholder="Email Garmin"
-                className="text-xs font-bold px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all w-full sm:w-64"
-                value={garminCredentials.email}
-                onChange={e => setGarminCredentials({ ...garminCredentials, email: e.target.value })}
-              />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                className="text-xs font-bold px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all w-full sm:w-48"
-                value={garminCredentials.password}
-                onChange={e => setGarminCredentials({ ...garminCredentials, password: e.target.value })}
-              />
-              <button
-                onClick={handleGarminSync}
-                disabled={garminSyncState.loading}
-                className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white text-[10px] font-black uppercase tracking-[0.2em] px-8 py-4 rounded-2xl transition-all shadow-lg active:scale-95 whitespace-nowrap"
-              >
-                {garminSyncState.loading ? (syncProgress || 'Procesando...') : 'Enlazar'}
-              </button>
-            </div>
-          )}
-
           {garminRestHR && (
-            <button
-              onClick={() => {
-                setGarminRestHR(null);
-                localStorage.removeItem('garminRestHR');
-                setGarminHistory([]);
-                localStorage.removeItem('garminHistory');
-                setGarminMaxHR(null);
-                localStorage.removeItem('garminMaxHR');
-                setGarminOfficialVO2(null);
-                localStorage.removeItem('garminOfficialVO2');
-              }}
-              className="text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-700 underline transition-colors"
-            >
-              Desvincular Cuenta
-            </button>
+            <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+              <span className="text-3xl font-black text-emerald-600 tabular-nums">{garminRestHR}</span>
+              <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500 leading-tight">FC Reposo<br />Garmin</div>
+            </div>
           )}
         </div>
-        {garminSyncState.error && (
-          <div className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3">
-            <div className="bg-rose-500 text-white p-1 rounded-lg">
-              <ExclamationTriangleIcon className="w-4 h-4" />
-            </div>
-            <p className="text-xs text-rose-600 font-bold uppercase tracking-tight">Error de autenticación: {garminSyncState.error}</p>
-          </div>
-        )}
       </div>
 
       {/* Garmin Resting HR History Chart - MOVED UP for visibility */}

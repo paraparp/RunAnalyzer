@@ -322,6 +322,51 @@ const en = {
       subtitle: "Estimation based on heart rate efficiency over time.",
       garmin_sync: "Garmin Connect Sync"
     },
+    vo2: {
+      title: "VO2max Tracker",
+      subtitle: "Estimate your aerobic capacity and track your physiological progression.",
+      estimated: "Estimated VO2max",
+      ml_kg_min: "ml/kg/min",
+      peak: "All-time peak",
+      global_avg: "Global average",
+      last_30: "Last 30 days",
+      category: "Category",
+      sessions: "sessions",
+      analyzed: "analyzed",
+      tendency: "Active trend",
+      stable: "Stable",
+      drop: "Drop detected",
+      garmin_sync: {
+        title: "Sync with Garmin Connect",
+        connected: "Garmin Connect Synced",
+        bio_sync: "Bio-Sync Active",
+        improve: "Improve accuracy",
+        resting_hr: "Resting HR",
+        max_hr: "Max HR",
+        official: "Official Profile",
+        placeholder_email: "Garmin email",
+        placeholder_pass: "Password",
+        sync_btn: "Link",
+        processing: "Processing...",
+        estimated_suffix: "(Est.)"
+      },
+      methods: {
+        hrr: "HRR Strategy",
+        hrr_desc: "Heart Rate Reserve (Swain 1997)",
+        firstbeat: "Linear Regression",
+        firstbeat_desc: "Firstbeat Analytics Pattern",
+        fallback: "Swain Fallback",
+        fallback_desc: "Based on %HRmax 1994"
+      },
+      categories: {
+        superior: "Superior",
+        excellent: "Excellent",
+        good: "Good",
+        fair: "Fair",
+        poor: "Poor",
+        very_poor: "Very Poor"
+      }
+    },
     decoupling: {
       title: "Cardiac Decoupling",
       subtitle: "HR/pace decoupling percentage per session over time",

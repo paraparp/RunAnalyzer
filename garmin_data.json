@@ -25,8 +25,64 @@
         "balancedUpper": 38,
         "markerValue": 0.4166565
       },
-      "bbLow": 37,
+      "bbLow": 30,
       "bbHigh": 86
+    },
+    {
+      "date": "2026-06-25",
+      "restingHR": 55,
+      "hrv": 29,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 29,
+        "balancedUpper": 38,
+        "markerValue": 0.36109924
+      },
+      "bbLow": 32,
+      "bbHigh": 81
+    },
+    {
+      "date": "2026-06-26",
+      "restingHR": 54,
+      "hrv": 31,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 27,
+        "balancedLow": 29,
+        "balancedUpper": 38,
+        "markerValue": 0.4166565
+      },
+      "bbLow": 41,
+      "bbHigh": 80
+    },
+    {
+      "date": "2026-06-27",
+      "restingHR": 52,
+      "hrv": 35,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 29,
+        "balancedUpper": 38,
+        "markerValue": 0.4166565
+      },
+      "bbLow": 25,
+      "bbHigh": 90
+    },
+    {
+      "date": "2026-06-28",
+      "restingHR": 51,
+      "hrv": 32,
+      "hrvStatus": "BALANCED",
+      "baseline": {
+        "lowUpper": 28,
+        "balancedLow": 29,
+        "balancedUpper": 38,
+        "markerValue": 0.4166565
+      },
+      "bbLow": 26,
+      "bbHigh": 84
     }
   ],
   "sleepData": [
@@ -44,5 +100,5 @@
       "daysCount": 7
     }
   ],
-  "lastSync": "2026-06-24T11:34:56.636Z"
+  "lastSync": "2026-06-28T07:02:19.735Z"
 }

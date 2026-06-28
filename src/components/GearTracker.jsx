@@ -9,12 +9,13 @@ import {
   ArrowsRightLeftIcon,
   CheckBadgeIcon,
   ExclamationCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
 export default function GearTracker({ activities, stravaData, setStravaData }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [shoeNames, setShoeNames] = useState({});
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
             distance: 0,
             moving_time: 0,
             count: 0,
+            firstUsed: new Date(8640000000000000), // sentinel: max date
             lastUsed: new Date(0),
             maxDistance: 0,
             fastestSpeed: 0
@@ -79,6 +81,9 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         const actDate = new Date(a.start_date);
         if (actDate > stats[a.gear_id].lastUsed) {
           stats[a.gear_id].lastUsed = actDate;
+        }
+        if (actDate < stats[a.gear_id].firstUsed) {
+          stats[a.gear_id].firstUsed = actDate;
         }
         if (a.distance > stats[a.gear_id].maxDistance) {
           stats[a.gear_id].maxDistance = a.distance;
@@ -108,6 +113,10 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         const lastUsedStr = diffDays <= 1 ? t('dashboard.today') : diffDays === 2 ? t('dashboard.yesterday') : `${diffDays}d`;
 
+        const fmtDate = (d) => d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
+        const hasFirst = gear.firstUsed.getTime() < 8640000000000000;
+        const hasLast  = gear.lastUsed.getTime() > 0;
+
         return {
           ...gear,
           distanceKm: distKm,
@@ -115,11 +124,13 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
           fastestPaceFormatted: formatPace(gear.fastestSpeed),
           maxDistanceKm: (gear.maxDistance / 1000).toFixed(1),
           lastUsedStr: gear.lastUsed.getTime() === 0 ? '?' : lastUsedStr,
+          firstUsedDate: hasFirst ? fmtDate(gear.firstUsed) : '?',
+          lastUsedDate: hasLast ? fmtDate(gear.lastUsed) : '?',
           maxLife: 800 // Vida utíl base (se recomienda escalar)
         };
       })
       .sort((a, b) => b.distanceKm - a.distanceKm);
-  }, [activities, shoeNames]);
+  }, [activities, shoeNames, t, i18n.language]);
 
   if (gearStats.length === 0) {
     return (
@@ -196,10 +207,14 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                           {statusText}
                        </div>
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                        <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
                        <span>•</span>
                        <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
+                       <span>•</span>
+                       <span className="flex items-center gap-1 normal-case tracking-normal">
+                          <CalendarDaysIcon className="w-3 h-3" /> {gear.firstUsedDate} → {gear.lastUsedDate}
+                       </span>
                     </div>
                   </div>
 
