@@ -1,10 +1,13 @@
 export const STRAVA_CONFIG = {
     clientId: import.meta.env.VITE_STRAVA_CLIENT_ID,
-    clientSecret: import.meta.env.VITE_STRAVA_CLIENT_SECRET,
-    redirectUri: import.meta.env.VITE_STRAVA_REDIRECT_URI,
+    // El redirect se calcula desde el origen actual para que funcione igual en
+    // local (localhost:5173) y en producción (Vercel). Cae al env var si se define.
+    redirectUri: import.meta.env.VITE_STRAVA_REDIRECT_URI
+        || (typeof window !== 'undefined' ? `${window.location.origin}/strava-callback` : undefined),
     authUrl: "https://www.strava.com/oauth/authorize",
-    tokenUrl: "https://www.strava.com/oauth/token",
     scope: "read,activity:read_all,profile:read_all"
+    // ⚠️ client_secret ya NO vive aquí: el intercambio de tokens pasa por
+    //    /api/strava/* (servidor), así no se filtra en el bundle del navegador.
 };
 
 export const getStravaAuthUrl = () => {
@@ -19,17 +22,10 @@ export const getStravaAuthUrl = () => {
 };
 
 export const exchangeToken = async (code) => {
-    const response = await fetch(STRAVA_CONFIG.tokenUrl, {
+    const response = await fetch('/api/strava/token', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            client_id: STRAVA_CONFIG.clientId,
-            client_secret: STRAVA_CONFIG.clientSecret,
-            code: code,
-            grant_type: 'authorization_code',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
     });
 
     if (!response.ok) {
@@ -39,17 +35,10 @@ export const exchangeToken = async (code) => {
 };
 
 export const refreshAccessToken = async (refreshToken) => {
-    const response = await fetch(STRAVA_CONFIG.tokenUrl, {
+    const response = await fetch('/api/strava/refresh', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            client_id: STRAVA_CONFIG.clientId,
-            client_secret: STRAVA_CONFIG.clientSecret,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
     if (!response.ok) {

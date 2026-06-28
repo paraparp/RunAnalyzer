@@ -1,35 +1,17 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_FILE = path.join(__dirname, 'garmin_data.json');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
-// ---------------------------------------------------------------------------
-// Local JSON database helpers
-// ---------------------------------------------------------------------------
-async function loadDB() {
-  try {
-    const raw = await fs.readFile(DATA_FILE, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return { data: [], sleepData: [], lastSync: null };
-  }
-}
+// La persistencia de datos vive ahora en Supabase (por usuario, con RLS), del
+// lado del cliente. Este servidor es solo un proxy de Garmin/Strava, sin estado.
 
-async function saveDB(db) {
-  await fs.writeFile(DATA_FILE, JSON.stringify(db, null, 2), 'utf8');
-}
-
-/** Merge newRows into existing data, dedup by date, sort asc */
+/** Merge newRows into existing data, dedup by date, sort asc (en memoria) */
 function mergeData(existing, newRows) {
   const byDate = {};
   [...existing, ...newRows].forEach(r => {
@@ -38,7 +20,7 @@ function mergeData(existing, newRows) {
   return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** Merge sleep weekly rows, dedup by weekStart */
+/** Merge sleep weekly rows, dedup by weekStart (en memoria) */
 function mergeSleepData(existing = [], newRows = []) {
   const byWeek = {};
   [...existing, ...newRows].forEach(r => { byWeek[r.weekStart] = r; });
@@ -271,33 +253,38 @@ async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/garmin/data  — load stored data from JSON file
+// Strava token proxy — el client_secret vive solo aquí (dev). En producción
+// lo hacen las funciones serverless de /api/strava/*.
 // ---------------------------------------------------------------------------
-app.get('/api/garmin/data', async (_req, res) => {
-  const db = await loadDB();
-  res.json(db);
+async function stravaToken(body, res) {
+  const clientId = process.env.STRAVA_CLIENT_ID || process.env.VITE_STRAVA_CLIENT_ID;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return res.status(500).json({ error: 'Faltan STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET en el servidor' });
+  }
+  try {
+    const r = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, ...body }),
+    });
+    const data = await r.json();
+    res.status(r.ok ? 200 : r.status).json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+app.post('/api/strava/token', (req, res) => {
+  const { code } = req.body ?? {};
+  if (!code) return res.status(400).json({ error: 'code requerido' });
+  stravaToken({ code, grant_type: 'authorization_code' }, res);
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/garmin/data  — merge + persist data sent from client
-// ---------------------------------------------------------------------------
-app.post('/api/garmin/data', async (req, res) => {
-  const { data, lastSync } = req.body;
-  if (!Array.isArray(data)) return res.status(400).json({ error: 'data must be an array' });
-
-  const db = await loadDB();
-  db.data = mergeData(db.data, data);
-  db.lastSync = lastSync ?? new Date().toISOString();
-  await saveDB(db);
-  res.json({ ok: true, total: db.data.length });
-});
-
-// ---------------------------------------------------------------------------
-// DELETE /api/garmin/data  — wipe the JSON file
-// ---------------------------------------------------------------------------
-app.delete('/api/garmin/data', async (_req, res) => {
-  await saveDB({ data: [], lastSync: null });
-  res.json({ ok: true });
+app.post('/api/strava/refresh', (req, res) => {
+  const { refresh_token: refreshToken } = req.body ?? {};
+  if (!refreshToken) return res.status(400).json({ error: 'refresh_token requerido' });
+  stravaToken({ refresh_token: refreshToken, grant_type: 'refresh_token' }, res);
 });
 
 // ---------------------------------------------------------------------------
@@ -396,14 +383,7 @@ app.post('/api/garmin/health/stream', async (req, res) => {
       });
     }
 
-    // Persist to JSON file
-    const db = await loadDB();
-    db.data = mergeData(db.data, accumulated);
-    db.sleepData = mergeSleepData(db.sleepData, sleepRows);
-    db.lastSync = new Date().toISOString();
-    await saveDB(db);
-
-    send({ type: 'done', total: db.data.length, sleepData: db.sleepData });
+    send({ type: 'done', total: accumulated.length, sleepData: mergeSleepData([], sleepRows) });
     res.end();
   } catch (e) {
     gc = null;
@@ -443,14 +423,7 @@ app.post('/api/garmin/health/recent', async (req, res) => {
       await new Promise(r => setTimeout(r, 120));
     }
 
-    // Merge + persist to JSON file
-    const db = await loadDB();
-    db.data = mergeData(db.data, results);
-    db.sleepData = mergeSleepData(db.sleepData, sleepRows);
-    db.lastSync = new Date().toISOString();
-    await saveDB(db);
-
-    res.json({ data: results, sleepData: db.sleepData, total: db.data.length });
+    res.json({ data: results, sleepData: mergeSleepData([], sleepRows), total: results.length });
   } catch (e) {
     gc = null;
     res.status(500).json({ error: e.message });
@@ -459,6 +432,5 @@ app.post('/api/garmin/health/recent', async (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Garmin proxy running on http://localhost:${PORT}`);
-  console.log(`Data file: ${DATA_FILE}`);
+  console.log(`Garmin/Strava proxy running on http://localhost:${PORT}`);
 });
