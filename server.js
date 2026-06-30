@@ -3,8 +3,17 @@ import express from 'express';
 import cors from 'cors';
 import { streamText, generateObject } from 'ai';
 import { resolveModel, SCHEMAS, listGeminiModels, pipeStream } from './api/_lib/ai.js';
+import { getUserFromReq } from './api/_lib/auth.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
+
+// Exige sesión de Supabase válida (protege los endpoints que usan API keys).
+async function requireUser(req, res, next) {
+  const user = await getUserFromReq(req);
+  if (!user) return res.status(401).json({ error: 'No autorizado: inicia sesión.' });
+  req.user = user;
+  next();
+}
 
 const app = express();
 app.use(cors());
@@ -292,7 +301,7 @@ app.post('/api/strava/refresh', (req, res) => {
 // ---------------------------------------------------------------------------
 // IA — proxy con las API keys del lado servidor (no en el bundle).
 // ---------------------------------------------------------------------------
-app.post('/api/ai/stream', async (req, res) => {
+app.post('/api/ai/stream', requireUser, async (req, res) => {
   const { provider = 'gemini', model, messages, temperature = 0.7 } = req.body ?? {};
   if (!model || !Array.isArray(messages)) return res.status(400).json({ error: 'model y messages son requeridos' });
   try {
@@ -304,7 +313,7 @@ app.post('/api/ai/stream', async (req, res) => {
   }
 });
 
-app.post('/api/ai/object', async (req, res) => {
+app.post('/api/ai/object', requireUser, async (req, res) => {
   const { provider = 'gemini', model, prompt, temperature = 0.5, schema } = req.body ?? {};
   const zodSchema = SCHEMAS[schema];
   if (!zodSchema) return res.status(400).json({ error: `schema desconocido: ${schema}` });
@@ -317,7 +326,7 @@ app.post('/api/ai/object', async (req, res) => {
   }
 });
 
-app.get('/api/ai/models', async (_req, res) => {
+app.get('/api/ai/models', requireUser, async (_req, res) => {
   try { res.json({ models: await listGeminiModels() }); }
   catch { res.json({ models: [] }); }
 });
