@@ -1,4 +1,5 @@
 import { seilerBounds, karvonenBounds } from './hrZones';
+import { computeLactateModel, formatPace } from './lactateThreshold';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -304,6 +305,21 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     lthrIsEstimate = false;
   }
 
+  // ── Lactate-threshold model (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold) ─
+  // El modelo de Critical Speed da el LT2 anclado a RENDIMIENTO (ritmo), y el
+  // cross-check de FC da los ritmos LT1/LT2 mensuales. Lo reutilizamos aquí para
+  // que el coach IA y la pestaña de Umbral de Lactato hablen el MISMO idioma.
+  // LTHR (FC umbral, LT2) sigue siendo el detectado de campo arriba. El LT1 en FC
+  // se deriva del ratio LT1/LT2 (≈0.77/0.87 del %FCmax → ~0.885·LTHR), porque el
+  // resumen de Strava no expone la FC sostenida de campo a intensidad LT1.
+  const lt = computeLactateModel(activities, 12);
+  const lt1Hr = Math.round(lthr * (0.77 / 0.87));
+  const lt2PaceStr = lt?.lt2Pace ? formatPace(lt.lt2Pace) : null;
+  const lt1PaceStr = lt?.lt1Pace ? formatPace(lt.lt1Pace) : null;
+  const ltTrend = lt?.trendDelta != null
+    ? (lt.trendDelta > 5 ? 'mejorando' : lt.trendDelta < -5 ? 'empeorando' : 'estable')
+    : null;
+
   // ── HR zones (shared formulas with the TrainingZones tab — src/lib/hrZones) ─
   // Seiler polarized (LTHR-based) = primary anchor for the polarized 80/20 call.
   const [, sZ2, sZ3] = seilerBounds({ lthr });
@@ -313,7 +329,8 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
     `FC reposo=${fcRest}ppm (Garmin más reciente)`,
-    `LTHR=${lthr}ppm [método: ${lthrMethod}]${lthrIsEstimate ? ' (ESTIMADO por fórmula, sin umbral de campo detectado → trata los límites de zona como aproximados, no absolutos)' : ''}`,
+    `LT1 (umbral aeróbico, techo del rodaje FÁCIL)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} → corre el 80% del volumen POR DEBAJO de esta FC`,
+    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
     `Z1 aeróbica base (regenerativo/rodaje fácil): <${sZ2.lo}ppm`,
     `Z2 zona umbral baja (gris): ${sZ2.lo}-${sZ2.hi}ppm`,
     `Z3 alta intensidad (umbral+): ≥${sZ3.lo}ppm`,
@@ -652,5 +669,17 @@ REGLAS ESTRICTAS DE SALIDA:
 - COHERENCIA OBLIGATORIA: la prescripción del BLOQUE 3 debe ser coherente con el diagnóstico de los BLOQUES 1-2. Si el limitante es el bajo VOLUMEN y tu intensidad ya es correcta, la sesión recomendada debe CONSTRUIR volumen (rodaje más largo o tirada larga progresiva), nunca presentarse como "otro rodaje aún más lento/suave". No prescribas bajar el ritmo de un rodaje que ya fue fácil.
 - Respeta EXACTAMENTE el formato de plantilla del primer bullet del BLOQUE 3.`;
 
-  return { prompt, athleteContext, sci: { readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr } };
+  return {
+    prompt,
+    athleteContext,
+    sci: {
+      readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr,
+      lt: {
+        lt1Hr, lt2Hr: lthr,
+        lt1Pace: lt?.lt1Pace ?? null, lt2Pace: lt?.lt2Pace ?? null,
+        csValid: !!lt?.csValid, trend: ltTrend, trendDelta: lt?.trendDelta ?? null,
+        lthrIsEstimate,
+      },
+    },
+  };
 };

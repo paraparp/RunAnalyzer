@@ -13,6 +13,7 @@ import {
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { buildPrompt } from '../lib/athleteContext';
+import { formatPace } from '../lib/lactateThreshold';
 import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
@@ -550,6 +551,52 @@ const AIInsights = ({ activities, onOpenChat }) => {
                 ))}
               </div>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Umbrales LT1 / LT2 (modelo centralizado de lactato) ── */}
+      {sci?.lt && (sci.lt.lt1Hr || sci.lt.lt2Hr) && (() => {
+        const { lt1Hr, lt2Hr, lt1Pace, lt2Pace, csValid, trend, lthrIsEstimate } = sci.lt;
+        const trendCfg = trend === 'mejorando'
+          ? { c: 'text-emerald-600', a: '↑' }
+          : trend === 'empeorando'
+            ? { c: 'text-rose-600', a: '↓' }
+            : { c: 'text-amber-600', a: '→' };
+        const Cell = ({ tag, color, hr, pace, hint }) => (
+          <div className="flex-1 bg-white/70 rounded-2xl p-3 border border-slate-100/60">
+            <div className="flex items-baseline justify-between mb-0.5">
+              <span className={`text-[10px] font-black uppercase tracking-wider ${color}`}>{tag}</span>
+              {hint && <span className="text-[9px] text-slate-400 font-semibold">{hint}</span>}
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-black text-slate-800 tabular-nums">{hr}<span className="text-[10px] font-semibold text-slate-400"> ppm</span></span>
+              {pace && pace > 0 && (
+                <span className="text-[11px] font-bold text-slate-400 tabular-nums">· {formatPace(pace)}/km</span>
+              )}
+            </div>
+          </div>
+        );
+        return (
+          <div className="px-5 py-3 border-b border-slate-100/60 bg-gradient-to-r from-sky-50/30 to-blue-50/10">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Umbrales</span>
+              <span className="text-[10px] text-slate-400 font-semibold">· FC de entrenamiento (LT1 / LT2)</span>
+              {trend && (
+                <span className={`ml-auto text-[10px] font-bold ${trendCfg.c}`} title="Tendencia del LT2 (Critical Speed / cross-check FC)">
+                  {trendCfg.a} LT2 {trend}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <Cell tag="LT1 · Aeróbico" color="text-sky-600" hr={lt1Hr} pace={lt1Pace}
+                hint="techo del fácil" />
+              <Cell tag="LT2 · Umbral" color="text-blue-600" hr={lt2Hr} pace={lt2Pace}
+                hint={csValid ? 'Critical Speed' : lthrIsEstimate ? 'estimado' : 'campo'} />
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium mt-2 leading-relaxed">
+              💡 Corre el <strong className="text-slate-500">80% del volumen por debajo de LT1 ({lt1Hr} ppm)</strong>; reserva LT2 ({lt2Hr} ppm) para tempo/series.
+            </p>
           </div>
         );
       })()}
