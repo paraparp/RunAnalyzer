@@ -3,11 +3,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { z } from 'zod';
+import { generateAIObject } from '../services/ai';
 import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
@@ -15,35 +11,6 @@ import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import { buildPrompt } from '../lib/athleteContext';
 import { getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
-// Define the schema for the training plan
-const PlanSchema = z.object({
-    analysis: z.string().describe("Análisis breve (max 60 palabras) del estado del corredor."),
-    weekly_summary: z.string().describe("Enfoque de esta semana según periodización."),
-    stats: z.object({
-        total_dist_km: z.number().describe("Distancia total estimada en km."),
-        total_time_min: z.number().describe("Tiempo total estimado en minutos."),
-        distribution: z.object({
-            easy: z.number().describe("Porcentaje Zona 1-2 aeróbico (>75)."),
-            moderate: z.number().describe("Porcentaje Zona 3 umbral/tempo (~10-15)."),
-            hard: z.number().describe("Porcentaje Zona 4-5 VO2max/velocidad (~5-10)."),
-        }),
-    }),
-    schedule: z.array(z.object({
-        day: z.string().describe("Nombre del día (ej: 'Lunes')."),
-        type: z.string().describe("Categoría de la sesión."),
-        daily_stats: z.object({
-            dist: z.string().describe("Distancia (ej: '12 km')."),
-            time: z.string().describe("Tiempo estimado (ej: '65 min')."),
-        }).optional(),
-        summary: z.string().describe("Objetivo de la sesión y zonas de trabajo."),
-        structured_workout: z.array(z.object({
-            phase: z.string().describe("Fase del entrenamiento (Calentamiento, Bloque Principal, etc)."),
-            duration_min: z.number().describe("Duración en minutos."),
-            intensity: z.number().min(1).max(5).describe("Intensidad (1-5)."),
-            description: z.string().describe("Descripción detallada del ejercicio."),
-        })).optional().describe("Detalle de la estructura del entrenamiento."),
-    })),
-});
 
 const TrainingPlanner = ({ activities }) => {
     const { t } = useTranslation();
@@ -74,12 +41,6 @@ const TrainingPlanner = ({ activities }) => {
         if (d == null) return 8;
         return Math.min(24, Math.max(1, Math.round(d / 7)));
     })();
-
-    const apiKeys = {
-        gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-        groq: import.meta.env.VITE_GROQ_API_KEY || '',
-        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
-    };
 
     const [selectedModel, setSelectedModel] = useState(
         () => cloudStorage.getItem('planner_model') || DEFAULT_GEMINI_MODEL
@@ -152,11 +113,6 @@ const TrainingPlanner = ({ activities }) => {
             setError(t('planner.no_target_desc'));
             return;
         }
-        const activeKey = apiKeys[provider];
-        if (!activeKey) {
-            setError(t('auth.login_error', { provider: provider.charAt(0).toUpperCase() + provider.slice(1) }));
-            return;
-        }
         setLoading(true);
         setError('');
         setPlan(null);
@@ -164,17 +120,6 @@ const TrainingPlanner = ({ activities }) => {
             const daysCount = selectedDays.length;
             const daysStr = selectedDays.join(', ');
             const activityLog = buildPlanContext(daysCount);
-            let model;
-            if (provider === 'groq') {
-                const groq = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: activeKey });
-                model = groq(selectedModel);
-            } else if (provider === 'anthropic') {
-                const anthropic = createAnthropic({ apiKey: activeKey });
-                model = anthropic(selectedModel);
-            } else {
-                const google = createGoogleGenerativeAI({ apiKey: activeKey });
-                model = google(selectedModel);
-            }
             const prompt = t('planner.prompt', {
                 history: activityLog,
                 dist: t(`planner.distances.${goalDist}`),
@@ -183,7 +128,7 @@ const TrainingPlanner = ({ activities }) => {
                 daysCount: daysCount,
                 daysStr: daysStr
             });
-            const { object } = await generateObject({ model, schema: PlanSchema, prompt, temperature: 0.7 });
+            const object = await generateAIObject({ provider, model: selectedModel, prompt, temperature: 0.7, schema: 'plan' });
             setPlan(object);
             setLoading(false);
         } catch (err) {

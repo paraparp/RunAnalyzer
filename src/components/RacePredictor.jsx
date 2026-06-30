@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { z } from 'zod';
+import { generateAIObject } from '../services/ai';
 import {
     Card,
     Title,
@@ -24,26 +20,8 @@ import { buildPrompt } from '../lib/athleteContext';
 import NextRaceBanner from './NextRaceBanner';
 import { getNextTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
-// Define the schema for race predictions
-const PredictionSchema = z.object({
-    analysis: z.string().describe("Breve párrafo (max 30 palabras) sobre el estado de forma actual del corredor."),
-    predictions: z.array(z.object({
-        label: z.string().describe("Distancia de la carrera (ej: 5K, 10K)."),
-        time: z.string().describe("Tiempo estimado en formato MM:SS o H:MM:SS."),
-        pace: z.string().describe("Ritmo estimado en formato M:SS /km."),
-        confidence: z.enum(['Alta', 'Media', 'Baja']).describe("Nivel de confianza en la predicción."),
-    })).describe("Lista de predicciones para distancias estándar.")
-});
-
 const RacePredictor = ({ activities }) => {
     const [provider] = useState('gemini');
-
-    // API keys from environment variables
-    const apiKeys = {
-        gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
-        groq: import.meta.env.VITE_GROQ_API_KEY || '',
-        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
-    };
 
     const [selectedModel, setSelectedModel] = useState(
         () => cloudStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
@@ -94,9 +72,6 @@ const RacePredictor = ({ activities }) => {
 
     // Model reset is handled by ModelSelector component
 
-    const currentApiKey = apiKeys[provider];
-
-
     const getRecentActivitiesSummary = () => {
         if (!activities || activities.length === 0) return "No hay historial.";
 
@@ -118,28 +93,7 @@ const RacePredictor = ({ activities }) => {
         return recent.join('\n');
     };
 
-    const checkAvailableModels = async (key) => {
-        if (provider === 'groq') return "Groq Models: llama-3.1-8b, llama-3.3-70b...";
-        if (provider === 'anthropic') return "Claude Models: 3.5 Sonnet, 3.5 Haiku...";
-        try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-            const data = await response.json();
-            if (data.error) return `Error verificando modelos: ${data.error.message}`;
-            if (data.models) return `Modelos disponibles: ${data.models.map(m => m.name.replace('models/', '')).join(', ')}`;
-            return 'No se pudieron listar los modelos.';
-        } catch (e) {
-            return `Error de conexión: ${e.message}`;
-        }
-    };
-
     const generateAIPrediction = async () => {
-        const activeKey = apiKeys[provider];
-
-        if (!activeKey) {
-            setError(`Por favor, introduce una API Key de ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`);
-            return;
-        }
-
         setLoading(true);
         setError('');
         setPredictions(null);
@@ -168,22 +122,6 @@ const RacePredictor = ({ activities }) => {
         }
 
         try {
-            // Initialize Provider
-            let model;
-            if (provider === 'groq') {
-                const groq = createOpenAI({
-                    baseURL: 'https://api.groq.com/openai/v1',
-                    apiKey: activeKey,
-                });
-                model = groq(selectedModel);
-            } else if (provider === 'anthropic') {
-                const anthropic = createAnthropic({ apiKey: activeKey });
-                model = anthropic(selectedModel);
-            } else {
-                const google = createGoogleGenerativeAI({ apiKey: activeKey });
-                model = google(selectedModel);
-            }
-
             const prompt = `
                 Actúa como un experto fisiólogo deportivo y entrenador de running que aplica ciencia validada (modelo PMC de Banister CTL/ATL/TSB, ratio agudo:crónico de Gabbett, umbral de lactato).
                 Analiza el siguiente contexto del corredor (datos científicos: carga de entrenamiento, ACWR, zonas de FC, ritmos de referencia, marcas personales, distribución polarizada, wearable):
@@ -202,11 +140,12 @@ const RacePredictor = ({ activities }) => {
                 Diferencia entre "Mejor Marca Teórica" y "Predicción Realista Actual". Danos la Realista en llano.${goalBlock}
             `;
 
-            const { object } = await generateObject({
-                model: model,
-                schema: PredictionSchema,
-                prompt: prompt,
+            const object = await generateAIObject({
+                provider,
+                model: selectedModel,
+                prompt,
                 temperature: 0.5, // Slightly lower temp for more consistent predictions
+                schema: 'racePrediction',
             });
 
             setPredictions(object.predictions);
@@ -216,18 +155,13 @@ const RacePredictor = ({ activities }) => {
         } catch (err) {
             console.error("Error generando predicción:", err);
 
-            let debugInfo = '';
-            if (provider === 'gemini') {
-                debugInfo = await checkAvailableModels(activeKey);
-            }
-
             let errorMessage = err.message || "Error desconocido";
             if (errorMessage.includes('404') || errorMessage.includes('401')) {
-                errorMessage = "La API Key no es válida o no tiene permisos. " + debugInfo;
+                errorMessage = "La API Key del servidor no es válida o no tiene permisos.";
             } else if (errorMessage.includes('429')) {
                 errorMessage = "Has excedido la cuota (429). Prueba otro modelo o Groq.";
             } else {
-                errorMessage = `Error generando predicción: ${errorMessage}. ` + debugInfo;
+                errorMessage = `Error generando predicción: ${errorMessage}.`;
             }
 
             setError(errorMessage);
@@ -267,7 +201,7 @@ const RacePredictor = ({ activities }) => {
                     <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
                         <span className="text-4xl block mb-3">🎯</span>
                         <Text className="text-slate-500 mb-6">Analiza tus últimas carreras con IA para predecir marcas en llano.</Text>
-                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={!currentApiKey} color="blue">
+                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={loading} color="blue">
                             Generar Predicción Inteligente
                         </Button>
                         {error && <Callout title="Error" color="rose" className="mt-6">{error}</Callout>}

@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createGroq } from '@ai-sdk/groq';
-import { streamText } from 'ai';
+import { streamAI, fetchGeminiModels } from '../services/ai';
 import {
   SparklesIcon,
   ArrowPathIcon,
@@ -135,25 +133,11 @@ const AIInsights = ({ activities, onOpenChat }) => {
   // ListModels response when the API key is available.
   const [availableModels, setAvailableModels] = useState(GEMINI_MODELS);
 
-  // Fetch the real list of Gemini models for this API key (ListModels endpoint).
+  // Fetch the real list of Gemini models via the server proxy (/api/ai/models).
   useEffect(() => {
-    const key = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!key) return;
     const ctrl = new AbortController();
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, { signal: ctrl.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => {
-        // Exclude non-chat variants: robotics, TTS, image gen (Nano Banana),
-        // audio, embeddings, vision-only, etc.
-        const EXCLUDE = /robotics|tts|image|audio|embedding|aqa|vision|nano|gemma|learnlm/i;
-        const models = (j?.models ?? [])
-          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-          .filter(m => m.name?.includes('gemini'))
-          .filter(m => !EXCLUDE.test(m.name) && !EXCLUDE.test(m.displayName || ''))
-          .map(m => ({ id: m.name.replace('models/', ''), label: m.displayName || m.name.replace('models/', '') }))
-          .sort((a, b) => b.id.localeCompare(a.id));
-        if (models.length) setAvailableModels(models);
-      })
+    fetchGeminiModels(ctrl.signal)
+      .then(models => { if (models.length) setAvailableModels(models); })
       .catch(() => { /* keep hardcoded fallback */ });
     return () => ctrl.abort();
   }, []);
@@ -225,26 +209,20 @@ const AIInsights = ({ activities, onOpenChat }) => {
       }
     }
 
-    // Build provider chain from available keys
+    // Cadena de proveedores: Gemini primero, Groq como fallback. Las API keys
+    // viven en el servidor; aquí solo se indica proveedor + modelo.
     const providers = [
       {
         name: GEMINI_MODELS.find(m => m.id === selectedModel)?.label.split(' ·')[0] ?? 'Gemini',
-        key: import.meta.env.VITE_GEMINI_API_KEY,
-        getModel: (k) => createGoogleGenerativeAI({ apiKey: k })(selectedModel),
+        provider: 'gemini',
+        model: selectedModel,
       },
       {
         name: 'Groq Llama',
-        key: import.meta.env.VITE_GROQ_API_KEY,
-        getModel: (k) => createGroq({ apiKey: k })('llama-3.3-70b-versatile'),
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
       },
-    ].filter(p => p.key);
-
-    if (!providers.length) {
-      setCur('**Sin API Key configurada** · Añade `VITE_GEMINI_API_KEY` o `VITE_GROQ_API_KEY` en tu `.env`.');
-      setTrend('');
-      setLoaded(true);
-      return;
-    }
+    ];
 
     // Snapshot current state via ref (avoids stale closure)
     const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, cacheTs: prevTs } = stateRef.current;
@@ -272,22 +250,22 @@ const AIInsights = ({ activities, onOpenChat }) => {
           : `${providers[i - 1].name} falló · probando ${provider.name}…`
         );
         try {
-          const res = streamText({
-            model: provider.getModel(provider.key),
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.4,
-            maxRetries: 0,
-            abortSignal: controller.signal,
-          });
-          let full = '';
-          for await (const chunk of res.textStream) {
-            full += chunk;
-            const parts = full.split('|||');
-            if (parts.length >= 1) setCur(parts[0].trim());
-            if (parts.length >= 2) setTrend(parts[1].trim());
-            if (parts.length >= 3) setNextWork(parts[2].trim());
-            if (parts.length >= 4) setLastWork(parts[3].trim());
-          }
+          const full = await streamAI(
+            {
+              provider: provider.provider,
+              model: provider.model,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.4,
+              signal: controller.signal,
+            },
+            (_chunk, acc) => {
+              const parts = acc.split('|||');
+              if (parts.length >= 1) setCur(parts[0].trim());
+              if (parts.length >= 2) setTrend(parts[1].trim());
+              if (parts.length >= 3) setNextWork(parts[2].trim());
+              if (parts.length >= 4) setLastWork(parts[3].trim());
+            }
+          );
           setUsedProvider(provider.name);
           const parts = full.split('|||');
           const ts = Date.now();
