@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { streamAI } from '../services/ai';
 import { Card, Title, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
-import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon } from "@heroicons/react/24/solid";
+import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 
 // Simple markdown parser component
@@ -184,6 +184,7 @@ const RunQA = ({ activities }) => {
     const provider = 'gemini'; // chat usa exclusivamente Google Gemini
     const [selectedModel, setSelectedModel] = useState(() => cloudStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
     const [copiedIdx, setCopiedIdx] = useState(null);
+    const [fullscreen, setFullscreen] = useState(false);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -193,6 +194,19 @@ const RunQA = ({ activities }) => {
     useEffect(() => { try { cloudStorage.setItem('runqa_model', selectedModel); } catch {} }, [selectedModel]);
     // Abort any in-flight stream on unmount.
     useEffect(() => () => abortRef.current?.abort(), []);
+
+    // Fullscreen: bloquea el scroll del body y permite salir con Escape.
+    useEffect(() => {
+        if (!fullscreen) return;
+        const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
+        document.addEventListener('keydown', onKey);
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.removeEventListener('keydown', onKey);
+            document.body.style.overflow = prev;
+        };
+    }, [fullscreen]);
 
     // Recoge el análisis del panel (AIInsights) si el usuario llegó vía "Seguir
     // preguntando en el chat". Se consume una sola vez y se inyecta como contexto.
@@ -404,73 +418,83 @@ INSTRUCCIONES:
     const selectedCount = getSelectedActivities().length;
 
     return (
-        <div className="space-y-4">
+        <div className={fullscreen
+            ? 'fixed inset-0 z-50 bg-slate-100 p-3 sm:p-4 flex flex-col gap-3 overflow-hidden'
+            : 'space-y-4'}>
             {/* Compact Header */}
-            <Card className="p-4 ring-1 ring-slate-200 shadow-sm bg-white">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg shadow-blue-200">
-                            <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+            <Card className="p-2.5 ring-1 ring-slate-200 shadow-sm bg-white shrink-0">
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg shadow-sm shadow-blue-200 shrink-0">
+                            <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
                         </div>
-                        <div>
-                            <Title className="text-lg font-bold text-slate-900">Pregunta sobre tus Carreras</Title>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <Badge size="xs" color="blue" icon={BoltIcon}>
-                                    {selectedCount} carreras cargadas
-                                </Badge>
-                            </div>
+                        <div className="min-w-0">
+                            <Title className="text-sm font-bold text-slate-900 leading-tight truncate">Pregunta sobre tus Carreras</Title>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600">
+                                <BoltIcon className="w-3 h-3" />
+                                {selectedCount} carreras cargadas
+                            </span>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => setFullscreen(f => !f)}
+                            title={fullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
+                            className="ml-auto lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50/60 transition-colors"
+                        >
+                            {fullscreen
+                                ? <ArrowsPointingInIcon className="w-3.5 h-3.5" />
+                                : <ArrowsPointingOutIcon className="w-3.5 h-3.5" />}
+                            <span className="hidden sm:inline">{fullscreen ? 'Reducir' : 'Ampliar'}</span>
+                        </button>
                     </div>
 
-                    <div className="flex flex-col gap-3 w-full lg:w-auto">
+                    <div className="flex flex-wrap items-center gap-2">
                         {/* Filter mode toggle + selector */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                            {/* Toggle buttons */}
-                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium flex-shrink-0">
-                                <button
-                                    onClick={() => setFilterMode('count')}
-                                    className={`px-3 py-2 transition-colors ${filterMode === 'count' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    Por número
-                                </button>
-                                <button
-                                    onClick={() => setFilterMode('period')}
-                                    className={`px-3 py-2 transition-colors ${filterMode === 'period' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    Por periodo
-                                </button>
-                            </div>
-
-                            {filterMode === 'count' ? (
-                                <Select value={numRaces} onValueChange={setNumRaces} enableClear={false} className="w-full sm:w-40">
-                                    <SelectItem value="5">Últimas 5</SelectItem>
-                                    <SelectItem value="10">Últimas 10</SelectItem>
-                                    <SelectItem value="20">Últimas 20</SelectItem>
-                                    <SelectItem value="30">Últimas 30</SelectItem>
-                                    <SelectItem value="50">Últimas 50</SelectItem>
-                                </Select>
-                            ) : (
-                                <Select value={selectedPeriod} onValueChange={setSelectedPeriod} enableClear={false} className="w-full sm:w-44">
-                                    <SelectItem value="7d">Última semana</SelectItem>
-                                    <SelectItem value="30d">Último mes</SelectItem>
-                                    <SelectItem value="90d">Últimos 3 meses</SelectItem>
-                                    <SelectItem value="180d">Últimos 6 meses</SelectItem>
-                                    <SelectItem value="365d">Último año</SelectItem>
-                                </Select>
-                            )}
-
-                            <ModelSelector
-                                selectedModel={selectedModel}
-                                setSelectedModel={setSelectedModel}
-                                disabled={loading}
-                                showLabel={false}
-                            />
+                        {/* Toggle buttons */}
+                        <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[11px] font-medium flex-shrink-0">
+                            <button
+                                onClick={() => setFilterMode('count')}
+                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'count' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                Por número
+                            </button>
+                            <button
+                                onClick={() => setFilterMode('period')}
+                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'period' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                Por periodo
+                            </button>
                         </div>
 
+                        {filterMode === 'count' ? (
+                            <Select value={numRaces} onValueChange={setNumRaces} enableClear={false} className="w-32">
+                                <SelectItem value="5">Últimas 5</SelectItem>
+                                <SelectItem value="10">Últimas 10</SelectItem>
+                                <SelectItem value="20">Últimas 20</SelectItem>
+                                <SelectItem value="30">Últimas 30</SelectItem>
+                                <SelectItem value="50">Últimas 50</SelectItem>
+                            </Select>
+                        ) : (
+                            <Select value={selectedPeriod} onValueChange={setSelectedPeriod} enableClear={false} className="w-40">
+                                <SelectItem value="7d">Última semana</SelectItem>
+                                <SelectItem value="30d">Último mes</SelectItem>
+                                <SelectItem value="90d">Últimos 3 meses</SelectItem>
+                                <SelectItem value="180d">Últimos 6 meses</SelectItem>
+                                <SelectItem value="365d">Último año</SelectItem>
+                            </Select>
+                        )}
+
+                        <ModelSelector
+                            selectedModel={selectedModel}
+                            setSelectedModel={setSelectedModel}
+                            disabled={loading}
+                            showLabel={false}
+                        />
+
                         {/* Garmin period selector */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 flex-shrink-0">Garmin:</span>
-                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium">
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-slate-500 flex-shrink-0">Garmin</span>
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[11px] font-medium">
                                 {[
                                     { value: 'none', label: 'Sin datos' },
                                     { value: '30d', label: '30 días' },
@@ -479,7 +503,7 @@ INSTRUCCIONES:
                                     <button
                                         key={value}
                                         onClick={() => setGarminPeriod(value)}
-                                        className={`px-3 py-1.5 transition-colors ${garminPeriod === value ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                        className={`px-2.5 py-1.5 transition-colors ${garminPeriod === value ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                                     >
                                         {label}
                                     </button>
@@ -500,7 +524,7 @@ INSTRUCCIONES:
 
             {/* Context from the AI panel (when arriving via "Seguir preguntando en el chat") */}
             {seed && (
-                <Card className="p-4 ring-1 ring-blue-200 shadow-sm bg-blue-50/40">
+                <Card className="p-4 ring-1 ring-blue-200 shadow-sm bg-blue-50/40 shrink-0">
                     <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="flex items-center gap-2">
                             <SparklesIcon className="w-4 h-4 text-blue-600 shrink-0" />
@@ -522,7 +546,9 @@ INSTRUCCIONES:
             )}
 
             {/* Chat Container */}
-            <Card className="ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col" style={{ height: '600px' }}>
+            <Card
+                className={`ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col ${fullscreen ? 'flex-1 min-h-0' : 'h-[70vh] min-h-[520px]'}`}
+            >
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto">
                     {conversation.length === 0 ? (

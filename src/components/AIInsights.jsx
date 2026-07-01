@@ -14,11 +14,10 @@ import {
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { buildPrompt } from '../lib/athleteContext';
-import { formatPace } from '../lib/lactateThreshold';
 import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
-const MD = ({ text, accent }) => {
+const MD = ({ text, accent, isDark = false, lg = false }) => {
   if (!text) return null;
   const inline = (str) => {
     const parts = []; let rem = str, k = 0;
@@ -26,7 +25,11 @@ const MD = ({ text, accent }) => {
       const m = rem.match(/\*\*(.+?)\*\*/);
       if (m?.index !== undefined) {
         if (m.index > 0) parts.push(<span key={k++}>{rem.slice(0, m.index)}</span>);
-        parts.push(<strong key={k++} className="font-semibold text-slate-800">{m[1]}</strong>);
+        parts.push(
+          <strong key={k++} className={`font-semibold ${isDark ? 'text-white font-extrabold' : 'text-slate-800 dark:text-slate-200'}`}>
+            {m[1]}
+          </strong>
+        );
         rem = rem.slice(m.index + m[0].length); continue;
       }
       parts.push(<span key={k++}>{rem}</span>); break;
@@ -35,10 +38,10 @@ const MD = ({ text, accent }) => {
   };
   const dot = accent.replace('text-', 'bg-');
   return (
-    <ul className="space-y-2">
+    <ul className={lg ? 'space-y-2.5' : 'space-y-2'}>
       {text.split('\n').map(l => l.trim()).filter(l => l && !/^\**bloque\s*\d+/i.test(l)).map((l, i) => (
-        <li key={i} className="flex gap-2.5 text-[12px] leading-relaxed text-slate-600">
-          <span className={`shrink-0 mt-[6px] w-1.5 h-1.5 rounded-full ${dot}`} />
+        <li key={i} className={`flex gap-2.5 ${lg ? 'text-[13px]' : 'text-[12px]'} leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600 dark:text-slate-400'}`}>
+          <span className={`shrink-0 ${lg ? 'mt-[7px]' : 'mt-[6px]'} w-1.5 h-1.5 rounded-full ${dot}`} />
           <span>{inline(l.replace(/^[-•*]\s+/, ''))}</span>
         </li>
       ))}
@@ -444,264 +447,221 @@ const AIInsights = ({ activities, onOpenChat }) => {
     onOpenChat?.();
   };
 
-  return (
-    <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl overflow-hidden transition-all duration-300 relative">
+  // ── Badge de estado derivado del diagnóstico (cur) ──────────────────────────
+  const curBadge = (() => {
+    if (!cur) return null;
+    const text = cur.toLowerCase();
+    if (text.includes('fatig') || text.includes('cansad'))
+      return { text: 'Fatiga ⚠️', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/50' };
+    if (text.includes('recuperad') || text.includes('estable'))
+      return { text: 'Recuperado ✅', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' };
+    if (text.includes('sobreentren'))
+      return { text: 'Sobreentrenamiento 🚨', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' };
+    if (text.includes('forma') || text.includes('óptim') || text.includes('fuerte'))
+      return { text: 'En Forma ⚡', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50' };
+    return { text: 'Adaptativo 📈', color: 'bg-slate-50 text-slate-650 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
+  })();
 
-      {/* ── Hero · Identidad + Readiness fusionados ── */}
-      <div className="px-5 py-4 border-b border-slate-100/60 bg-gradient-to-br from-white/70 via-white/40 to-blue-50/20">
-        <div className="flex items-start justify-between gap-3">
+  // ── Constantes de apoyo (rail bajo el diagnóstico) ──────────────────────────
+  const vitalPills = (() => {
+    const pills = [];
+    const h = sci?.hrv;
+    if (h) pills.push({ k: 'VFC', v: `${h.latest} ms`, c: h.latest < h.baseline?.balancedLow ? 'text-rose-500' : 'text-emerald-500' });
+    if (sci?.bb?.high != null) pills.push({ k: 'Body Batt.', v: `${sci.bb.high}/100`, c: sci.bb.high >= 70 ? 'text-emerald-500' : 'text-amber-500' });
+    if (sci?.sleep?.score != null) pills.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, c: sci.sleep.score >= 75 ? 'text-emerald-500' : 'text-amber-500' });
+    if (sci?.pmc) pills.push({ k: 'TSB', v: sci.pmc.tsb > 0 ? `+${sci.pmc.tsb}` : `${sci.pmc.tsb}`, c: sci.pmc.tsb >= 5 ? 'text-emerald-500' : sci.pmc.tsb >= -10 ? 'text-amber-500' : 'text-rose-500' });
+    if (sci?.pmc?.acwr != null) pills.push({ k: 'ACWR', v: `${sci.pmc.acwr}`, c: sci.pmc.acwr > 1.5 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300' });
+    if (sci?.lt?.lt1Hr) pills.push({ k: 'LT1', v: `${sci.lt.lt1Hr} ppm`, c: 'text-sky-600 dark:text-sky-400' });
+    if (sci?.lt?.lt2Hr) pills.push({ k: 'LT2', v: `${sci.lt.lt2Hr} ppm`, c: 'text-rose-500 dark:text-rose-450' });
+    return pills;
+  })();
 
-          {/* Anillo de readiness + identidad */}
-          <div className="flex items-center gap-4 min-w-0">
-            {(() => {
-              const r = sci?.readiness;
-              if (!r) {
-                return (
-                  <div className="p-2.5 rounded-2xl bg-blue-50/80 text-blue-600 shadow-sm shrink-0">
-                    <SparklesIcon className="w-5 h-5" />
-                  </div>
-                );
-              }
-              const { score, band } = r;
-              const ring = band === 'high' ? 'text-emerald-600' : band === 'good' ? 'text-blue-600' : band === 'mod' ? 'text-amber-600' : 'text-rose-600';
-              const ringBg = band === 'high' ? 'stroke-emerald-500' : band === 'good' ? 'stroke-blue-500' : band === 'mod' ? 'stroke-amber-500' : 'stroke-rose-500';
-              const R = 26, C = 2 * Math.PI * R, off = C * (1 - score / 100);
-              return (
-                <div className="relative shrink-0 w-[68px] h-[68px]">
-                  <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-                    <circle cx="32" cy="32" r={R} className="stroke-slate-100" strokeWidth="6" fill="none" />
-                    <circle cx="32" cy="32" r={R} className={ringBg} strokeWidth="6" fill="none"
-                      strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off}
-                      style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center -space-y-0.5">
-                    <span className={`font-black text-xl tabular-nums leading-none ${ring}`}>{score}</span>
-                    <span className="text-[7px] font-black uppercase tracking-[0.12em] text-slate-400">ready</span>
-                  </div>
-                </div>
-              );
-            })()}
+  // ── Configuración compacta (popover reutilizado en la cabecera) ─────────────
+  const controls = (
+    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+      <button
+        onClick={() => { setLoaded(false); run(true); }}
+        disabled={loading}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-750 disabled:opacity-40 shadow-sm transition-all"
+      >
+        <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
+      </button>
 
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-black text-slate-800 leading-tight tracking-tight flex items-center gap-1.5">
-                  <SparklesIcon className="w-4 h-4 text-blue-500 shrink-0" />
-                  Diagnóstico IA
-                </h3>
-                {sci?.readiness && (() => {
-                  const { label, band } = sci.readiness;
-                  const c = band === 'high' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : band === 'good' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : band === 'mod' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-rose-50 text-rose-700 border-rose-200';
-                  return <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${c}`}>{label}</span>;
-                })()}
+      {/* Ajustes Popover */}
+      <div className="relative" ref={cfgRef}>
+        <button
+          onClick={() => setCfgOpen(o => !o)}
+          disabled={loading}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${cfgOpen ? 'text-blue-600 bg-blue-50/50 border-blue-200' : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-750 hover:bg-slate-50'}`}
+        >
+          <Cog6ToothIcon className={`w-3.5 h-3.5 transition-transform ${cfgOpen ? 'rotate-45' : ''}`} />
+          <span>{weeklyTarget}×/sem</span>
+          {goal && <span className="text-slate-300">·</span>}
+          {goal && <span>🎯 {goal.distance}</span>}
+        </button>
+
+        {cfgOpen && (
+          <div className="absolute right-0 top-full mt-2 w-60 z-30 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-md p-4 space-y-3">
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Correr / semana</label>
+              <select
+                value={weeklyTarget}
+                disabled={loading}
+                onChange={e => {
+                  const v = e.target.value;
+                  cloudStorage.setItem('ai_weekly_target', v);
+                  setWeeklyTarget(v);
+                  setLoaded(false);
+                }}
+                className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+              >
+                {[2, 3, 4, 5, 6].map(n => (
+                  <option key={n} value={String(n)}>{n}×/sem</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Modelo IA</label>
+              <select
+                value={selectedModel}
+                disabled={loading}
+                onChange={e => {
+                  const m = e.target.value;
+                  cloudStorage.setItem('ai_insights_model', m);
+                  setSelectedModel(m);
+                  setLoaded(false);
+                }}
+                className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+              >
+                {availableModels.map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {goal && (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+                🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700 dark:text-slate-300">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
               </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
+  return (
+    <div className="space-y-3">
+
+      {/* ═══════════════ HERO · DIAGNÓSTICO IA (protagonista) ═══════════════ */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
+
+        {/* Cabecera: identidad + controles */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-5 pt-4 pb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 shrink-0">
+              <SparklesIcon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-slate-850 dark:text-slate-100 leading-tight">
+                Diagnóstico IA
+              </h3>
+              <p className="text-[10px] text-slate-400 font-semibold mt-0.5 truncate">
+                {usedProvider || 'Gemini'}{cacheTs && !loading ? ` · ${formatTs(cacheTs)}` : ''} · Garmin + Strava
+              </p>
+            </div>
+          </div>
+          {controls}
+        </div>
+
+        {/* Cuerpo: readiness (apoyo) + diagnóstico (foco) */}
+        <div className="px-5 pb-5">
+          <div className="flex flex-col sm:flex-row gap-5">
+            {/* Anillo de readiness — contexto */}
+            <div className="flex sm:flex-col items-center gap-3 sm:gap-2 shrink-0 sm:w-[88px]">
               {(() => {
-                const chips = [];
-                const h = sci?.hrv;
-                if (h) {
-                  const inBase = h.baseline?.balancedLow != null
-                    ? (h.latest < h.baseline.balancedLow ? 'bajo baseline' : h.latest > h.baseline.balancedUpper ? 'sobre baseline' : 'en rango')
-                    : (h.status || '');
-                  chips.push({ k: 'VFC', v: `${h.latest}ms`, s: inBase });
-                }
-                if (sci?.bb?.high != null) chips.push({ k: 'Body Battery', v: `${sci.bb.high}/100`, s: sci.bb.high >= 70 ? 'recuperado' : sci.bb.high >= 40 ? 'parcial' : 'bajo' });
-                if (sci?.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin / 60).toFixed(1)}h` : '' });
-                if (sci?.pmc) chips.push({ k: 'Forma TSB', v: `${sci.pmc.tsb > 0 ? '+' : ''}${sci.pmc.tsb}`, s: `ACWR ${sci.pmc.acwr ?? '—'}` });
-                if (!chips.length) {
-                  return (
-                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                      {hasGarmin ? 'Wearable VFC & Pulso · Carga de Entrenamiento' : 'Carga & Ritmos de Actividad Strava'}
-                    </p>
-                  );
-                }
+                const r = sci?.readiness;
+                const score = r?.score ?? 0;
+                const band = r?.band ?? 'good';
+                const ringColor = band === 'high' ? 'text-emerald-500' : band === 'good' ? 'text-blue-500' : band === 'mod' ? 'text-amber-500' : 'text-rose-500';
+                const ringBg = band === 'high' ? 'stroke-emerald-500' : band === 'good' ? 'stroke-blue-500' : band === 'mod' ? 'stroke-amber-500' : 'stroke-rose-500';
+                const R = 32, C = 2 * Math.PI * R, off = C * (1 - score / 100);
                 return (
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                    {chips.map(c => (
-                      <span key={c.k} className="text-[10px] text-slate-400 font-medium">
-                        {c.k} <span className="font-bold text-slate-600 tabular-nums">{c.v}</span>{c.s ? ` · ${c.s}` : ''}
-                      </span>
-                    ))}
+                  <div className="relative w-[76px] h-[76px] shrink-0">
+                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                      <circle cx="40" cy="40" r={R} className="stroke-slate-100 dark:stroke-slate-800" strokeWidth="6" fill="none" />
+                      <circle cx="40" cy="40" r={R} className={ringBg} strokeWidth="6" fill="none"
+                        strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off}
+                        style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center -space-y-0.5">
+                      <span className={`font-black text-xl tabular-nums leading-none ${ringColor}`}>{score || '—'}</span>
+                      <span className="text-[7px] font-bold uppercase tracking-[0.15em] text-slate-400">READY</span>
+                    </div>
                   </div>
                 );
               })()}
+              {sci?.readiness && (() => {
+                const { label, band } = sci.readiness;
+                const c = band === 'high' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50'
+                  : band === 'good' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50'
+                    : band === 'mod' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50'
+                      : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50';
+                return <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border text-center ${c}`}>{label}</span>;
+              })()}
+            </div>
+
+            {/* Diagnóstico — protagonista */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2.5">
+                <HeartIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estado Fisiológico</span>
+                {curBadge && (
+                  <span className={`ml-auto px-2 py-0.5 rounded text-[9px] font-bold border ${curBadge.color}`}>
+                    {curBadge.text}
+                  </span>
+                )}
+              </div>
+              <div className="min-h-[84px]">
+                {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" lg />}
+              </div>
             </div>
           </div>
 
-          {/* Controles compactos */}
-          <div className="flex items-center gap-2 shrink-0">
-            {cacheTs && !loading && (
-              <span className="hidden md:flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
-                <ClockIcon className="w-3.5 h-3.5" />
-                {formatTs(cacheTs)}
-              </span>
-            )}
-            <button
-              onClick={() => { setLoaded(false); run(true); }}
-              disabled={loading}
-              title="Recalcular diagnóstico"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 shadow-sm shadow-blue-600/20 transition-all"
-            >
-              <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
-            </button>
-
-            {/* Popover de ajustes */}
-            <div className="relative" ref={cfgRef}>
-              <button
-                onClick={() => setCfgOpen(o => !o)}
-                disabled={loading}
-                title="Ajustes del diagnóstico"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all disabled:opacity-30 ${cfgOpen ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500 bg-white/80 border-slate-200/80 hover:border-blue-300'}`}
-              >
-                <Cog6ToothIcon className={`w-4 h-4 transition-transform ${cfgOpen ? 'rotate-45' : ''}`} />
-                <span className="hidden lg:inline">{weeklyTarget}×/sem</span>
-                {goal && <span className="hidden lg:inline text-slate-300">·</span>}
-                {goal && <span className="hidden lg:inline">🎯 {goal.distance}</span>}
-              </button>
-
-              {cfgOpen && (
-                <div className="absolute right-0 top-full mt-2 w-60 z-20 bg-white rounded-2xl border border-slate-200/80 shadow-[0_12px_40px_rgba(0,0,0,0.12)] p-3.5 space-y-3.5">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Sesiones de carrera / semana</label>
-                    <select
-                      value={weeklyTarget}
-                      disabled={loading}
-                      onChange={e => {
-                        const v = e.target.value;
-                        cloudStorage.setItem('ai_weekly_target', v);
-                        setWeeklyTarget(v);
-                        setLoaded(false);
-                      }}
-                      className="w-full text-[12px] text-slate-600 bg-slate-50/60 border border-slate-200/80 rounded-xl px-3 py-2 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
-                    >
-                      {[2, 3, 4, 5, 6].map(n => (
-                        <option key={n} value={String(n)}>{n}×/sem</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Modelo IA</label>
-                    <select
-                      value={selectedModel}
-                      disabled={loading}
-                      onChange={e => {
-                        const m = e.target.value;
-                        cloudStorage.setItem('ai_insights_model', m);
-                        setSelectedModel(m);
-                        setLoaded(false);
-                      }}
-                      className="w-full text-[12px] text-slate-600 bg-slate-50/60 border border-slate-200/80 rounded-xl px-3 py-2 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
-                    >
-                      {availableModels.map(m => (
-                        <option key={m.id} value={m.id}>{m.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {goal && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold pt-2 border-t border-slate-100">
-                      🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* Rail de constantes — apoyo */}
+          {vitalPills.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-1.5">
+              {vitalPills.map((p, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{p.k}</span>
+                  <span className={`text-[11px] font-bold tabular-nums ${p.c}`}>{p.v}</span>
+                </span>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* ── Umbrales LT1 / LT2 (modelo centralizado de lactato) ── */}
-      {sci?.lt && (sci.lt.lt1Hr || sci.lt.lt2Hr) && (() => {
-        const { lt1Hr, lt2Hr, lt1Pace, lt2Pace, csValid, trend, lthrIsEstimate } = sci.lt;
-        const trendCfg = trend === 'mejorando'
-          ? { c: 'text-emerald-600', a: '↑' }
-          : trend === 'empeorando'
-            ? { c: 'text-rose-600', a: '↓' }
-            : { c: 'text-amber-600', a: '→' };
-        // Escala de la barra basada en tu FC real (reposo→máx), centrada en la zona de entrenamiento
-        const hi = sci?.fcmax || (lt2Hr + 18);
-        const lo = lt1Hr - 28;
-        const span = Math.max(hi - lo, 1);
-        const pos = (v) => Math.max(5, Math.min(95, ((v - lo) / span) * 100));
-        const p1 = pos(lt1Hr);
-        const p2 = pos(lt2Hr);
-        const lt2Hint = csValid ? 'Critical Speed' : lthrIsEstimate ? 'estimado' : 'campo';
-        const markers = [
-          { tag: 'LT1', hr: lt1Hr, pace: lt1Pace, p: p1, c: 'text-sky-600' },
-          { tag: 'LT2', hr: lt2Hr, pace: lt2Pace, p: p2, c: 'text-rose-600' },
-        ];
-        return (
-          <div className="px-5 py-4 border-b border-slate-100/60 border-l-2 border-l-sky-400/70 bg-slate-50/20">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Umbrales</span>
-              <span className="text-[10px] text-slate-400 font-semibold">· FC de entrenamiento</span>
-              <span className="hidden sm:inline text-[9px] text-slate-300 font-semibold">· {lt2Hint}</span>
-              {trend && (
-                <span className={`ml-auto text-[10px] font-bold ${trendCfg.c}`} title="Tendencia del LT2 (Critical Speed / cross-check FC)">
-                  {trendCfg.a} LT2 {trend}
-                </span>
-              )}
-            </div>
-
-            {/* Barra de zonas de FC con marcadores LT1 / LT2 (escala real) */}
-            <div className="relative pt-10 pb-5">
-              {markers.map(m => (
-                <div key={m.tag} className="absolute top-0 -translate-x-1/2 text-center whitespace-nowrap" style={{ left: `${m.p}%` }}>
-                  <div className={`text-[9px] font-black leading-none ${m.c}`}>
-                    {m.tag}{m.pace > 0 ? <span className="text-slate-300 font-bold"> · {formatPace(m.pace)}</span> : ''}
-                  </div>
-                  <div className="text-sm font-black text-slate-800 tabular-nums leading-tight mt-0.5">
-                    {m.hr}<span className="text-[8px] font-bold text-slate-400 ml-0.5">ppm</span>
-                  </div>
-                </div>
-              ))}
-
-              <div className="relative h-2.5 rounded-full overflow-hidden flex">
-                <div className="h-full bg-gradient-to-r from-emerald-400 to-sky-400" style={{ width: `${p1}%` }} />
-                <div className="h-full bg-gradient-to-r from-amber-300 to-amber-400" style={{ width: `${p2 - p1}%` }} />
-                <div className="h-full bg-gradient-to-r from-rose-400 to-rose-500" style={{ width: `${100 - p2}%` }} />
-              </div>
-
-              {[p1, p2].map((p, i) => (
-                <div key={i} className="absolute w-[3px] h-4 bg-white rounded-full shadow -translate-x-1/2" style={{ left: `${p}%`, top: '37px' }} />
-              ))}
-
-              <div className="absolute bottom-0 inset-x-0 flex text-[8px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                <span className="text-center overflow-hidden" style={{ width: `${p1}%` }}>Fácil</span>
-                <span className="text-center overflow-hidden" style={{ width: `${p2 - p1}%` }}>Tempo</span>
-                <span className="text-center overflow-hidden" style={{ width: `${100 - p2}%` }}>VO2·máx</span>
-              </div>
-            </div>
-
-            <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-              💡 Corre el <strong className="text-slate-500">80% del volumen por debajo de LT1 ({lt1Hr} ppm)</strong>; reserva LT2 ({lt2Hr} ppm) para tempo/series.
-            </p>
-          </div>
-        );
-      })()}
-
-      {/* ── Loading status banner ── */}
+      {/* ── BANNERS ── */}
       {loading && providerLabel && (
-        <div className={`flex items-center gap-2 px-5 py-2.5 border-b text-[11px] font-bold ${isFallback
-          ? 'bg-amber-50/70 border-amber-100 text-amber-700'
-          : 'bg-blue-50/70 border-blue-100 text-blue-600'
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-semibold ${isFallback
+          ? 'bg-amber-50 border-amber-200/50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400'
+          : 'bg-blue-50 border-blue-200/50 text-blue-800 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400'
           }`}>
           <ArrowPathIcon className="w-3.5 h-3.5 animate-spin shrink-0" />
-          {providerLabel}
+          <span>{providerLabel}</span>
         </div>
       )}
 
-      {/* ── Restore warning banner ── */}
       {restoreWarning && (
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-50/70 border-b border-amber-100 text-[11px] text-amber-700 font-bold">
-          <span className="shrink-0">⚠</span>
-          Falló la actualización — mostrando la recomendación anterior guardada.
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-55 border border-amber-200/50 rounded-xl text-[11px] text-amber-800 font-semibold">
+          <span className="shrink-0 text-sm">⚠️</span>
+          <span>Falló la actualización — mostrando la recomendación anterior guardada.</span>
           <button
             onClick={() => setRestoreWarning(false)}
             className="ml-auto text-amber-400 hover:text-amber-600 transition-colors font-bold leading-none"
@@ -709,9 +669,9 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
       )}
 
-      {/* ── Últimas actividades analizadas ── */}
-      <div className="px-5 py-3 border-b border-slate-100/60 border-l-2 border-l-slate-300 bg-slate-50/30 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+      {/* ── Últimas actividades analizadas (tira compacta en una línea) ── */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
           <ClockIcon className="w-3.5 h-3.5" />
           Últimas 5 actividades
         </span>
@@ -725,11 +685,11 @@ const AIInsights = ({ activities, onOpenChat }) => {
             if (a.suffer_score) tooltipParts.push(`Esfuerzo: ${a.suffer_score}`);
 
             return (
-              <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200/80 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-help hover:bg-slate-50 transition-colors">
-                <span className="text-[9px] text-slate-400 font-medium border-r border-slate-100 pr-1.5">
+              <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 rounded-md cursor-help hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <span className="text-[9px] text-slate-400 font-medium border-r border-slate-200 dark:border-slate-700 pr-1.5">
                   {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 </span>
-                <span className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
                   <span>
                     {a.type === 'Ride' || a.type === 'VirtualRide' ? '🚴' :
                       a.type === 'Run' || a.type === 'TrailRun' || a.type === 'VirtualRun' ? '🏃' :
@@ -741,7 +701,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
                   {a.distance > 0 ? `${(a.distance / 1000).toFixed(1)}k` : `${Math.round((a.moving_time || 0) / 60)}min`}
                 </span>
                 {a.moving_time > 0 && a.distance > 0 && ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(a.type) && (
-                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5">
                     {(() => {
                       const p = (a.moving_time / 60) / (a.distance / 1000);
                       return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
@@ -749,7 +709,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
                   </span>
                 )}
                 {a.moving_time > 0 && a.distance > 0 && ['Ride', 'VirtualRide'].includes(a.type) && (
-                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-100 pl-1.5">
+                  <span className="text-[9px] text-slate-400 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5">
                     {((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1)} km/h
                   </span>
                 )}
@@ -763,14 +723,14 @@ const AIInsights = ({ activities, onOpenChat }) => {
             {stravaFresh && (
               <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Última actualización de datos de Strava">
                 <ArrowPathIcon className="w-3 h-3 text-orange-400" />
-                <span className="text-slate-500">Strava</span>
+                <span className="text-slate-500 dark:text-slate-400">Strava</span>
                 <span className="text-slate-400 font-medium">{stravaFresh}</span>
               </span>
             )}
             {garminFresh && (
               <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Datos de Garmin disponibles hasta esta fecha">
                 <ArrowPathIcon className="w-3 h-3 text-blue-400" />
-                <span className="text-slate-500">Garmin</span>
+                <span className="text-slate-500 dark:text-slate-400">Garmin</span>
                 <span className="text-slate-400 font-medium">{garminFresh}</span>
               </span>
             )}
@@ -778,200 +738,174 @@ const AIInsights = ({ activities, onOpenChat }) => {
         )}
       </div>
 
-      {/* ── Content grid: Diagnosis + Trend ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 divide-slate-100/60">
-
-        {/* Block 1: Current state */}
-        <div className="p-5 flex flex-col gap-2.5 border-l-2 border-l-blue-400/70">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <HeartIcon className="w-4 h-4 text-blue-500 shrink-0" />
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Estado actual</span>
-              <span className="text-[10px] text-slate-400 font-medium">· últimas 4 semanas</span>
-            </div>
-            {cur && (() => {
-              const text = cur.toLowerCase();
-              let badge = { text: 'Adaptativo 📈', color: 'bg-slate-50 text-slate-600 border-slate-200' };
-              if (text.includes('fatig') || text.includes('cansad')) {
-                badge = { text: 'Fatiga acumulada ⚠️', color: 'bg-orange-50 text-orange-700 border-orange-200' };
-              } else if (text.includes('recuperad') || text.includes('estable')) {
-                badge = { text: 'Recuperado ✅', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-              } else if (text.includes('sobreentren')) {
-                badge = { text: 'Sobreentrenamiento 🚨', color: 'bg-rose-50 text-rose-700 border-rose-200' };
-              } else if (text.includes('forma') || text.includes('óptim') || text.includes('fuerte')) {
-                badge = { text: 'En forma ⚡', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-              }
-              return (
-                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.color}`}>
-                  {badge.text}
-                </span>
-              );
-            })()}
-          </div>
-
-          <div className="bg-slate-50/40 rounded-xl p-3.5 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
-            {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
-          </div>
-        </div>
-
-        {/* Block 2: Annual trend */}
-        <div className="p-5 flex flex-col gap-2.5 border-l-2 border-l-indigo-400/70">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Tendencia y patrón</span>
-              <span className="text-[10px] text-slate-400 font-medium">· últimos 2 meses</span>
-            </div>
-            {trend && (() => {
-              const text = trend.toLowerCase();
-              let badge = { text: 'Estacional 📅', color: 'bg-slate-50 text-slate-600 border-slate-200' };
-              // Prioridad: riesgo > meseta/interrumpida > progresión. Evita que
-              // "progresión interrumpida/estancada" se etiquete como progresión real.
-              const negated = /interrump|estanc|meseta|estabil|caíd|caid|pérdida|perdida|insuficien|frena|detien/.test(text);
-              if (text.includes('lesi') || text.includes('dolor') || text.includes('riesgo')) {
-                badge = { text: 'Riesgo de lesión ⚠️', color: 'bg-rose-50 text-rose-700 border-rose-200' };
-              } else if (text.includes('estanc') || text.includes('meseta') || text.includes('estabil') || text.includes('interrump') || text.includes('insuficien')) {
-                badge = { text: 'Meseta / Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-              } else if ((text.includes('progres') || text.includes('mejor')) && !negated) {
-                badge = { text: 'Progresión constante 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-              }
-              return (
-                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.color}`}>
-                  {badge.text}
-                </span>
-              );
-            })()}
-          </div>
-
-          <div className="bg-slate-50/40 rounded-xl p-3.5 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
-            {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Análisis del último entrenamiento ── */}
-      {(lastWork || (loading && cur)) && (() => {
-        const last = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
-        if (!last) return null;
-        const km = last.distance / 1000;
-        const min = (last.moving_time || 0) / 60;
-        const isRun = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(last.type);
-        const meta = [];
-        if (km > 0) meta.push(`${km.toFixed(1)} km`);
-        if (min > 0) meta.push(`${Math.round(min)} min`);
-        if (km > 0 && min > 0 && isRun) {
-          const p = min / km;
-          meta.push(`${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`);
-        } else if (km > 0 && min > 0 && ['Ride', 'VirtualRide'].includes(last.type)) {
-          meta.push(`${(km / (min / 60)).toFixed(1)} km/h`);
-        }
-        if (last.average_heartrate) meta.push(`${Math.round(last.average_heartrate)} ppm`);
-        if (last.total_elevation_gain) meta.push(`+${Math.round(last.total_elevation_gain)} m`);
-        const icon = last.type === 'Ride' || last.type === 'VirtualRide' ? '🚴'
-          : last.type === 'Swim' ? '🏊'
-            : last.type === 'Walk' || last.type === 'Hike' ? '🚶'
-              : last.type === 'WeightTraining' ? '🏋️'
-                : last.type === 'Yoga' ? '🧘'
-                  : isRun ? '🏃' : '👟';
-        return (
-          <div className="border-t border-slate-100/60 border-l-2 border-l-amber-400/70 bg-amber-50/10 px-5 py-4">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100/50">
-                <FireIcon className="w-3.5 h-3.5" />
+      {/* ═══════════ ACCIÓN PRIORITARIA · SIGUIENTE SESIÓN ═══════════ */}
+      {(nextWork || (loading && cur)) && (
+        <div className="rounded-2xl border border-blue-200/70 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/80 via-white to-white dark:from-blue-950/25 dark:via-slate-900 dark:to-slate-900 shadow-sm overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                <BoltIcon className="w-4.5 h-4.5" />
               </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">Análisis del último entrenamiento</span>
-                <span className="text-[10px] text-slate-400 font-semibold truncate block">
-                  {icon} {last.name ? `${last.name} · ` : ''}{new Date(last.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
-                  {meta.length ? ` · ${meta.join(' · ')}` : ''}
-                </span>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block">Siguiente Sesión Recomendada</span>
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Prescripción para tus próximos 1-2 días</span>
               </div>
             </div>
-            <div className="bg-white/60 rounded-xl p-3.5 border border-slate-100/60">
-              {loading && !lastWork ? <Pulse /> : <MD text={lastWork} accent="text-amber-500" />}
-            </div>
-          </div>
-        );
-      })()}
 
-      {/* ── Block 3: Next workout ── */}
-      {(nextWork || (loading && cur && trend && !nextWork)) && (
-        <div className="border-t border-slate-100/60 border-l-2 border-l-blue-400/70 bg-blue-50/10 px-5 py-5">
-          <div className="flex items-center gap-2.5 mb-3.5">
-            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50">
-              <BoltIcon className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">Sesión Recomendada</span>
-              <span className="text-[10px] text-slate-400 font-semibold">Prescripción de running sugerida para tus próximos 1-2 días</span>
-            </div>
-          </div>
-
-          {loading && !nextWork ? (
-            <Pulse />
-          ) : (
-            (() => {
-              const w = parseWorkout(nextWork);
-              const badgeCls = w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border-emerald-100/60'
-                : w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border-amber-100/60'
-                  : w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border-rose-100/60'
-                    : 'bg-blue-50 text-blue-700 border-blue-100/60';
-              const metrics = [
-                { k: 'Distancia', v: w?.distance || 'Varía' },
-                { k: 'Ritmo', v: w?.pace || 'Aeróbico' },
-                { k: 'Intensidad', v: w?.hrZone || 'Zona 2' },
-              ];
-              return (
-                <div className="space-y-3">
-                  {/* Tira de prescripción compacta (tipo + 3 datos en línea) */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white border border-slate-100/70 rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Prescripción IA</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${badgeCls}`}>
-                        {w?.type || 'Sesión Base'}
-                      </span>
+            {loading && !nextWork ? (
+              <Pulse />
+            ) : (
+              (() => {
+                const w = parseWorkout(nextWork);
+                const badgeCls = w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40'
+                  : w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40'
+                    : w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border-rose-200/60 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/40'
+                      : 'bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/40';
+                const metrics = [
+                  { k: 'Distancia', v: w?.distance || 'Varía' },
+                  { k: 'Ritmo Objetivo', v: w?.pace || 'Aeróbico' },
+                  { k: 'Intensidad / FC', v: w?.hrZone || 'Zona 2' },
+                ];
+                return (
+                  <div className="space-y-3">
+                    {/* Tira de prescripción compacta */}
+                    <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-3">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${badgeCls}`}>
+                          {w?.type || 'Sesión Base'}
+                        </span>
+                      </div>
+                      <div className="flex-grow grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
+                        {metrics.map(m => (
+                          <div key={m.k} className="px-3 text-center first:pl-0 last:pr-0">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">{m.k}</span>
+                            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate block leading-normal">{m.v}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex-1 grid grid-cols-3 divide-x divide-slate-100">
-                      {metrics.map(m => (
-                        <div key={m.k} className="px-3 text-center first:pl-0 last:pr-0">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">{m.k}</span>
-                          <span className="text-sm font-black text-slate-800 truncate block">{m.v}</span>
-                        </div>
-                      ))}
+
+                    {/* Guías de ejecución a todo el ancho */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800/65 rounded-xl p-3">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
+                      <MD text={nextWork} accent="text-blue-500" />
                     </div>
                   </div>
-
-                  {/* Guías de ejecución a todo el ancho */}
-                  <div className="bg-white/40 border border-slate-100/70 rounded-2xl p-4">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2.5">Guías de Ejecución</span>
-                    <MD text={nextWork} accent="text-blue-600" />
-                  </div>
-                </div>
-              );
-            })()
-          )}
+                );
+              })()
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Footer badge ── */}
-      <div className="px-5 py-2.5 bg-slate-50/60 border-t border-slate-100/60 flex items-center justify-between gap-2 bg-white/40">
-        <div className="flex items-center gap-1.5 min-w-0">
+      {/* ═══════════ ANÁLISIS SECUNDARIO IA · TENDENCIA + ÚLTIMO ═══════════ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* Tendencia de rendimiento */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm border-l-4 border-l-indigo-500 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tendencia de Rendimiento</span>
+            </div>
+
+            {trend && (() => {
+              const text = trend.toLowerCase();
+              let badge = { text: 'Estacional 📅', color: 'bg-slate-50 text-slate-650 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' };
+              const negated = /interrump|estanc|meseta|estabil|caíd|caid|pérdida|perdida|insuficien|frena|detien/.test(text);
+              if (text.includes('lesi') || text.includes('dolor') || text.includes('riesgo')) {
+                badge = { text: 'Riesgo Lesión ⚠️', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' };
+              } else if (text.includes('estanc') || text.includes('meseta') || text.includes('estabil') || text.includes('interrump') || text.includes('insuficien')) {
+                badge = { text: 'Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50' };
+              } else if ((text.includes('progres') || text.includes('mejor')) && !negated) {
+                badge = { text: 'Progresión 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' };
+              }
+              return (
+                <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${badge.color}`}>
+                  {badge.text}
+                </span>
+              );
+            })()}
+          </div>
+
+          <div className="bg-slate-50/50 dark:bg-slate-800/10 rounded-xl p-3 border border-slate-200/50 dark:border-slate-800/30 min-h-[92px] flex-1 flex flex-col justify-center">
+            {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
+          </div>
+        </div>
+
+        {/* Análisis del último entrenamiento */}
+        {(() => {
+          const last = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
+          const km = last ? last.distance / 1000 : 0;
+          const min = last ? (last.moving_time || 0) / 60 : 0;
+          const isRun = last && ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(last.type);
+          const meta = [];
+          if (km > 0) meta.push(`${km.toFixed(1)} km`);
+          if (min > 0) meta.push(`${Math.round(min)} min`);
+          if (km > 0 && min > 0 && isRun) {
+            const p = min / km;
+            meta.push(`${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`);
+          } else if (last && km > 0 && min > 0 && ['Ride', 'VirtualRide'].includes(last.type)) {
+            meta.push(`${(km / (min / 60)).toFixed(1)} km/h`);
+          }
+          if (last?.average_heartrate) meta.push(`${Math.round(last.average_heartrate)} ppm`);
+          if (last?.total_elevation_gain) meta.push(`+${Math.round(last.total_elevation_gain)} m`);
+          const icon = !last ? '👟'
+            : last.type === 'Ride' || last.type === 'VirtualRide' ? '🚴'
+              : last.type === 'Swim' ? '🏊'
+                : last.type === 'Walk' || last.type === 'Hike' ? '🚶'
+                  : last.type === 'WeightTraining' ? '🏋️'
+                    : last.type === 'Yoga' ? '🧘'
+                      : isRun ? '🏃' : '👟';
+          return (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm border-l-4 border-l-amber-500 flex flex-col">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FireIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">Último Entreno</span>
+                </div>
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">
+                  {icon} {last?.name || 'Sesión'}
+                </span>
+              </div>
+              {meta.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {meta.map((m, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-350 font-bold rounded text-[9px] tabular-nums">
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="bg-slate-50/50 dark:bg-slate-800/10 rounded-xl p-3 border border-slate-200/50 dark:border-slate-800/30 min-h-[92px] flex-1 flex flex-col justify-center">
+                {loading && !lastWork ? <Pulse /> : <MD text={lastWork} accent="text-amber-500" />}
+              </div>
+            </div>
+          );
+        })()}
+
+      </div>
+
+
+      {/* ── FOOTER & ACTION PANEL ── */}
+      <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-1.5 min-w-0 self-start sm:self-center">
           <SparklesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <span className="text-[10px] text-slate-400 font-semibold truncate">
-            {usedProvider || 'IA'} · Recomendación inteligente · Basada en tu carga de entrenamiento
+            Módulo de asistencia inteligente IA · Garmin Connect Sync Activo
           </span>
         </div>
         {onOpenChat && (cur || trend || nextWork) && (
           <button
             onClick={openInChat}
-            title="Abrir el chat con este análisis como contexto"
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors"
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-450 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
           >
             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-            Seguir preguntando en el chat
+            <span>Consultar Coach Virtual</span>
           </button>
         )}
       </div>
+
     </div>
   );
 };
