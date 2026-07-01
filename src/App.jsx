@@ -847,8 +847,8 @@ const Dashboard = ({ user, handleLogout }) => {
         })()}
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1400px] mx-auto p-4 lg:p-8 space-y-6">
+        <main className={`flex-1 min-h-0 ${currentView === 'qa' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+          <div className={`mx-auto w-full p-4 ${currentView === 'qa' ? 'max-w-[1800px] lg:px-6 flex-1 min-h-0 flex flex-col' : 'max-w-[1400px] lg:p-8 space-y-6'}`}>
 
             {currentView === 'dashboard' && (
               <div className="fade-in space-y-6">
@@ -1386,7 +1386,12 @@ const Dashboard = ({ user, handleLogout }) => {
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
               };
               const view = viewMap[currentView];
-              return view ? <div className="fade-in">{view}</div> : null;
+              if (!view) return null;
+              return (
+                <div className={currentView === 'qa' ? 'fade-in flex-1 min-h-0 flex flex-col' : 'fade-in'}>
+                  {view}
+                </div>
+              );
             })()}
           </div>
         </main>
