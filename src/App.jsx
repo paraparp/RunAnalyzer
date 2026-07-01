@@ -124,6 +124,27 @@ const slimActivity = (act, fallback = {}) => {
   return slim;
 };
 
+// Al refrescar desde el listado, Strava devuelve SUMMARIES sin detalle (sin
+// splits_metric, laps ni best_efforts). Este merge conserva el detalle ya
+// enriquecido y persistido de cada actividad, de modo que el sync NO borre los
+// parciales que costó traer. Clave para que el dato viva de forma estable en Supabase.
+const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts'];
+const mergeEnrichedActivities = (fresh, existing) => {
+  const byId = new Map((existing || []).map(a => [a.id, a]));
+  return (fresh || []).map(f => {
+    const old = byId.get(f.id);
+    if (!old) return f;
+    const merged = { ...f };
+    for (const k of ENRICHED_FIELDS) {
+      if (old[k] != null && merged[k] == null) merged[k] = old[k];
+    }
+    if (!merged.map?.summary_polyline && old.map?.summary_polyline) {
+      merged.map = { ...(merged.map || {}), summary_polyline: old.map.summary_polyline };
+    }
+    return merged;
+  });
+};
+
 // Guardado tolerante: si se excede la cuota, la app sigue con el dato en memoria
 const persistStravaData = (data) => {
   try {
@@ -198,6 +219,39 @@ const Dashboard = ({ user, handleLogout }) => {
       });
     } catch (err) {
       console.error("Failed to fetch activity details", err);
+    }
+  };
+
+  // Enriquece en segundo plano los parciales (splits_metric) que falten tras un
+  // sync. Se limita a carreras recientes sin detalle, con throttle y tope por sync,
+  // para no tocar el rate-limit de Strava. Cada resultado se persiste en Supabase,
+  // así que a lo largo de varios syncs se completa y no se vuelve a pedir nunca más.
+  const enrichMissingSplits = async (acts, accessToken, { cap = 25, days = 120 } = {}) => {
+    if (!accessToken || !Array.isArray(acts)) return;
+    const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
+    const since = Date.now() - days * 86400000;
+    const need = acts
+      .filter(a => isRun(a) && a.distance > 0 && !a.splits_metric && new Date(a.start_date).getTime() >= since)
+      .sort((a, b) => b.start_date.localeCompare(a.start_date))
+      .slice(0, cap);
+    for (const act of need) {
+      try {
+        const detail = await getActivity(accessToken, act.id);
+        if (!detail?.splits_metric) continue;
+        setStravaData(prev => {
+          if (!prev?.activities) return prev;
+          const idx = prev.activities.findIndex(x => x.id === act.id);
+          if (idx === -1) return prev;
+          const updated = [...prev.activities];
+          updated[idx] = slimActivity(detail, prev.activities[idx]);
+          const nd = { ...prev, activities: updated };
+          persistStravaData(nd);
+          return nd;
+        });
+      } catch (e) {
+        console.warn('[sync] enrich parciales falló', act.id, e);
+      }
+      await new Promise(r => setTimeout(r, 400)); // throttle anti rate-limit
     }
   };
 
@@ -309,7 +363,8 @@ const Dashboard = ({ user, handleLogout }) => {
         }
       }
 
-      const activities = await getActivities(accessToken, 1000);
+      const fresh = await getActivities(accessToken, 1000);
+      const activities = mergeEnrichedActivities(fresh, currentData.activities);
       const updated = {
         ...currentData,
         activities,
@@ -317,6 +372,9 @@ const Dashboard = ({ user, handleLogout }) => {
       };
       setStravaData(updated);
       persistStravaData(updated);
+
+      // Rellenar parciales que falten (en segundo plano, sin bloquear el sync)
+      enrichMissingSplits(activities, accessToken);
 
       // Sincronizar datos de Garmin en segundo plano
       await syncGarminData();
@@ -378,10 +436,13 @@ const Dashboard = ({ user, handleLogout }) => {
           const today = new Date().toDateString();
 
           if (!lastFetchDate || lastFetchDate !== today || needsRefresh) {
-            const activities = await getActivities(accessToken, 1000);
+            const fresh = await getActivities(accessToken, 1000);
+            const activities = mergeEnrichedActivities(fresh, parsed.activities);
             const updated = { ...parsed, activities, lastFetchDate: today };
             setStravaData(updated);
             persistStravaData(updated);
+            // Rellenar parciales que falten (en segundo plano)
+            enrichMissingSplits(activities, accessToken);
           }
         } catch (err) {
           console.error("Failed to refresh Strava data:", err);
