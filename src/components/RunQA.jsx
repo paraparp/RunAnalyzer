@@ -335,7 +335,7 @@ INSTRUCCIONES:
             ];
 
             setConversation(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
-            await streamAI(
+            const full = await streamAI(
                 { provider, model: selectedModel, messages, temperature: 0.7, signal: controller.signal },
                 (_chunk, aiContent) => {
                     setConversation(prev => {
@@ -345,6 +345,16 @@ INSTRUCCIONES:
                     });
                 }
             );
+            // Si el stream terminó sin texto (p. ej. corte del servidor a mitad),
+            // no dejamos una burbuja vacía: la quitamos y avisamos.
+            if (!full.trim() && !controller.signal.aborted) {
+                setConversation(prev => {
+                    const next = [...prev];
+                    if (next[next.length - 1]?.role === 'assistant' && !next[next.length - 1].content) next.pop();
+                    return next;
+                });
+                setError('La respuesta se interrumpió. Inténtalo de nuevo o cambia de modelo.');
+            }
         } catch (err) {
             if (err?.name === 'AbortError' || /abort/i.test(err?.message || '')) {
                 // user stopped the stream — keep whatever streamed so far

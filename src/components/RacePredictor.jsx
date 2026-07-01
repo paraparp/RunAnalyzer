@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { generateAIObject } from '../services/ai';
+import { generateAIObjectWithFallback } from '../services/ai';
 import {
     Card,
     Title,
@@ -21,12 +21,13 @@ import NextRaceBanner from './NextRaceBanner';
 import { getNextTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 const RacePredictor = ({ activities }) => {
-    const [provider] = useState('gemini');
-
     const [selectedModel, setSelectedModel] = useState(
         () => cloudStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
     );
     useEffect(() => { try { cloudStorage.setItem('racepredictor_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
+    // Aborta la petición en curso al desmontar (evita setState sobre desmontado).
+    const abortRef = useRef(null);
+    useEffect(() => () => abortRef.current?.abort(), []);
     const [loading, setLoading] = useState(false);
     const [predictions, setPredictions] = useState(null);
     const [error, setError] = useState('');
@@ -140,12 +141,16 @@ const RacePredictor = ({ activities }) => {
                 Diferencia entre "Mejor Marca Teórica" y "Predicción Realista Actual". Danos la Realista en llano.${goalBlock}
             `;
 
-            const object = await generateAIObject({
-                provider,
+            abortRef.current?.abort();
+            const controller = new AbortController();
+            abortRef.current = controller;
+
+            const object = await generateAIObjectWithFallback({
                 model: selectedModel,
                 prompt,
                 temperature: 0.5, // Slightly lower temp for more consistent predictions
                 schema: 'racePrediction',
+                signal: controller.signal,
             });
 
             setPredictions(object.predictions);
@@ -153,13 +158,14 @@ const RacePredictor = ({ activities }) => {
             setLoading(false);
 
         } catch (err) {
+            if (err?.name === 'AbortError') return; // desmontado o cancelado
             console.error("Error generando predicción:", err);
 
             let errorMessage = err.message || "Error desconocido";
             if (errorMessage.includes('404') || errorMessage.includes('401')) {
                 errorMessage = "La API Key del servidor no es válida o no tiene permisos.";
             } else if (errorMessage.includes('429')) {
-                errorMessage = "Has excedido la cuota (429). Prueba otro modelo o Groq.";
+                errorMessage = "Has excedido la cuota (429) en Gemini y Groq. Prueba otro modelo o inténtalo más tarde.";
             } else {
                 errorMessage = `Error generando predicción: ${errorMessage}.`;
             }

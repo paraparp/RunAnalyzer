@@ -1,4 +1,4 @@
-import { computeLactateModel, formatPace } from './lactateThreshold';
+import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT } from './lactateThreshold';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -309,10 +309,19 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   // cross-check de FC da los ritmos LT1/LT2 mensuales. Lo reutilizamos aquí para
   // que el coach IA y la pestaña de Umbral de Lactato hablen el MISMO idioma.
   // LTHR (FC umbral, LT2) sigue siendo el detectado de campo arriba. El LT1 en FC
-  // se deriva del ratio LT1/LT2 (≈0.77/0.87 del %FCmax → ~0.885·LTHR), porque el
-  // resumen de Strava no expone la FC sostenida de campo a intensidad LT1.
-  const lt = computeLactateModel(activities, 12);
-  const lt1Hr = Math.round(lthr * (0.77 / 0.87));
+  // prioriza la MEDICIÓN por decoupling FC–ritmo (lt.lt1HrMethod==='decoupling');
+  // si no hay señal suficiente, se deriva de LT2 vía %FCR (Karvonen):
+  // LT1 = FCreposo + (65/85)·(LTHR − FCreposo). Fallback a ratio %FCmax sin reposo.
+  const lt = computeLactateModel(activities, 12, { hrrest: fcRest });
+  const lt1Measured = lt?.lt1HrMethod === 'decoupling' && lt.lt1Hr;
+  const lt1Hr = lt1Measured
+    ? lt.lt1Hr
+    : (fcRest && lthr > fcRest
+        ? Math.round(fcRest + (LT1_HRR_PCT / LT2_HRR_PCT) * (lthr - fcRest))
+        : Math.round(lthr * (0.75 / 0.875)));
+  const lt1Method = lt1Measured
+    ? `decoupling FC–ritmo, ${lt.decoupling.n} rodajes, R²=${lt.decoupling.r2.toFixed(2)}`
+    : 'derivado de LT2 (%FCR)';
   const lt2PaceStr = lt?.lt2Pace ? formatPace(lt.lt2Pace) : null;
   const lt1PaceStr = lt?.lt1Pace ? formatPace(lt.lt1Pace) : null;
   const ltTrend = lt?.trendDelta != null
@@ -325,8 +334,8 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
     `FC reposo=${fcRest}ppm (Garmin más reciente)`,
-    `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''}`,
-    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
+    `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} [método FC: ${lt1Method}]`,
+    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
     `ZONAS (derivadas de tus LT1/LT2 — un único sistema, sin contradicciones):`,
     `· Z1 fácil/base — aquí va el 80% del volumen: <${lt1Hr}ppm (por debajo de LT1)`,
     `· Z2 gris (entre umbrales; solo tempo suave o progresión): ${lt1Hr}-${lthr - 1}ppm`,

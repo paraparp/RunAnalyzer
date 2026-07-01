@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { buildPrompt } from '../lib/athleteContext';
 import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { FALLBACK_GEMINI, DEFAULT_GEMINI_MODEL } from './ModelSelector';
 
 // ── Inline markdown renderer (bold + bullet lists) ──────────────────────────
 const MD = ({ text, accent, isDark = false, lg = false }) => {
@@ -84,13 +85,9 @@ const formatDataDate = (input) => {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 };
 
-// ── Available Gemini models ──────────────────────────────────────────────────
-const GEMINI_MODELS = [
-  { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
-  { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' },
-  { id: 'gemini-2.5-flash', label: '2.5 Flash · equilibrado' },
-];
-const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+// La lista de modelos y el modelo por defecto se comparten con el resto de
+// features de IA vía ModelSelector (FALLBACK_GEMINI / DEFAULT_GEMINI_MODEL),
+// evitando duplicar el catálogo en cada componente.
 
 // ── Main component ───────────────────────────────────────────────────────────
 const AIInsights = ({ activities, onOpenChat }) => {
@@ -110,7 +107,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
   const [usedProvider, setUsedProvider] = useState('');
   const [isFallback, setIsFallback] = useState(false);
   const [selectedModel, setSelectedModel] = useState(
-    () => cloudStorage.getItem('ai_insights_model') || DEFAULT_MODEL
+    () => cloudStorage.getItem('ai_insights_model') || DEFAULT_GEMINI_MODEL
   );
   const [weeklyTarget, setWeeklyTarget] = useState(
     () => cloudStorage.getItem('ai_weekly_target') || '2'
@@ -144,18 +141,29 @@ const AIInsights = ({ activities, onOpenChat }) => {
     }
     return { distance, pace, date: nextRace.date };
   }, [nextRace]);
-  // Model list — starts with the hardcoded fallback, replaced by the live
+  // Model list — starts with the shared fallback, replaced by the live
   // ListModels response when the API key is available.
-  const [availableModels, setAvailableModels] = useState(GEMINI_MODELS);
+  const [availableModels, setAvailableModels] = useState(FALLBACK_GEMINI);
 
   // Fetch the real list of Gemini models via the server proxy (/api/ai/models).
   useEffect(() => {
     const ctrl = new AbortController();
     fetchGeminiModels(ctrl.signal)
       .then(models => { if (models.length) setAvailableModels(models); })
-      .catch(() => { /* keep hardcoded fallback */ });
+      .catch(() => { /* keep shared fallback */ });
     return () => ctrl.abort();
   }, []);
+
+  // Si el modelo persistido no está en la lista viva (id obsoleto), se corrige
+  // al primero disponible — así el <select> nunca queda en blanco ni se envía
+  // un modelo inexistente (mismo criterio que ModelSelector).
+  useEffect(() => {
+    if (availableModels.length && !availableModels.some(m => m.id === selectedModel)) {
+      const next = availableModels[0].id;
+      setSelectedModel(next);
+      cloudStorage.setItem('ai_insights_model', next);
+    }
+  }, [availableModels, selectedModel]);
 
   // Ref to always-current state for backup/restore inside run (avoids stale closure)
   const stateRef = useRef({ cur, trend, nextWork, lastWork, cacheTs });
@@ -228,7 +236,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
     // viven en el servidor; aquí solo se indica proveedor + modelo.
     const providers = [
       {
-        name: GEMINI_MODELS.find(m => m.id === selectedModel)?.label.split(' ·')[0] ?? 'Gemini',
+        name: availableModels.find(m => m.id === selectedModel)?.label.split(' ·')[0] ?? 'Gemini',
         provider: 'gemini',
         model: selectedModel,
       },
@@ -320,7 +328,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
       setLoading(false);
       setLoaded(true);
     }
-  }, [activities, garmin, sleep, selectedModel, weeklyTarget, goal]);
+  }, [activities, garmin, sleep, selectedModel, weeklyTarget, goal, availableModels]);
 
   useEffect(() => {
     if (activities?.length >= 3 && garmin !== undefined && sleep !== undefined) run(false);

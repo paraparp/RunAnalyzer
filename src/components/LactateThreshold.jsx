@@ -38,7 +38,7 @@ export default function LactateThreshold({ activities }) {
     [activities, monthsToShow]
   );
 
-  const { hrInfo, hrmax, monthly: monthlyData = [], hr, cs, hasData } = model;
+  const { hrInfo, hrmax, lt2Hr, monthly: monthlyData = [], hr, cs, hasData } = model;
 
   if (!hrmax) {
     return (
@@ -55,7 +55,7 @@ export default function LactateThreshold({ activities }) {
       <div className="text-center py-16 text-slate-400">
         <div className="text-5xl mb-4">📊</div>
         <p className="text-base font-semibold text-slate-600 mb-1">{t('lactate.not_enough')}</p>
-        <p className="text-sm">{t('lactate.not_enough_hint', { bpm: Math.round(hrmax * 0.87), hrmax })}</p>
+        <p className="text-sm">{t('lactate.not_enough_hint', { bpm: lt2Hr ?? Math.round(hrmax * 0.875), hrmax })}</p>
         <p className="text-xs mt-2">{t('lactate.extend_hint')}</p>
       </div>
     );

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { generateAIObject } from '../services/ai';
+import { generateAIObjectWithFallback } from '../services/ai';
 import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
@@ -15,7 +15,9 @@ import { getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '..
 const TrainingPlanner = ({ activities }) => {
     const { t } = useTranslation();
     const [selectedDays, setSelectedDays] = useState(['Mi', 'Sa']);
-    const [provider] = useState('gemini');
+    // Aborta la petición en curso al desmontar (evita setState sobre desmontado).
+    const abortRef = useRef(null);
+    useEffect(() => () => abortRef.current?.abort(), []);
 
     // El objetivo del plan es la carrera objetivo seleccionada (gestionadas en la
     // sección "Carreras Objetivo"). Distancia, tiempo meta y duración del plan se
@@ -128,10 +130,15 @@ const TrainingPlanner = ({ activities }) => {
                 daysCount: daysCount,
                 daysStr: daysStr
             });
-            const object = await generateAIObject({ provider, model: selectedModel, prompt, temperature: 0.7, schema: 'plan' });
+            abortRef.current?.abort();
+            const controller = new AbortController();
+            abortRef.current = controller;
+
+            const object = await generateAIObjectWithFallback({ model: selectedModel, prompt, temperature: 0.7, schema: 'plan', signal: controller.signal });
             setPlan(object);
             setLoading(false);
         } catch (err) {
+            if (err?.name === 'AbortError') return; // desmontado o cancelado
             console.error("Error generando plan:", err);
             setError(err.message || "Error desconocido");
             setLoading(false);

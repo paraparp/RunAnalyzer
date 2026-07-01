@@ -45,10 +45,47 @@ const DEVICE_KEYS = new Set(['app_language']);
 const cache = new Map();
 let currentUserId = null;
 let hydrated = false;
+let degraded = false; // true cuando Supabase no responde y trabajamos con el espejo local
 
 /** ¿Está la caché lista para lecturas síncronas? */
 export function isHydrated() {
   return hydrated;
+}
+
+/**
+ * ¿Estamos en modo degradado (Supabase inalcanzable, p.ej. HTTP 522)? La app
+ * sigue funcionando con la copia en localStorage, pero las escrituras a la nube
+ * no se están persistiendo. El UI puede usar esto para avisar al usuario.
+ */
+export function isDegraded() {
+  return degraded;
+}
+
+// ── Resiliencia ante caídas de Supabase (5xx/522) ────────────────────────────
+// 1) Reintento con backoff en la lectura inicial (los 5xx suelen ser transitorios).
+// 2) Espejo en localStorage: cada valor de la nube se copia también localmente,
+//    para que un fallo de red no deje la app sin datos tras recargar.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function withRetry(fn, { tries = 3, base = 400 } = {}) {
+  let lastErr = null;
+  for (let i = 0; i < tries; i++) {
+    const { data, error } = await fn();
+    if (!error) return { data, error: null };
+    lastErr = error;
+    if (i < tries - 1) await sleep(base * 2 ** i); // 400 ms, 800 ms
+  }
+  return { data: null, error: lastErr };
+}
+
+function mirrorLocal(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* quota / modo privado */ }
+}
+function mirrorRemoveLocal(key) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+function readLocal(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
 }
 
 // Escrituras en vuelo, para poder esperarlas con flush() antes de recargar/navegar.
@@ -72,7 +109,12 @@ async function upsert(key, value) {
       { user_id: currentUserId, key, value },
       { onConflict: 'user_id,key' }
     );
-  if (error) console.warn(`cloudStorage upsert "${key}" falló:`, error.message);
+  if (error) {
+    degraded = true;
+    console.warn(`cloudStorage upsert "${key}" falló (guardado local):`, error.message);
+  } else {
+    degraded = false;
+  }
 }
 
 async function removeRemote(key) {
@@ -82,7 +124,10 @@ async function removeRemote(key) {
     .delete()
     .eq('user_id', currentUserId)
     .eq('key', key);
-  if (error) console.warn(`cloudStorage delete "${key}" falló:`, error.message);
+  if (error) {
+    degraded = true;
+    console.warn(`cloudStorage delete "${key}" falló:`, error.message);
+  }
 }
 
 /**
@@ -93,16 +138,28 @@ export async function hydrate(userId) {
   currentUserId = userId;
   cache.clear();
   hydrated = false;
+  degraded = false;
 
-  const { data, error } = await supabase
-    .from('user_storage')
-    .select('key, value')
-    .eq('user_id', userId);
+  const { data, error } = await withRetry(() =>
+    supabase.from('user_storage').select('key, value').eq('user_id', userId)
+  );
 
   if (error) {
-    console.warn('cloudStorage hydrate falló:', error.message);
-  } else {
-    for (const row of data ?? []) cache.set(row.key, row.value);
+    // Supabase inalcanzable tras varios reintentos (p.ej. 522). Degradamos a la
+    // copia local para que la app siga usable con los últimos datos conocidos.
+    degraded = true;
+    console.warn('cloudStorage hydrate falló tras reintentos, usando espejo local:', error.message);
+    for (const key of MIGRATED_KEYS) {
+      const local = readLocal(key);
+      if (local != null) cache.set(key, local);
+    }
+    hydrated = true;
+    return;
+  }
+
+  for (const row of data ?? []) {
+    cache.set(row.key, row.value);
+    mirrorLocal(row.key, row.value); // refresca el espejo local para futuras caídas
   }
 
   // Migración inicial: subir lo que quede en localStorage y aún no esté en la nube.
@@ -148,6 +205,7 @@ export const cloudStorage = {
       return;
     }
     cache.set(key, str);
+    mirrorLocal(key, str); // respaldo local: sobrevive a caídas de Supabase
     // write-through en segundo plano; el valor ya está en memoria.
     track(upsert(key, str));
   },
@@ -157,6 +215,7 @@ export const cloudStorage = {
       return;
     }
     cache.delete(key);
+    mirrorRemoveLocal(key);
     track(removeRemote(key));
   },
 };

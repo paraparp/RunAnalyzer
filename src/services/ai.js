@@ -43,15 +43,41 @@ export async function streamAI({ provider = 'gemini', model, messages, temperatu
 }
 
 /** Salida estructurada (generateObject) vía servidor. `schema` es el nombre registrado en el servidor. */
-export async function generateAIObject({ provider = 'gemini', model, prompt, temperature = 0.5, schema }) {
+export async function generateAIObject({ provider = 'gemini', model, prompt, temperature = 0.5, schema, signal }) {
   const res = await fetch('/api/ai/object', {
     method: 'POST',
     headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ provider, model, prompt, temperature, schema }),
+    signal,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `Error IA (${res.status})`);
   return data.object;
+}
+
+/**
+ * Igual que generateAIObject pero con cadena de proveedores: intenta Gemini y,
+ * si falla (p. ej. 429 de cuota), reintenta con Groq. Devuelve el primer objeto
+ * válido; si todos fallan, lanza el último error. Respeta AbortSignal.
+ */
+export async function generateAIObjectWithFallback({ model, prompt, temperature = 0.5, schema, signal }) {
+  const chain = [
+    { provider: 'gemini', model },
+    { provider: 'groq', model: 'llama-3.3-70b-versatile' },
+  ];
+  let primaryErr;
+  for (const step of chain) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    try {
+      return await generateAIObject({ ...step, prompt, temperature, schema, signal });
+    } catch (e) {
+      if (e?.name === 'AbortError') throw e;
+      // Conserva el error del proveedor principal para mensajes coherentes
+      // (429/401 de Gemini) aunque el fallback también falle.
+      if (!primaryErr) primaryErr = e;
+    }
+  }
+  throw primaryErr ?? new Error('No se pudo generar la respuesta.');
 }
 
 /** Lista de modelos Gemini disponibles (proxy de ListModels). */
