@@ -1,4 +1,3 @@
-import { seilerBounds, karvonenBounds } from './hrZones';
 import { computeLactateModel, formatPace } from './lactateThreshold';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
@@ -320,22 +319,19 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     ? (lt.trendDelta > 5 ? 'mejorando' : lt.trendDelta < -5 ? 'empeorando' : 'estable')
     : null;
 
-  // ── HR zones (shared formulas with the TrainingZones tab — src/lib/hrZones) ─
-  // Seiler polarized (LTHR-based) = primary anchor for the polarized 80/20 call.
-  const [, sZ2, sZ3] = seilerBounds({ lthr });
-  // Karvonen (HRR-based) supplementary — for the session-prescription ppm ranges.
-  const [, kZ2, kZ3, kZ4] = karvonenBounds({ hrmax: fcmax, hrrest: fcRest });
-
+  // ── HR zones — UN SOLO sistema coherente, derivado de TUS LT1/LT2. Antes se
+  // mezclaban Seiler + Karvonen, que daban topes contradictorios entre sí y con
+  // la FC fácil real (Karvonen subestimaba). Ahora las zonas salen de los umbrales. ─
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
     `FC reposo=${fcRest}ppm (Garmin más reciente)`,
-    `LT1 (umbral aeróbico, techo del rodaje FÁCIL)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} → corre el 80% del volumen POR DEBAJO de esta FC`,
+    `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''}`,
     `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
-    `Z1 aeróbica base (regenerativo/rodaje fácil): <${sZ2.lo}ppm`,
-    `Z2 zona umbral baja (gris): ${sZ2.lo}-${sZ2.hi}ppm`,
-    `Z3 alta intensidad (umbral+): ≥${sZ3.lo}ppm`,
-    `Karvonen Z2 (base): ${kZ2.lo}-${kZ2.hi}ppm | Z3 (aeróbico intenso): ${kZ3.lo}-${kZ3.hi}ppm | Z4 (umbral/tempo): ${kZ4.lo}-${kZ4.hi}ppm`,
-    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax). ÚSALA como centro de la zona fácil/base: las fórmulas Karvonen/Friel son aproximadas y aquí subestiman tu FC real. El tope de seguridad del rodaje fácil debe ir POR ENCIMA de esta FC observada (≈ +8/+12ppm), NUNCA por debajo.` : null,
+    `ZONAS (derivadas de tus LT1/LT2 — un único sistema, sin contradicciones):`,
+    `· Z1 fácil/base — aquí va el 80% del volumen: <${lt1Hr}ppm (por debajo de LT1)`,
+    `· Z2 gris (entre umbrales; solo tempo suave o progresión): ${lt1Hr}-${lthr - 1}ppm`,
+    `· Z3 umbral+/calidad (tempo, series, intervalos): ≥${lthr}ppm (desde LT2)`,
+    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax): centro REAL de tu zona fácil. Mantén los rodajes fáciles en torno a esta FC, con techo en LT1 (${lt1Hr}ppm); NO los frenes por debajo de esta FC observada (ya eran fáciles).` : null,
   ].filter(Boolean).join('\n');
 
   // Ancla del ritmo de rodaje FÁCIL: media de las carreras recientes hechas bajo
@@ -349,22 +345,41 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     if (ekm > 0) easyPaceSec = (emin * 60) / ekm;
   }
 
-  // Ritmos de referencia anclados al ritmo fácil real (no inventar):
-  // Da al modelo anclas concretas para no alucinar ritmos.
+  // Ritmos de referencia (no inventar): los ritmos FÁCILES se anclan a tu ritmo
+  // fácil real; los de CALIDAD (tempo/umbral/series) se anclan a tu LT2 y a tus
+  // marcas, NO a "fácil − offset" (ese modelo se rompe si estás desentrenado y tu
+  // ritmo fácil está lejísimos de tu umbral → prescribiría tempos absurdamente lentos).
   let paceRefs = 'No disponible (sin km/ritmo reciente suficiente).';
   if (avgPace) {
     const [m, s] = avgPace.split(':').map(Number);
     const pSec = m * 60 + s; // segundos por km del ritmo medio 4 sem
     const baseSec = easyPaceSec ?? pSec; // ancla fisiológica del rodaje fácil
     const fmt = (sec) => `${Math.floor(sec / 60)}:${Math.round(sec % 60).toString().padStart(2, '0')}`;
-    paceRefs = [
+    const lt2Sec = lt?.lt2Pace ?? null; // umbral real (Critical Speed / cross-check FC)
+    let goalSec = null;
+    if (goal?.pace) {
+      const [gm, gs] = String(goal.pace).split(':').map(Number);
+      if (Number.isFinite(gm) && Number.isFinite(gs)) goalSec = gm * 60 + gs;
+    }
+    const lines = [
       `Ritmo medio real 4 sem = ${avgPace}/km (mezcla TODAS las carreras; solo referencia)`,
       `Ritmo de rodaje fácil real (carreras bajo umbral) = ${fmt(baseSec)}/km (ESTA es tu ancla para base/fácil)`,
       `Regenerativo (≈ +0:20/+0:40 sobre fácil): ${fmt(baseSec + 20)}-${fmt(baseSec + 40)}/km`,
       `Aeróbico base (≈ -0:05/+0:15 sobre fácil): ${fmt(baseSec - 5)}-${fmt(baseSec + 15)}/km`,
-      `Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${fmt(baseSec - 25)}-${fmt(baseSec - 10)}/km`,
-      `REGLA: NO prescribas el rodaje fácil más lento que tu último rodaje si éste fue a ≤75% FCmax (ya era fácil; frenar más es contraproducente).`,
-    ].join('\n');
+    ];
+    if (lt2Sec) {
+      // Tempo/umbral ≈ LT2 (un pelín más suave); series/intervalos por debajo del umbral.
+      lines.push(`Tempo/umbral (ANCLADO A TU LT2 ${fmt(lt2Sec)}/km, NO al ritmo fácil): ${fmt(lt2Sec)}-${fmt(lt2Sec + 8)}/km`);
+      lines.push(`Intervalos/series (más rápido que el umbral, coherente con tus MARCAS 5K/10K): ${fmt(lt2Sec - 28)}-${fmt(lt2Sec - 12)}/km`);
+      lines.push(`AVISO: tu ritmo fácil (${fmt(baseSec)}) está lejos de tu umbral (${fmt(lt2Sec)}) porque estás en fase base/desentrenado. NUNCA derives tempo/series restando segundos al fácil; usa el ancla LT2 y tus marcas.`);
+    } else {
+      lines.push(`Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${fmt(baseSec - 25)}-${fmt(baseSec - 10)}/km`);
+    }
+    if (goalSec) {
+      lines.push(`Ritmo objetivo de carrera = ${fmt(goalSec)}/km. GUARDARRAÍL: el tempo/umbral NUNCA debe ser MÁS LENTO que este ritmo (el ritmo de carrera no puede ser más rápido que tu tempo).`);
+    }
+    lines.push(`REGLA: NO prescribas el rodaje fácil más lento que tu último rodaje si éste fue a ≤75% FCmax (ya era fácil; frenar más es contraproducente).`);
+    paceRefs = lines.join('\n');
   }
 
   // ── Garmin: HRV (vs baseline), resting-HR trend, Body Battery, day-by-day ──
@@ -456,18 +471,33 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     const p = (t / 60) / dkm;
     return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`;
   };
+  // Desnivel del parcial: solo si es relevante (≥2 m), con signo. Un parcial lento
+  // en subida NO es desfallecimiento → el desnivel es imprescindible para leerlo bien.
+  const splitElev = (sp) => {
+    const e = sp.elevation_difference;
+    return (e != null && Math.abs(e) >= 2) ? `${e > 0 ? '+' : ''}${Math.round(e)}m` : null;
+  };
+  // Formato compacto para el log (BLOQUE 2): ritmo/FC/±desnivel por km.
   const compactSplits = (splits) => {
     if (!Array.isArray(splits) || splits.length < 2) return null;
-    const cs = splits.map(splitPace).filter(Boolean);
+    const cs = splits.map(sp => {
+      const pace = splitPace(sp);
+      if (!pace) return null;
+      const hr = sp.average_heartrate ? `/${Math.round(sp.average_heartrate)}` : '';
+      const el = splitElev(sp) ? `/${splitElev(sp)}` : '';
+      return `${pace}${hr}${el}`;
+    }).filter(Boolean);
     return cs.length >= 2 ? cs.join('·') : null;
   };
+  // Formato detallado para el último entreno (BLOQUE 4): ritmo · FC · desnivel.
   const detailedSplits = (splits) => {
     if (!Array.isArray(splits) || splits.length < 2) return null;
     const ds = splits.map((sp, i) => {
       const pace = splitPace(sp);
       if (!pace) return null;
       const hr = sp.average_heartrate ? ` ${Math.round(sp.average_heartrate)}ppm` : '';
-      return `k${i + 1} ${pace}${hr}`;
+      const el = splitElev(sp) ? ` ${splitElev(sp)}` : '';
+      return `k${i + 1} ${pace}${hr}${el}`;
     }).filter(Boolean);
     return ds.length >= 2 ? ds.join(' · ') : null;
   };
@@ -620,16 +650,22 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     ln.push(`Carga estimada (TRIMP): ${Math.round(estimateLoad(lastAct))}`);
     if (isRunning(lastAct) && isFastRun(lastAct) && lastAct.splits_metric) {
       const ds = detailedSplits(lastAct.splits_metric);
-      if (ds) ln.push(`Parciales por km (analiza la distribución del esfuerzo — salida rápida y desfallecimiento, ritmo parejo o negative split): ${ds}`);
+      if (ds) ln.push(`Parciales por km (formato: ritmo · FC · desnivel). Analiza la distribución del esfuerzo (positive/negative split, desfallecimiento, ritmo parejo, descontrol inicial), pero AJUSTA por desnivel: un parcial lento EN SUBIDA o rápido EN BAJADA no es un error de ejecución: ${ds}`);
     }
     lastSection = ln.filter(Boolean).join('\n');
   }
 
   // Fresh-by-detraining guard: a high readiness on top of a LOW chronic load
   // (small CTL / ACWR<0.8) is freshness from under-training, not supercompensation.
-  const lowChronic = pmc && (pmc.ctl < 25 || (pmc.acwr != null && pmc.acwr < 0.8));
+  const lowChronicReasons = [];
+  if (pmc && pmc.ctl < 25) lowChronicReasons.push(`CTL bajo (${pmc.ctl})`);
+  if (pmc && pmc.acwr != null && pmc.acwr < 0.8) lowChronicReasons.push(`ACWR<0.8 (${pmc.acwr})`);
+  const lowChronic = lowChronicReasons.length > 0;
+  const lowChronicNote = lowChronic
+    ? ` MATIZ CRÍTICO: tu carga crónica es BAJA (${lowChronicReasons.join(' · ')}). Aquí un readiness alto significa que estás fresco por FALTA de entrenamiento acumulado, NO por supercompensación. Prioriza CONSTRUIR BASE AERÓBICA y subir volumen de forma progresiva y segura ANTES que sesiones de calidad/intervalos, aunque el score las permita. Forzar intensidad sobre una base baja dispara el riesgo de lesión.`
+    : '';
   const readinessLine = readiness
-    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).${lowChronic ? ' MATIZ CRÍTICO: tu carga crónica es BAJA (CTL reducido y/o ACWR<0.8). Aquí un readiness alto significa que estás fresco por FALTA de entrenamiento acumulado, NO por supercompensación. Prioriza CONSTRUIR BASE AERÓBICA y subir volumen de forma progresiva y segura ANTES que sesiones de calidad/intervalos, aunque el score las permita. Forzar intensidad sobre una base baja dispara el riesgo de lesión.' : ''}`
+    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).${lowChronicNote}`
     : 'READINESS SCORE: no disponible (faltan datos de wearable) — sé MÁS CONSERVADOR: por defecto prescribe base aeróbica/rodaje fácil, no intervalos, y declara explícitamente que la recomendación es prudente por falta de datos de recuperación.';
 
   // Temporal context: anchor "today" + staleness of last run (avoids the model
@@ -668,7 +704,7 @@ ${garminLog ? `Garmin día a día (últimos 7d · ventana aguda; tendencia previ
 ENTRENAMIENTO (resumen 4 sem): ${trainingSection}
 ${crossNote ?? ''}
 ${lastSection ? `ÚLTIMO ENTRENAMIENTO (sesión más reciente):\n${lastSection}` : ''}
-${actLog ? `Actividades últimas 8 semanas (más reciente primero; etiquetas: tipo de deporte y, en carreras, 🏁OFICIAL/tirada-larga/calidad según Strava; +Xm = desnivel):\n${actLog}` : ''}
+${actLog ? `Actividades últimas 8 semanas (más reciente primero; etiquetas: tipo de deporte y, en carreras, 🏁OFICIAL/tirada-larga/calidad según Strava; +Xm = desnivel; parciales/km:[ritmo/FC/±desnivel por km] solo en las carreras más rápidas):\n${actLog}` : ''}
 Desglose semanal (carrera): ${weekTable}
 Historial mensual de carrera (últimos 2 meses): ${monthHistory}`;
 
