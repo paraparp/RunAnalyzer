@@ -11,6 +11,7 @@ import {
   MoonIcon,
   FireIcon,
   ChatBubbleLeftRightIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { buildPrompt } from '../lib/athleteContext';
 import { formatPace } from '../lib/lactateThreshold';
@@ -32,11 +33,12 @@ const MD = ({ text, accent }) => {
     }
     return parts;
   };
+  const dot = accent.replace('text-', 'bg-');
   return (
-    <ul className="space-y-1.5">
-      {text.split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => (
-        <li key={i} className="flex gap-2 text-[12px] leading-relaxed text-slate-600">
-          <span className={`shrink-0 mt-[3px] font-bold text-[10px] ${accent}`}>▸</span>
+    <ul className="space-y-2">
+      {text.split('\n').map(l => l.trim()).filter(l => l && !/^\**bloque\s*\d+/i.test(l)).map((l, i) => (
+        <li key={i} className="flex gap-2.5 text-[12px] leading-relaxed text-slate-600">
+          <span className={`shrink-0 mt-[6px] w-1.5 h-1.5 rounded-full ${dot}`} />
           <span>{inline(l.replace(/^[-•*]\s+/, ''))}</span>
         </li>
       ))}
@@ -110,6 +112,15 @@ const AIInsights = ({ activities, onOpenChat }) => {
   const [weeklyTarget, setWeeklyTarget] = useState(
     () => cloudStorage.getItem('ai_weekly_target') || '2'
   );
+  // Popover de ajustes (compacta los dos selectores + objetivo en la cabecera)
+  const [cfgOpen, setCfgOpen] = useState(false);
+  const cfgRef = useRef(null);
+  useEffect(() => {
+    if (!cfgOpen) return;
+    const onDoc = (e) => { if (cfgRef.current && !cfgRef.current.contains(e.target)) setCfgOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [cfgOpen]);
   // El objetivo de carrera ya no se configura aquí: se deriva de la próxima
   // "carrera objetivo" guardada (sección Carreras Objetivo). Así no duplicamos
   // el selector con la info de Next Target que ya se muestra arriba.
@@ -436,124 +447,174 @@ const AIInsights = ({ activities, onOpenChat }) => {
   return (
     <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl overflow-hidden transition-all duration-300 relative">
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100/60 bg-white/40">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-blue-50/80 text-blue-600 shadow-sm">
-            <SparklesIcon className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 leading-tight">Diagnóstico IA</h3>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-              {hasGarmin ? 'Wearable VFC & Pulso · Carga de Entrenamiento' : 'Carga & Ritmos de Actividad Strava'}
-            </p>
-          </div>
-        </div>
+      {/* ── Hero · Identidad + Readiness fusionados ── */}
+      <div className="px-5 py-4 border-b border-slate-100/60 bg-gradient-to-br from-white/70 via-white/40 to-blue-50/20">
+        <div className="flex items-start justify-between gap-3">
 
-        <div className="flex items-center gap-3">
-          {cacheTs && !loading && (
-            <span className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
-              <ClockIcon className="w-3.5 h-3.5" />
-              {formatTs(cacheTs)}
-            </span>
-          )}
-          <select
-            value={weeklyTarget}
-            disabled={loading}
-            title="Sesiones de carrera por semana que quieres hacer"
-            onChange={e => {
-              const v = e.target.value;
-              cloudStorage.setItem('ai_weekly_target', v);
-              setWeeklyTarget(v);
-              setLoaded(false);
-            }}
-            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
-          >
-            {[2, 3, 4, 5, 6].map(n => (
-              <option key={n} value={String(n)}>{n}×/sem</option>
-            ))}
-          </select>
-          {goal && (
-            <span
-              title="Objetivo derivado de tu próxima carrera objetivo"
-              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 font-bold shadow-sm"
+          {/* Anillo de readiness + identidad */}
+          <div className="flex items-center gap-4 min-w-0">
+            {(() => {
+              const r = sci?.readiness;
+              if (!r) {
+                return (
+                  <div className="p-2.5 rounded-2xl bg-blue-50/80 text-blue-600 shadow-sm shrink-0">
+                    <SparklesIcon className="w-5 h-5" />
+                  </div>
+                );
+              }
+              const { score, band } = r;
+              const ring = band === 'high' ? 'text-emerald-600' : band === 'good' ? 'text-blue-600' : band === 'mod' ? 'text-amber-600' : 'text-rose-600';
+              const ringBg = band === 'high' ? 'stroke-emerald-500' : band === 'good' ? 'stroke-blue-500' : band === 'mod' ? 'stroke-amber-500' : 'stroke-rose-500';
+              const R = 26, C = 2 * Math.PI * R, off = C * (1 - score / 100);
+              return (
+                <div className="relative shrink-0 w-[68px] h-[68px]">
+                  <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+                    <circle cx="32" cy="32" r={R} className="stroke-slate-100" strokeWidth="6" fill="none" />
+                    <circle cx="32" cy="32" r={R} className={ringBg} strokeWidth="6" fill="none"
+                      strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off}
+                      style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center -space-y-0.5">
+                    <span className={`font-black text-xl tabular-nums leading-none ${ring}`}>{score}</span>
+                    <span className="text-[7px] font-black uppercase tracking-[0.12em] text-slate-400">ready</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-black text-slate-800 leading-tight tracking-tight flex items-center gap-1.5">
+                  <SparklesIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                  Diagnóstico IA
+                </h3>
+                {sci?.readiness && (() => {
+                  const { label, band } = sci.readiness;
+                  const c = band === 'high' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : band === 'good' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : band === 'mod' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200';
+                  return <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${c}`}>{label}</span>;
+                })()}
+              </div>
+
+              {(() => {
+                const chips = [];
+                const h = sci?.hrv;
+                if (h) {
+                  const inBase = h.baseline?.balancedLow != null
+                    ? (h.latest < h.baseline.balancedLow ? 'bajo baseline' : h.latest > h.baseline.balancedUpper ? 'sobre baseline' : 'en rango')
+                    : (h.status || '');
+                  chips.push({ k: 'VFC', v: `${h.latest}ms`, s: inBase });
+                }
+                if (sci?.bb?.high != null) chips.push({ k: 'Body Battery', v: `${sci.bb.high}/100`, s: sci.bb.high >= 70 ? 'recuperado' : sci.bb.high >= 40 ? 'parcial' : 'bajo' });
+                if (sci?.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin / 60).toFixed(1)}h` : '' });
+                if (sci?.pmc) chips.push({ k: 'Forma TSB', v: `${sci.pmc.tsb > 0 ? '+' : ''}${sci.pmc.tsb}`, s: `ACWR ${sci.pmc.acwr ?? '—'}` });
+                if (!chips.length) {
+                  return (
+                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                      {hasGarmin ? 'Wearable VFC & Pulso · Carga de Entrenamiento' : 'Carga & Ritmos de Actividad Strava'}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                    {chips.map(c => (
+                      <span key={c.k} className="text-[10px] text-slate-400 font-medium">
+                        {c.k} <span className="font-bold text-slate-600 tabular-nums">{c.v}</span>{c.s ? ` · ${c.s}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Controles compactos */}
+          <div className="flex items-center gap-2 shrink-0">
+            {cacheTs && !loading && (
+              <span className="hidden md:flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                <ClockIcon className="w-3.5 h-3.5" />
+                {formatTs(cacheTs)}
+              </span>
+            )}
+            <button
+              onClick={() => { setLoaded(false); run(true); }}
+              disabled={loading}
+              title="Recalcular diagnóstico"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 shadow-sm shadow-blue-600/20 transition-all"
             >
-              🎯 {goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}
-            </span>
-          )}
-          <select
-            value={selectedModel}
-            disabled={loading}
-            onChange={e => {
-              const m = e.target.value;
-              cloudStorage.setItem('ai_insights_model', m);
-              setSelectedModel(m);
-              setLoaded(false);
-            }}
-            className="text-[11px] text-slate-500 bg-white/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 pr-7 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none shadow-sm"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
-          >
-            {availableModels.map(m => (
-              <option key={m.id} value={m.id}>{m.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => { setLoaded(false); run(true); }}
-            disabled={loading}
-            title="Recalcular diagnóstico"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 disabled:opacity-30 transition-all border border-transparent hover:border-blue-100"
-          >
-            <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
-          </button>
+              <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
+            </button>
+
+            {/* Popover de ajustes */}
+            <div className="relative" ref={cfgRef}>
+              <button
+                onClick={() => setCfgOpen(o => !o)}
+                disabled={loading}
+                title="Ajustes del diagnóstico"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all disabled:opacity-30 ${cfgOpen ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500 bg-white/80 border-slate-200/80 hover:border-blue-300'}`}
+              >
+                <Cog6ToothIcon className={`w-4 h-4 transition-transform ${cfgOpen ? 'rotate-45' : ''}`} />
+                <span className="hidden lg:inline">{weeklyTarget}×/sem</span>
+                {goal && <span className="hidden lg:inline text-slate-300">·</span>}
+                {goal && <span className="hidden lg:inline">🎯 {goal.distance}</span>}
+              </button>
+
+              {cfgOpen && (
+                <div className="absolute right-0 top-full mt-2 w-60 z-20 bg-white rounded-2xl border border-slate-200/80 shadow-[0_12px_40px_rgba(0,0,0,0.12)] p-3.5 space-y-3.5">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Sesiones de carrera / semana</label>
+                    <select
+                      value={weeklyTarget}
+                      disabled={loading}
+                      onChange={e => {
+                        const v = e.target.value;
+                        cloudStorage.setItem('ai_weekly_target', v);
+                        setWeeklyTarget(v);
+                        setLoaded(false);
+                      }}
+                      className="w-full text-[12px] text-slate-600 bg-slate-50/60 border border-slate-200/80 rounded-xl px-3 py-2 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+                    >
+                      {[2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={String(n)}>{n}×/sem</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Modelo IA</label>
+                    <select
+                      value={selectedModel}
+                      disabled={loading}
+                      onChange={e => {
+                        const m = e.target.value;
+                        cloudStorage.setItem('ai_insights_model', m);
+                        setSelectedModel(m);
+                        setLoaded(false);
+                      }}
+                      className="w-full text-[12px] text-slate-600 bg-slate-50/60 border border-slate-200/80 rounded-xl px-3 py-2 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 disabled:opacity-30 transition-colors cursor-pointer appearance-none"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+                    >
+                      {availableModels.map(m => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {goal && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold pt-2 border-t border-slate-100">
+                      🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* ── Scientific readiness panel ── */}
-      {sci?.readiness && (() => {
-        const { score, label, band } = sci.readiness;
-        const ring = band === 'high' ? 'text-emerald-600' : band === 'good' ? 'text-blue-600' : band === 'mod' ? 'text-amber-600' : 'text-rose-600';
-        const ringBg = band === 'high' ? 'stroke-emerald-500' : band === 'good' ? 'stroke-blue-500' : band === 'mod' ? 'stroke-amber-500' : 'stroke-rose-500';
-        const chips = [];
-        const h = sci.hrv;
-        if (h) {
-          const inBase = h.baseline?.balancedLow != null
-            ? (h.latest < h.baseline.balancedLow ? 'bajo baseline' : h.latest > h.baseline.balancedUpper ? 'sobre baseline' : 'en rango')
-            : (h.status || '');
-          chips.push({ k: 'VFC', v: `${h.latest}ms`, s: inBase });
-        }
-        if (sci.bb?.high != null) chips.push({ k: 'Body Battery', v: `${sci.bb.high}/100`, s: sci.bb.high >= 70 ? 'recuperado' : sci.bb.high >= 40 ? 'parcial' : 'bajo' });
-        if (sci.sleep?.score != null) chips.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, s: sci.sleep.durationMin ? `${(sci.sleep.durationMin / 60).toFixed(1)}h` : '' });
-        if (sci.pmc) chips.push({ k: 'Forma TSB', v: `${sci.pmc.tsb > 0 ? '+' : ''}${sci.pmc.tsb}`, s: `ACWR ${sci.pmc.acwr ?? '—'}` });
-        const R = 22, C = 2 * Math.PI * R, off = C * (1 - score / 100);
-        return (
-          <div className="flex items-center gap-4 px-5 py-3 border-b border-slate-100/60 bg-gradient-to-r from-slate-50/40 to-white/20">
-            <div className="relative shrink-0 w-[58px] h-[58px]">
-              <svg viewBox="0 0 56 56" className="w-full h-full -rotate-90">
-                <circle cx="28" cy="28" r={R} className="stroke-slate-100" strokeWidth="5" fill="none" />
-                <circle cx="28" cy="28" r={R} className={ringBg} strokeWidth="5" fill="none"
-                  strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off}
-                  style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-              </svg>
-              <div className={`absolute inset-0 flex items-center justify-center font-black text-base tabular-nums ${ring}`}>{score}</div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Readiness</span>
-                <span className={`text-[10px] font-bold ${ring}`}>{label}</span>
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                {chips.map(c => (
-                  <span key={c.k} className="text-[10px] text-slate-400 font-medium">
-                    {c.k} <span className="font-bold text-slate-600 tabular-nums">{c.v}</span>{c.s ? ` · ${c.s}` : ''}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ── Umbrales LT1 / LT2 (modelo centralizado de lactato) ── */}
       {sci?.lt && (sci.lt.lt1Hr || sci.lt.lt2Hr) && (() => {
@@ -563,38 +624,62 @@ const AIInsights = ({ activities, onOpenChat }) => {
           : trend === 'empeorando'
             ? { c: 'text-rose-600', a: '↓' }
             : { c: 'text-amber-600', a: '→' };
-        const Cell = ({ tag, color, hr, pace, hint }) => (
-          <div className="flex-1 bg-white/70 rounded-2xl p-3 border border-slate-100/60">
-            <div className="flex items-baseline justify-between mb-0.5">
-              <span className={`text-[10px] font-black uppercase tracking-wider ${color}`}>{tag}</span>
-              {hint && <span className="text-[9px] text-slate-400 font-semibold">{hint}</span>}
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-black text-slate-800 tabular-nums">{hr}<span className="text-[10px] font-semibold text-slate-400"> ppm</span></span>
-              {pace && pace > 0 && (
-                <span className="text-[11px] font-bold text-slate-400 tabular-nums">· {formatPace(pace)}/km</span>
-              )}
-            </div>
-          </div>
-        );
+        // Escala de la barra basada en tu FC real (reposo→máx), centrada en la zona de entrenamiento
+        const hi = sci?.fcmax || (lt2Hr + 18);
+        const lo = lt1Hr - 28;
+        const span = Math.max(hi - lo, 1);
+        const pos = (v) => Math.max(5, Math.min(95, ((v - lo) / span) * 100));
+        const p1 = pos(lt1Hr);
+        const p2 = pos(lt2Hr);
+        const lt2Hint = csValid ? 'Critical Speed' : lthrIsEstimate ? 'estimado' : 'campo';
+        const markers = [
+          { tag: 'LT1', hr: lt1Hr, pace: lt1Pace, p: p1, c: 'text-sky-600' },
+          { tag: 'LT2', hr: lt2Hr, pace: lt2Pace, p: p2, c: 'text-rose-600' },
+        ];
         return (
-          <div className="px-5 py-3 border-b border-slate-100/60 bg-gradient-to-r from-sky-50/30 to-blue-50/10">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="px-5 py-3.5 border-b border-slate-100/60 bg-slate-50/20">
+            <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Umbrales</span>
-              <span className="text-[10px] text-slate-400 font-semibold">· FC de entrenamiento (LT1 / LT2)</span>
+              <span className="text-[10px] text-slate-400 font-semibold">· FC de entrenamiento</span>
+              <span className="hidden sm:inline text-[9px] text-slate-300 font-semibold">· {lt2Hint}</span>
               {trend && (
                 <span className={`ml-auto text-[10px] font-bold ${trendCfg.c}`} title="Tendencia del LT2 (Critical Speed / cross-check FC)">
                   {trendCfg.a} LT2 {trend}
                 </span>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              <Cell tag="LT1 · Aeróbico" color="text-sky-600" hr={lt1Hr} pace={lt1Pace}
-                hint="techo del fácil" />
-              <Cell tag="LT2 · Umbral" color="text-blue-600" hr={lt2Hr} pace={lt2Pace}
-                hint={csValid ? 'Critical Speed' : lthrIsEstimate ? 'estimado' : 'campo'} />
+
+            {/* Barra de zonas de FC con marcadores LT1 / LT2 (escala real) */}
+            <div className="relative pt-10 pb-5">
+              {markers.map(m => (
+                <div key={m.tag} className="absolute top-0 -translate-x-1/2 text-center whitespace-nowrap" style={{ left: `${m.p}%` }}>
+                  <div className={`text-[9px] font-black leading-none ${m.c}`}>
+                    {m.tag}{m.pace > 0 ? <span className="text-slate-300 font-bold"> · {formatPace(m.pace)}</span> : ''}
+                  </div>
+                  <div className="text-sm font-black text-slate-800 tabular-nums leading-tight mt-0.5">
+                    {m.hr}<span className="text-[8px] font-bold text-slate-400 ml-0.5">ppm</span>
+                  </div>
+                </div>
+              ))}
+
+              <div className="relative h-2.5 rounded-full overflow-hidden flex">
+                <div className="h-full bg-gradient-to-r from-emerald-400 to-sky-400" style={{ width: `${p1}%` }} />
+                <div className="h-full bg-gradient-to-r from-amber-300 to-amber-400" style={{ width: `${p2 - p1}%` }} />
+                <div className="h-full bg-gradient-to-r from-rose-400 to-rose-500" style={{ width: `${100 - p2}%` }} />
+              </div>
+
+              {[p1, p2].map((p, i) => (
+                <div key={i} className="absolute w-[3px] h-4 bg-white rounded-full shadow -translate-x-1/2" style={{ left: `${p}%`, top: '37px' }} />
+              ))}
+
+              <div className="absolute bottom-0 inset-x-0 flex text-[8px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                <span className="text-center overflow-hidden" style={{ width: `${p1}%` }}>Fácil</span>
+                <span className="text-center overflow-hidden" style={{ width: `${p2 - p1}%` }}>Tempo</span>
+                <span className="text-center overflow-hidden" style={{ width: `${100 - p2}%` }}>VO2·máx</span>
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium mt-2 leading-relaxed">
+
+            <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
               💡 Corre el <strong className="text-slate-500">80% del volumen por debajo de LT1 ({lt1Hr} ppm)</strong>; reserva LT2 ({lt2Hr} ppm) para tempo/series.
             </p>
           </div>
@@ -693,56 +778,11 @@ const AIInsights = ({ activities, onOpenChat }) => {
         )}
       </div>
 
-      {/* ── Análisis del último entrenamiento ── */}
-      {(lastWork || (loading && cur)) && (() => {
-        const last = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
-        if (!last) return null;
-        const km = last.distance / 1000;
-        const min = (last.moving_time || 0) / 60;
-        const isRun = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(last.type);
-        const meta = [];
-        if (km > 0) meta.push(`${km.toFixed(1)} km`);
-        if (min > 0) meta.push(`${Math.round(min)} min`);
-        if (km > 0 && min > 0 && isRun) {
-          const p = min / km;
-          meta.push(`${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`);
-        } else if (km > 0 && min > 0 && ['Ride', 'VirtualRide'].includes(last.type)) {
-          meta.push(`${(km / (min / 60)).toFixed(1)} km/h`);
-        }
-        if (last.average_heartrate) meta.push(`${Math.round(last.average_heartrate)} ppm`);
-        if (last.total_elevation_gain) meta.push(`+${Math.round(last.total_elevation_gain)} m`);
-        const icon = last.type === 'Ride' || last.type === 'VirtualRide' ? '🚴'
-          : last.type === 'Swim' ? '🏊'
-            : last.type === 'Walk' || last.type === 'Hike' ? '🚶'
-              : last.type === 'WeightTraining' ? '🏋️'
-                : last.type === 'Yoga' ? '🧘'
-                  : isRun ? '🏃' : '👟';
-        return (
-          <div className="border-b border-slate-100/60 bg-gradient-to-r from-amber-50/20 to-rose-50/10 px-5 py-4">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="p-1.5 rounded-xl bg-amber-50 text-amber-600 shadow-sm border border-amber-100/40">
-                <FireIcon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Análisis del último entrenamiento</span>
-                <span className="text-[10px] text-slate-400 font-semibold truncate block">
-                  {icon} {last.name ? `${last.name} · ` : ''}{new Date(last.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
-                  {meta.length ? ` · ${meta.join(' · ')}` : ''}
-                </span>
-              </div>
-            </div>
-            <div className="bg-white/60 rounded-2xl p-4 border border-slate-100/60">
-              {loading && !lastWork ? <Pulse /> : <MD text={lastWork} accent="text-amber-500" />}
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ── Content grid: Diagnosis + Trend ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100/60">
 
         {/* Block 1: Current state */}
-        <div className="p-5 flex flex-col gap-3">
+        <div className="p-4 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HeartIcon className="w-4 h-4 text-blue-500 shrink-0" />
@@ -769,13 +809,13 @@ const AIInsights = ({ activities, onOpenChat }) => {
             })()}
           </div>
 
-          <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
+          <div className="bg-slate-50/40 rounded-xl p-3.5 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
             {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" />}
           </div>
         </div>
 
         {/* Block 2: Annual trend */}
-        <div className="p-5 flex flex-col gap-3">
+        <div className="p-4 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -803,21 +843,66 @@ const AIInsights = ({ activities, onOpenChat }) => {
             })()}
           </div>
 
-          <div className="bg-slate-50/40 rounded-2xl p-4 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
+          <div className="bg-slate-50/40 rounded-xl p-3.5 border border-slate-100/50 hover:bg-slate-50/70 transition-colors duration-300">
             {loading && !trend ? <Pulse /> : <MD text={trend} accent="text-indigo-500" />}
           </div>
         </div>
       </div>
 
+      {/* ── Análisis del último entrenamiento ── */}
+      {(lastWork || (loading && cur)) && (() => {
+        const last = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
+        if (!last) return null;
+        const km = last.distance / 1000;
+        const min = (last.moving_time || 0) / 60;
+        const isRun = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'].includes(last.type);
+        const meta = [];
+        if (km > 0) meta.push(`${km.toFixed(1)} km`);
+        if (min > 0) meta.push(`${Math.round(min)} min`);
+        if (km > 0 && min > 0 && isRun) {
+          const p = min / km;
+          meta.push(`${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`);
+        } else if (km > 0 && min > 0 && ['Ride', 'VirtualRide'].includes(last.type)) {
+          meta.push(`${(km / (min / 60)).toFixed(1)} km/h`);
+        }
+        if (last.average_heartrate) meta.push(`${Math.round(last.average_heartrate)} ppm`);
+        if (last.total_elevation_gain) meta.push(`+${Math.round(last.total_elevation_gain)} m`);
+        const icon = last.type === 'Ride' || last.type === 'VirtualRide' ? '🚴'
+          : last.type === 'Swim' ? '🏊'
+            : last.type === 'Walk' || last.type === 'Hike' ? '🚶'
+              : last.type === 'WeightTraining' ? '🏋️'
+                : last.type === 'Yoga' ? '🧘'
+                  : isRun ? '🏃' : '👟';
+        return (
+          <div className="border-t border-slate-100/60 bg-amber-50/10 px-5 py-3.5">
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100/50">
+                <FireIcon className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">Análisis del último entrenamiento</span>
+                <span className="text-[10px] text-slate-400 font-semibold truncate block">
+                  {icon} {last.name ? `${last.name} · ` : ''}{new Date(last.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
+                  {meta.length ? ` · ${meta.join(' · ')}` : ''}
+                </span>
+              </div>
+            </div>
+            <div className="bg-white/60 rounded-xl p-3.5 border border-slate-100/60">
+              {loading && !lastWork ? <Pulse /> : <MD text={lastWork} accent="text-amber-500" />}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Block 3: Next workout ── */}
       {(nextWork || (loading && cur && trend && !nextWork)) && (
-        <div className="border-t border-slate-100/60 bg-gradient-to-r from-blue-50/10 to-indigo-50/10 p-6">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600 shadow-sm border border-blue-100/40">
-              <BoltIcon className="w-4 h-4" />
+        <div className="border-t border-slate-100/60 bg-blue-50/10 px-5 py-4">
+          <div className="flex items-center gap-2.5 mb-3.5">
+            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50">
+              <BoltIcon className="w-3.5 h-3.5" />
             </div>
             <div>
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Sesión Recomendada</span>
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">Sesión Recomendada</span>
               <span className="text-[10px] text-slate-400 font-semibold">Prescripción de running sugerida para tus próximos 1-2 días</span>
             </div>
           </div>
@@ -825,64 +910,45 @@ const AIInsights = ({ activities, onOpenChat }) => {
           {loading && !nextWork ? (
             <Pulse />
           ) : (
-            <div className="flex flex-col lg:flex-row gap-5 items-stretch">
-              {/* Prescription Ticket Badge */}
-              {(() => {
-                const w = parseWorkout(nextWork);
-                return (
-                  <>
-                    <div className="flex-1 bg-white border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between relative overflow-hidden">
-                      <div className="absolute right-0 top-0 w-24 h-24 rounded-full bg-blue-500/5 blur-2xl pointer-events-none" />
-
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Prescripción IA</span>
-                          <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60' :
-                            w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border border-amber-100/60' :
-                              w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border border-rose-100/60' :
-                                'bg-blue-50 text-blue-700 border border-blue-100/60'
-                            }`}>
-                            {w?.type || 'Sesión Base'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Distancia</span>
-                            <span className="text-xs font-black text-slate-800 truncate block">
-                              {w?.distance || 'Varía'}
-                            </span>
-                          </div>
-                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Ritmo Objetivo</span>
-                            <span className="text-xs font-black text-slate-800 truncate block">
-                              {w?.pace || 'Aeróbico'}
-                            </span>
-                          </div>
-                          <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100/30 text-center">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Intensidad</span>
-                            <span className="text-xs font-black text-slate-800 truncate block">
-                              {w?.hrZone || 'Zona 2'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100/60 flex items-center gap-2 text-[10px] text-slate-400 font-semibold">
-                        <span className="text-xs">💡</span>
-                        <span>Sigue las pautas de ritmo y mantente hidratado.</span>
-                      </div>
+            (() => {
+              const w = parseWorkout(nextWork);
+              const badgeCls = w?.type?.toLowerCase().includes('regen') ? 'bg-emerald-50 text-emerald-700 border-emerald-100/60'
+                : w?.type?.toLowerCase().includes('tempo') ? 'bg-amber-50 text-amber-700 border-amber-100/60'
+                  : w?.type?.toLowerCase().includes('interv') || w?.type?.toLowerCase().includes('seri') ? 'bg-rose-50 text-rose-700 border-rose-100/60'
+                    : 'bg-blue-50 text-blue-700 border-blue-100/60';
+              const metrics = [
+                { k: 'Distancia', v: w?.distance || 'Varía' },
+                { k: 'Ritmo', v: w?.pace || 'Aeróbico' },
+                { k: 'Intensidad', v: w?.hrZone || 'Zona 2' },
+              ];
+              return (
+                <div className="space-y-3">
+                  {/* Tira de prescripción compacta (tipo + 3 datos en línea) */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white border border-slate-100/70 rounded-2xl px-4 py-3">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Prescripción IA</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${badgeCls}`}>
+                        {w?.type || 'Sesión Base'}
+                      </span>
                     </div>
-
-                    {/* Full guidelines list */}
-                    <div className="flex-1 bg-white/40 border border-slate-100/70 rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-center">
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Guías de Ejecución</span>
-                      <MD text={nextWork} accent="text-blue-600" />
+                    <div className="flex-1 grid grid-cols-3 divide-x divide-slate-100">
+                      {metrics.map(m => (
+                        <div key={m.k} className="px-3 text-center first:pl-0 last:pr-0">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">{m.k}</span>
+                          <span className="text-sm font-black text-slate-800 truncate block">{m.v}</span>
+                        </div>
+                      ))}
                     </div>
-                  </>
-                );
-              })()}
-            </div>
+                  </div>
+
+                  {/* Guías de ejecución a todo el ancho */}
+                  <div className="bg-white/40 border border-slate-100/70 rounded-2xl p-4">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2.5">Guías de Ejecución</span>
+                    <MD text={nextWork} accent="text-blue-600" />
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       )}

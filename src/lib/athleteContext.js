@@ -660,6 +660,7 @@ ${athleteContext}
 (En ZONAS DE FC y RITMOS DE REFERENCIA: usa esas cifras EXACTAS en el bloque 3, NO inventes.)
 
 REGLAS ESTRICTAS DE SALIDA:
+- NO escribas el encabezado "BLOQUE N — …" de cada bloque: es solo una instrucción para ti. Empieza cada bloque DIRECTAMENTE por su primer bullet.
 - Sin introducción. Sin "el atleta". Habla directamente en segunda persona.
 - Cada bullet empieza con el concepto en **negrita**.
 - Límites de longitud: BLOQUES 1, 2 y 4 = máx 16 palabras por bullet. BLOQUE 3 = máx 30 palabras por bullet (necesita datos concretos).
