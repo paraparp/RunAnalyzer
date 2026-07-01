@@ -430,6 +430,48 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   if (!avgHR) missing.push('FC en carrera (carreras sin pulsómetro)');
   if (lthrIsEstimate) missing.push('LTHR de campo (usando estimación por fórmula)');
 
+  // ── Parciales (splits_metric) SOLO para las carreras más rápidas ──────────
+  // Regla: enviar parciales si el ritmo medio de la carrera está en el percentil
+  // 80 de las carreras enviadas, es decir, entre el 20% MÁS RÁPIDAS (menor min/km).
+  // Así el modelo analiza la distribución del esfuerzo en los esfuerzos que importan
+  // sin inflar tokens ni la cuota de Strava con los rodajes fáciles.
+  const runPaceMinKm = (a) => (a.distance > 0 && a.moving_time > 0 && isRunning(a))
+    ? (a.moving_time / 60) / (a.distance / 1000)
+    : null;
+  const sentRunPaces = yearActs
+    .filter(a => new Date(a.start_date) >= week8)
+    .map(runPaceMinKm)
+    .filter(p => p != null)
+    .sort((x, y) => x - y);
+  const topCount = sentRunPaces.length ? Math.max(1, Math.round(sentRunPaces.length * 0.2)) : 0;
+  const fastPaceThreshold = topCount ? sentRunPaces[topCount - 1] : null;
+  const isFastRun = (a) => {
+    const p = runPaceMinKm(a);
+    return p != null && fastPaceThreshold != null && p <= fastPaceThreshold + 1e-6;
+  };
+  const splitPace = (sp) => {
+    const dkm = (sp.distance || 0) / 1000;
+    const t = sp.moving_time || sp.elapsed_time || 0;
+    if (dkm <= 0 || t <= 0) return null;
+    const p = (t / 60) / dkm;
+    return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`;
+  };
+  const compactSplits = (splits) => {
+    if (!Array.isArray(splits) || splits.length < 2) return null;
+    const cs = splits.map(splitPace).filter(Boolean);
+    return cs.length >= 2 ? cs.join('·') : null;
+  };
+  const detailedSplits = (splits) => {
+    if (!Array.isArray(splits) || splits.length < 2) return null;
+    const ds = splits.map((sp, i) => {
+      const pace = splitPace(sp);
+      if (!pace) return null;
+      const hr = sp.average_heartrate ? ` ${Math.round(sp.average_heartrate)}ppm` : '';
+      return `k${i + 1} ${pace}${hr}`;
+    }).filter(Boolean);
+    return ds.length >= 2 ? ds.join(' · ') : null;
+  };
+
   // ── Activity log (56d individual, to ground the 2-month trend in BLOQUE 2) ─
   const actLog = yearActs
     .filter(a => new Date(a.start_date) >= week8)
@@ -485,6 +527,10 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       if (a.total_elevation_gain > 0) parts.push(`+${Math.round(a.total_elevation_gain)}m`);
       if (min > 0) parts.push(`${Math.round(min)}min`);
       if (a.suffer_score) parts.push(`sufr=${a.suffer_score}`);
+      if (isRunning(a) && isFastRun(a) && a.splits_metric) {
+        const cs = compactSplits(a.splits_metric);
+        if (cs) parts.push(`parciales/km:[${cs}]`);
+      }
       return parts.join(' ');
     }).join('\n');
 
@@ -572,6 +618,10 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     if (lastAct.total_elevation_gain) ln.push(`Desnivel: +${Math.round(lastAct.total_elevation_gain)}m`);
     if (lastAct.suffer_score) ln.push(`Esfuerzo Strava: ${lastAct.suffer_score}`);
     ln.push(`Carga estimada (TRIMP): ${Math.round(estimateLoad(lastAct))}`);
+    if (isRunning(lastAct) && isFastRun(lastAct) && lastAct.splits_metric) {
+      const ds = detailedSplits(lastAct.splits_metric);
+      if (ds) ln.push(`Parciales por km (analiza la distribución del esfuerzo — salida rápida y desfallecimiento, ritmo parejo o negative split): ${ds}`);
+    }
     lastSection = ln.filter(Boolean).join('\n');
   }
 
@@ -653,7 +703,7 @@ Usa **negrita** para el dato clave de cada bullet.
 |||
 
 BLOQUE 4 — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
-Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual y la distribución polarizada 80/20 (medida sobre carga TOTAL: carrera + cruzado). Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Da exactamente 1 acierto y 1 ajuste accionable, y relaciónalo con tu fatiga/recuperación de hoy. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el veredicto clave de cada bullet.
+Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual y la distribución polarizada 80/20 (medida sobre carga TOTAL: carrera + cruzado). Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Si hay "Parciales por km", analiza la DISTRIBUCIÓN del esfuerzo (positive/negative split, desfallecimiento final, ritmo parejo o descontrol inicial) y refléjalo en el acierto/ajuste. Da exactamente 1 acierto y 1 ajuste accionable, y relaciónalo con tu fatiga/recuperación de hoy. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el veredicto clave de cada bullet.
 
 ${athleteContext}
 

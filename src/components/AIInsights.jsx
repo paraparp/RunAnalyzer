@@ -637,7 +637,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           { tag: 'LT2', hr: lt2Hr, pace: lt2Pace, p: p2, c: 'text-rose-600' },
         ];
         return (
-          <div className="px-5 py-3.5 border-b border-slate-100/60 bg-slate-50/20">
+          <div className="px-5 py-4 border-b border-slate-100/60 border-l-2 border-l-sky-400/70 bg-slate-50/20">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Umbrales</span>
               <span className="text-[10px] text-slate-400 font-semibold">· FC de entrenamiento</span>
@@ -710,7 +710,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
       )}
 
       {/* ── Últimas actividades analizadas ── */}
-      <div className="px-5 py-2.5 border-b border-slate-100/60 bg-slate-50/30 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="px-5 py-3 border-b border-slate-100/60 border-l-2 border-l-slate-300 bg-slate-50/30 flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
           <ClockIcon className="w-3.5 h-3.5" />
           Últimas 5 actividades
@@ -779,10 +779,10 @@ const AIInsights = ({ activities, onOpenChat }) => {
       </div>
 
       {/* ── Content grid: Diagnosis + Trend ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100/60">
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 divide-slate-100/60">
 
         {/* Block 1: Current state */}
-        <div className="p-4 flex flex-col gap-2.5">
+        <div className="p-5 flex flex-col gap-2.5 border-l-2 border-l-blue-400/70">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HeartIcon className="w-4 h-4 text-blue-500 shrink-0" />
@@ -815,7 +815,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
 
         {/* Block 2: Annual trend */}
-        <div className="p-4 flex flex-col gap-2.5">
+        <div className="p-5 flex flex-col gap-2.5 border-l-2 border-l-indigo-400/70">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -874,7 +874,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
                 : last.type === 'Yoga' ? '🧘'
                   : isRun ? '🏃' : '👟';
         return (
-          <div className="border-t border-slate-100/60 bg-amber-50/10 px-5 py-3.5">
+          <div className="border-t border-slate-100/60 border-l-2 border-l-amber-400/70 bg-amber-50/10 px-5 py-4">
             <div className="flex items-center gap-2.5 mb-2.5">
               <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100/50">
                 <FireIcon className="w-3.5 h-3.5" />
@@ -896,7 +896,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
 
       {/* ── Block 3: Next workout ── */}
       {(nextWork || (loading && cur && trend && !nextWork)) && (
-        <div className="border-t border-slate-100/60 bg-blue-50/10 px-5 py-4">
+        <div className="border-t border-slate-100/60 border-l-2 border-l-blue-400/70 bg-blue-50/10 px-5 py-5">
           <div className="flex items-center gap-2.5 mb-3.5">
             <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50">
               <BoltIcon className="w-3.5 h-3.5" />
