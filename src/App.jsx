@@ -5,6 +5,7 @@ import cloudStorage, { hydrate, reset as resetCloudStorage, flush as flushCloudS
 import { useTranslation } from 'react-i18next';
 import './App.css';
 import StravaCallback from './components/StravaCallback';
+import OfflineBanner from './components/OfflineBanner';
 import MonthlyChart from './components/MonthlyChart';
 import PersonalBests from './components/PersonalBests';
 import TrainingPlanner from './components/TrainingPlanner';
@@ -1489,25 +1490,28 @@ function App() {
   if (!authReady) return null;
 
   return (
-    <Routes>
-      <Route path="/strava-callback" element={
-        <StravaCallback onConnect={handleStravaConnected} />
-      } />
-      <Route path="/" element={
-        !user ? (
-          <LandingPage />
-        ) : !storageReady ? (
-          <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-            <div className="flex flex-col items-center gap-3 text-slate-400">
-              <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
-              <span className="text-sm font-medium">Cargando tus datos…</span>
+    <>
+      <OfflineBanner />
+      <Routes>
+        <Route path="/strava-callback" element={
+          <StravaCallback onConnect={handleStravaConnected} />
+        } />
+        <Route path="/" element={
+          !user ? (
+            <LandingPage />
+          ) : !storageReady ? (
+            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+              <div className="flex flex-col items-center gap-3 text-slate-400">
+                <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="text-sm font-medium">Cargando tus datos…</span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <Dashboard user={user} handleLogout={handleLogout} />
-        )
-      } />
-    </Routes>
+          ) : (
+            <Dashboard user={user} handleLogout={handleLogout} />
+          )
+        } />
+      </Routes>
+    </>
   );
 }
 

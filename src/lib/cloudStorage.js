@@ -61,6 +61,18 @@ export function isDegraded() {
   return degraded;
 }
 
+// Suscripción reactiva para que un banner del UI se actualice al cambiar el estado.
+const degradedListeners = new Set();
+export function onDegradedChange(cb) {
+  degradedListeners.add(cb);
+  return () => degradedListeners.delete(cb);
+}
+function setDegraded(v) {
+  if (degraded === v) return;
+  degraded = v;
+  for (const cb of degradedListeners) { try { cb(v); } catch { /* ignore */ } }
+}
+
 // ── Resiliencia ante caídas de Supabase (5xx/522) ────────────────────────────
 // 1) Reintento con backoff en la lectura inicial (los 5xx suelen ser transitorios).
 // 2) Espejo en localStorage: cada valor de la nube se copia también localmente,
@@ -96,8 +108,35 @@ function track(promise) {
   return promise;
 }
 
+// ── Coalescing de escrituras (protección de Disk IO) ─────────────────────────
+// Blobs grandes como `stravaData` (cientos de actividades, varios MB en UNA fila
+// de Postgres) se reescriben en ráfagas: p.ej. el enriquecido de splits hace
+// hasta 25 setItem seguidos. Sin coalescing eso son 25 upserts multi-MB → WAL +
+// tuplas muertas + autovacuum → agota el Disk IO Budget del compute (→ 522).
+// Debounce por clave + dirty-check reducen esa ráfaga a UN único upsert real.
+const WRITE_DEBOUNCE_MS = 2000;
+const lastPersisted = new Map(); // clave -> último string ya confirmado en la nube
+const writeTimers = new Map();   // clave -> id de timeout debounced
+
+function fireUpsert(key) {
+  const value = cache.get(key);
+  if (value == null) return;
+  if (lastPersisted.get(key) === value) return; // sin cambios: no se toca el disco
+  lastPersisted.set(key, value);
+  track(upsert(key, value));
+}
+
+function scheduleUpsert(key) {
+  if (writeTimers.has(key)) clearTimeout(writeTimers.get(key));
+  const timer = setTimeout(() => { writeTimers.delete(key); fireUpsert(key); }, WRITE_DEBOUNCE_MS);
+  writeTimers.set(key, timer);
+}
+
 /** Espera a que terminen todas las escrituras pendientes en la nube. */
 export async function flush() {
+  // Forzar YA las escrituras debounced pendientes antes de esperarlas.
+  for (const [key, timer] of writeTimers) { clearTimeout(timer); fireUpsert(key); }
+  writeTimers.clear();
   await Promise.allSettled([...pending]);
 }
 
@@ -110,10 +149,10 @@ async function upsert(key, value) {
       { onConflict: 'user_id,key' }
     );
   if (error) {
-    degraded = true;
+    setDegraded(true);
     console.warn(`cloudStorage upsert "${key}" falló (guardado local):`, error.message);
   } else {
-    degraded = false;
+    setDegraded(false);
   }
 }
 
@@ -125,7 +164,7 @@ async function removeRemote(key) {
     .eq('user_id', currentUserId)
     .eq('key', key);
   if (error) {
-    degraded = true;
+    setDegraded(true);
     console.warn(`cloudStorage delete "${key}" falló:`, error.message);
   }
 }
@@ -138,7 +177,7 @@ export async function hydrate(userId) {
   currentUserId = userId;
   cache.clear();
   hydrated = false;
-  degraded = false;
+  setDegraded(false);
 
   const { data, error } = await withRetry(() =>
     supabase.from('user_storage').select('key, value').eq('user_id', userId)
@@ -147,7 +186,7 @@ export async function hydrate(userId) {
   if (error) {
     // Supabase inalcanzable tras varios reintentos (p.ej. 522). Degradamos a la
     // copia local para que la app siga usable con los últimos datos conocidos.
-    degraded = true;
+    setDegraded(true);
     console.warn('cloudStorage hydrate falló tras reintentos, usando espejo local:', error.message);
     for (const key of MIGRATED_KEYS) {
       const local = readLocal(key);
@@ -159,7 +198,8 @@ export async function hydrate(userId) {
 
   for (const row of data ?? []) {
     cache.set(row.key, row.value);
-    mirrorLocal(row.key, row.value); // refresca el espejo local para futuras caídas
+    lastPersisted.set(row.key, row.value); // ya está en la nube: no reescribir si no cambia
+    mirrorLocal(row.key, row.value);        // refresca el espejo local para futuras caídas
   }
 
   // Migración inicial: subir lo que quede en localStorage y aún no esté en la nube.
@@ -178,7 +218,10 @@ export async function hydrate(userId) {
       .from('user_storage')
       .upsert(toMigrate, { onConflict: 'user_id,key' });
     if (migErr) console.warn('cloudStorage migración inicial falló:', migErr.message);
-    else console.log(`cloudStorage: migradas ${toMigrate.length} claves desde localStorage`);
+    else {
+      for (const row of toMigrate) lastPersisted.set(row.key, row.value);
+      console.log(`cloudStorage: migradas ${toMigrate.length} claves desde localStorage`);
+    }
   }
 
   hydrated = true;
@@ -186,9 +229,13 @@ export async function hydrate(userId) {
 
 /** Vacía la caché en memoria (al cerrar sesión). No borra datos en la nube. */
 export function reset() {
+  for (const timer of writeTimers.values()) clearTimeout(timer);
+  writeTimers.clear();
+  lastPersisted.clear();
   cache.clear();
   currentUserId = null;
   hydrated = false;
+  setDegraded(false);
 }
 
 export const cloudStorage = {
@@ -204,10 +251,10 @@ export const cloudStorage = {
       try { localStorage.setItem(key, str); } catch { /* ignore */ }
       return;
     }
+    if (cache.get(key) === str) return; // sin cambios: ni memoria ni disco ni red
     cache.set(key, str);
-    mirrorLocal(key, str); // respaldo local: sobrevive a caídas de Supabase
-    // write-through en segundo plano; el valor ya está en memoria.
-    track(upsert(key, str));
+    mirrorLocal(key, str);   // respaldo local: sobrevive a caídas de Supabase
+    scheduleUpsert(key);     // debounced + dirty-check: coalesce ráfagas de blobs grandes
   },
   removeItem(key) {
     if (DEVICE_KEYS.has(key)) {
@@ -216,6 +263,8 @@ export const cloudStorage = {
     }
     cache.delete(key);
     mirrorRemoveLocal(key);
+    if (writeTimers.has(key)) { clearTimeout(writeTimers.get(key)); writeTimers.delete(key); }
+    lastPersisted.delete(key);
     track(removeRemote(key));
   },
 };
