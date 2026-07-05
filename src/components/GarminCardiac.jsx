@@ -469,6 +469,7 @@ export default function GarminCardiac() {
     }
     setData(final);
     cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
+    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
     if (newSleepData?.length) {
       const merged = (() => {
         const byWeek = {};
@@ -540,6 +541,7 @@ export default function GarminCardiac() {
     cloudStorage.removeItem('garmin_cardiac_data');
     cloudStorage.removeItem('garmin_creds');
     cloudStorage.removeItem('garmin_last_sync');
+    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
   };
 
   // ---- Derived stats ----

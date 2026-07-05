@@ -6,16 +6,18 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 import { Card, Title, Text, Badge, Callout } from '@tremor/react';
-import { seilerBounds, karvonenBounds, frielBounds, acsmBounds, estimateLTHR } from '../lib/hrZones';
+import {
+  seilerBounds, karvonenBounds, estimateLTHR,
+  detectMaxHR, detectRestHR, detectLTHR, SEILER_TARGETS, HR_LIMITS,
+} from '../lib/hrZones';
 
 // ─── Scientific References ────────────────────────────────────────────────────
 // [1] Karvonen et al. (1957) Ann Med Exp Biol Fenn — Heart Rate Reserve: %HRR ≈ %VO2R
 // [2] Seiler & Kjerland (2006) Scand J Med Sci Sports — Polarized 3-zone model
 // [3] Stöggl & Sperlich (2014) Front Physiol — Polarized > threshold/HVT in trained athletes
-// [4] Friel (2009) The Triathlete's Training Bible — LTHR 7-zone system
+// [4] Friel (2009) The Triathlete's Training Bible — LTHR estimation fallback
 // [5] Tanaka et al. (2001) J Am Coll Cardiol — HRmax = 208 − 0.7 × age (meta-analysis n=351)
-// [6] ACSM Guidelines 10th ed. — %HRmax 5-zone classification
-// [7] Kindermann et al. (1979) Int J Sports Med — LT1/LT2 physiological basis
+// [6] Kindermann et al. (1979) Int J Sports Med — LT1/LT2 physiological basis
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -36,9 +38,9 @@ const MODELS = {
     ref: 'Seiler & Kjerland, 2006 · Stöggl & Sperlich, 2014',
     desc: 'El modelo más respaldado por evidencia científica para atletas de resistencia. Divide en fácil / umbral / intenso. Base del entrenamiento 80/20.',
     zones: [
-      { id: 0, name: 'Z1', label: 'Base Aeróbica',    desc: 'Conversacional, oxidación de grasas, desarrollo mitocondrial.', color: '#4ade80', bg: 'rgba(74,222,128,0.10)', target: 75 },
-      { id: 1, name: 'Z2', label: 'Zona Umbral',       desc: '"Zona gris" — fisiológicamente costosa pero sin las adaptaciones de Z1 o Z3.', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', target: 5 },
-      { id: 2, name: 'Z3', label: 'Alta Intensidad',   desc: 'Intervalos, VO2max, anaeróbico. Adaptaciones neuromusculares y cardíacas.', color: '#f87171', bg: 'rgba(248,113,113,0.10)', target: 20 },
+      { id: 0, name: 'Z1', label: 'Base Aeróbica',    desc: 'Conversacional, oxidación de grasas, desarrollo mitocondrial.', color: '#4ade80', bg: 'rgba(74,222,128,0.10)', target: SEILER_TARGETS.z1 },
+      { id: 1, name: 'Z2', label: 'Zona Umbral',       desc: '"Zona gris" — fisiológicamente costosa pero sin las adaptaciones de Z1 o Z3.', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', target: SEILER_TARGETS.z2 },
+      { id: 2, name: 'Z3', label: 'Alta Intensidad',   desc: 'Intervalos, VO2max, anaeróbico. Adaptaciones neuromusculares y cardíacas.', color: '#f87171', bg: 'rgba(248,113,113,0.10)', target: SEILER_TARGETS.z3 },
     ],
     getBounds: seilerBounds,
   },
@@ -46,111 +48,53 @@ const MODELS = {
   karvonen: {
     shortName: 'Karvonen',
     name: 'Karvonen 5-Zonas  ·  Heart Rate Reserve',
-    ref: 'Karvonen et al., 1957',
+    ref: 'Karvonen et al., 1957 · cortes 10% HRR (estándar Garmin/Polar)',
     desc: 'Usa la Reserva de FC (FCmax − FCreposo). Más preciso que %FCmax porque incorpora tu condición física base. %HRR ≈ %VO2R [1].',
     zones: [
-      { id: 0, name: 'Z1', label: 'Regeneración',    desc: '<50% HRR. Recuperación activa, < 2 mmol/L lactato.',       color: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
-      { id: 1, name: 'Z2', label: 'Base Aeróbica',   desc: '50–60% HRR. Base resistencia, LT1, oxidación de grasas.',  color: '#38bdf8', bg: 'rgba(56,189,248,0.10)'   },
-      { id: 2, name: 'Z3', label: 'Aeróbico Intenso',desc: '60–70% HRR. Fondo largo, acumulación leve de lactato.',    color: '#4ade80', bg: 'rgba(74,222,128,0.10)'   },
-      { id: 3, name: 'Z4', label: 'Umbral Lactato',   desc: '70–85% HRR. Tempo, LT2, ~4 mmol/L lactato.',             color: '#fb923c', bg: 'rgba(251,146,60,0.10)'    },
-      { id: 4, name: 'Z5', label: 'VO2max / Sprint',  desc: '>85% HRR. Anaeróbico, capacidad máxima, sprints.',        color: '#f87171', bg: 'rgba(248,113,113,0.10)'   },
+      { id: 0, name: 'Z1', label: 'Recuperación',     desc: '<60% HRR. Trote muy suave, recuperación activa, < 2 mmol/L lactato.', color: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
+      { id: 1, name: 'Z2', label: 'Base Aeróbica',    desc: '60–70% HRR. Fondo fácil, LT1, oxidación de grasas.',                  color: '#38bdf8', bg: 'rgba(56,189,248,0.10)'   },
+      { id: 2, name: 'Z3', label: 'Aeróbico Intenso', desc: '70–80% HRR. Fondo medio, tempo suave.',                               color: '#4ade80', bg: 'rgba(74,222,128,0.10)'   },
+      { id: 3, name: 'Z4', label: 'Umbral Lactato',   desc: '80–90% HRR. Tempo, LT2, ~4 mmol/L lactato.',                          color: '#fb923c', bg: 'rgba(251,146,60,0.10)'    },
+      { id: 4, name: 'Z5', label: 'VO2max / Sprint',  desc: '>90% HRR. Anaeróbico, capacidad máxima, sprints.',                    color: '#f87171', bg: 'rgba(248,113,113,0.10)'   },
     ],
     getBounds: karvonenBounds,
   },
-
-  friel: {
-    shortName: 'Friel',
-    name: 'Friel 7-Zonas  ·  LTHR',
-    ref: 'Friel, 2009 — The Triathlete\'s Training Bible',
-    desc: 'Sistema basado en LTHR (FC en el umbral de lactato). Muy utilizado por triatletas y ciclistas de élite para prescribir cargas de entrenamiento con precisión.',
-    zones: [
-      { id: 0, name: 'Z1',  label: 'Recuperación',        desc: '<85% LTHR. Esfuerzo muy ligero, recuperación.', color: '#a3e635', bg: 'rgba(163,230,53,0.10)'     },
-      { id: 1, name: 'Z2',  label: 'Aeróbico Extensivo',  desc: '85–89% LTHR. Fácil-moderado, fondo largo.',   color: '#34d399', bg: 'rgba(52,211,153,0.10)'     },
-      { id: 2, name: 'Z3',  label: 'Aeróbico Intensivo',  desc: '90–94% LTHR. Tempo suave, fondo medio.',      color: '#38bdf8', bg: 'rgba(56,189,248,0.10)'     },
-      { id: 3, name: 'Z4',  label: 'Umbral Anaeróbico',   desc: '95–99% LTHR. Ritmo de carrera objetivo.',     color: '#fbbf24', bg: 'rgba(251,191,36,0.10)'     },
-      { id: 4, name: 'Z5a', label: 'Sub-Anaeróbico',      desc: '100–102% LTHR. Justo sobre el umbral.',       color: '#fb923c', bg: 'rgba(251,146,60,0.10)'     },
-      { id: 5, name: 'Z5b', label: 'Anaeróbico',          desc: '103–106% LTHR. Alta acumulación de lactato.', color: '#f87171', bg: 'rgba(248,113,113,0.10)'    },
-      { id: 6, name: 'Z5c', label: 'Pico Neuromuscular',  desc: '>106% LTHR. Sprints y arranques máximos.',    color: '#e879f9', bg: 'rgba(232,121,249,0.10)'    },
-    ],
-    getBounds: frielBounds,
-  },
-
-  acsm: {
-    shortName: 'ACSM',
-    name: 'ACSM 5-Zonas  ·  % FCmax',
-    ref: 'ACSM Guidelines for Exercise Testing and Prescription, 10th ed.',
-    desc: 'Estándar del Colegio Americano de Medicina Deportiva. El más simple al no requerir FCreposo ni LTHR. Adecuado como punto de partida.',
-    zones: [
-      { id: 0, name: 'Z1', label: 'Muy Ligero',   desc: '<57% FCmax. Calentamiento, recuperación activa.',  color: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
-      { id: 1, name: 'Z2', label: 'Ligero',        desc: '57–63% FCmax. Quema grasas, baja intensidad.',    color: '#60a5fa', bg: 'rgba(96,165,250,0.10)'   },
-      { id: 2, name: 'Z3', label: 'Moderado',      desc: '64–76% FCmax. Aeróbico, fondo, LT1.',             color: '#34d399', bg: 'rgba(52,211,153,0.10)'   },
-      { id: 3, name: 'Z4', label: 'Vigoroso',      desc: '77–95% FCmax. Umbral de lactato, esfuerzo alto.', color: '#fb923c', bg: 'rgba(251,146,60,0.10)'   },
-      { id: 4, name: 'Z5', label: 'Muy Vigoroso',  desc: '>95% FCmax. Anaeróbico, pico absoluto.',          color: '#ef4444', bg: 'rgba(239,68,68,0.10)'    },
-    ],
-    getBounds: acsmBounds,
-  },
 };
 
-// ── Auto-calibration ──────────────────────────────────────────────────────────
+// ── Manual override persistence + validation ─────────────────────────────────
+const OVERRIDES_KEY = 'hr_zone_overrides';
 
-// Detect LTHR from training data using threshold-run heuristics.
-// Strategy 1 (field, highest confidence): sustained hard efforts 18–70 min
-//   • avg HR > 82% HRmax  →  genuinely hard
-//   • avg/max HR ratio > 0.92  →  sustained (not a spiked effort)
-//   → median of qualifying runs' average HR = LTHR estimate
-// Strategy 2 (race): workout_type===1 or high suffer_score
-//   → p75 of race avg HR × 0.97 (races are ~3% above LTHR, Friel)
-// Strategy 3 (formula): Friel's approximation LTHR ≈ 87.5% HRmax
-function detectLTHR(activities, maxHR) {
-  if (!activities?.length || !maxHR) return { lthr: null, confidence: 0, method: 'none', n: 0 };
+const loadOverrides = () => {
+  try { return JSON.parse(cloudStorage.getItem(OVERRIDES_KEY)) ?? {}; } catch { return {}; }
+};
 
-  const thresholdRuns = activities.filter(a => {
-    if (!a.average_heartrate || !a.max_heartrate || !a.moving_time) return false;
-    const mins   = a.moving_time / 60;
-    const avgPct = a.average_heartrate / maxHR;
-    const sustain= a.average_heartrate / a.max_heartrate;
-    return mins >= 18 && mins <= 70 && avgPct >= 0.82 && avgPct < 0.97 && sustain >= 0.92;
-  });
-
-  if (thresholdRuns.length >= 3) {
-    const hrs = thresholdRuns.map(a => a.average_heartrate).sort((a, b) => a - b);
-    const median = hrs[Math.floor(hrs.length / 2)];
-    const conf   = Math.min(92, 40 + thresholdRuns.length * 7);
-    return { lthr: Math.round(median), confidence: conf, method: 'field', n: thresholdRuns.length };
-  }
-
-  const raceRuns = activities.filter(a =>
-    a.average_heartrate && (a.workout_type === 1 || (a.suffer_score && a.suffer_score > 150))
-  );
-  if (raceRuns.length >= 1) {
-    const hrs = raceRuns.map(a => a.average_heartrate).sort((a, b) => a - b);
-    const p75  = hrs[Math.floor(hrs.length * 0.75)] ?? hrs[hrs.length - 1];
-    return { lthr: Math.round(p75 * 0.97), confidence: 45, method: 'race', n: raceRuns.length };
-  }
-
-  return { lthr: estimateLTHR(maxHR), confidence: 25, method: 'formula', n: 0 };
-}
-
-// Estimate resting HR from easy long runs (15th percentile HR × 0.56)
-function detectRestHR(activities) {
-  if (!activities?.length) return 60;
-  const hrs = activities
-    .filter(a => a.average_heartrate && a.moving_time > 2400)
-    .map(a => a.average_heartrate)
-    .sort((a, b) => a - b);
-  if (!hrs.length) return 60;
-  const easy = hrs[Math.floor(hrs.length * 0.15)];
-  return Math.max(38, Math.min(78, Math.round(easy * 0.56)));
-}
+// Parse a manual override. Returns the integer if it's inside [lo, hi],
+// null if empty, NaN if present but out of range (→ ignored, flagged in UI).
+const parseOverride = (raw, lo, hi) => {
+  if (raw === '' || raw == null) return null;
+  const v = Math.round(+raw);
+  return Number.isFinite(v) && v >= lo && v <= hi ? v : NaN;
+};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TrainingZones({ activities }) {
   const { t, i18n } = useTranslation();
   const [modelKey,  setModelKey]  = useState('seiler');
   const [groupBy,   setGroupBy]   = useState('month');
-  const [userMax,   setUserMax]   = useState('');
-  const [userRest,  setUserRest]  = useState('');
-  const [userLTHR,  setUserLTHR]  = useState('');
+  const [evoMode,   setEvoMode]   = useState('hours');
+  const [userMax,   setUserMax]   = useState(() => loadOverrides().max  ?? '');
+  const [userRest,  setUserRest]  = useState(() => loadOverrides().rest ?? '');
+  const [userLTHR,  setUserLTHR]  = useState(() => loadOverrides().lthr ?? '');
+
+  // Persist manual calibration so it survives reloads
+  useEffect(() => {
+    const o = {};
+    if (userMax)  o.max  = userMax;
+    if (userRest) o.rest = userRest;
+    if (userLTHR) o.lthr = userLTHR;
+    if (Object.keys(o).length) cloudStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
+    else cloudStorage.removeItem(OVERRIDES_KEY);
+  }, [userMax, userRest, userLTHR]);
 
   // ── Fetch Garmin Data ──
   const [garmin, setGarmin] = useState(undefined);
@@ -159,7 +103,7 @@ export default function TrainingZones({ activities }) {
       try {
         const s = cloudStorage.getItem('garmin_cardiac_data');
         if (s) { setGarmin(JSON.parse(s)); return; }
-      } catch {}
+      } catch { /* corrupt cache — fall through to fetch */ }
       fetch('/garmin_data.json')
         .then(r => r.ok ? r.json() : null)
         .then(j => setGarmin(j?.data ?? null))
@@ -178,48 +122,25 @@ export default function TrainingZones({ activities }) {
     return activities.filter(a => new Date(a.start_date) >= twoMonthsAgo);
   }, [activities]);
 
-  // ── Auto-detected parameters ──
-  const autoMaxHR = useMemo(() => {
-    if (!activities?.length) return 185;
-    
-    // 1. Filter out impossible physiological values (> 215) or invalid data
-    const topHRs = activities
-      .filter(a => a.max_heartrate > 140 && a.max_heartrate < 215)
-      .map(a => a.max_heartrate)
-      .sort((a, b) => b - a); // Descending order
-      
-    if (!topHRs.length) return 185;
-    
-    // 2. Take the Top 5% of their highest recorded HRs (minimum 5 activities)
-    // This isolates their true all-out efforts (races, intervals, sprint finishes)
-    const sampleSize = Math.min(topHRs.length, Math.max(5, Math.floor(topHRs.length * 0.05)));
-    const peaks = topHRs.slice(0, sampleSize);
-    
-    // 3. Take the median of this top sample.
-    // Why median? Optical HR sensors often produce 1-2 false spikes ("cadence lock" at ~180-200 bpm).
-    // The median safely ignores these extreme upper outliers while capturing the true sustained max capability.
-    const robustMax = peaks[Math.floor(peaks.length / 2)];
-    
-    return Math.round(robustMax);
-  }, [activities]);
+  // ── Auto-detected parameters (heuristics live in lib/hrZones — shared with the AI coach) ──
+  const autoMax  = useMemo(() => detectMaxHR(activities), [activities]);
+  const autoRest = useMemo(() => detectRestHR(garmin), [garmin]);
+  const lthrResult = useMemo(() => detectLTHR(recentActivities ?? [], autoMax.value), [recentActivities, autoMax]);
 
-  const autoRestHR = useMemo(() => {
-    if (garmin?.length > 0) {
-      // Get the most recent resting HR from Garmin data
-      const sorted = [...garmin].sort((a, b) => b.date.localeCompare(a.date));
-      const recentValid = sorted.find(d => d.restingHR);
-      if (recentValid) return recentValid.restingHR;
-    }
-    return detectRestHR(recentActivities ?? []);
-  }, [recentActivities, garmin]);
-
-  const lthrResult = useMemo(() => detectLTHR(recentActivities ?? [], autoMaxHR), [recentActivities, autoMaxHR]);
-
-  // ── Effective parameters (manual overrides take priority) ──
-  const hrmax  = userMax  ? +userMax  : autoMaxHR;
-  const hrrest = userRest ? +userRest : autoRestHR;
-  const lthr   = userLTHR ? +userLTHR : (lthrResult.lthr ?? estimateLTHR(hrmax));
+  // ── Effective parameters: valid manual overrides win, out-of-range input is
+  //    ignored (falls back to auto) and flagged in the UI. Ordering is enforced
+  //    (hrrest < hrmax, hrrest < lthr ≤ hrmax) so no model can produce inverted zones. ──
+  const maxOv  = parseOverride(userMax, HR_LIMITS.maxLo, HR_LIMITS.maxHi);
+  const hrmax  = maxOv || autoMax.value;
+  const restOv = parseOverride(userRest, HR_LIMITS.restLo, Math.min(HR_LIMITS.restHi, hrmax - 20));
+  const hrrest = restOv || Math.min(autoRest.value, hrmax - 20);
+  const lthrOv = parseOverride(userLTHR, hrrest + 10, hrmax);
+  const lthr   = lthrOv || Math.min(lthrResult.lthr ?? estimateLTHR(hrmax), hrmax);
   const hrr    = hrmax - hrrest;
+
+  const invalidMax  = userMax  !== '' && !maxOv;
+  const invalidRest = userRest !== '' && !restOv;
+  const invalidLTHR = userLTHR !== '' && !lthrOv;
 
   const translatedModels = useMemo(() => ({
     seiler: {
@@ -238,30 +159,10 @@ export default function TrainingZones({ activities }) {
         desc: t('zones.karvonen_desc'),
         zones: MODELS.karvonen.zones.map(z => ({
             ...z,
-            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
-            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
+            label: t(`zones.karvonen_zones.z${z.id + 1}.label`, z.label),
+            desc: t(`zones.karvonen_zones.z${z.id + 1}.desc`, z.desc)
         }))
     },
-    friel: {
-        ...MODELS.friel,
-        name: t('zones.friel_name'),
-        desc: t('zones.friel_desc'),
-        zones: MODELS.friel.zones.map(z => ({
-            ...z,
-            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
-            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
-        }))
-    },
-    acsm: {
-        ...MODELS.acsm,
-        name: t('zones.acsm_name'),
-        desc: t('zones.acsm_desc'),
-        zones: MODELS.acsm.zones.map(z => ({
-            ...z,
-            label: t(`hr_analysis.zones.${z.id}.name`, z.label),
-            desc: t(`hr_analysis.zones.${z.id}.desc`, z.desc)
-        }))
-    }
   }), [t]);
 
   const model  = translatedModels[modelKey];
@@ -293,11 +194,12 @@ export default function TrainingZones({ activities }) {
     }));
   }, [recentActivities, bounds, model]);
 
-  // ── Weekly / Monthly evolution ──
+  // ── Weekly / Monthly evolution (full history — the 2-month window only applies
+  //    to calibration and time-in-zones, otherwise "monthly" would never show >3 bars) ──
   const evolutionData = useMemo(() => {
-    if (!recentActivities?.length) return [];
+    if (!activities?.length) return [];
     const buckets = {};
-    recentActivities.forEach(a => {
+    activities.forEach(a => {
       if (!a.average_heartrate || !a.moving_time) return;
       const d = new Date(a.start_date);
       let key;
@@ -305,7 +207,9 @@ export default function TrainingZones({ activities }) {
         const w = new Date(d);
         const day = w.getDay();
         w.setDate(w.getDate() - day + (day === 0 ? -6 : 1));
-        key = w.toISOString().split('T')[0];
+        // Local-date key (toISOString would shift Monday-night activities to the
+        // previous week for timezones ahead of UTC)
+        key = `${w.getFullYear()}-${String(w.getMonth() + 1).padStart(2, '0')}-${String(w.getDate()).padStart(2, '0')}`;
       } else {
         key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       }
@@ -316,12 +220,17 @@ export default function TrainingZones({ activities }) {
     const sorted = Object.values(buckets).sort((a, b) => a.key.localeCompare(b.key));
     return (groupBy === 'week' ? sorted.slice(-16) : sorted.slice(-12)).map(b => {
       const row = { name: fmtBucket(b.key, groupBy, i18n.language) };
-      model.zones.forEach((z, i) => { row[z.name] = +(b.zones[i] / 3600).toFixed(2); });
+      const total = b.zones.reduce((s, v) => s + v, 0);
+      model.zones.forEach((z, i) => {
+        row[z.name] = evoMode === 'pct'
+          ? +(total ? (b.zones[i] / total) * 100 : 0).toFixed(1)
+          : +(b.zones[i] / 3600).toFixed(2);
+      });
       return row;
     });
-  }, [recentActivities, bounds, model, groupBy]);
+  }, [activities, bounds, model, groupBy, evoMode, i18n.language]);
 
-  // ── Seiler polarization analysis ──
+  // ── Seiler polarization analysis (thresholds derived from SEILER_TARGETS ±tolerance) ──
   const polarization = useMemo(() => {
     if (modelKey !== 'seiler' || zoneStats.length < 3) return null;
     const z1 = zoneStats[0]?.pct ?? 0;
@@ -329,13 +238,13 @@ export default function TrainingZones({ activities }) {
     const z3 = zoneStats[2]?.pct ?? 0;
 
     let status, tip, color;
-    if (z1 >= 70 && z2 <= 15) {
+    if (z1 >= SEILER_TARGETS.z1 - 5 && z2 <= SEILER_TARGETS.z2 + 5) {
       status = t('zones.seiler_status.ok'); color = 'emerald';
       tip = t('hr_analysis.polarized_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0), hi: bounds[0]?.hi });
-    } else if (z2 > 20) {
+    } else if (z2 > SEILER_TARGETS.z2 + 10) {
       status = t('zones.seiler_status.gray'); color = 'amber';
       tip = t('hr_analysis.gray_zone_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0), hi: bounds[0]?.hi, lo: bounds[2]?.lo });
-    } else if (z3 < 10) {
+    } else if (z3 < SEILER_TARGETS.z3 / 2) {
       status = t('zones.seiler_status.low'); color = 'sky';
       tip = t('hr_analysis.low_intensity_tip', { z3: z3.toFixed(0), lo: bounds[2]?.lo });
     } else {
@@ -343,7 +252,7 @@ export default function TrainingZones({ activities }) {
       tip = t('hr_analysis.moderate_tip', { z1: z1.toFixed(0), z2: z2.toFixed(0), z3: z3.toFixed(0) });
     }
     return { z1, z2, z3, status, tip, color };
-  }, [modelKey, zoneStats, bounds]);
+  }, [modelKey, zoneStats, bounds, t]);
 
   // ── Confidence labels ──
   const confColor = lthrResult.confidence >= 70 ? 'emerald' : lthrResult.confidence >= 40 ? 'amber' : 'rose';
@@ -385,49 +294,60 @@ export default function TrainingZones({ activities }) {
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_max')}</p>
-              <Badge color={userMax ? 'violet' : 'sky'} size="xs">{userMax ? t('zones.manual') : t('zones.auto')}</Badge>
+              <Badge color={maxOv ? 'violet' : 'sky'} size="xs">{maxOv ? t('zones.manual') : t('zones.auto')}</Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} {userMax ? t('zones.detected').toLowerCase() : t('zones.detected').toLowerCase()}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} · {maxOv ? t('zones.manual').toLowerCase() : t('zones.detected').toLowerCase()}</p>
             <input
-              type="number" placeholder={`${autoMaxHR} (auto)`} value={userMax}
+              type="number" placeholder={`${autoMax.value} (auto)`} value={userMax}
               onChange={e => setUserMax(e.target.value)}
-              className="mt-3 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 tabular-nums text-center font-semibold"
+              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
+                invalidMax ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
+              }`}
             />
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">Máx. observada en todos los entrenamientos. Tanaka (2001): 208 − 0.7 × edad.</p>
+            {invalidMax && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: HR_LIMITS.maxLo, hi: HR_LIMITS.maxHi })}</p>}
+            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.hrmax_desc')}</p>
           </div>
 
           {/* HRrest */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_rest')}</p>
-              <Badge color={userRest ? 'violet' : 'slate'} size="xs">{userRest ? t('zones.manual') : t('zones.estimated')}</Badge>
+              <Badge color={restOv ? 'violet' : autoRest.source === 'garmin' ? 'sky' : 'slate'} size="xs">
+                {restOv ? t('zones.manual') : autoRest.source === 'garmin' ? 'Garmin' : t('zones.default_val')}
+              </Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} {userRest ? t('zones.detected').toLowerCase() : t('zones.estimated').toLowerCase()}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} · {restOv ? t('zones.manual').toLowerCase() : autoRest.source === 'garmin' ? t('zones.detected').toLowerCase() : t('zones.default_val').toLowerCase()}</p>
             <input
-              type="number" placeholder={`${autoRestHR} (estimada)`} value={userRest}
+              type="number" placeholder={`${autoRest.value}`} value={userRest}
               onChange={e => setUserRest(e.target.value)}
-              className="mt-3 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 tabular-nums text-center font-semibold"
+              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
+                invalidRest ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
+              }`}
             />
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">Usada por Karvonen (HRR = FCmax − FCreposo). Mídela antes de levantarte por la mañana.</p>
+            {invalidRest && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: HR_LIMITS.restLo, hi: Math.min(HR_LIMITS.restHi, hrmax - 20) })}</p>}
+            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.hrrest_desc')}</p>
           </div>
 
           {/* LTHR */}
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.lthr')}</p>
-              <Badge color={userLTHR ? 'violet' : confColor} size="xs">
-                {userLTHR ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
+              <Badge color={lthrOv ? 'violet' : confColor} size="xs">
+                {lthrOv ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
               </Badge>
             </div>
             <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{methodText}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{lthrOv ? t('zones.manual') : methodText}</p>
             <input
-              type="number" placeholder={`${lthr} (auto)`} value={userLTHR}
+              type="number" placeholder={`${lthrResult.lthr ?? estimateLTHR(hrmax)} (auto)`} value={userLTHR}
               onChange={e => setUserLTHR(e.target.value)}
-              className="mt-3 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 tabular-nums text-center font-semibold"
+              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
+                invalidLTHR ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
+              }`}
             />
+            {invalidLTHR && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: hrrest + 10, hi: hrmax })}</p>}
             <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.lthr_desc')}</p>
           </div>
         </div>
@@ -528,7 +448,7 @@ export default function TrainingZones({ activities }) {
                     <div className="flex items-center gap-3">
                       {z.target && (
                         <span className={`text-[10px] font-semibold ${overTarget ? 'text-rose-500' : underTarget ? 'text-amber-500' : 'text-slate-400'}`}>
-                          obj {z.target}%
+                          {t('zones.target_label')} {z.target}%
                         </span>
                       )}
                       <span className="text-xs font-bold text-slate-700 tabular-nums w-10 text-right">{z.pct}%</span>
@@ -579,6 +499,20 @@ export default function TrainingZones({ activities }) {
                 {g === 'month' ? t('zones.monthly') : t('zones.weekly')}
               </button>
             ))}
+            <div className="w-px bg-slate-200 mx-1" />
+            {['hours', 'pct'].map(m => (
+              <button
+                key={m}
+                onClick={() => setEvoMode(m)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                  evoMode === m
+                    ? 'bg-slate-700 text-white border-slate-700'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                }`}
+              >
+                {m === 'hours' ? 'h' : '%'}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -599,10 +533,10 @@ export default function TrainingZones({ activities }) {
                 <BarChart data={evolutionData} barSize={groupBy === 'week' ? 9 : 18}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} unit="h" />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} unit={evoMode === 'pct' ? '%' : 'h'} domain={evoMode === 'pct' ? [0, 100] : undefined} />
                   <RechartsTooltip
                     contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                    formatter={(v, name) => [`${v}h`, name]}
+                    formatter={(v, name) => [`${v}${evoMode === 'pct' ? '%' : 'h'}`, name]}
                   />
                   {model.zones.map(z => (
                     <Bar key={z.name} dataKey={z.name} stackId="a" fill={z.color} radius={0} />
@@ -621,14 +555,14 @@ export default function TrainingZones({ activities }) {
 
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
-              { label: t('zones.polar_labels.z1'), val: polarization.z1, color: '#16a34a', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', target: '≥75%' },
-              { label: t('zones.polar_labels.z2'), val: polarization.z2, color: '#d97706', bg: 'rgba(251,191,36,0.10)', border: 'rgba(251,191,36,0.30)', target: '≤10%' },
-              { label: t('zones.polar_labels.z3'), val: polarization.z3, color: '#dc2626', bg: 'rgba(248,113,113,0.10)',border: 'rgba(248,113,113,0.30)',target: '~20%' },
+              { label: t('zones.polar_labels.z1'), val: polarization.z1, color: '#16a34a', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.30)', target: `≥${SEILER_TARGETS.z1}%` },
+              { label: t('zones.polar_labels.z2'), val: polarization.z2, color: '#d97706', bg: 'rgba(251,191,36,0.10)', border: 'rgba(251,191,36,0.30)', target: `≤${SEILER_TARGETS.z2}%` },
+              { label: t('zones.polar_labels.z3'), val: polarization.z3, color: '#dc2626', bg: 'rgba(248,113,113,0.10)',border: 'rgba(248,113,113,0.30)',target: `~${SEILER_TARGETS.z3}%` },
             ].map(row => (
               <div key={row.label} className="text-center p-4 rounded-xl" style={{ background: row.bg, border: `1px solid ${row.border}` }}>
                 <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: row.color }}>{row.label}</p>
                 <p className="text-2xl font-bold tabular-nums" style={{ color: row.color }}>{row.val.toFixed(0)}%</p>
-                <p className="text-[10px] mt-0.5 text-slate-400">Objetivo {row.target}</p>
+                <p className="text-[10px] mt-0.5 text-slate-400">{t('zones.target_label')} {row.target}</p>
               </div>
             ))}
           </div>

@@ -1,4 +1,5 @@
 import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT } from './lactateThreshold';
+import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from './hrZones';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -250,59 +251,23 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const withHR = recentRuns.filter(a => a.average_heartrate);
   const avgHR = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
-  // ── Robust FCmax detection (all-time, median of top 5%) ───────────────────
-  // Using all activities (not just recent) since FCmax is a stable physiological trait.
-  // We filter <140 and >215 to eliminate sensor glitches, then take the median of the
-  // top 5% of peaks to resist cadence-lock false spikes from optical sensors.
-  const allMaxHRs = activities
-    .filter(a => a.max_heartrate > 140 && a.max_heartrate < 215)
-    .map(a => a.max_heartrate)
-    .sort((a, b) => b - a);
-  let fcmax = 185;
-  if (allMaxHRs.length > 0) {
-    const sampleSize = Math.min(allMaxHRs.length, Math.max(5, Math.floor(allMaxHRs.length * 0.05)));
-    const peaks = allMaxHRs.slice(0, sampleSize);
-    fcmax = Math.round(peaks[Math.floor(peaks.length / 2)]);
-  }
+  // ── FCmax / FC reposo / LTHR — heurísticas centralizadas en src/lib/hrZones
+  // (mismas funciones que la pestaña de Zonas: un solo criterio en toda la app) ─
+  const fcmax   = detectMaxHR(activities).value;
+  const restDet = detectRestHR(garminData);
+  const fcRest  = restDet.value;
 
-  // ── Resting HR: prefer latest Garmin reading, fallback to activity estimate ─
-  let fcRest = 60;
-  if (garminData?.length) {
-    const sortedG = [...garminData].sort((a, b) => b.date.localeCompare(a.date));
-    const recentRHR = sortedG.find(d => d.restingHR);
-    if (recentRHR) fcRest = recentRHR.restingHR;
-  } else {
-    const easyRunHRs = runningYearActs
-      .filter(a => a.average_heartrate && a.moving_time > 2400)
-      .map(a => a.average_heartrate)
-      .sort((a, b) => a - b);
-    if (easyRunHRs.length) {
-      const easy = easyRunHRs[Math.floor(easyRunHRs.length * 0.15)];
-      fcRest = Math.max(38, Math.min(78, Math.round(easy * 0.56)));
-    }
-  }
-
-  // ── LTHR detection (last 2 months for current fitness state) ─────────────
-  // Strategy 1: sustained hard efforts 18-70min where avg HR > 82% FCmax and
-  //   avg/max ratio > 0.92 (to confirm effort was sustained, not a spike).
-  //   → median of qualifying runs' avg HR = LTHR estimate
-  // Strategy 2: fall back to Friel's approximation: LTHR ≈ 87.5% FCmax
-  let lthr = Math.round(fcmax * 0.875);
-  let lthrMethod = 'Friel approx (87.5% FCmax)';
-  let lthrIsEstimate = true;
-  const thresholdRuns2m = twoMonthActs.filter(a => {
-    if (!a.average_heartrate || !a.max_heartrate || !a.moving_time) return false;
-    const mins = a.moving_time / 60;
-    const avgPct = a.average_heartrate / fcmax;
-    const sustain = a.average_heartrate / a.max_heartrate;
-    return mins >= 18 && mins <= 70 && avgPct >= 0.82 && avgPct < 0.97 && sustain >= 0.92;
-  });
-  if (thresholdRuns2m.length >= 2) {
-    const hrs = thresholdRuns2m.map(a => a.average_heartrate).sort((a, b) => a - b);
-    lthr = Math.round(hrs[Math.floor(hrs.length / 2)]);
-    lthrMethod = `campo (${thresholdRuns2m.length} esfuerzos umbral detectados)`;
-    lthrIsEstimate = false;
-  }
+  // LTHR sobre los últimos 2 meses (estado de forma actual). minFieldRuns=2:
+  // para el prompt del coach aceptamos algo menos de evidencia que en la UI.
+  const ltDet = detectLTHR(twoMonthActs, fcmax, { minFieldRuns: 2 });
+  const lthr = ltDet.lthr ?? estimateLTHR(fcmax);
+  const lthrMethod = {
+    field:   `campo (${ltDet.n} esfuerzos umbral detectados)`,
+    race:    `competición (p75 de ${ltDet.n} carrera(s) × 0.97)`,
+    formula: 'Friel approx (87.5% FCmax)',
+    none:    'Friel approx (87.5% FCmax)',
+  }[ltDet.method];
+  const lthrIsEstimate = ltDet.method !== 'field';
 
   // ── Lactate-threshold model (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold) ─
   // El modelo de Critical Speed da el LT2 anclado a RENDIMIENTO (ritmo), y el
@@ -333,7 +298,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   // la FC fácil real (Karvonen subestimaba). Ahora las zonas salen de los umbrales. ─
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
-    `FC reposo=${fcRest}ppm (Garmin más reciente)`,
+    `FC reposo=${fcRest}ppm (${restDet.source === 'garmin' ? 'Garmin más reciente' : 'valor por defecto, sin medición'})`,
     `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} [método FC: ${lt1Method}]`,
     `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
     `ZONAS (derivadas de tus LT1/LT2 — un único sistema, sin contradicciones):`,
@@ -719,7 +684,7 @@ Historial mensual de carrera (últimos 2 meses): ${monthHistory}`;
 
   const prompt = `Eres un entrenador de running y fisiólogo deportivo de élite que aplica EXCLUSIVAMENTE modelos validados por la ciencia del entrenamiento actual: el modelo de impulso-respuesta de Banister (CTL/ATL/TSB, estándar de TrainingPeaks), el modelo polarizado 80/20 de Seiler, el entrenamiento guiado por VFC de Plews & Buchheit, el ratio agudo:crónico de Gabbett para riesgo de lesión, y el umbral de lactato de Friel. Tu objetivo es un diagnóstico ACCIONABLE y FIABLE en el que el atleta pueda confiar a ciegas, no describir datos. El atleta hace entrenamiento cruzado además de correr: considera su carga cardiovascular y fatiga al evaluar el estado, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie.
 
-Devuelve EXACTAMENTE cuatro bloques separados por "|||", sin ningún texto fuera de ellos.
+Devuelve EXACTAMENTE cinco bloques separados por "|||", sin ningún texto fuera de ellos.
 
 BLOQUE 1 — DIAGNÓSTICO DE ESTA SEMANA:
 Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el diagnóstico clave.
@@ -749,6 +714,13 @@ Usa **negrita** para el dato clave de cada bullet.
 
 BLOQUE 4 — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
 Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual y la distribución polarizada 80/20 (medida sobre carga TOTAL: carrera + cruzado). Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Si hay "Parciales por km", analiza la DISTRIBUCIÓN del esfuerzo (positive/negative split, desfallecimiento final, ritmo parejo o descontrol inicial) y refléjalo en el acierto/ajuste. Da exactamente 1 acierto y 1 ajuste accionable, y relaciónalo con tu fatiga/recuperación de hoy. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el veredicto clave de cada bullet.
+
+|||
+
+BLOQUE 5 — METADATOS (solo para parseo automático, el atleta no lo ve):
+Un ÚNICO objeto JSON válido en una sola línea. Sin markdown, sin \`\`\`json, sin bullets ni texto adicional. Forma exacta:
+{"estado":"<recuperado|fatigado|sobreentrenado|en_forma|adaptativo>","tendencia":"<progresion|estable|riesgo|estacional>","sesion":{"tipo":"<Tipo del BLOQUE 3>","distancia":"<X-Y km>","ritmo":"<M:SS-M:SS min/km>","zona":"<Zona N · ppm-ppm ppm>"}}
+Cada campo DEBE ser coherente con lo dicho en los BLOQUES 1-3 (mismo diagnóstico, mismo tipo de sesión, mismas cifras).
 
 ${athleteContext}
 

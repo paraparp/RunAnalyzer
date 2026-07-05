@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import cloudStorage from '../lib/cloudStorage';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -84,12 +84,11 @@ function densifyDaily(points, windowDays, dec = 1) {
   const out = [];
   const endMs = pts[pts.length - 1].ms;
   const d = new Date(pts[0].ms);
+  let lo = 0, hi = 0, sum = 0, n = 0; // ventana deslizante [cur - windowDays, cur]
   for (let cur = pts[0].ms; cur <= endMs; d.setDate(d.getDate() + 1), cur = dayMs(d.getTime())) {
     const from = cur - windowDays * MS_DAY;
-    let sum = 0, n = 0;
-    for (let i = pts.length - 1; i >= 0 && pts[i].ms >= from; i--) {
-      if (pts[i].ms <= cur) { sum += pts[i].v; n++; }
-    }
+    while (hi < pts.length && pts[hi].ms <= cur) { sum += pts[hi].v; n++; hi++; }
+    while (lo < hi && pts[lo].ms < from) { sum -= pts[lo].v; n--; lo++; }
     out.push({
       ms: cur,
       raw: rawMap.has(cur) ? +rawMap.get(cur).toFixed(dec) : null,
@@ -178,25 +177,28 @@ function estimateLoad(a) {
 // Daily CTL (chronic / accumulated training load) via 42-day EWMA over full history
 function computeCTLSeries(activities) {
   if (!activities?.length) return [];
+  // Bucket por día LOCAL (start_date_local si existe) para que cuadre con el resto de series
   const dailySS = {};
-  let minDate = Infinity;
+  let minMs = Infinity;
   activities.forEach((a) => {
-    const dateStr = a.start_date?.split("T")[0];
+    const dateStr = (a.start_date_local || a.start_date)?.split("T")[0];
     if (!dateStr) return;
-    const ts = new Date(dateStr).getTime();
-    if (ts < minDate) minDate = ts;
-    dailySS[dateStr] = (dailySS[dateStr] || 0) + (a.suffer_score || estimateLoad(a));
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const ms = new Date(y, m - 1, d).getTime(); // medianoche local
+    if (ms < minMs) minMs = ms;
+    dailySS[ms] = (dailySS[ms] || 0) + (a.suffer_score || estimateLoad(a));
   });
-  if (minDate === Infinity) return [];
+  if (minMs === Infinity) return [];
 
   const kCTL = Math.exp(-1 / 42);
   let ctl = 0;
   const out = [];
-  for (let ts = minDate; ts <= Date.now(); ts += MS_DAY) {
-    const dateStr = new Date(ts).toISOString().split("T")[0];
-    const tss = dailySS[dateStr] || 0;
+  const d = new Date(minMs);
+  const todayMs = dayMs(Date.now());
+  for (let cur = minMs; cur <= todayMs; d.setDate(d.getDate() + 1), cur = dayMs(d.getTime())) {
+    const tss = dailySS[cur] || 0;
     ctl = ctl * kCTL + tss * (1 - kCTL);
-    out.push({ ms: new Date(dateStr).getTime(), ctl: +ctl.toFixed(1), load: tss });
+    out.push({ ms: cur, ctl: +ctl.toFixed(1), load: tss });
   }
   return out;
 }
@@ -210,10 +212,13 @@ const PERIODS = [
   { label: "Todo", days: 99999 },
 ];
 
+// Período mínimo (días) para que cada granularidad produzca ≥2-3 puntos con sentido
+const GRAN_MIN_DAYS = { day: 0, week: 14, month: 90, year: 730 };
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media" }) => {
+const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inverted = false }) => {
   if (!active || !payload?.length) return null;
   const pt = payload[0]?.payload;
   if (!pt || pt.ms == null) return null;
@@ -221,7 +226,10 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media" }) =>
   return (
     <div className="bg-white/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
       <p className="font-semibold text-slate-500">{fmtDateFull(pt.ms)}</p>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{metric}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+        {metric}
+        {inverted && <span className="normal-case font-medium text-slate-400"> · eje invertido</span>}
+      </p>
       {pt.smooth != null && (
         <div className="flex items-center justify-between gap-4">
           <span className="text-slate-500">{avgLabel}</span>
@@ -253,7 +261,8 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
   const minV = vals.length ? Math.min(...vals) : null;
 
   let trendBadge = null;
-  const trendThreshold = decimals > 0 ? Math.pow(10, -decimals) : 0.1;
+  // Umbral = mínimo cambio visible con esos decimales (con 0 decimales, <0.5 se mostraría como "0")
+  const trendThreshold = decimals > 0 ? Math.pow(10, -decimals) : 0.5;
   if (trend != null && Math.abs(trend) >= trendThreshold) {
     const up = trend > 0;
     const good = trendInverse ? !up : up;
@@ -286,6 +295,12 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
             </span>
           )}
           {trendBadge}
+          {bands.length > 0 && (
+            <span
+              title="Franja verde: tramos con eficiencia aeróbica ≥ 85 % de tu máximo histórico"
+              className="self-center w-3 h-3 rounded-[3px] bg-emerald-500/20 ring-1 ring-emerald-500/30 shrink-0 cursor-help"
+            />
+          )}
         </div>
       </div>
 
@@ -327,7 +342,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                 tickFormatter={(v) => v.toFixed(decimals)}
               />
               <Tooltip
-                content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} />}
+                content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} inverted={invertY} />}
                 cursor={{ stroke: "#64748b", strokeWidth: 1.5, strokeDasharray: "4 4" }}
               />
               {refValue != null && (
@@ -389,9 +404,19 @@ export default function VitalsOverview({ activities = [] }) {
   const [gran, setGran] = useState("day"); // day | week | month | year
   const [gapAdjust, setGapAdjust] = useState(false); // ajustar eficiencia por desnivel (GAP)
 
-  const garmin = useMemo(() => {
+  const readGarmin = () => {
     try { return JSON.parse(cloudStorage.getItem("garmin_cardiac_data") || "null") || []; }
     catch { return []; }
+  };
+  const [garmin, setGarmin] = useState(readGarmin);
+  useEffect(() => {
+    const onUpdate = () => setGarmin(readGarmin());
+    window.addEventListener("garmin-cardiac-updated", onUpdate);
+    window.addEventListener("storage", onUpdate);
+    return () => {
+      window.removeEventListener("garmin-cardiac-updated", onUpdate);
+      window.removeEventListener("storage", onUpdate);
+    };
   }, []);
 
   // CTL runs over full history (EWMA needs the warm-up), filtered to the window below
@@ -422,7 +447,11 @@ export default function VitalsOverview({ activities = [] }) {
     // ── VO2max trend (forma física) from Strava runs ──
     const allHr = garmin.filter((d) => d.restingHR).map((d) => d.restingHR);
     const hrRest = allHr.length ? Math.round(allHr.reduce((a, b) => a + b, 0) / allHr.length) : null;
-    const maxObserved = activities.reduce((m, a) => Math.max(m, a.max_heartrate || 0), 0);
+    // FCmax observada, descartando artefactos de banda (lecturas >220 ppm)
+    const maxObserved = activities.reduce((m, a) => {
+      const h = a.max_heartrate || 0;
+      return h > m && h <= 220 ? h : m;
+    }, 0);
     const hrMax = maxObserved > 120 ? maxObserved : 190;
 
     const runs = activities
@@ -441,9 +470,9 @@ export default function VitalsOverview({ activities = [] }) {
 
     // ── Carga de entrenamiento acumulada (CTL) — window slice of full series ──
     const ctlPts = ctlSeries.filter((d) => d.ms >= cutoff).map((d) => ({ ms: d.ms, v: d.ctl }));
-    // CTL ya es una EWMA; en diario se muestra tal cual (ms a medianoche local para que el sync cuadre)
+    // CTL ya es una EWMA en base de día local; en diario se muestra tal cual
     const loadData = isDay
-      ? ctlPts.map((p) => ({ ms: dayMs(p.ms), smooth: p.v, raw: null }))
+      ? ctlPts.map((p) => ({ ms: p.ms, smooth: p.v, raw: null }))
       : aggregate(ctlPts, gran, 1);
 
     // ── Eficiencia aeróbica (metros por latido) ──
@@ -508,12 +537,18 @@ export default function VitalsOverview({ activities = [] }) {
     const domain = allMs.length ? [Math.min(...allMs), Math.max(...allMs)] : [cutoff, now];
 
     // ── Summary (current value + delta vs first half of period) ──
-    const lastOf = (arr) => (arr.length ? arr[arr.length - 1].smooth : null);
+    // Último valor suavizado no nulo (las series densificadas pueden acabar en hueco)
+    const lastOf = (arr) => {
+      for (let i = arr.length - 1; i >= 0; i--) if (arr[i].smooth != null) return arr[i].smooth;
+      return null;
+    };
+    // Delta 2ª mitad vs 1ª mitad, ignorando días sin datos (no cuentan como 0)
     const deltaOf = (arr, dec = 1) => {
-      if (arr.length < 4) return null;
-      const mid = Math.floor(arr.length / 2);
-      const a = arr.slice(0, mid).reduce((s, d) => s + (d.smooth ?? d.raw), 0) / mid;
-      const b = arr.slice(mid).reduce((s, d) => s + (d.smooth ?? d.raw), 0) / (arr.length - mid);
+      const vals = arr.map((d) => d.smooth ?? d.raw).filter((v) => v != null);
+      if (vals.length < 4) return null;
+      const mid = Math.floor(vals.length / 2);
+      const a = vals.slice(0, mid).reduce((s, v) => s + v, 0) / mid;
+      const b = vals.slice(mid).reduce((s, v) => s + v, 0) / (vals.length - mid);
       return +(b - a).toFixed(dec);
     };
 
@@ -573,16 +608,23 @@ export default function VitalsOverview({ activities = [] }) {
               { id: "week", label: "Semanal" },
               { id: "month", label: "Mensual" },
               { id: "year", label: "Anual" },
-            ].map((gr) => (
-              <button
-                key={gr.id}
-                onClick={() => setGran(gr.id)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {gr.label}
-              </button>
-            ))}
+            ].map((gr) => {
+              const enabled = days >= GRAN_MIN_DAYS[gr.id];
+              return (
+                <button
+                  key={gr.id}
+                  onClick={() => setGran(gr.id)}
+                  disabled={!enabled}
+                  title={enabled ? undefined : "Período demasiado corto para esta granularidad"}
+                  aria-pressed={gran === gr.id}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm"
+                    : enabled ? "text-slate-500 hover:text-slate-700" : "text-slate-300 cursor-not-allowed"
+                    }`}
+                >
+                  {gr.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Period selector */}
@@ -590,7 +632,11 @@ export default function VitalsOverview({ activities = [] }) {
             {PERIODS.map((p) => (
               <button
                 key={p.days}
-                onClick={() => setDays(p.days)}
+                onClick={() => {
+                  setDays(p.days);
+                  if (p.days < GRAN_MIN_DAYS[gran]) setGran("day");
+                }}
+                aria-pressed={days === p.days}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${days === p.days ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
               >

@@ -13,33 +13,69 @@ async function authHeaders(extra = {}) {
 /**
  * Llama al modelo en streaming. Va invocando onChunk(chunk, acumulado) según
  * llega el texto. Devuelve el texto completo. Admite AbortSignal.
+ *
+ * Watchdog: si el servidor no responde en `connectTimeoutMs` o el stream se
+ * queda mudo más de `idleTimeoutMs` entre chunks, se aborta y se lanza un
+ * Error normal (no AbortError) para que las cadenas de fallback pasen al
+ * siguiente proveedor en vez de quedarse colgadas indefinidamente.
  */
-export async function streamAI({ provider = 'gemini', model, messages, temperature = 0.7, signal }, onChunk) {
-  const res = await fetch('/api/ai/stream', {
-    method: 'POST',
-    headers: await authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ provider, model, messages, temperature }),
-    signal,
-  });
-  if (!res.ok || !res.body) {
-    let msg = `Error IA (${res.status})`;
-    try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* texto plano */ }
-    throw new Error(msg);
-  }
+export async function streamAI(
+  { provider = 'gemini', model, messages, temperature = 0.7, signal, connectTimeoutMs = 30000, idleTimeoutMs = 25000 },
+  onChunk
+) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let full = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    if (chunk) {
-      full += chunk;
-      onChunk?.(chunk, full);
+  const ctrl = new AbortController();
+  const onCallerAbort = () => ctrl.abort();
+  signal?.addEventListener('abort', onCallerAbort, { once: true });
+
+  let timedOut = false;
+  let timer;
+  const arm = (ms) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms);
+  };
+  arm(connectTimeoutMs);
+
+  try {
+    const res = await fetch('/api/ai/stream', {
+      method: 'POST',
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ provider, model, messages, temperature }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok || !res.body) {
+      let msg = `Error IA (${res.status})`;
+      try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* texto plano */ }
+      throw new Error(msg);
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+    arm(idleTimeoutMs);
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      arm(idleTimeoutMs);
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) {
+        full += chunk;
+        onChunk?.(chunk, full);
+      }
+    }
+    return full;
+  } catch (e) {
+    // Distingue el abort del caller (se propaga tal cual) del watchdog (falla
+    // "normal" que las cadenas de proveedores pueden capturar y saltar).
+    if (timedOut && !signal?.aborted) {
+      throw new Error(`Timeout: ${provider} dejó de responder`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onCallerAbort);
   }
-  return full;
 }
 
 /** Salida estructurada (generateObject) vía servidor. `schema` es el nombre registrado en el servidor. */
