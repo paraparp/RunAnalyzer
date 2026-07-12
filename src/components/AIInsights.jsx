@@ -61,18 +61,23 @@ const Pulse = () => (
 // ── Cabecera de zona: cada bloque del informe lleva su horizonte temporal ───
 // (HOY / PRÓXIMAS 48 H / ÚLTIMOS 2 MESES / ÚLTIMA SESIÓN) — la estructura del
 // módulo ES una línea de tiempo del ciclo de entrenamiento.
-const ZoneHeader = ({ marker, title, scope, right = null }) => (
-  <div className="flex items-center gap-2 mb-3">
-    <span className={`w-1.5 h-1.5 rounded-[2px] shrink-0 ${marker}`} />
-    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 shrink-0">
+const ScopePill = ({ children }) => (
+  <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0 px-2 py-[3px] rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
+    {children}
+  </span>
+);
+
+const ZoneHeader = ({ num, marker, title, scope, right = null }) => (
+  <div className="flex items-center gap-2.5 mb-3 px-0.5">
+    <span className={`w-2 h-2 rounded-[3px] shrink-0 ${marker}`} />
+    {num && (
+      <span className="font-mono text-[10px] font-bold text-slate-300 dark:text-slate-600 tabular-nums shrink-0">{num}</span>
+    )}
+    <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">
       {title}
     </span>
-    <span className="flex-1 h-px bg-gradient-to-r from-slate-200 dark:from-slate-800 to-transparent" />
-    {right ?? (scope && (
-      <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
-        {scope}
-      </span>
-    ))}
+    <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
+    {right ?? (scope && <ScopePill>{scope}</ScopePill>)}
   </div>
 );
 
@@ -95,19 +100,27 @@ const ZoneMeter = ({ zone }) => {
 
 // ── Badges (la clave viene de lib/aiInsights: metadatos JSON o heurística) ──
 const CUR_BADGES = {
-  fatiga: { text: 'Fatiga ⚠️', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/50' },
-  recuperado: { text: 'Recuperado ✅', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
-  sobreentrenamiento: { text: 'Sobreentrenamiento 🚨', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
-  forma: { text: 'En Forma ⚡', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50' },
-  adaptativo: { text: 'Adaptativo 📈', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  fatiga: { text: 'Fatiga', color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/50' },
+  recuperado: { text: 'Recuperado', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
+  sobreentrenamiento: { text: 'Sobreentrenamiento', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
+  forma: { text: 'En Forma', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50' },
+  adaptativo: { text: 'Adaptativo', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
 };
 
 const TREND_BADGES = {
-  riesgo: { text: 'Riesgo Lesión ⚠️', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
-  estable: { text: 'Estable 📊', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50' },
-  progresion: { text: 'Progresión 📈', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
-  estacional: { text: 'Estacional 📅', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  riesgo: { text: 'Riesgo Lesión', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
+  estable: { text: 'Estable', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50' },
+  progresion: { text: 'Progresión', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
+  estacional: { text: 'Estacional', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
 };
+
+// Badge sobrio: punto de color en lugar de emoji
+const Badge = ({ badge, className = '' }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold border ${badge.color} ${className}`}>
+    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 shrink-0" />
+    {badge.text}
+  </span>
+);
 
 // El acento del ticket de prescripción codifica la intensidad del tipo de sesión
 const WORKOUT_THEMES = [
@@ -314,27 +327,25 @@ const AIInsights = ({ activities, onOpenChat }) => {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
 
-      {/* ═══════════ ZONA 1 · ESTADO FISIOLÓGICO (HOY) ═══════════ */}
+      {/* ═══════════ 01 · ESTADO FISIOLÓGICO (HOY) ═══════════ */}
+      <section>
+      <ZoneHeader num="01" marker="kinetic-gradient" title="Estado Fisiológico" scope="Hoy" />
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
 
         <div className="px-5 pt-4 pb-5">
-          {/* Cabecera de zona + controles */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          {/* Identidad del coach + controles */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 mb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 shrink-0">
                 <SparklesIcon className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 leading-tight shrink-0">Estado Fisiológico</h3>
-                  <span className="hidden sm:block flex-1 h-px bg-gradient-to-r from-slate-200 dark:from-slate-800 to-transparent" />
-                  <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">Hoy</span>
-                </div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight truncate">Coach IA · {usedProvider || 'Gemini'}</p>
                 <p className="text-[10px] text-slate-400 font-semibold mt-0.5 truncate">
-                  Coach IA · {usedProvider || 'Gemini'}{cacheTs && !loading ? ` · ${formatTs(cacheTs)}` : ''} · Garmin + Strava
+                  {cacheTs && !loading ? `${formatTs(cacheTs)} · ` : ''}Garmin + Strava
                 </p>
               </div>
             </div>
@@ -344,7 +355,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           {/* Cuerpo: readiness (apoyo) + diagnóstico (foco) */}
           <div className="flex flex-col sm:flex-row gap-5">
             {/* Anillo de readiness — contexto */}
-            <div className="flex sm:flex-col items-center gap-3 sm:gap-2 shrink-0 sm:w-[88px]">
+            <div className="flex sm:flex-col items-center gap-3 sm:gap-2 shrink-0 sm:w-[104px] sm:pr-4 sm:border-r sm:border-slate-100 dark:sm:border-slate-800">
               {(() => {
                 const r = sci?.readiness;
                 const score = r?.score ?? 0;
@@ -380,12 +391,8 @@ const AIInsights = ({ activities, onOpenChat }) => {
             {/* Diagnóstico — protagonista */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Diagnóstico IA</span>
-                {curBadge && (
-                  <span className={`ml-auto px-2 py-0.5 rounded text-[9px] font-bold border ${curBadge.color}`}>
-                    {curBadge.text}
-                  </span>
-                )}
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Diagnóstico IA</span>
+                {curBadge && <Badge badge={curBadge} className="ml-auto" />}
               </div>
               <div className="min-h-[84px]">
                 {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" lg />}
@@ -393,19 +400,22 @@ const AIInsights = ({ activities, onOpenChat }) => {
             </div>
           </div>
 
-          {/* Rail de constantes — telemetría */}
+          {/* Panel de constantes — telemetría en celdas, no pildoritas sueltas */}
           {vitalPills.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-1.5">
-              {vitalPills.map((p, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{p.k}</span>
-                  <span className={`font-mono text-[11px] font-bold tabular-nums ${p.c}`}>{p.v}</span>
-                </span>
-              ))}
+            <div className="mt-4 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 overflow-hidden">
+              <div className="flex flex-wrap">
+                {vitalPills.map((p, i) => (
+                  <div key={i} className="flex-1 min-w-[86px] px-2 py-2 text-center border-l border-slate-200/60 dark:border-slate-700/50 first:border-l-0">
+                    <span className="block text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">{p.k}</span>
+                    <span className={`font-mono text-[13px] font-bold tabular-nums leading-none ${p.c}`}>{p.v}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
+      </section>
 
       {/* ── BANNERS ── */}
       {loading && providerLabel && (
@@ -429,10 +439,12 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
       )}
 
-      {/* ═══════════ ZONA 2 · PLAN (PRÓXIMAS 48 H) — ticket de sesión ═══════════ */}
+      {/* ═══════════ 02 · PLAN (PRÓXIMAS 48 H) — ticket de sesión ═══════════ */}
       {(nextWork || (loading && cur)) && (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5">
-          <ZoneHeader marker="bg-blue-500" title="Plan de Entrenamiento" scope="Próximas 48 h" />
+        <section>
+        <ZoneHeader num="02" marker="bg-blue-500" title="Plan de Entrenamiento" scope="Próximas 48 h" />
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5">
+          <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-blue-500/80" />
 
           {loading && !nextWork ? (
             <Pulse />
@@ -493,22 +505,22 @@ const AIInsights = ({ activities, onOpenChat }) => {
             })()
           )}
         </div>
+        </section>
       )}
 
-      {/* ═══════════ ZONA 3 · ANÁLISIS — tendencia (2 meses) + ejecución (última) ═══════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* ═══════════ 03 · ANÁLISIS — tendencia (2 meses) + ejecución (última) ═══════════ */}
+      <section>
+      <ZoneHeader num="03" marker="bg-indigo-500" title="Análisis de Rendimiento" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Tendencia de rendimiento */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+        <div className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+          <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-indigo-500/80" />
           <ZoneHeader
             marker="bg-indigo-500"
             title="Tendencia"
             scope="Últimos 2 meses"
-            right={trendBadge ? (
-              <span className={`px-2 py-0.5 rounded text-[9px] font-bold border shrink-0 ${trendBadge.color}`}>
-                {trendBadge.text}
-              </span>
-            ) : null}
+            right={trendBadge ? <Badge badge={trendBadge} className="shrink-0" /> : null}
           />
 
           <div className="flex items-center gap-2 mb-2">
@@ -539,7 +551,8 @@ const AIInsights = ({ activities, onOpenChat }) => {
           if (last?.total_elevation_gain) chips.push(`+${Math.round(last.total_elevation_gain)} m`);
           const icon = activityEmoji(last?.type);
           return (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+            <div className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+              <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-amber-500/80" />
               <ZoneHeader marker="bg-amber-500" title="Ejecución" scope="Última sesión" />
 
               <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
@@ -567,13 +580,13 @@ const AIInsights = ({ activities, onOpenChat }) => {
         })()}
 
       </div>
+      </section>
 
-      {/* ═══════════ ZONA 4 · FUENTES — actividades analizadas + sincronización ═══════════ */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.18em] shrink-0 flex items-center gap-1.5">
-          <ClockIcon className="w-3.5 h-3.5" />
-          Datos analizados
-        </span>
+      {/* ═══════════ 04 · FUENTES — actividades analizadas + sincronización ═══════════ */}
+      <section>
+      <ZoneHeader num="04" marker="bg-slate-400" title="Datos Analizados" scope="Últimas sesiones" />
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <ClockIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
         <div className="flex flex-wrap gap-2">
           {sortedActivities.slice(0, 5).map(a => {
             const tooltipParts = [];
@@ -584,7 +597,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             if (a.suffer_score) tooltipParts.push(`Esfuerzo: ${a.suffer_score}`);
 
             return (
-              <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 rounded-md cursor-help hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 rounded-md cursor-help hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <span className="font-mono text-[9px] text-slate-400 font-medium border-r border-slate-200 dark:border-slate-700 pr-1.5">
                   {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 </span>
@@ -628,7 +641,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           </div>
         )}
       </div>
-
+      </section>
 
       {/* ── FOOTER & ACTION PANEL ── */}
       <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
