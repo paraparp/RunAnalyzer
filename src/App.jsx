@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, Fragment } from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState, useMemo, Fragment } from 'react';
+import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import cloudStorage, { hydrate, reset as resetCloudStorage, flush as flushCloudStorage } from './lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
@@ -161,7 +161,14 @@ const Dashboard = ({ user, handleLogout }) => {
   const [paceRange, setPaceRange] = useState({ min: '', max: '' });
   const [activitiesPage, setActivitiesPage] = useState(1);
   const ACTIVITIES_PAGE_SIZE = 10;
-  const [currentView, setCurrentView] = useState('dashboard');
+  // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
+  const { view: viewParam } = useParams();
+  const navigate = useNavigate();
+  const currentView = NAV_ITEMS.some(i => i.id === viewParam) ? viewParam : 'dashboard';
+  const setCurrentView = useCallback(
+    (v) => navigate(v === 'dashboard' ? '/' : `/${v}`),
+    [navigate]
+  );
   const [selectedChartIndex, setSelectedChartIndex] = useState(0);
   const [chartGroupBy, setChartGroupBy] = useState('month');
   const chartMetrics = ['distance', 'time', 'elevation', 'load'];
@@ -1466,7 +1473,7 @@ function App() {
         <Route path="/strava-callback" element={
           <StravaCallback onConnect={handleStravaConnected} />
         } />
-        <Route path="/" element={
+        <Route path="/:view?" element={
           !user ? (
             <LandingPage />
           ) : !storageReady ? (
