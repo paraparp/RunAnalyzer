@@ -33,6 +33,45 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
         }));
     }
 
+    if (groupBy === 'week') {
+      // Agrupar por semana (lunes como inicio)
+      const grouped = activities.reduce((acc, activity) => {
+        const date = new Date(activity.start_date);
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+        monday.setHours(0, 0, 0, 0);
+        const key = monday.getTime();
+        if (!acc[key]) acc[key] = { date: monday, distance: 0, time: 0, elevation: 0, load: 0 };
+        acc[key].distance  += activity.distance || 0;
+        acc[key].time      += activity.elapsed_time || activity.moving_time || 0;
+        acc[key].elevation += activity.total_elevation_gain || 0;
+        acc[key].load      += activity.suffer_score || 0;
+        return acc;
+      }, {});
+
+      const locale = i18n.language.startsWith('es') ? 'es-ES' : 'en-US';
+      const wPrefix = i18n.language.startsWith('es') ? 'S' : 'W';
+      // Número de semana ISO a partir del lunes de la semana
+      const isoWeek = (monday) => {
+        const thu = new Date(monday);
+        thu.setDate(thu.getDate() + 3);
+        const week1 = new Date(thu.getFullYear(), 0, 4);
+        return 1 + Math.round(((thu - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+      };
+
+      return Object.values(grouped)
+        .sort((a, b) => a.date - b.date)
+        .slice(-52)
+        .map(d => ({
+          name:      `${wPrefix}${isoWeek(d.date)} · ${d.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`,
+          shortName: `${wPrefix}${isoWeek(d.date)}`,
+          distance:  Math.round(d.distance / 1000),
+          time:      Number((d.time / 3600).toFixed(1)),
+          elevation: Math.round(d.elevation),
+          load:      Math.round(d.load),
+        }));
+    }
+
     // Group by month
     const grouped = activities.reduce((acc, activity) => {
       const date = new Date(activity.start_date);
@@ -107,7 +146,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
         </div>
 
         {/* Bars */}
-        <div className="flex items-end gap-[4px] flex-1 pl-9 pb-6">
+        <div className={`flex items-end flex-1 pl-9 pb-6 ${chartData.length > 20 ? 'gap-[1px]' : 'gap-[4px]'}`}>
           {chartData.map((item, i) => {
             const pct     = Math.max((item[selectedMetric] / maxVal) * 100, 1.5);
             const isHover = hoveredIndex === i;
@@ -153,13 +192,15 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
                   />
                 </div>
 
-                {/* Month label */}
-                <span
-                  className="text-[9px] font-semibold leading-none mt-1.5 absolute -bottom-5 transition-colors"
-                  style={{ color: isHover ? cfg.bar : '#94a3b8' }}
-                >
-                  {item.shortName}
-                </span>
+                {/* Month label — con muchas barras (vista semanal) solo cada 4 para no solapar */}
+                {(chartData.length <= 20 || i % 4 === 0) && (
+                  <span
+                    className="text-[9px] font-semibold leading-none mt-1.5 absolute -bottom-5 transition-colors whitespace-nowrap"
+                    style={{ color: isHover ? cfg.bar : '#94a3b8' }}
+                  >
+                    {item.shortName}
+                  </span>
+                )}
               </div>
             );
           })}

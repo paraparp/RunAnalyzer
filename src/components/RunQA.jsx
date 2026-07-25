@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { streamAI } from '../services/ai';
 import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
-import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
+import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import { paceStr } from '../lib/aiInsights';
 
@@ -348,6 +348,10 @@ const RunQA = ({ activities }) => {
     const [copiedIdx, setCopiedIdx] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [seedOpen, setSeedOpen] = useState(false);
+    // En móvil los controles de configuración van plegados para no comerse la pantalla
+    const [configOpen, setConfigOpen] = useState(false);
+    // En pantallas táctiles Enter hace salto de línea; se envía con el botón
+    const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches, []);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -643,14 +647,14 @@ INSTRUCCIONES:
 
     return (
         <div className={fullscreen
-            ? 'fixed inset-0 z-50 bg-slate-100 p-3 sm:p-4 flex flex-col gap-3 overflow-hidden'
-            : 'flex flex-col gap-3 flex-1 min-h-0'}>
+            ? 'fixed inset-0 z-50 bg-slate-100 p-2 sm:p-4 flex flex-col gap-2 sm:gap-3 overflow-hidden'
+            : 'flex flex-col gap-2 sm:gap-3 flex-1 min-h-0'}>
             {/* Compact Header — mismo lenguaje visual que el módulo Coach IA */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shrink-0 px-4 py-3">
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shrink-0 px-3 py-2.5 sm:px-4 sm:py-3">
                 <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                        <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 text-blue-600 shrink-0">
                             <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
@@ -660,11 +664,23 @@ INSTRUCCIONES:
                                 {selectedCount} carreras cargadas
                             </span>
                         </div>
+                        {/* Ajustes: solo visible bajo lg, despliega los controles */}
+                        <button
+                            type="button"
+                            onClick={() => setConfigOpen(o => !o)}
+                            title="Configuración del chat"
+                            className={`ml-auto lg:hidden flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${configOpen
+                                ? 'text-blue-700 bg-blue-50 border-blue-200'
+                                : 'text-slate-600 bg-white border-slate-200 hover:border-blue-300 hover:text-blue-700'}`}
+                        >
+                            <Cog6ToothIcon className="w-4 h-4" />
+                            <ChevronDownIcon className={`w-3 h-3 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
+                        </button>
                         <button
                             type="button"
                             onClick={() => setFullscreen(f => !f)}
                             title={fullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
-                            className="ml-auto lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50/60 transition-colors"
+                            className="lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50/60 transition-colors"
                         >
                             {fullscreen
                                 ? <ArrowsPointingInIcon className="w-3.5 h-3.5" />
@@ -673,7 +689,7 @@ INSTRUCCIONES:
                         </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className={`${configOpen ? 'flex' : 'hidden'} lg:flex flex-wrap items-center gap-2`}>
                         {/* Filter mode toggle + selector */}
                         {/* Toggle buttons */}
                         <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[11px] font-medium flex-shrink-0">
@@ -792,21 +808,21 @@ INSTRUCCIONES:
 
             {/* Chat Container */}
             <Card
-                className="ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col flex-1 min-h-0"
+                className="ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col flex-1 min-h-[45dvh] lg:min-h-0"
             >
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto">
                     {conversation.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center p-8">
-                            <div className="relative mb-6">
+                        <div className="h-full flex flex-col items-center justify-center p-4 sm:p-8">
+                            <div className="relative mb-4 sm:mb-6">
                                 <div className="absolute inset-0 bg-blue-200 rounded-full blur-xl opacity-50 animate-pulse" />
-                                <div className="relative p-5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-xl">
-                                    <SparklesIcon className="w-10 h-10 text-white" />
+                                <div className="relative p-4 sm:p-5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-xl">
+                                    <SparklesIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                                 </div>
                             </div>
 
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">¿Qué quieres saber?</h3>
-                            <Text className="text-slate-500 mb-8 text-center max-w-md">
+                            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">¿Qué quieres saber?</h3>
+                            <Text className="text-slate-500 mb-5 sm:mb-8 text-center max-w-md text-sm">
                                 Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
@@ -825,15 +841,15 @@ INSTRUCCIONES:
                             </div>
                         </div>
                     ) : (
-                        <div className="p-4 space-y-5">
+                        <div className="p-3 sm:p-4 space-y-4 sm:space-y-5">
                             {conversation.map((msg, idx) => {
                                 const isUser = msg.role === 'user';
                                 const isLastAssistant = !isUser && idx === conversation.length - 1;
                                 const streaming = isLastAssistant && loading;
                                 return (
-                                    <div key={idx} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
-                                        {/* Avatar */}
-                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isUser
+                                    <div key={idx} className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
+                                        {/* Avatar — oculto en móvil para ganar ancho de burbuja */}
+                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full hidden sm:flex items-center justify-center shadow-sm ${isUser
                                                 ? 'bg-blue-600 text-white text-xs font-bold'
                                                 : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
                                             }`}>
@@ -841,8 +857,8 @@ INSTRUCCIONES:
                                         </div>
 
                                         {/* Message Bubble */}
-                                        <div className={`flex flex-col max-w-[82%] ${isUser ? 'items-end' : 'items-start'}`}>
-                                            <div className={`rounded-2xl px-4 py-3 ${isUser
+                                        <div className={`flex flex-col max-w-[92%] sm:max-w-[82%] ${isUser ? 'items-end' : 'items-start'}`}>
+                                            <div className={`rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 ${isUser
                                                     ? 'bg-blue-600 text-white rounded-tr-sm'
                                                     : 'bg-white ring-1 ring-slate-200 shadow-sm rounded-tl-sm'
                                                 }`}>
@@ -861,7 +877,8 @@ INSTRUCCIONES:
                                                     {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 {!isUser && msg.content && !streaming && (
-                                                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    // En táctil no hay hover: las acciones se muestran siempre
+                                                    <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                         <button
                                                             type="button"
                                                             onClick={() => copyMessage(msg.content, idx)}
@@ -891,8 +908,8 @@ INSTRUCCIONES:
 
                             {/* Loading indicator (only before the assistant bubble appears) */}
                             {loading && (conversation.length === 0 || conversation[conversation.length - 1].role !== 'assistant' || conversation[conversation.length - 1].content === '') && (
-                                <div className="flex gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                                <div className="flex gap-2 sm:gap-3">
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 hidden sm:flex items-center justify-center shadow-sm">
                                         <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="bg-white ring-1 ring-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
@@ -914,16 +931,16 @@ INSTRUCCIONES:
                 )}
 
                 {/* Input Area */}
-                <div className="border-t border-slate-100 bg-slate-50 p-4">
-                    {/* Quick follow-up chips (once the conversation has started) */}
+                <div className="border-t border-slate-100 bg-slate-50 p-2.5 sm:p-4">
+                    {/* Quick follow-up chips: en móvil una fila con scroll horizontal */}
                     {conversation.length > 0 && !loading && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
+                        <div className="flex sm:flex-wrap gap-1.5 mb-2.5 sm:mb-3 overflow-x-auto sm:overflow-visible [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {suggestedQuestions.slice(0, 3).map((q, idx) => (
                                 <button
                                     key={idx}
                                     type="button"
                                     onClick={() => sendSuggestion(q.text)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 hover:text-blue-700 transition-colors"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 shrink-0 whitespace-nowrap bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 hover:text-blue-700 transition-colors"
                                 >
                                     <span>{q.icon}</span>
                                     {q.text}
@@ -931,7 +948,7 @@ INSTRUCCIONES:
                             ))}
                         </div>
                     )}
-                    <form onSubmit={handleSubmit} className="flex items-end gap-3">
+                    <form onSubmit={handleSubmit} className="flex items-end gap-2 sm:gap-3">
                         <div className="flex-1 relative">
                             <textarea
                                 ref={inputRef}
@@ -942,7 +959,8 @@ INSTRUCCIONES:
                                 className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
                                 style={{ minHeight: '48px', maxHeight: '120px' }}
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                    // En táctil, Enter hace salto de línea; se envía con el botón
+                                    if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
                                         e.preventDefault();
                                         handleSubmit(e);
                                     }
@@ -970,9 +988,9 @@ INSTRUCCIONES:
                                 onClick={stopGeneration}
                                 color="rose"
                                 variant="secondary"
-                                className="h-12 px-5"
+                                className="h-12 px-3 sm:px-5 shrink-0"
                             >
-                                Detener
+                                <span className="hidden sm:inline">Detener</span>
                             </Button>
                         ) : (
                             <Button
@@ -980,13 +998,13 @@ INSTRUCCIONES:
                                 icon={PaperAirplaneIcon}
                                 disabled={!question.trim()}
                                 color="blue"
-                                className="h-12 px-5"
+                                className="h-12 px-3 sm:px-5 shrink-0"
                             >
-                                Enviar
+                                <span className="hidden sm:inline">Enviar</span>
                             </Button>
                         )}
                     </form>
-                    <p className="text-xs text-slate-400 mt-2 text-center">
+                    <p className="hidden sm:block text-xs text-slate-400 mt-2 text-center">
                         Enter para enviar • Shift+Enter para nueva línea
                     </p>
                 </div>

@@ -961,6 +961,12 @@ const Dashboard = ({ user, handleLogout }) => {
                               {/* Group-by toggle */}
                               <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
                                 <button
+                                  onClick={() => setChartGroupBy('week')}
+                                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${chartGroupBy === 'week' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                  {t('zones.weekly')}
+                                </button>
+                                <button
                                   onClick={() => setChartGroupBy('month')}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${chartGroupBy === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
