@@ -2,6 +2,10 @@
 // formateadores y derivación de badges. Sin React ni side-effects → testeable.
 
 // ── Tipos de actividad ───────────────────────────────────────────────────────
+// OJO: estos tipos son un criterio de PRESENTACIÓN (qué actividades muestran
+// ritmo min/km en la UI), por eso incluyen Walk/Hike. El criterio CIENTÍFICO de
+// "carrera" para el análisis (athleteContext.js → isRunning) es más estricto
+// (solo Run/TrailRun/VirtualRun): no unificar sin revisar ambos usos.
 export const RUN_TYPES = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'];
 export const RIDE_TYPES = ['Ride', 'VirtualRide'];
 
@@ -47,33 +51,61 @@ export const formatDataDate = (input) => {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 };
 
-// ── Protocolo de bloques "|||" ───────────────────────────────────────────────
-// Durante el streaming un chunk puede cortar el delimitador por la mitad y el
-// acumulado terminar en "|" o "||": se recorta antes de partir para que esos
-// pipes no se pinten como texto del bloque.
-export const stripPartialDelimiter = (acc) => acc.replace(/\|{1,2}$/, '');
+// ── Salida estructurada (esquema coachInsights) ─────────────────────────────
+// El modelo devuelve un objeto validado por Zod en servidor; aquí se convierte
+// a los bloques de texto + metadatos que consume la UI (misma forma que el
+// antiguo protocolo "|||", así caché, seed del chat y componentes no cambian).
+export const coachObjectToBlocks = (obj) => {
+  if (!obj || !Array.isArray(obj.diagnostico) || !Array.isArray(obj.tendencia)) return null;
+  const join = (arr) => (Array.isArray(arr) ? arr.map(s => String(s).trim()).filter(Boolean).join('\n') : '');
+  const cur = join(obj.diagnostico);
+  const trend = join(obj.tendencia);
+  // Respuesta aceptable: al menos diagnóstico + tendencia con contenido real.
+  if (cur.length < 15 || trend.length < 15) return null;
+  const s = obj.sesion ?? {};
+  const zona = s.zona
+    ? `Zona ${Math.round(s.zona)}${s.fcMin && s.fcMax ? ` · ${Math.round(s.fcMin)}-${Math.round(s.fcMax)} ppm` : ''}`
+    : null;
+  return {
+    cur,
+    trend,
+    nextWork: join(s.instrucciones),
+    lastWork: join(obj.ultimoEntreno),
+    meta: {
+      estado: obj.estado ?? null,
+      tendencia: obj.tendenciaClave ?? null,
+      sesion: { tipo: s.tipo ?? null, distancia: s.distancia ?? null, ritmo: s.ritmo ?? null, zona },
+    },
+  };
+};
 
-export const splitBlocks = (text) => (text ?? '').split('|||').map(p => p.trim());
-
-// Respuesta aceptable: al menos diagnóstico + tendencia con contenido real.
-// Si el modelo (típicamente el fallback) no respeta el formato, se descarta
-// y se prueba el siguiente proveedor en vez de cachear basura.
-export const validateBlocks = (parts) =>
-  Array.isArray(parts) && parts.length >= 3 && parts[0].length >= 15 && parts[1].length >= 15;
-
-// BLOQUE 5: objeto JSON de metadatos (estado/tendencia/sesión). Tolera texto
-// alrededor (```json, prosa) buscando el primer {...}. null si no hay o es inválido.
-export const parseMeta = (parts) => {
-  const raw = parts?.[4];
-  if (!raw) return null;
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try {
-    const j = JSON.parse(m[0]);
-    return j && typeof j === 'object' ? j : null;
-  } catch {
-    return null;
+// Validación post-hoc de la prescripción contra la ciencia calculada (sci):
+// el prompt exige estas reglas pero nada las garantizaba al recibir la
+// respuesta. Devuelve avisos legibles para el atleta ([] si todo es coherente).
+const HARD_TYPES = /tempo|interv|series/i;
+const EASY_TYPES = /regen|aer[oó]bico/i;
+export const coachCoherenceWarnings = (obj, sci) => {
+  const warns = [];
+  const s = obj?.sesion;
+  if (!s) return warns;
+  const readiness = sci?.readiness?.score;
+  if (readiness != null && s.tipo) {
+    if (readiness < 45 && !EASY_TYPES.test(s.tipo)) {
+      warns.push(`Readiness ${readiness}/100 (muy bajo) pero la sesión propuesta es "${s.tipo}": conviene pasarla a regenerativo o descansar.`);
+    } else if (readiness < 62 && HARD_TYPES.test(s.tipo)) {
+      warns.push(`Readiness ${readiness}/100 pide bajar la carga y la sesión propuesta es "${s.tipo}": valora suavizarla.`);
+    }
   }
+  if (s.fcMin && s.fcMax && s.fcMin >= s.fcMax) {
+    warns.push('El rango de FC propuesto está invertido; ignóralo y guíate por la zona.');
+  }
+  if (sci?.fcmax && s.fcMax && s.fcMax > sci.fcmax) {
+    warns.push(`El tope de FC propuesto (${Math.round(s.fcMax)} ppm) supera tu FCmax estimada (${sci.fcmax} ppm).`);
+  }
+  if (sci?.lt?.lt1Hr && s.fcMax && s.tipo && EASY_TYPES.test(s.tipo) && s.fcMax > sci.lt.lt1Hr + 3) {
+    warns.push(`Sesión fácil con tope ${Math.round(s.fcMax)} ppm por encima de tu LT1 (${sci.lt.lt1Hr} ppm): mantente por debajo del umbral aeróbico.`);
+  }
+  return warns;
 };
 
 const metaStr = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);

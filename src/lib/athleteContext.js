@@ -5,6 +5,13 @@ import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from './hrZones';
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// M:SS desde min/km decimal, redondeando sobre segundos TOTALES: el patrón
+// `Math.round((p % 1) * 60)` produce "5:60" cuando los decimales rozan el minuto.
+const fmtMinKm = (minPerKm) => {
+  const t = Math.round(minPerKm * 60);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
+
 /**
  * Per-session training load (TRIMP proxy). Prefers Strava's suffer_score
  * (Banister-derived), then a HR-weighted minutes model, then distance.
@@ -128,6 +135,36 @@ function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
   return { score, label, band };
 }
 
+/**
+ * Fallback plano: listado simple de las actividades de los últimos 3 meses.
+ * Solo se usa si buildPrompt falla (contexto científico no disponible); lo
+ * comparten el planificador y el predictor para no duplicar formatos.
+ */
+export const buildPlainActivityLog = (activities) => {
+  if (!activities?.length) return '';
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 3);
+  return activities
+    .filter(a => new Date(a.start_date) >= cutoff)
+    .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+    .map(a => {
+      const km = (a.distance / 1000).toFixed(2);
+      const min = ((a.moving_time || 0) / 60).toFixed(1);
+      // Ritmo en M:SS/km — el formato decimal (5.32) se presta a leerse como 5:32.
+      const pace = a.distance > 0 && a.moving_time > 0
+        ? (() => {
+            // Redondeo sobre los segundos totales para no producir "4:60".
+            const total = Math.round(a.moving_time / (a.distance / 1000));
+            return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')} min/km`;
+          })()
+        : 'ritmo n/d';
+      const date = new Date(a.start_date).toLocaleDateString('es-ES');
+      const hr = a.average_heartrate ? `FC media: ${Math.round(a.average_heartrate)}ppm` : 'sin FC';
+      return `- ${date}: ${km}km en ${min}min (${pace}). ${hr}. Desnivel: +${Math.round(a.total_elevation_gain || 0)}m.`;
+    })
+    .join('\n');
+};
+
 // ── Prompt builder ───────────────────────────────────────────────────────────
 export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goal) => {
   const now = new Date();
@@ -172,7 +209,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
 
   // ── Weekly training availability/intent (athlete-selected) ─────────────────
   const dispoLine = weeklyTarget
-    ? `DISPONIBILIDAD / OBJETIVO: quieres entrenar ${weeklyTarget} sesión(es) de CARRERA por semana. Ajusta el volumen semanal del BLOQUE 2 y la cadencia de sesiones a esa frecuencia: no propongas más carreras de las que puedes asumir, y reparte calidad vs. fácil respetando el 80/20 DENTRO de ese número de sesiones.`
+    ? `DISPONIBILIDAD / OBJETIVO: quieres entrenar ${weeklyTarget} sesión(es) de CARRERA por semana. Ajusta el volumen semanal de la tendencia/objetivo y la cadencia de sesiones a esa frecuencia: no propongas más carreras de las que puedes asumir, y reparte calidad vs. fácil respetando el 80/20 DENTRO de ese número de sesiones.`
     : '';
 
   // ── Race goal (athlete-selected target distance + optional pace + date) ────
@@ -206,7 +243,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
         }
       }
     }
-    goalLine = `OBJETIVO DE CARRERA: estás preparando un ${goal.distance}${extra}.${when} Orienta la rampa de carga (BLOQUE 2) y las sesiones de calidad/ritmo (BLOQUE 3) HACIA este objetivo: deriva los ritmos de tempo/intervalos del ritmo objetivo y de tus marcas. En el BLOQUE 2 indica explícitamente si el objetivo es realista, ambicioso o conservador dado tu tope (marcas personales), tu CTL/forma actuales y el tiempo disponible, y qué falta para alcanzarlo.`;
+    goalLine = `OBJETIVO DE CARRERA: estás preparando un ${goal.distance}${extra}.${when} Orienta la rampa de carga (tendencia) y las sesiones de calidad/ritmo (próximo entrenamiento) HACIA este objetivo: deriva los ritmos de tempo/intervalos del ritmo objetivo y de tus marcas. En la tendencia indica explícitamente si el objetivo es realista, ambicioso o conservador dado tu tope (marcas personales), tu CTL/forma actuales y el tiempo disponible, y qué falta para alcanzarlo.`;
   }
 
   // ── Banister PMC over ALL sports (cardiovascular load is global) ───────────
@@ -245,9 +282,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const loadDelta = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
   const recentMin = recentRuns.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
-  const avgPace = recentKm > 0
-    ? (() => { const p = recentMin / recentKm; return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`; })()
-    : null;
+  const avgPace = recentKm > 0 ? fmtMinKm(recentMin / recentKm) : null;
   const withHR = recentRuns.filter(a => a.average_heartrate);
   const avgHR = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
@@ -300,12 +335,17 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
     `FC reposo=${fcRest}ppm (${restDet.source === 'garmin' ? 'Garmin más reciente' : 'valor por defecto, sin medición'})`,
     `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} [método FC: ${lt1Method}]`,
-    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia LT2: ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
-    `ZONAS (derivadas de tus LT1/LT2 — un único sistema, sin contradicciones):`,
+    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia del RITMO umbral (serie mensual de ritmo sostenido a FC umbral; NO deriva del ppm estimado): ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
+    `ZONAS (derivadas de tus LT1/LT2 — sistema teórico de referencia; si un dato observado choca con él, manda la regla de PRECEDENCIA):`,
     `· Z1 fácil/base — aquí va el 80% del volumen: <${lt1Hr}ppm (por debajo de LT1)`,
     `· Z2 gris (entre umbrales; solo tempo suave o progresión): ${lt1Hr}-${lthr - 1}ppm`,
     `· Z3 umbral+/calidad (tempo, series, intervalos): ≥${lthr}ppm (desde LT2)`,
-    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax): centro REAL de tu zona fácil. Mantén los rodajes fáciles en torno a esta FC, con techo en LT1 (${lt1Hr}ppm); NO los frenes por debajo de esta FC observada (ya eran fáciles).` : null,
+    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax): centro REAL de tu zona fácil. NO frenes los rodajes por debajo de esta FC observada (ya eran fáciles).` : null,
+    // Precedencia explícita cuando el techo teórico (LT1) y la FC fácil observada
+    // chocan: sin ella el modelo debe elegir a ciegas entre ambos anclajes.
+    avgHR && avgHR >= lt1Hr
+      ? `⚠ PRECEDENCIA: tu FC fácil observada (${avgHR}ppm) alcanza o supera el techo teórico LT1 (${lt1Hr}ppm). MANDA LA OBSERVADA: usa ${avgHR - 4}-${avgHR + 6}ppm (= FC fácil observada ${avgHR}ppm −4/+6) como banda fáctica de rodaje fácil; LT1 es orientativo${lt1Measured ? '' : ' (estimado por fórmula, no medido)'}. A efectos del 80/20, esta banda CUENTA como volumen fácil/Z1: NO la señales como "zona gris".`
+      : avgHR ? `Techo del rodaje fácil: LT1 (${lt1Hr}ppm), coherente con tu FC fácil observada (${avgHR}ppm).` : null,
   ].filter(Boolean).join('\n');
 
   // Ancla del ritmo de rodaje FÁCIL: media de las carreras recientes hechas bajo
@@ -328,8 +368,15 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     const [m, s] = avgPace.split(':').map(Number);
     const pSec = m * 60 + s; // segundos por km del ritmo medio 4 sem
     const baseSec = easyPaceSec ?? pSec; // ancla fisiológica del rodaje fácil
-    const fmt = (sec) => `${Math.floor(sec / 60)}:${Math.round(sec % 60).toString().padStart(2, '0')}`;
-    const lt2Sec = lt?.lt2Pace ?? null; // umbral real (Critical Speed / cross-check FC)
+    // Redondeo sobre segundos totales para no producir "5:60".
+    const fmt = (sec) => {
+      const t = Math.round(sec);
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    // lt.lt2Pace viene en MIN/km decimal (paceFromSpeed) → a segundos. Guarda de
+    // cordura: un umbral fuera de 2:00-8:00/km es dato corrupto, no se usa como ancla.
+    const lt2SecRaw = lt?.lt2Pace ? lt.lt2Pace * 60 : null;
+    const lt2Sec = lt2SecRaw != null && lt2SecRaw >= 120 && lt2SecRaw <= 480 ? lt2SecRaw : null;
     let goalSec = null;
     if (goal?.pace) {
       const [gm, gs] = String(goal.pace).split(':').map(Number);
@@ -347,6 +394,9 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       lines.push(`Intervalos/series (más rápido que el umbral, coherente con tus MARCAS 5K/10K): ${fmt(lt2Sec - 28)}-${fmt(lt2Sec - 12)}/km`);
       lines.push(`AVISO: tu ritmo fácil (${fmt(baseSec)}) está lejos de tu umbral (${fmt(lt2Sec)}) porque estás en fase base/desentrenado. NUNCA derives tempo/series restando segundos al fácil; usa el ancla LT2 y tus marcas.`);
     } else {
+      if (lt2SecRaw != null) {
+        lines.push(`AVISO: el ritmo umbral calculado (LT2) es inválido (dato corrupto) y se ha descartado; los rangos de tempo salen del ritmo fácil.`);
+      }
       lines.push(`Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${fmt(baseSec - 25)}-${fmt(baseSec - 10)}/km`);
     }
     if (goalSec) {
@@ -442,8 +492,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     const dkm = (sp.distance || 0) / 1000;
     const t = sp.moving_time || sp.elapsed_time || 0;
     if (dkm <= 0 || t <= 0) return null;
-    const p = (t / 60) / dkm;
-    return `${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}`;
+    return fmtMinKm((t / 60) / dkm);
   };
   // Desnivel del parcial: solo si es relevante (≥2 m), con signo. Un parcial lento
   // en subida NO es desfallecimiento → el desnivel es imprescindible para leerlo bien.
@@ -493,8 +542,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
         const wt = { 1: '🏁OFICIAL', 2: 'tirada-larga', 3: 'calidad' }[a.workout_type];
         typeLabel = wt ? `[Carrera·${wt}]` : '[Carrera]';
         if (kmNum > 0 && min > 0) {
-          const p = min / kmNum;
-          performance = `@${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+          performance = `@${fmtMinKm(min / kmNum)}/km`;
         }
       } else if (isCycling(a)) {
         typeLabel = '[Ciclismo]';
@@ -505,16 +553,12 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       } else if (isSwimming(a)) {
         typeLabel = '[Natación]';
         if (kmNum > 0 && min > 0) {
-          const pace100m = min / (a.distance / 100);
-          const paceMin = Math.floor(pace100m);
-          const paceSec = Math.round((pace100m % 1) * 60).toString().padStart(2, '0');
-          performance = `@${paceMin}:${paceSec}/100m`;
+          performance = `@${fmtMinKm(min / (a.distance / 100))}/100m`;
         }
       } else if (a.type === 'Walk' || a.type === 'Hike') {
         typeLabel = `[Caminata]`;
         if (kmNum > 0 && min > 0) {
-          const p = min / kmNum;
-          performance = `@${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km`;
+          performance = `@${fmtMinKm(min / kmNum)}/km`;
         }
       } else if (a.type === 'WeightTraining') {
         typeLabel = '[Fuerza]';
@@ -587,7 +631,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     avgPace ? `ritmo medio ${avgPace}min/km` : null,
     avgHR ? `FC media carrera ${avgHR}ppm (=${avgHR ? Math.round(avgHR / fcmax * 100) : '?'}% FCmax)` : null,
     loadDelta != null ? `Carga km vs 4 sem previas: ${loadDelta > 0 ? '+' : ''}${loadDelta}%` : null,
-    polarized ? `Distribución de intensidad 4 sem (SOLO carrera, tiempo): fácil ${polarized.easy}% / umbral ${polarized.thr}% / duro ${polarized.hard}%. CLAVE: el 80/20 de Seiler se mide sobre la carga TOTAL (carrera + cruzado), NO solo carrera. Si el cruzado ya aporta intensidad y tu base (CTL) es baja, un 100% fácil EN CARRERA es CORRECTO, no un déficit que corregir. Tu limitante real es el VOLUMEN/frecuencia de carrera, no la falta de intensidad.` : null,
+    polarized ? `Distribución de intensidad 4 sem (SOLO carrera, tiempo): fácil ${polarized.easy}% / umbral ${polarized.thr}% / duro ${polarized.hard}% (la regla 80/20 se aplica sobre carga TOTAL, ver reglas de "sesion")` : null,
   ].filter(Boolean).join(', ');
 
   // ── High-intensity cross-training in the last 4 weeks (covers the "hard"
@@ -595,7 +639,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const crossActs = activities.filter(a => { const d = new Date(a.start_date); return d >= week4 && !isRunning(a); });
   const crossIntense = crossActs.filter(a => (a.suffer_score && a.suffer_score >= 40) || (a.average_heartrate && fcmax && a.average_heartrate / fcmax > 0.85));
   const crossNote = crossIntense.length
-    ? `AVISO CRUZADO: en las últimas 4 sem hiciste ${crossIntense.length} sesión(es) de cruzado de ALTA intensidad (${crossIntense.map(a => `${a.type} sufr=${a.suffer_score ?? '?'}`).join(', ')}). Tu carrera es 100% fácil PERO ya acumulas intensidad ahí: NO prescribas intervalos solo para "rellenar" el 0% de umbral en carrera; computa esa carga dura en la fatiga y el riesgo de lesión.`
+    ? `AVISO CRUZADO: en las últimas 4 sem hiciste ${crossIntense.length} sesión(es) de cruzado de ALTA intensidad (${crossIntense.map(a => `${a.type} sufr=${a.suffer_score ?? '?'}`).join(', ')}). Esa intensidad cuenta como la parte DURA del 80/20 total y suma fatiga/riesgo de lesión.`
     : null;
 
   // ── Last training session (detailed micro-analysis for BLOQUE 4) ──────────
@@ -612,8 +656,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       min > 0 ? `Duración: ${Math.round(min)}min` : null,
     ];
     if (kmNum > 0 && min > 0 && isRunning(lastAct)) {
-      const p = min / kmNum;
-      ln.push(`Ritmo: ${Math.floor(p)}:${Math.round((p % 1) * 60).toString().padStart(2, '0')}/km (ritmo medio 4 sem: ${avgPace ?? '?'}/km)`);
+      ln.push(`Ritmo: ${fmtMinKm(min / kmNum)}/km (ritmo medio 4 sem: ${avgPace ?? '?'}/km)`);
     } else if (kmNum > 0 && min > 0 && isCycling(lastAct)) {
       ln.push(`Velocidad: ${(kmNum / (min / 60)).toFixed(1)}km/h`);
     }
@@ -628,6 +671,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     }
     lastSection = ln.filter(Boolean).join('\n');
   }
+  const lastIsRun = lastAct ? isRunning(lastAct) : true;
 
   // Fresh-by-detraining guard: a high readiness on top of a LOW chronic load
   // (small CTL / ACWR<0.8) is freshness from under-training, not supercompensation.
@@ -639,7 +683,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     ? ` MATIZ CRÍTICO: tu carga crónica es BAJA (${lowChronicReasons.join(' · ')}). Aquí un readiness alto significa que estás fresco por FALTA de entrenamiento acumulado, NO por supercompensación. Prioriza CONSTRUIR BASE AERÓBICA y subir volumen de forma progresiva y segura ANTES que sesiones de calidad/intervalos, aunque el score las permita. Forzar intensidad sobre una base baja dispara el riesgo de lesión.`
     : '';
   const readinessLine = readiness
-    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del BLOQUE 3 DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).${lowChronicNote}`
+    ? `READINESS SCORE (0-100, calculado de forma determinista combinando VFC-vs-baseline, Body Battery, sueño, FC-reposo y forma TSB): ${readiness.score}/100 → "${readiness.label}". ESTE SCORE ES AUTORITATIVO: tu prescripción del próximo entrenamiento DEBE ser coherente con él (≥80 permite calidad/intervalos; 62-79 entreno normal; 45-61 baja la carga; <45 solo regenerativo o descanso).${lowChronicNote}`
     : 'READINESS SCORE: no disponible (faltan datos de wearable) — sé MÁS CONSERVADOR: por defecto prescribe base aeróbica/rodaje fácil, no intervalos, y declara explícitamente que la recomendación es prudente por falta de datos de recuperación.';
 
   // Temporal context: anchor "today" + staleness of last run (avoids the model
@@ -684,58 +728,40 @@ Historial mensual de carrera (últimos 2 meses): ${monthHistory}`;
 
   const prompt = `Eres un entrenador de running y fisiólogo deportivo de élite que aplica EXCLUSIVAMENTE modelos validados por la ciencia del entrenamiento actual: el modelo de impulso-respuesta de Banister (CTL/ATL/TSB, estándar de TrainingPeaks), el modelo polarizado 80/20 de Seiler, el entrenamiento guiado por VFC de Plews & Buchheit, el ratio agudo:crónico de Gabbett para riesgo de lesión, y el umbral de lactato de Friel. Tu objetivo es un diagnóstico ACCIONABLE y FIABLE en el que el atleta pueda confiar a ciegas, no describir datos. El atleta hace entrenamiento cruzado además de correr: considera su carga cardiovascular y fatiga al evaluar el estado, pero prescribe el próximo entrenamiento enfocado EXCLUSIVAMENTE en carrera a pie.
 
-Devuelve EXACTAMENTE cinco bloques separados por "|||", sin ningún texto fuera de ellos.
+Devuelve el objeto estructurado que exige el esquema. Reglas de CONTENIDO por campo:
 
-BLOQUE 1 — DIAGNÓSTICO DE ESTA SEMANA:
-Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el diagnóstico clave.
+"diagnostico" — DIAGNÓSTICO DE ESTA SEMANA:
+Sintetiza el READINESS SCORE, la VFC vs tu baseline personal, la forma (TSB), el ACWR y el Body Battery/sueño para determinar el estado real (recuperado, fatigado, sobreentrenado, en forma). Da una recomendación semanal concreta coherente con el score.
 
-|||
+"tendencia" — TENDENCIA Y PATRÓN (ÚLTIMOS 2 MESES):
+Cruza el historial mensual con la evolución de CTL/forma para detectar progresión, estancamiento, pico-caída o lesión encubierta. Señala el mejor y peor período y si la rampa de carga es segura. Fija una recomendación de objetivo 4-6 semanas REALISTA según tus MARCAS PERSONALES (tope) y la DISPONIBILIDAD semanal.
 
-BLOQUE 2 — TENDENCIA Y PATRÓN (ÚLTIMOS 2 MESES):
-Cruza el historial mensual con la evolución de CTL/forma para detectar progresión, estancamiento, pico-caída o lesión encubierta. Señala el mejor y peor período y si la rampa de carga es segura. Fija una recomendación de objetivo 4-6 semanas REALISTA según tus MARCAS PERSONALES (tope) y la DISPONIBILIDAD semanal. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el patrón detectado.
-
-|||
-
-BLOQUE 3 — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
-Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERENTE con el READINESS SCORE y la forma actual.
-
-EL PRIMER BULLET DEBE SEGUIR ESTA PLANTILLA LITERAL EXACTA (para parseo automático), con esos cuatro campos en negrita y separados por " · ":
-**{Tipo}** · **{X-Y km}** · **{M:SS-M:SS min/km}** · **Zona {N} · {ppm-ppm ppm}**
-Ejemplo válido: **Tempo** · **8-10 km** · **4:45-5:00 min/km** · **Zona 3 · 158-168 ppm**
-Donde {Tipo} es UNO de: Regenerativo, Aeróbico base, Tempo, Intervalos, Series, Rodaje largo. Usa SOLO rangos de ppm de "ZONAS DE FC CALCULADAS" y ritmos coherentes con "RITMOS DE REFERENCIA"; PROHIBIDO inventar cifras fuera de esos anclajes.
-
-Después, 2-3 bullets adicionales (máx 30 palabras cada uno) con:
+"sesion" — PRÓXIMO ENTRENAMIENTO RECOMENDADO:
+Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERENTE con el READINESS SCORE y la forma actual. Los campos numéricos (zona, fcMin, fcMax) y el ritmo salen EXCLUSIVAMENTE de "ZONAS DE FC CALCULADAS" y "RITMOS DE REFERENCIA"; PROHIBIDO inventar cifras fuera de esos anclajes. En "instrucciones":
 - Estructura de la sesión (calentamiento, bloques/series, vuelta a la calma) si aplica.
 - Una condición fisiológica de seguridad concreta (ej: "para si FC>{valor}ppm", "si VFC sigue bajo baseline mañana, pásalo a regenerativo").
 - Distribución de intensidad: cuenta el cruzado (fútbol, etc.) como la parte DURA del 80/20. Si tu carrera ya es 100% fácil y el cruzado cubre la intensidad, NO añadas calidad en carrera "para rellenar" el 0% de umbral. Con CTL bajo, el limitante es el VOLUMEN: prioriza progresar la tirada larga / km semanales, no frenar aún más el ritmo.
-Usa **negrita** para el dato clave de cada bullet.
 
-|||
+"ultimoEntreno" — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
+${lastIsRun
+  ? `Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual. Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Si hay "Parciales por km", analiza la DISTRIBUCIÓN del esfuerzo (positive/negative split, desfallecimiento final, ritmo parejo o descontrol inicial) y refléjalo en el acierto/ajuste. Reparto de bullets: 1º estímulo real y ejecución, 2º el acierto, 3º el ajuste accionable (relacionado con tu fatiga/recuperación de hoy).`
+  : `La sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO") es ENTRENAMIENTO CRUZADO, no carrera: NO evalúes ejecución técnica de carrera (parciales, splits, ritmo/km). Evalúa su rol como carga cardiovascular complementaria: qué aporta al 80/20 total, cuánta fatiga suma (TRIMP, %FCmax) y si interfiere con la próxima sesión de carrera (frescura para calidad, riesgo de acumular dureza). Reparto de bullets: 1º rol/carga e interferencia, 2º el acierto, 3º el ajuste accionable (relacionado con tu fatiga/recuperación de hoy).`}
 
-BLOQUE 4 — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
-Evalúa la sesión más reciente (datos abajo en "ÚLTIMO ENTRENAMIENTO"). Determina qué estímulo fue (regenerativo, aeróbico base, umbral/tempo, calidad/intervalos) según su %LTHR y %FCmax, si la ejecución fue coherente (ritmo acorde a la FC y al tipo de sesión, ajustado al desnivel), y si encaja con tu estado de forma actual y la distribución polarizada 80/20 (medida sobre carga TOTAL: carrera + cruzado). Si la sesión ya fue fácil (FC media en Z1/Z2), NO la penalices por serlo ni pidas ir aún más lento; un pico breve de FCmax por una cuesta o repecho en un rodaje fácil es NORMAL, no un error de ejecución. Si hay "Parciales por km", analiza la DISTRIBUCIÓN del esfuerzo (positive/negative split, desfallecimiento final, ritmo parejo o descontrol inicial) y refléjalo en el acierto/ajuste. Da exactamente 1 acierto y 1 ajuste accionable, y relaciónalo con tu fatiga/recuperación de hoy. Máx 3 bullets, máx 16 palabras por bullet. Usa **negrita** para el veredicto clave de cada bullet.
-
-|||
-
-BLOQUE 5 — METADATOS (solo para parseo automático, el atleta no lo ve):
-Un ÚNICO objeto JSON válido en una sola línea. Sin markdown, sin \`\`\`json, sin bullets ni texto adicional. Forma exacta:
-{"estado":"<recuperado|fatigado|sobreentrenado|en_forma|adaptativo>","tendencia":"<progresion|estable|riesgo|estacional>","sesion":{"tipo":"<Tipo del BLOQUE 3>","distancia":"<X-Y km>","ritmo":"<M:SS-M:SS min/km>","zona":"<Zona N · ppm-ppm ppm>"}}
-Cada campo DEBE ser coherente con lo dicho en los BLOQUES 1-3 (mismo diagnóstico, mismo tipo de sesión, mismas cifras).
+"estado" y "tendenciaClave":
+Resumen para máquina, DEBEN ser coherentes con "diagnostico", "tendencia" y "sesion" (mismo diagnóstico, mismo patrón).
 
 ${athleteContext}
 
-(En ZONAS DE FC y RITMOS DE REFERENCIA: usa esas cifras EXACTAS en el bloque 3, NO inventes.)
+(En ZONAS DE FC y RITMOS DE REFERENCIA: usa esas cifras EXACTAS en "sesion", NO inventes.)
 
 REGLAS ESTRICTAS DE SALIDA:
-- NO escribas el encabezado "BLOQUE N — …" de cada bloque: es solo una instrucción para ti. Empieza cada bloque DIRECTAMENTE por su primer bullet.
 - Sin introducción. Sin "el atleta". Habla directamente en segunda persona.
-- Cada bullet empieza con el concepto en **negrita**.
-- Límites de longitud: BLOQUES 1, 2 y 4 = máx 16 palabras por bullet. BLOQUE 3 = máx 30 palabras por bullet (necesita datos concretos).
-- PROHIBIDO inventar cifras: usa SOLO los ppm de "ZONAS DE FC CALCULADAS" y los ritmos de "RITMOS DE REFERENCIA". Si un dato no está disponible, dilo, no lo estimes.
+- Cada bullet empieza con el concepto en **negrita** (única marca permitida; nada de títulos ni listas anidadas).
+- Cantidad y longitud: "diagnostico" y "ultimoEntreno" = 2-3 bullets; "tendencia" = 3-4 bullets (pide más elementos: patrón, mejor/peor período, rampa, veredicto del objetivo). Todos de máx 22 palabras. "sesion.instrucciones" = 2-3 bullets de máx 30 palabras (necesitan datos concretos).
+- PROHIBIDO inventar cifras: usa SOLO los ppm de "ZONAS DE FC CALCULADAS" y los ritmos de "RITMOS DE REFERENCIA". Si un dato no está disponible, dilo, no lo estimes. Si un ritmo de referencia es manifiestamente inválido (negativo, formato imposible), es DATO CORRUPTO: decláralo y no lo uses.
 - Si faltan datos de wearable / readiness, sé conservador y prioriza base aeróbica.
 - No repitas datos sin interpretarlos.
-- COHERENCIA OBLIGATORIA: la prescripción del BLOQUE 3 debe ser coherente con el diagnóstico de los BLOQUES 1-2. Si el limitante es el bajo VOLUMEN y tu intensidad ya es correcta, la sesión recomendada debe CONSTRUIR volumen (rodaje más largo o tirada larga progresiva), nunca presentarse como "otro rodaje aún más lento/suave". No prescribas bajar el ritmo de un rodaje que ya fue fácil.
-- Respeta EXACTAMENTE el formato de plantilla del primer bullet del BLOQUE 3.`;
+- COHERENCIA OBLIGATORIA: la prescripción de "sesion" debe ser coherente con el diagnóstico y la tendencia. No prescribas bajar el ritmo de un rodaje que ya fue fácil.`;
 
   return {
     prompt,

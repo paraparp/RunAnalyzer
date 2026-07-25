@@ -3,6 +3,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { Card, Text } from '@tremor/react';
 import FitnessFatigue from './FitnessFatigue';
 import WeeklyProgression from './WeeklyProgression';
+import InjuryRisk from './InjuryRisk';
 import {
   ComposedChart, Area, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
@@ -773,6 +774,7 @@ export default function StatusSnapshot({ activities }) {
           { id: 'estado', label: 'Estado' },
           { id: 'pmc',    label: 'PMC / Fitness' },
           { id: 'semanal', label: 'Semanal' },
+          { id: 'lesion', label: 'Riesgo Lesión' },
         ].map(({ id, label }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
@@ -785,6 +787,7 @@ export default function StatusSnapshot({ activities }) {
 
       {tab === 'pmc'    && <FitnessFatigue activities={activities} />}
       {tab === 'semanal' && <WeeklyProgression activities={activities} />}
+      {tab === 'lesion' && <InjuryRisk activities={activities} />}
       {tab === 'estado' && <>
 
       {/* ── Phase Banner ── */}

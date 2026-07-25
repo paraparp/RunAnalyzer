@@ -1,5 +1,5 @@
 import { streamText } from 'ai';
-import { resolveModel, pipeStream } from '../_lib/ai.js';
+import { resolveModel, pipeStream, validateAIRequest } from '../_lib/ai.js';
 import { ensureAuth } from '../_lib/auth.js';
 
 export const config = { maxDuration: 60 };
@@ -12,6 +12,8 @@ export default async function handler(req, res) {
   if (!model || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'model y messages son requeridos' });
   }
+  const invalid = validateAIRequest({ provider, model, messages });
+  if (invalid) return res.status(400).json({ error: invalid });
 
   try {
     const result = streamText({

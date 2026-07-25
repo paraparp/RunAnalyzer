@@ -23,19 +23,13 @@ import GlobalHeatmap from './components/GlobalHeatmap';
 import RouteGallery from './components/RouteGallery';
 import TrainingZones from './components/TrainingZones';
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
-import VDOTEstimator from './components/VDOTEstimator';
 import GearTracker from './components/GearTracker';
-import SplitAnalysis from './components/SplitAnalysis';
 import RaceDetector from './components/RaceDetector';
 import AIInsights from './components/AIInsights';
 import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
-import CardiacDecoupling from './components/CardiacDecoupling';
-import GarminCardiac from './components/GarminCardiac';
-import VitalsOverview from './components/VitalsOverview';
-import InjuryRisk from './components/InjuryRisk';
-import VO2MaxTracker from './components/VO2MaxTracker';
-import LactateThreshold from './components/LactateThreshold';
+import FitnessHub from './components/FitnessHub';
+import HealthHub from './components/HealthHub';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import {
@@ -64,7 +58,6 @@ import {
   CalendarDaysIcon,
   BeakerIcon,
   StarIcon,
-  ShieldExclamationIcon,
   RectangleGroupIcon,
   TrophyIcon,
   FlagIcon,
@@ -79,28 +72,21 @@ const NAV_ITEMS = [
   { id: 'heatmap', icon: MapIcon },
   { id: 'gallery', icon: RectangleGroupIcon },
   { id: 'consistency', icon: CalendarDaysIcon },
-  { id: 'vdot', icon: BeakerIcon },
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'qa', icon: ChatBubbleLeftRightIcon },
-  { id: 'splits', icon: BoltIcon },
-  { id: 'records', icon: TrophyIcon },
-  { id: 'decoupling', icon: SignalIcon },
-  { id: 'cardiac', icon: HeartIcon },
-  { id: 'vitals', icon: ArrowTrendingUpIcon },
-  { id: 'injury', icon: ShieldExclamationIcon },
-  { id: 'vo2tracker', icon: ArrowTrendingUpIcon },
-  { id: 'lactate', icon: SignalIcon },
+  { id: 'fitness', icon: BeakerIcon },
+  { id: 'health', icon: HeartIcon },
   { id: 'export', icon: ArrowDownTrayIcon },
 ];
 
 const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
-  { id: 'ai', icon: SparklesIcon, itemIds: ['targets', 'planner', 'predictor', 'vdot', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['splits', 'records', 'decoupling', 'cardiac', 'vitals', 'injury', 'vo2tracker', 'lactate'] },
+  { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'qa'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'fitness', 'health'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -1356,34 +1342,18 @@ const Dashboard = ({ user, handleLogout }) => {
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,
                 gallery:     <RouteGallery activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
-                vdot:        <VDOTEstimator activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
-                targets:     <TargetRaces />,
-                planner:     <TrainingPlanner activities={runningActivities} />,
-                predictor:   <RacePredictor activities={runningActivities} />,
-                qa:          <RunQA activities={runningActivities} />,
-                splits:      <SplitAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
-                records: (
+                targets: (
                   <div className="space-y-6">
-                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-800">{t('dashboard.personal_bests')}</h3>
-                          <p className="text-[11px] text-slate-400">{t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}</p>
-                        </div>
-                        <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
-                      </div>
-                      <PersonalBests activities={runningActivities} />
-                    </div>
+                    <TargetRaces />
                     <RaceDetector activities={runningActivities} />
                   </div>
                 ),
-                decoupling:  <CardiacDecoupling activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
-                cardiac:     <GarminCardiac />,
-                vitals:      <VitalsOverview activities={runningActivities} />,
-                injury:      <InjuryRisk activities={runningActivities} />,
-                vo2tracker:  <VO2MaxTracker activities={runningActivities} />,
-                lactate:     <LactateThreshold activities={runningActivities} />,
+                planner:     <TrainingPlanner activities={runningActivities} />,
+                predictor:   <RacePredictor activities={runningActivities} />,
+                qa:          <RunQA activities={runningActivities} />,
+                fitness:     <FitnessHub activities={runningActivities} />,
+                health:      <HealthHub activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
               };
               const view = viewMap[currentView];

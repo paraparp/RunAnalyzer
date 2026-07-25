@@ -8,6 +8,9 @@ import {
   FireIcon,
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
+  ShieldExclamationIcon,
+  ClipboardDocumentIcon,
+  CheckIcon,
 } from '@heroicons/react/24/outline';
 import useAIInsights from '../hooks/useAIInsights';
 import {
@@ -160,7 +163,7 @@ const SELECT_ARROW = {
 // ── Main component ───────────────────────────────────────────────────────────
 const AIInsights = ({ activities, onOpenChat }) => {
   const {
-    cur, trend, nextWork, lastWork, meta, sci,
+    cur, trend, nextWork, lastWork, meta, sci, warnings, lastPrompt,
     loading, providerLabel, usedProvider, isFallback,
     cacheTs, restoreWarning, dismissRestoreWarning,
     garmin, stravaFetch,
@@ -169,6 +172,17 @@ const AIInsights = ({ activities, onOpenChat }) => {
     availableModels, goal,
     run,
   } = useAIInsights(activities);
+
+  // Copia del prompt enviado a la IA (feedback breve con check)
+  const [promptCopied, setPromptCopied] = useState(false);
+  const copyPrompt = async () => {
+    if (!lastPrompt) return;
+    try {
+      await navigator.clipboard.writeText(lastPrompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1500);
+    } catch { /* clipboard no disponible */ }
+  };
 
   // Popover de ajustes (compacta los dos selectores + objetivo en la cabecera)
   const [cfgOpen, setCfgOpen] = useState(false);
@@ -210,12 +224,27 @@ const AIInsights = ({ activities, onOpenChat }) => {
   const stravaFresh = formatDataDate(stravaFetch);
   const garminFresh = formatDataDate(garminDataDate);
 
-  // Pasa el análisis actual al chat (RunQA) como contexto para preguntas de seguimiento.
-  const openInChat = () => {
+  // Pasa el análisis actual al chat (RunQA) como contexto y deja preparada una
+  // pregunta que el chat lanza solo al abrirse: la de la sección indicada por
+  // `focus`, o la de ampliación general si se llama sin argumento (footer).
+  const openInChat = (focus) => {
     try {
+      const last = sortedActivities[0];
+      const lastDesc = last
+        ? `mi última sesión «${last.name}» del ${new Date(last.start_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}`
+        : 'mi última sesión';
+      const ASKS = {
+        cur: 'Amplía el diagnóstico de mi estado actual: explica en detalle qué indican mis métricas (readiness, TSB, ACWR, VFC, sueño…), qué riesgos ves y qué debería vigilar los próximos días. Quiero un análisis largo y razonado, con secciones.',
+        nextWork: 'Amplía la sesión que me recomiendas: desglosa calentamiento, bloques principales con ritmos y FC objetivo, vuelta a la calma, y explica por qué esta sesión y no otra dado mi estado actual. Quiero el detalle completo de ejecución.',
+        trend: 'Amplía el análisis de mi tendencia de los últimos 2 meses: evolución de volumen, ritmo y FC, qué patrón ves en mi carga (ACWR, progresión) y qué proyección haces si sigo así. Quiero un análisis largo apoyado en cifras concretas.',
+        lastWork: `Analiza en profundidad ${lastDesc}: valora ritmo, FC, desnivel y esfuerzo comparándola con mis sesiones anteriores, dime qué hice bien, qué puedo mejorar y cómo encaja en mi carga actual. Quiero un análisis extendido, no un resumen.`,
+        general: 'Amplía todo el análisis del panel de IA: explícame con más detalle mi estado actual y qué indican mis métricas, la tendencia de los últimos 2 meses, cómo fue mi última sesión y por qué me recomiendas la próxima sesión. Quiero un análisis largo y completo, con secciones.',
+      };
       const seed = {
         ts: Date.now(),
         blocks: { cur, trend, nextWork, lastWork },
+        focus: focus ?? 'general',
+        ask: ASKS[focus ?? 'general'] ?? null,
         sci: sci ? {
           readiness: sci.readiness?.score ?? null,
           readinessLabel: sci.readiness?.label ?? null,
@@ -232,6 +261,19 @@ const AIInsights = ({ activities, onOpenChat }) => {
     } catch { /* ignore quota/serialization errors */ }
     onOpenChat?.();
   };
+
+  // Mini-botón por sección: abre el chat con esa sección como foco y una
+  // pregunta de ampliación ya lanzada.
+  const AskChatBtn = ({ focus }) => onOpenChat ? (
+    <button
+      onClick={() => openInChat(focus)}
+      title="Ampliar este análisis en el chat de IA"
+      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide text-blue-500 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/30 transition-colors"
+    >
+      <ChatBubbleLeftRightIcon className="w-3 h-3" />
+      <span>Ampliar</span>
+    </button>
+  ) : null;
 
   const curBadge = CUR_BADGES[deriveStatusKey(cur, meta)] ?? null;
   const trendBadge = trend ? (TREND_BADGES[deriveTrendKey(trend, meta)] ?? null) : null;
@@ -261,6 +303,18 @@ const AIInsights = ({ activities, onOpenChat }) => {
         <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         <span>{loading ? 'Analizando…' : 'Recalcular'}</span>
       </button>
+
+      {lastPrompt && (
+        <button
+          onClick={copyPrompt}
+          title="Copiar el prompt enviado a la IA"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-colors"
+        >
+          {promptCopied
+            ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+            : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+        </button>
+      )}
 
       {/* Ajustes Popover */}
       <div className="relative" ref={cfgRef}>
@@ -392,7 +446,10 @@ const AIInsights = ({ activities, onOpenChat }) => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2.5">
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Diagnóstico IA</span>
-                {curBadge && <Badge badge={curBadge} className="ml-auto" />}
+                <span className="ml-auto flex items-center gap-2">
+                  {curBadge && <Badge badge={curBadge} />}
+                  {cur && <AskChatBtn focus="cur" />}
+                </span>
               </div>
               <div className="min-h-[84px]">
                 {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" lg />}
@@ -439,10 +496,39 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
       )}
 
+      {/* Avisos de coherencia científica: la prescripción de la IA se valida
+          post-hoc contra el readiness y las zonas de FC calculadas (sci). */}
+      {!loading && warnings?.length > 0 && (
+        <div className="rounded-xl border border-amber-200/70 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <ShieldExclamationIcon className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700 dark:text-amber-400">
+              Revisa la prescripción
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {warnings.map((w, i) => (
+              <li key={i} className="flex gap-2 text-[11px] leading-snug text-amber-800 dark:text-amber-300/90">
+                <span className="shrink-0 mt-[5px] w-1 h-1 rounded-full bg-amber-500" />
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ═══════════ 02 · PLAN (PRÓXIMAS 48 H) — ticket de sesión ═══════════ */}
-      {(nextWork || (loading && cur)) && (
+      {(nextWork || loading) && (
         <section>
-        <ZoneHeader num="02" marker="bg-blue-500" title="Plan de Entrenamiento" scope="Próximas 48 h" />
+        <ZoneHeader
+          num="02" marker="bg-blue-500" title="Plan de Entrenamiento" scope="Próximas 48 h"
+          right={nextWork ? (
+            <span className="flex items-center gap-2">
+              <ScopePill>Próximas 48 h</ScopePill>
+              <AskChatBtn focus="nextWork" />
+            </span>
+          ) : null}
+        />
         <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5">
           <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-blue-500/80" />
 
@@ -454,6 +540,12 @@ const AIInsights = ({ activities, onOpenChat }) => {
               const theme = workoutTheme(w?.type);
               const zoneNum = Number(w?.hrZone?.match(/Zona\s*(\d)/i)?.[1]) || null;
               const hrRange = w?.hrZone?.match(/(\d+\s*-\s*\d+)\s*ppm/i)?.[1] ?? null;
+              // FC media objetivo = punto medio del rango prescrito; se contextualiza
+              // contra los umbrales del atleta (LT1 techo fácil, LT2 umbral).
+              const [hrLo, hrHi] = hrRange ? hrRange.split('-').map(n => parseInt(n, 10)) : [null, null];
+              const hrMid = hrLo && hrHi ? Math.round((hrLo + hrHi) / 2) : null;
+              const lt1 = sci?.lt?.lt1Hr ?? null;
+              const lt2 = sci?.lt?.lt2Hr ?? null;
               return (
                 <div className="space-y-3">
                   {/* Ticket: talón de intensidad + campos perforados */}
@@ -495,6 +587,28 @@ const AIInsights = ({ activities, onOpenChat }) => {
                     </div>
                   </div>
 
+                  {/* Referencias cardiacas: FC media objetivo + umbrales del atleta */}
+                  {(hrMid || lt1 || lt2) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 rounded-lg bg-slate-50/80 dark:bg-slate-800/20 border border-slate-200/65 dark:border-slate-800/65">
+                      {hrMid && (
+                        <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300">
+                          <span className="font-bold text-slate-400 uppercase tracking-wider mr-1">FC media objetivo</span>
+                          ≈{hrMid} ppm{lt1 ? (hrMid <= lt1 ? ' (bajo LT1: fácil)' : lt2 && hrMid >= lt2 ? ' (sobre LT2: calidad)' : ' (entre umbrales)') : ''}
+                        </span>
+                      )}
+                      {lt1 && (
+                        <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
+                          <span className="font-bold uppercase tracking-wider mr-1">LT1</span>{lt1} ppm · techo fácil
+                        </span>
+                      )}
+                      {lt2 && (
+                        <span className="text-[10px] font-mono text-rose-500 dark:text-rose-400">
+                          <span className="font-bold uppercase tracking-wider mr-1">LT2</span>{lt2} ppm · umbral
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Guías de ejecución */}
                   <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
@@ -520,7 +634,12 @@ const AIInsights = ({ activities, onOpenChat }) => {
             marker="bg-indigo-500"
             title="Tendencia"
             scope="Últimos 2 meses"
-            right={trendBadge ? <Badge badge={trendBadge} className="shrink-0" /> : null}
+            right={(trendBadge || trend) ? (
+              <span className="flex items-center gap-2">
+                {trendBadge && <Badge badge={trendBadge} className="shrink-0" />}
+                {trend && <AskChatBtn focus="trend" />}
+              </span>
+            ) : null}
           />
 
           <div className="flex items-center gap-2 mb-2">
@@ -553,7 +672,15 @@ const AIInsights = ({ activities, onOpenChat }) => {
           return (
             <div className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
               <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-amber-500/80" />
-              <ZoneHeader marker="bg-amber-500" title="Ejecución" scope="Última sesión" />
+              <ZoneHeader
+                marker="bg-amber-500" title="Ejecución" scope="Última sesión"
+                right={lastWork ? (
+                  <span className="flex items-center gap-2">
+                    <ScopePill>Última sesión</ScopePill>
+                    <AskChatBtn focus="lastWork" />
+                  </span>
+                ) : null}
+              />
 
               <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
@@ -653,7 +780,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
         {onOpenChat && (cur || trend || nextWork) && (
           <button
-            onClick={openInChat}
+            onClick={() => openInChat()}
             className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
           >
             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />

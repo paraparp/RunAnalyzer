@@ -1,5 +1,5 @@
 import { generateObject } from 'ai';
-import { resolveModel, SCHEMAS } from '../_lib/ai.js';
+import { resolveModel, SCHEMAS, validateAIRequest } from '../_lib/ai.js';
 import { ensureAuth } from '../_lib/auth.js';
 
 export const config = { maxDuration: 60 };
@@ -12,6 +12,8 @@ export default async function handler(req, res) {
   const zodSchema = SCHEMAS[schema];
   if (!zodSchema) return res.status(400).json({ error: `schema desconocido: ${schema}` });
   if (!model || !prompt) return res.status(400).json({ error: 'model y prompt son requeridos' });
+  const invalid = validateAIRequest({ provider, model, prompt });
+  if (invalid) return res.status(400).json({ error: invalid });
 
   try {
     const { object } = await generateObject({

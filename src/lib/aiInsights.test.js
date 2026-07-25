@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   paceStr, formatDataDate,
-  stripPartialDelimiter, splitBlocks, validateBlocks, parseMeta,
+  coachObjectToBlocks, coachCoherenceWarnings,
   parseWorkout, deriveStatusKey, deriveTrendKey,
 } from './aiInsights';
 
@@ -28,47 +28,60 @@ describe('formatDataDate', () => {
   });
 });
 
-describe('stripPartialDelimiter', () => {
-  it('recorta pipes parciales del final (chunk corta "|||")', () => {
-    expect(stripPartialDelimiter('texto |')).toBe('texto ');
-    expect(stripPartialDelimiter('texto ||')).toBe('texto ');
+describe('coachObjectToBlocks', () => {
+  const obj = {
+    diagnostico: ['**Recuperado** y con buena forma esta semana', 'VFC sobre baseline'],
+    tendencia: ['**Progresión** sostenida en los últimos 2 meses', 'Rampa de carga segura'],
+    sesion: {
+      tipo: 'Tempo', distancia: '8-10 km', ritmo: '4:45-5:00 min/km',
+      zona: 3, fcMin: 158, fcMax: 168,
+      instrucciones: ['Calentamiento 15 min', 'Para si FC>172 ppm'],
+    },
+    ultimoEntreno: ['**Rodaje aeróbico** bien ejecutado', 'Acierto: ritmo parejo'],
+    estado: 'recuperado',
+    tendenciaClave: 'progresion',
+  };
+  it('convierte el objeto estructurado a bloques de texto + metadatos', () => {
+    const b = coachObjectToBlocks(obj);
+    expect(b.cur).toContain('Recuperado');
+    expect(b.trend).toContain('Progresión');
+    expect(b.nextWork).toContain('Calentamiento');
+    expect(b.lastWork).toContain('Rodaje aeróbico');
+    expect(b.meta.estado).toBe('recuperado');
+    expect(b.meta.tendencia).toBe('progresion');
+    expect(b.meta.sesion).toMatchObject({ tipo: 'Tempo', distancia: '8-10 km', ritmo: '4:45-5:00 min/km' });
+    expect(b.meta.sesion.zona).toBe('Zona 3 · 158-168 ppm');
   });
-  it('no toca un delimitador completo ni texto normal', () => {
-    expect(stripPartialDelimiter('a|||b')).toBe('a|||b');
-    expect(stripPartialDelimiter('texto')).toBe('texto');
+  it('rechaza objetos sin diagnóstico/tendencia con contenido real', () => {
+    expect(coachObjectToBlocks(null)).toBeNull();
+    expect(coachObjectToBlocks({ diagnostico: ['x'], tendencia: ['y'] })).toBeNull();
+    expect(coachObjectToBlocks({ diagnostico: 'no-array', tendencia: [] })).toBeNull();
   });
 });
 
-describe('splitBlocks / validateBlocks', () => {
-  const good = 'Bloque uno con contenido suficiente ||| Bloque dos con contenido suficiente ||| Bloque tres ||| Bloque cuatro';
-  it('parte y recorta los bloques', () => {
-    const parts = splitBlocks(good);
-    expect(parts).toHaveLength(4);
-    expect(parts[0]).toBe('Bloque uno con contenido suficiente');
+describe('coachCoherenceWarnings', () => {
+  const sesion = (over) => ({ sesion: { tipo: 'Tempo', fcMin: 158, fcMax: 168, ...over } });
+  it('avisa si un readiness muy bajo lleva sesión de calidad', () => {
+    const w = coachCoherenceWarnings(sesion({ tipo: 'Intervalos' }), { readiness: { score: 40 } });
+    expect(w.join(' ')).toMatch(/regenerativo o descansar/);
   });
-  it('acepta respuestas con formato correcto', () => {
-    expect(validateBlocks(splitBlocks(good))).toBe(true);
+  it('avisa si el tope de FC supera la FCmax', () => {
+    const w = coachCoherenceWarnings(sesion({ fcMax: 200 }), { fcmax: 190, readiness: { score: 80 } });
+    expect(w.join(' ')).toMatch(/supera tu FCmax/);
   });
-  it('rechaza respuestas sin delimitadores o con bloques vacíos', () => {
-    expect(validateBlocks(splitBlocks('prosa suelta sin bloques'))).toBe(false);
-    expect(validateBlocks(splitBlocks('||| ||| |||'))).toBe(false);
-    expect(validateBlocks(splitBlocks(''))).toBe(false);
+  it('avisa si una sesión fácil supera el LT1', () => {
+    const w = coachCoherenceWarnings(
+      sesion({ tipo: 'Regenerativo', fcMax: 155 }),
+      { readiness: { score: 80 }, lt: { lt1Hr: 145 } },
+    );
+    expect(w.join(' ')).toMatch(/umbral aeróbico/);
   });
-});
-
-describe('parseMeta', () => {
-  it('extrae el JSON del bloque 5', () => {
-    const parts = ['a', 'b', 'c', 'd', '{"estado":"fatigado","tendencia":"riesgo"}'];
-    expect(parseMeta(parts)).toEqual({ estado: 'fatigado', tendencia: 'riesgo' });
-  });
-  it('tolera texto alrededor del JSON (```json, prosa)', () => {
-    const parts = ['a', 'b', 'c', 'd', '```json\n{"estado":"en_forma"}\n```'];
-    expect(parseMeta(parts)).toEqual({ estado: 'en_forma' });
-  });
-  it('devuelve null si falta el bloque o el JSON es inválido', () => {
-    expect(parseMeta(['a', 'b', 'c', 'd'])).toBeNull();
-    expect(parseMeta(['a', 'b', 'c', 'd', '{rota'])).toBeNull();
-    expect(parseMeta(null)).toBeNull();
+  it('no genera avisos con una prescripción coherente', () => {
+    const w = coachCoherenceWarnings(
+      sesion({ tipo: 'Aeróbico base', fcMin: 138, fcMax: 150 }),
+      { readiness: { score: 80 }, fcmax: 190, lt: { lt1Hr: 152 } },
+    );
+    expect(w).toEqual([]);
   });
 });
 

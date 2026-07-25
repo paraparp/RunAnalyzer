@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { streamText, generateObject } from 'ai';
-import { resolveModel, SCHEMAS, listGeminiModels, pipeStream } from './api/_lib/ai.js';
+import { resolveModel, SCHEMAS, listGeminiModels, pipeStream, validateAIRequest } from './api/_lib/ai.js';
 import { getUserFromReq } from './api/_lib/auth.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
@@ -304,6 +304,8 @@ app.post('/api/strava/refresh', (req, res) => {
 app.post('/api/ai/stream', requireUser, async (req, res) => {
   const { provider = 'gemini', model, messages, temperature = 0.7 } = req.body ?? {};
   if (!model || !Array.isArray(messages)) return res.status(400).json({ error: 'model y messages son requeridos' });
+  const invalidStream = validateAIRequest({ provider, model, messages });
+  if (invalidStream) return res.status(400).json({ error: invalidStream });
   try {
     const result = streamText({ model: resolveModel(provider, model), messages, temperature, maxRetries: 0 });
     await pipeStream(result, res);
@@ -318,6 +320,8 @@ app.post('/api/ai/object', requireUser, async (req, res) => {
   const zodSchema = SCHEMAS[schema];
   if (!zodSchema) return res.status(400).json({ error: `schema desconocido: ${schema}` });
   if (!model || !prompt) return res.status(400).json({ error: 'model y prompt son requeridos' });
+  const invalidObject = validateAIRequest({ provider, model, prompt });
+  if (invalidObject) return res.status(400).json({ error: invalidObject });
   try {
     const { object } = await generateObject({ model: resolveModel(provider, model), schema: zodSchema, prompt, temperature });
     res.json({ object });

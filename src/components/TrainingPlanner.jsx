@@ -8,8 +8,31 @@ import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectIte
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
-import { buildPrompt } from '../lib/athleteContext';
+import AIToolHeader from './AIToolHeader';
+import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import { getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+
+// Prompt del plan — vive en código y siempre en español (antes estaba duplicado
+// en i18n en dos idiomas que podían divergir y mezclaba idioma con el
+// athleteContext, que es español, igual que los schemas Zod del servidor).
+const buildPlannerPrompt = ({ history, dist, time, weeks, daysCount, daysStr }) => {
+    const goal = time
+        ? `Correr ${dist} en ${time} minutos`
+        : `Correr ${dist} (sin tiempo meta fijado: propón un objetivo realista a partir de las MARCAS PERSONALES y la forma actual del contexto, y dilo en el análisis)`;
+    return `Actúa como un fisiólogo deportivo de élite y entrenador de running profesional que aplica ciencia validada del entrenamiento (modelo PMC de Banister CTL/ATL/TSB, polarizado 80/20 de Seiler, ratio agudo:crónico de Gabbett para riesgo de lesión).
+
+CONTEXTO DEL ATLETA (datos científicos — carga de entrenamiento, ACWR, zonas de FC, ritmos de referencia, marcas personales, distribución polarizada, wearable):
+${history}
+
+OBJETIVO: ${goal}. Horizonte del plan: ${weeks} semanas. Disponibilidad: ${daysCount} día(s) (${daysStr}).
+
+REGLAS:
+- 80/20 polarizado; mantén segura la rampa de carga semanal (ACWR ~0,8–1,3); dimensiona el volumen al CTL actual.
+- Este plan cubre la SEMANA 1 de las ${weeks} disponibles: periodízala como el inicio del camino al objetivo (base → construcción → específico → taper según el tiempo restante).
+- Usa los ritmos de referencia y las zonas de FC EXACTOS del contexto; PROHIBIDO inventar cifras que no salgan de esos anclajes. Si un dato no está, no lo estimes.
+- Los porcentajes de distribución (easy/moderate/hard) deben cuadrar con las sesiones prescritas.
+- GENERA EXACTAMENTE ${daysCount} SESIÓN(ES), una por día disponible, en los días indicados.`;
+};
 
 
 const TrainingPlanner = ({ activities }) => {
@@ -37,11 +60,14 @@ const TrainingPlanner = ({ activities }) => {
     const selectedRace = targetRaces.find(r => r.id === selectedRaceId) || null;
     const goalDist = selectedRace?.distance || '21k';
     const goalTime = selectedRace?.goalTimeMin != null ? String(Math.round(selectedRace.goalTimeMin)) : '';
+    // Días hasta la carrera: negativo = ya pasó (se bloquea el plan y se avisa,
+    // antes se clampaba en silencio a un plan de 1 semana hacia una carrera pasada).
+    const daysToRace = selectedRace ? daysUntil(selectedRace.date) : null;
+    const racePassed = daysToRace != null && daysToRace < 0;
     // Duración del plan = semanas hasta la carrera (acotado 1–24); 8 si no hay fecha.
     const weeks = (() => {
-        const d = selectedRace ? daysUntil(selectedRace.date) : null;
-        if (d == null) return 8;
-        return Math.min(24, Math.max(1, Math.round(d / 7)));
+        if (daysToRace == null) return 8;
+        return Math.min(24, Math.max(1, Math.round(daysToRace / 7)));
     })();
 
     const [selectedModel, setSelectedModel] = useState(
@@ -84,35 +110,20 @@ const TrainingPlanner = ({ activities }) => {
                 activities, garmin, sleep, daysCount,
                 { distance: goalDist.toUpperCase(), pace }
             );
-            return athleteContext || getRecentActivitiesSummary();
+            return athleteContext || buildPlainActivityLog(activities) || t('hr_analysis.no_data');
         } catch {
-            return getRecentActivitiesSummary();
+            return buildPlainActivityLog(activities) || t('hr_analysis.no_data');
         }
-    };
-
-    const getRecentActivitiesSummary = () => {
-        if (!activities || activities.length === 0) return t('hr_analysis.no_data');
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const recent = activities
-            .filter(a => new Date(a.start_date) >= threeMonthsAgo)
-            .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
-            .map(a => {
-                const distKm = (a.distance / 1000).toFixed(2);
-                const timeMin = (a.moving_time / 60).toFixed(1);
-                const pace = (a.moving_time / 60 / (a.distance / 1000)).toFixed(2);
-                const date = new Date(a.start_date).toLocaleDateString();
-                const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
-                const elev = `+${Math.round(a.total_elevation_gain)}m`;
-                return `- ${date}: ${distKm}km in ${timeMin}min (pace ${pace} min/km). HR: ${hr}. Elev: ${elev}.`;
-            });
-        return recent.join('\n');
     };
 
     const generateAIPlan = async (e) => {
         e.preventDefault();
         if (!selectedRace) {
             setError(t('planner.no_target_desc'));
+            return;
+        }
+        if (racePassed) {
+            setError(t('planner.race_passed'));
             return;
         }
         setLoading(true);
@@ -122,7 +133,7 @@ const TrainingPlanner = ({ activities }) => {
             const daysCount = selectedDays.length;
             const daysStr = selectedDays.join(', ');
             const activityLog = buildPlanContext(daysCount);
-            const prompt = t('planner.prompt', {
+            const prompt = buildPlannerPrompt({
                 history: activityLog,
                 dist: t(`planner.distances.${goalDist}`),
                 time: goalTime,
@@ -134,7 +145,8 @@ const TrainingPlanner = ({ activities }) => {
             const controller = new AbortController();
             abortRef.current = controller;
 
-            const object = await generateAIObjectWithFallback({ model: selectedModel, prompt, temperature: 0.7, schema: 'plan', signal: controller.signal });
+            // 0.5: la prescripción debe ser consistente entre ejecuciones, no creativa.
+            const object = await generateAIObjectWithFallback({ model: selectedModel, prompt, temperature: 0.5, schema: 'plan', signal: controller.signal });
             setPlan(object);
             setLoading(false);
         } catch (err) {
@@ -165,7 +177,7 @@ const TrainingPlanner = ({ activities }) => {
         const tableData = plan.schedule.map(day => [day.day, day.type, day.daily_stats ? `${day.daily_stats.dist}\n${day.daily_stats.time}` : '-', day.summary]);
         autoTable(doc, {
             startY: yPos,
-            head: [[t('consistency.stats.active_days').slice(0, 3), t('dashboard.status'), t('planner.vol'), t('dashboard.activity')]],
+            head: [[t('planner.pdf.day'), t('planner.pdf.type'), t('planner.pdf.vol'), t('planner.pdf.session')]],
             body: tableData,
             theme: 'grid',
             headStyles: { fillColor: primaryColor, textColor: 255 },
@@ -177,25 +189,14 @@ const TrainingPlanner = ({ activities }) => {
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             {/* Header Section */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm transition-all hover:shadow-md mb-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
-                            <SparklesIcon className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('planner.title')}</h2>
-                            <p className="text-slate-500 text-sm font-medium">{t('planner.subtitle')}</p>
-                        </div>
-                    </div>
-                    <ModelSelector
-                        selectedModel={selectedModel}
-                        setSelectedModel={setSelectedModel}
-                        disabled={loading}
-                        showLabel={false}
-                    />
-                </div>
-            </div>
+            <AIToolHeader title={t('planner.title')} subtitle={t('planner.subtitle')}>
+                <ModelSelector
+                    selectedModel={selectedModel}
+                    setSelectedModel={setSelectedModel}
+                    disabled={loading}
+                    showLabel={false}
+                />
+            </AIToolHeader>
 
             {/* Config Card */}
             <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm mb-8">
@@ -217,6 +218,9 @@ const TrainingPlanner = ({ activities }) => {
                                         </SelectItem>
                                     ))}
                                 </Select>
+                                {racePassed && (
+                                    <p className="mt-2 text-xs font-semibold text-amber-600">⚠ {t('planner.race_passed')}</p>
+                                )}
                             </div>
 
                             {/* Objetivo derivado de la carrera seleccionada */}
@@ -254,9 +258,9 @@ const TrainingPlanner = ({ activities }) => {
                     )}
 
                     <button
-                        disabled={loading || targetRaces.length === 0}
+                        disabled={loading || targetRaces.length === 0 || racePassed}
                         type="submit"
-                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl ${loading ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'}`}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl ${loading || racePassed || targetRaces.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'}`}
                     >
                         {loading ? t('planner.analyzing') : t('planner.generate_btn')}
                     </button>

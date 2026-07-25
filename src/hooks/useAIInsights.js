@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { streamAI, fetchGeminiModels } from '../services/ai';
+import { generateAIObject, fetchGeminiModels } from '../services/ai';
 import { buildPrompt } from '../lib/athleteContext';
 import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { FALLBACK_GEMINI, DEFAULT_GEMINI_MODEL } from '../components/ModelSelector';
-import { paceStr, stripPartialDelimiter, splitBlocks, validateBlocks, parseMeta } from '../lib/aiInsights';
+import { paceStr, coachObjectToBlocks, coachCoherenceWarnings } from '../lib/aiInsights';
 
 // Máquina de estados del análisis IA: caché con validación, backup/restore,
 // cadena de proveedores (Gemini → Groq) y carga de datos Garmin/Strava.
@@ -15,11 +15,14 @@ export default function useAIInsights(activities) {
   const [nextWork, setNextWork] = useState('');
   const [lastWork, setLastWork] = useState('');
   const [meta, setMeta] = useState(null);
+  const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [garmin, setGarmin] = useState(undefined);
   const [sleep, setSleep] = useState(undefined);
   const [stravaFetch, setStravaFetch] = useState(null);
   const [sci, setSci] = useState(null);
+  // Último prompt construido para la IA (para inspección/copia desde la UI)
+  const [lastPrompt, setLastPrompt] = useState('');
   const [cacheTs, setCacheTs] = useState(null);
   const [restoreWarning, setRestoreWarning] = useState(false);
   const [providerLabel, setProviderLabel] = useState('');
@@ -134,6 +137,7 @@ export default function useAIInsights(activities) {
     if (!built) return;
     const { prompt, sci: builtSci } = built;
     setSci(builtSci);
+    setLastPrompt(prompt);
 
     // Check cache — key includes model so switching models bypasses cache
     if (!force) {
@@ -147,6 +151,7 @@ export default function useAIInsights(activities) {
             if (parsed.nextWork) setNextWork(parsed.nextWork);
             if (parsed.lastWork) setLastWork(parsed.lastWork);
             setMeta(parsed.meta ?? null);
+            setWarnings(parsed.warnings ?? []);
             setCacheTs(parsed.timestamp);
             setUsedProvider(parsed.provider ?? '');
             return;
@@ -180,12 +185,12 @@ export default function useAIInsights(activities) {
       }));
     } catch { /* ignore */ }
 
-    // Abort any previous in-flight stream
+    // Abort any previous in-flight request
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setLoading(true); setCur(''); setTrend(''); setNextWork(''); setLastWork(''); setMeta(null); setUsedProvider(''); setIsFallback(false);
+    setLoading(true); setCur(''); setTrend(''); setNextWork(''); setLastWork(''); setMeta(null); setWarnings([]); setUsedProvider(''); setIsFallback(false);
 
     let succeeded = false;
     try {
@@ -198,40 +203,36 @@ export default function useAIInsights(activities) {
           : `${providers[i - 1].name} falló · probando ${provider.name}…`
         );
         try {
-          const full = await streamAI(
-            {
-              provider: provider.provider,
-              model: provider.model,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.4,
-              signal: controller.signal,
-            },
-            (_chunk, acc) => {
-              // Solo se pintan los bloques 1-4; el 5 (JSON) es para máquina.
-              const parts = splitBlocks(stripPartialDelimiter(acc));
-              if (parts.length >= 1) setCur(parts[0]);
-              if (parts.length >= 2) setTrend(parts[1]);
-              if (parts.length >= 3) setNextWork(parts[2]);
-              if (parts.length >= 4) setLastWork(parts[3]);
-            }
-          );
+          // Salida estructurada: el esquema coachInsights se valida con Zod en
+          // el servidor, así que aquí ya no hay parseo de bloques ni regex.
+          // Temperatura baja: prescripción numérica, consistencia entre recálculos.
+          const object = await generateAIObject({
+            provider: provider.provider,
+            model: provider.model,
+            prompt,
+            temperature: 0.2,
+            schema: 'coachInsights',
+            signal: controller.signal,
+          });
 
-          // Validación antes de aceptar: una respuesta que no respeta el
-          // formato (bloques vacíos, prosa suelta) se trata como fallo del
-          // proveedor — nunca se cachea ni se muestra como resultado final.
-          const parts = splitBlocks(full);
-          if (!validateBlocks(parts)) {
-            throw new Error('Respuesta malformada (bloques incompletos)');
+          // Conversión a bloques de texto + metadatos. Si el objeto no trae
+          // diagnóstico/tendencia con contenido real (típico del fallback que
+          // no respeta el esquema), se trata como fallo y se prueba el siguiente.
+          const blocks = coachObjectToBlocks(object);
+          if (!blocks) {
+            throw new Error('Respuesta estructurada incompleta');
           }
-          const parsedMeta = parseMeta(parts);
+          // Validación de coherencia científica de la prescripción (post-hoc).
+          const coherence = coachCoherenceWarnings(object, builtSci);
 
           // Commit del estado ANTES de tocar storage: un fallo de quota al
           // escribir la caché no debe descartar una respuesta buena ni
           // encadenar otro proveedor.
           const ts = Date.now();
-          setCur(parts[0]); setTrend(parts[1]);
-          setNextWork(parts[2] ?? ''); setLastWork(parts[3] ?? '');
-          setMeta(parsedMeta);
+          setCur(blocks.cur); setTrend(blocks.trend);
+          setNextWork(blocks.nextWork); setLastWork(blocks.lastWork);
+          setMeta(blocks.meta);
+          setWarnings(coherence);
           setUsedProvider(provider.name);
           setCacheTs(ts);
           succeeded = true;
@@ -240,11 +241,12 @@ export default function useAIInsights(activities) {
             cloudStorage.setItem('ai_insights_cache', JSON.stringify({
               prompt,
               model,
-              cur: parts[0],
-              trend: parts[1],
-              nextWork: parts[2] ?? '',
-              lastWork: parts[3] ?? '',
-              meta: parsedMeta,
+              cur: blocks.cur,
+              trend: blocks.trend,
+              nextWork: blocks.nextWork,
+              lastWork: blocks.lastWork,
+              meta: blocks.meta,
+              warnings: coherence,
               timestamp: ts,
               provider: provider.name,
             }));
@@ -256,7 +258,7 @@ export default function useAIInsights(activities) {
         } catch (e) {
           if (controller.signal.aborted) break;
           console.warn(`[AIInsights] ${provider.name} falló:`, e);
-          setCur(''); setTrend(''); setNextWork(''); setLastWork(''); setMeta(null);
+          setCur(''); setTrend(''); setNextWork(''); setLastWork(''); setMeta(null); setWarnings([]);
         }
       }
 
@@ -299,7 +301,7 @@ export default function useAIInsights(activities) {
   const dismissRestoreWarning = useCallback(() => setRestoreWarning(false), []);
 
   return {
-    cur, trend, nextWork, lastWork, meta, sci,
+    cur, trend, nextWork, lastWork, meta, sci, warnings, lastPrompt,
     loading, providerLabel, usedProvider, isFallback,
     cacheTs, restoreWarning, dismissRestoreWarning,
     garmin, stravaFetch,

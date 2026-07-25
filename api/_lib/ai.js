@@ -37,17 +37,81 @@ export function resolveModel(provider = 'gemini', model) {
   }
 }
 
+// ── Guardarraíles de la API ──────────────────────────────────────────────────
+// El endpoint gasta la cuota/factura del servidor: aunque el usuario esté
+// autenticado, solo se aceptan los proveedores/modelos que la app usa y se
+// acota el tamaño del prompt (un cliente manipulado no puede colar prompts
+// gigantes ni modelos caros con nuestras keys).
+const ALLOWED_MODELS = {
+  gemini: (m) => /^gemini-[\w.-]{1,60}$/.test(m),
+  groq: (m) => m === 'llama-3.3-70b-versatile',
+};
+const MAX_PROMPT_CHARS = 150_000;
+const MAX_MESSAGES = 50;
+
+/** Valida provider/model/tamaño. Devuelve un mensaje de error o null si es válido. */
+export function validateAIRequest({ provider = 'gemini', model, prompt, messages }) {
+  const check = ALLOWED_MODELS[provider];
+  if (!check) return `proveedor no permitido: ${provider}`;
+  if (typeof model !== 'string' || !check(model)) return `modelo no permitido para ${provider}: ${model}`;
+  if (prompt != null && (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_CHARS)) {
+    return `prompt inválido o demasiado largo (máx ${MAX_PROMPT_CHARS} caracteres)`;
+  }
+  if (messages != null) {
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
+      return `messages inválido (1-${MAX_MESSAGES} mensajes)`;
+    }
+    let total = 0;
+    for (const m of messages) {
+      if (!m || !['system', 'user', 'assistant'].includes(m.role) || typeof m.content !== 'string') {
+        return 'messages inválido (role/content malformados)';
+      }
+      total += m.content.length;
+    }
+    if (total > MAX_PROMPT_CHARS) return `conversación demasiado larga (máx ${MAX_PROMPT_CHARS} caracteres)`;
+  }
+  return null;
+}
+
 // Esquemas de salida estructurada (antes vivían en los componentes). El cliente
 // solo manda el nombre del esquema; aquí se reconstruye con Zod.
 export const SCHEMAS = {
+  // El tiempo se pide en SEGUNDOS numéricos y el ritmo se calcula en cliente
+  // (tiempo/distancia): así tiempo y ritmo no pueden ser incoherentes entre sí.
+  // El tiempo se pide en SEGUNDOS numéricos y el ritmo se calcula en cliente
+  // (tiempo/distancia): así tiempo y ritmo no pueden ser incoherentes entre sí.
+  // Tipos deliberadamente PERMISIVOS (string, sin min/max ni enum): un modelo
+  // "lite" que devuelve una etiqueta con acento o un bullet de más haría que Zod
+  // rechazara TODA la respuesta ("did not match schema"). El cliente normaliza.
   racePrediction: z.object({
-    analysis: z.string().describe('Breve párrafo (max 30 palabras) sobre el estado de forma actual del corredor.'),
+    analysis: z.string().describe('Análisis (máx 60 palabras) del estado de forma: anclajes usados (marcas, umbral, volumen) y, si hay objetivo de carrera, si va en camino de lograrlo.'),
     predictions: z.array(z.object({
-      label: z.string().describe('Distancia de la carrera (ej: 5K, 10K).'),
-      time: z.string().describe('Tiempo estimado en formato MM:SS o H:MM:SS.'),
-      pace: z.string().describe('Ritmo estimado en formato M:SS /km.'),
-      confidence: z.enum(['Alta', 'Media', 'Baja']).describe('Nivel de confianza en la predicción.'),
-    })).describe('Lista de predicciones para distancias estándar.'),
+      label: z.string().describe('Distancia: exactamente "5K", "10K", "Media Maratón" o "Maratón".'),
+      time_seconds: z.coerce.number().describe('Tiempo total estimado en SEGUNDOS (ej: 25:30 → 1530). No incluyas el ritmo: se deriva de este valor.'),
+      confidence: z.string().describe('Confianza: "Alta", "Media" o "Baja". "Alta" solo con esfuerzos o marcas recientes cerca de esa distancia.'),
+      rationale: z.string().describe('Justificación breve (máx 15 palabras): anclaje usado y ajuste aplicado (ej: "PB 10K 42:30 + Riegel, penalizado por bajo volumen").'),
+    })).describe('4 predicciones, una por distancia: 5K, 10K, Media Maratón, Maratón.'),
+  }),
+  // Coach IA del dashboard: sustituye al antiguo protocolo de texto "|||" —
+  // la estructura la impone Zod en servidor y el cliente ya no parsea con regex.
+  // Igual que arriba: tipos permisivos para no romper con modelos "lite". Los
+  // enums lógicos (estado/tendencia/tipo) se validan luego en el cliente
+  // (deriveStatusKey/deriveTrendKey/parseWorkout), que ya toleran variantes.
+  coachInsights: z.object({
+    diagnostico: z.array(z.string()).describe('2-3 bullets del diagnóstico de ESTA SEMANA (máx 22 palabras cada uno). Empieza cada bullet con el concepto clave en **negrita**.'),
+    tendencia: z.array(z.string()).describe('3-4 bullets de la tendencia de los últimos 2 meses (máx 22 palabras cada uno), con el patrón detectado en **negrita**: patrón, mejor/peor período, seguridad de la rampa y veredicto del objetivo.'),
+    sesion: z.object({
+      tipo: z.string().describe('Tipo de la próxima sesión de carrera: Regenerativo, Aeróbico base, Tempo, Intervalos, Series o Rodaje largo.'),
+      distancia: z.string().describe("Rango de distancia, formato 'X-Y km' (ej: '8-10 km')."),
+      ritmo: z.string().describe("Rango de ritmo, formato 'M:SS-M:SS min/km', coherente con RITMOS DE REFERENCIA."),
+      zona: z.coerce.number().optional().describe('Zona de FC de la sesión (1-5) según ZONAS DE FC CALCULADAS.'),
+      fcMin: z.coerce.number().optional().describe('Pulsaciones mínimas del rango objetivo (ppm), EXACTAS de ZONAS DE FC CALCULADAS.'),
+      fcMax: z.coerce.number().optional().describe('Pulsaciones máximas del rango objetivo (ppm), EXACTAS de ZONAS DE FC CALCULADAS.'),
+      instrucciones: z.array(z.string()).describe('2-3 bullets (máx 30 palabras cada uno): estructura de la sesión, una condición fisiológica de seguridad concreta, y distribución de intensidad 80/20.'),
+    }),
+    ultimoEntreno: z.array(z.string()).describe('2-3 bullets del análisis de la última sesión (máx 22 palabras cada uno): estímulo real según %LTHR, exactamente 1 acierto y 1 ajuste accionable, veredicto en **negrita**.'),
+    estado: z.string().describe('Estado fisiológico global: recuperado, fatigado, sobreentrenado, en_forma o adaptativo. Coherente con el diagnóstico.'),
+    tendenciaClave: z.string().describe('Patrón de tendencia global: progresion, estable, riesgo o estacional. Coherente con los bullets de tendencia.'),
   }),
   plan: z.object({
     analysis: z.string().describe('Análisis breve (max 60 palabras) del estado del corredor.'),

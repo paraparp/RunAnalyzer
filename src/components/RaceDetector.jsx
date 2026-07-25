@@ -6,12 +6,37 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell
 } from 'recharts';
 
+// Palabras que identifican una carrera de verdad. Se quitaron términos que solo
+// describen la SUPERFICIE o son demasiado genéricos ('trail', 'cross',
+// 'popular', 'nocturna', 'clásica'): marcaban como carrera cada entreno de
+// trail o cualquier rodaje con esas palabras. La señal fuerte es workout_type=1.
 const RACE_KEYWORDS = [
-  'race', 'carrera', 'maratón', 'marathon', 'media maratón', 'half marathon',
-  '10k', '5k', '15k', '21k', '42k', 'competición', 'competition', 'trail',
-  'cross', 'campeonato', 'championship', 'gran premio', 'classic', 'clásica',
-  'popular', 'nocturna', 'san silvestre', 'parkrun',
+  'race', 'maratón', 'marathon', 'media maratón', 'half marathon',
+  '10k', '5k', '15k', '21k', '42k', 'competición', 'competition',
+  'campeonato', 'championship', 'gran premio', 'san silvestre', 'parkrun',
 ];
+
+// Coste aproximado del desnivel sobre el ritmo (GAP simplificado): cada metro
+// de desnivel positivo por km hace que el ritmo real sea ~0.35% más lento que
+// su equivalente en llano. Se usa SOLO para comparar esfuerzos de forma justa
+// al detectar carreras (una carrera de trail es lenta por las cuestas, no por
+// falta de esfuerzo); las marcas siguen mostrando el tiempo real de reloj.
+const GRADE_COST_PER_M_PER_KM = 0.0035;
+
+// Umbral de detección por rendimiento: un esfuerzo cuenta como carrera si su
+// ritmo ajustado por desnivel está entre el 5% más rápido de su distancia
+// (percentil 95). Tunable: bájalo si se te escapan carreras reales sin etiquetar.
+const RACE_GAP_PERCENTILE = 95;
+
+// Ritmo (seg/km) equivalente en llano: penaliza el desnivel para no descartar
+// carreras de montaña "lentas" en el filtro por percentil.
+function gapPaceSecPerKm(activity) {
+  if (!activity.average_speed || activity.average_speed <= 0) return Infinity;
+  const paceSec = 1000 / activity.average_speed;
+  const km = activity.distance / 1000;
+  const elevPerKm = km > 0 ? (activity.total_elevation_gain || 0) / km : 0;
+  return paceSec / (1 + GRADE_COST_PER_M_PER_KM * elevPerKm);
+}
 
 // Static distance category definitions (no labels — labels are computed inside component via t())
 const DISTANCE_CATEGORY_DEFS = [
@@ -45,13 +70,46 @@ function formatPace(minPerKm) {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
-function isLikelyRace(activity, sufferP85) {
-  const name = (activity.name || '').toLowerCase();
-  const nameMatch = RACE_KEYWORDS.some(kw => name.includes(kw));
-  const workoutType = activity.workout_type === 1;
-  const highEffort = activity.suffer_score && activity.suffer_score >= sufferP85;
+// Nº mínimo de esfuerzos en una distancia para que el percentil sea significativo.
+// Por debajo, la detección por rendimiento se desactiva (evita marcar como
+// carrera "el más rápido de dos rodajes fáciles").
+const MIN_BUCKET_FOR_PERF = 4;
 
-  return nameMatch || workoutType || (highEffort && activity.distance >= 4500);
+// Fuentes de verdad, de más a menos fiable:
+//  1. workout_type === 1 → tú marcaste "Carrera" en Strava. Autoritativo.
+//  2. Nombre con palabra de carrera real (ya sin 'trail'/'popular'/…).
+//  3. Rendimiento: ritmo ajustado por desnivel dentro del top de su distancia.
+// El heurístico antiguo (suffer_score ≥ P85) marcaba cualquier tempo duro como
+// carrera; se sustituye por el umbral de percentil por distancia (más fiable).
+function isLikelyRace(activity, gapThresholdByCat) {
+  if (activity.workout_type === 1) return true;
+  const name = (activity.name || '').toLowerCase();
+  if (RACE_KEYWORDS.some(kw => name.includes(kw))) return true;
+
+  const cat = categorizeDistanceDef(activity.distance);
+  const threshold = gapThresholdByCat[cat.id];
+  if (threshold == null) return false;
+  return gapPaceSecPerKm(activity) <= threshold;
+}
+
+// Umbral de ritmo-GAP (seg/km) por distancia: el valor por debajo del cual un
+// esfuerzo entra en el RACE_GAP_PERCENTILE más rápido de esa distancia.
+function computeGapThresholds(activities) {
+  const byCat = {};
+  for (const a of activities) {
+    if (!a.average_speed || a.average_speed <= 0 || a.distance < 1000) continue;
+    const cat = categorizeDistanceDef(a.distance);
+    if (cat.id === 'other') continue;
+    (byCat[cat.id] ||= []).push(gapPaceSecPerKm(a));
+  }
+  const thresholds = {};
+  for (const [id, arr] of Object.entries(byCat)) {
+    if (arr.length < MIN_BUCKET_FOR_PERF) continue; // muestra insuficiente
+    arr.sort((x, y) => x - y); // ascendente: ritmo más rápido primero
+    const idx = Math.floor(arr.length * (1 - RACE_GAP_PERCENTILE / 100));
+    thresholds[id] = arr[Math.min(idx, arr.length - 1)];
+  }
+  return thresholds;
 }
 
 export default function RaceDetector({ activities }) {
@@ -69,12 +127,11 @@ export default function RaceDetector({ activities }) {
   const { races, prs, stats, progressionData } = useMemo(() => {
     if (!activities || activities.length === 0) return { races: [], prs: {}, stats: null, progressionData: [] };
 
-    // Calculate suffer score percentile 85
-    const scores = activities.filter(a => a.suffer_score > 0).map(a => a.suffer_score).sort((a, b) => a - b);
-    const p85 = scores.length > 0 ? scores[Math.floor(scores.length * 0.85)] : Infinity;
+    // Umbrales de rendimiento por distancia (ritmo-GAP en el top RACE_GAP_PERCENTILE).
+    const gapThresholds = computeGapThresholds(activities);
 
     const detected = activities
-      .filter(a => a.distance >= 1000 && isLikelyRace(a, p85))
+      .filter(a => a.distance >= 1000 && isLikelyRace(a, gapThresholds))
       .map(a => {
         const pace = a.average_speed > 0 ? 16.6667 / a.average_speed : 0;
         const catDef = categorizeDistanceDef(a.distance);
@@ -220,6 +277,7 @@ export default function RaceDetector({ activities }) {
           <div>
             <Title className="text-slate-800 font-bold">{t('races.all_races')}</Title>
             <Text className="text-slate-500 text-sm">{t('races.all_races_subtitle')}</Text>
+            <Text className="text-slate-400 text-xs mt-0.5">{t('races.detection_note')}</Text>
           </div>
           <Select value={filterDist} onValueChange={setFilterDist} className="w-40">
             <SelectItem value="all">{t('races.all')}</SelectItem>
@@ -237,6 +295,7 @@ export default function RaceDetector({ activities }) {
               <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">Dist.</th>
               <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">Tiempo</th>
               <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">{t('races.pace_label')}</th>
+              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">D+</th>
               <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">FC</th>
               <th className="text-center py-2 px-2 text-[10px] font-bold text-slate-400 uppercase">Cat.</th>
             </tr>
@@ -254,6 +313,7 @@ export default function RaceDetector({ activities }) {
                   <td className="py-2 px-2 text-right text-slate-600 tabular-nums">{r.km} km</td>
                   <td className="py-2 px-2 text-right text-slate-600 tabular-nums font-medium">{r.timeLabel}</td>
                   <td className="py-2 px-2 text-right text-slate-600 tabular-nums">{r.paceLabel}</td>
+                  <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.elevation > 0 ? `${Math.round(r.elevation)}m` : '-'}</td>
                   <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.hr > 0 ? Math.round(r.hr) : '-'}</td>
                   <td className="py-2 px-2 text-center">
                     <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">

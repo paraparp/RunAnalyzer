@@ -1,9 +1,58 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { streamAI } from '../services/ai';
-import { Card, Title, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
+import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
+import { paceStr } from '../lib/aiInsights';
+
+// Renderiza diagramas mermaid con carga bajo demanda; si falla (o el código
+// aún está incompleto durante el streaming) muestra el código como fallback
+const MermaidDiagram = ({ code }) => {
+    const [svg, setSvg] = useState(null);
+    const [error, setError] = useState(false);
+    const idRef = useRef(`mmd-${Math.random().toString(36).slice(2, 10)}`);
+
+    useEffect(() => {
+        let cancelled = false;
+        setError(false);
+        Promise.all([import('mermaid'), import('dompurify')])
+            .then(async ([{ default: mermaid }, { default: DOMPurify }]) => {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'neutral',
+                    securityLevel: 'strict',
+                    flowchart: { htmlLabels: false },
+                });
+                try {
+                    const { svg: rendered } = await mermaid.render(idRef.current, code);
+                    const clean = DOMPurify.sanitize(rendered, {
+                        USE_PROFILES: { svg: true, svgFilters: true },
+                        ADD_TAGS: ['style'],
+                    });
+                    if (!cancelled) setSvg(clean);
+                } catch {
+                    if (!cancelled) setError(true);
+                }
+            })
+            .catch(() => { if (!cancelled) setError(true); });
+        return () => { cancelled = true; };
+    }, [code]);
+
+    if (error || !svg) {
+        return (
+            <pre className="bg-slate-50 border border-slate-200 rounded-lg p-3 my-3 overflow-x-auto text-xs font-mono text-slate-600">
+                <code>{code}</code>
+            </pre>
+        );
+    }
+    return (
+        <div
+            className="my-3 flex justify-center overflow-x-auto [&_svg]:max-w-full"
+            dangerouslySetInnerHTML={{ __html: svg }}
+        />
+    );
+};
 
 // Simple markdown parser component
 const MarkdownText = ({ content }) => {
@@ -14,39 +63,39 @@ const MarkdownText = ({ content }) => {
         const elements = [];
         let listItems = [];
         let listType = null;
+        let tableRows = [];
+        let olCounter = 0;
+        let inCodeBlock = false;
+        let codeLang = '';
+        let codeLines = [];
 
         const parseInline = (text) => {
             const parts = [];
-            let remaining = text;
             let key = 0;
+            let lastIndex = 0;
+            const regex = /\*\*(.+?)\*\*|`([^`]+)`|\*([^*\s][^*]*?)\*/g;
+            let m;
 
-            while (remaining) {
-                const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-                if (boldMatch && boldMatch.index !== undefined) {
-                    if (boldMatch.index > 0) {
-                        parts.push(<span key={key++}>{remaining.slice(0, boldMatch.index)}</span>);
-                    }
-                    parts.push(<strong key={key++} className="font-semibold text-slate-900">{boldMatch[1]}</strong>);
-                    remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
-                    continue;
+            while ((m = regex.exec(text)) !== null) {
+                if (m.index > lastIndex) {
+                    parts.push(<span key={key++}>{text.slice(lastIndex, m.index)}</span>);
                 }
-
-                const codeMatch = remaining.match(/`(.+?)`/);
-                if (codeMatch && codeMatch.index !== undefined) {
-                    if (codeMatch.index > 0) {
-                        parts.push(<span key={key++}>{remaining.slice(0, codeMatch.index)}</span>);
-                    }
+                if (m[1] !== undefined) {
+                    parts.push(<strong key={key++} className="font-semibold text-slate-900">{m[1]}</strong>);
+                } else if (m[2] !== undefined) {
                     parts.push(
                         <code key={key++} className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs font-mono">
-                            {codeMatch[1]}
+                            {m[2]}
                         </code>
                     );
-                    remaining = remaining.slice(codeMatch.index + codeMatch[0].length);
-                    continue;
+                } else {
+                    parts.push(<em key={key++} className="italic">{m[3]}</em>);
                 }
+                lastIndex = m.index + m[0].length;
+            }
 
-                parts.push(<span key={key++}>{remaining}</span>);
-                break;
+            if (lastIndex < text.length) {
+                parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
             }
 
             return parts.length > 0 ? parts : text;
@@ -54,27 +103,122 @@ const MarkdownText = ({ content }) => {
 
         const flushList = () => {
             if (listItems.length > 0) {
-                const ListTag = listType === 'ol' ? 'ol' : 'ul';
-                const listClass = listType === 'ol'
-                    ? 'list-decimal list-outside ml-5 space-y-1.5 my-3 text-slate-700'
-                    : 'list-disc list-outside ml-5 space-y-1.5 my-3 text-slate-700';
-                elements.push(
-                    <ListTag key={elements.length} className={listClass}>
-                        {listItems.map((item, i) => (
-                            <li key={i} className="leading-relaxed pl-1">{parseInline(item)}</li>
-                        ))}
-                    </ListTag>
-                );
+                if (listType === 'ol') {
+                    elements.push(
+                        <ol key={elements.length} className="list-decimal list-outside ml-5 space-y-1.5 my-3 text-slate-700">
+                            {listItems.map((item, i) => (
+                                <li key={i} value={item.value} className="leading-relaxed pl-1">{parseInline(item.text)}</li>
+                            ))}
+                        </ol>
+                    );
+                } else {
+                    elements.push(
+                        <ul key={elements.length} className="list-disc list-outside ml-5 space-y-1.5 my-3 text-slate-700">
+                            {listItems.map((item, i) => (
+                                <li key={i} className="leading-relaxed pl-1">{parseInline(item)}</li>
+                            ))}
+                        </ul>
+                    );
+                }
                 listItems = [];
                 listType = null;
             }
         };
 
+        const flushTable = () => {
+            if (tableRows.length > 0) {
+                const [header, ...body] = tableRows;
+                elements.push(
+                    <div key={elements.length} className="overflow-x-auto my-3">
+                        <table className="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    {header.map((cell, i) => (
+                                        <th key={i} className="px-3 py-2 text-left font-semibold text-slate-800 border-b border-slate-200">
+                                            {parseInline(cell)}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {body.map((row, r) => (
+                                    <tr key={r} className={r % 2 === 1 ? 'bg-slate-50/50' : ''}>
+                                        {row.map((cell, c) => (
+                                            <td key={c} className="px-3 py-2 text-slate-700 border-b border-slate-100 align-top">
+                                                {parseInline(cell)}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                );
+                tableRows = [];
+            }
+        };
+
+        const flushCode = () => {
+            const codeText = codeLines.join('\n');
+            if (codeLang === 'mermaid') {
+                elements.push(<MermaidDiagram key={elements.length} code={codeText} />);
+            } else {
+                elements.push(
+                    <pre key={elements.length} className="bg-slate-50 border border-slate-200 rounded-lg p-3 my-3 overflow-x-auto text-xs font-mono text-slate-700 leading-snug">
+                        <code>{codeText}</code>
+                    </pre>
+                );
+            }
+            inCodeBlock = false;
+            codeLang = '';
+            codeLines = [];
+        };
+
         lines.forEach((line, idx) => {
             const trimmedLine = line.trim();
 
+            if (inCodeBlock) {
+                if (trimmedLine.startsWith('```')) {
+                    flushCode();
+                } else {
+                    codeLines.push(line);
+                }
+                return;
+            }
+
+            if (trimmedLine.startsWith('```')) {
+                flushList();
+                flushTable();
+                olCounter = 0;
+                inCodeBlock = true;
+                codeLang = trimmedLine.slice(3).trim().toLowerCase();
+                codeLines = [];
+                return;
+            }
+
             if (!trimmedLine) {
                 flushList();
+                flushTable();
+                return;
+            }
+
+            if (trimmedLine.startsWith('|') && trimmedLine.includes('|', 1)) {
+                flushList();
+                // Fila separadora tipo |:---|---| — se ignora
+                if (/^\|[\s:|-]+\|$/.test(trimmedLine)) return;
+                const cells = trimmedLine.split('|').slice(1, -1).map(c => c.trim());
+                if (cells.length > 0) {
+                    tableRows.push(cells);
+                    return;
+                }
+            }
+            flushTable();
+
+            if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmedLine)) {
+                flushList();
+                flushTable();
+                olCounter = 0;
+                elements.push(<hr key={idx} className="my-3 border-slate-200" />);
                 return;
             }
 
@@ -86,16 +230,30 @@ const MarkdownText = ({ content }) => {
                 return;
             }
 
-            const olMatch = trimmedLine.match(/^\d+\.\s+(.+)/);
+            const olMatch = trimmedLine.match(/^(\d+)\.\s+(.+)/);
             if (olMatch) {
                 if (listType && listType !== 'ol') flushList();
                 listType = 'ol';
-                listItems.push(olMatch[1]);
+                // Continúa la numeración si el modelo repite "1." tras viñetas intermedias
+                const num = parseInt(olMatch[1], 10);
+                const value = num > olCounter ? num : olCounter + 1;
+                olCounter = value;
+                listItems.push({ value, text: olMatch[2] });
                 return;
             }
 
             flushList();
+            olCounter = 0;
 
+            const h4Match = trimmedLine.match(/^#{4,6}\s+(.+)/);
+            if (h4Match) {
+                elements.push(
+                    <h5 key={idx} className="font-semibold text-slate-800 mt-3 mb-1.5 text-sm">
+                        {parseInline(h4Match[1])}
+                    </h5>
+                );
+                return;
+            }
             if (trimmedLine.startsWith('### ')) {
                 elements.push(
                     <h4 key={idx} className="font-bold text-slate-800 mt-4 mb-2 text-sm uppercase tracking-wide">
@@ -128,7 +286,9 @@ const MarkdownText = ({ content }) => {
             );
         });
 
+        if (inCodeBlock) flushCode();
         flushList();
+        flushTable();
         return elements;
     }, [content]);
 
@@ -180,6 +340,8 @@ const RunQA = ({ activities }) => {
     const [loading, setLoading] = useState(false);
     const [conversation, setConversation] = useState([]);
     const [seed, setSeed] = useState(null);
+    const [pendingAsk, setPendingAsk] = useState(null); // pregunta auto-lanzada al llegar con foco desde el panel
+    const autoAskedRef = useRef(false);
     const [error, setError] = useState('');
     const provider = 'gemini'; // chat usa exclusivamente Google Gemini
     const [selectedModel, setSelectedModel] = useState(() => cloudStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
@@ -216,7 +378,12 @@ const RunQA = ({ activities }) => {
             const s = cloudStorage.getItem('runqa_seed');
             if (s) {
                 const parsed = JSON.parse(s);
-                if (parsed?.blocks) setSeed(parsed);
+                if (parsed?.blocks) {
+                    setSeed(parsed);
+                    // Si el usuario pulsó "Ampliar" en una sección concreta, el seed
+                    // trae la pregunta lista para lanzarse sola al abrir el chat.
+                    if (parsed.ask) setPendingAsk(parsed.ask);
+                }
                 cloudStorage.removeItem('runqa_seed');
             }
         } catch {}
@@ -260,7 +427,11 @@ const RunQA = ({ activities }) => {
             const distKm = (a.distance / 1000).toFixed(2);
             const timeMin = Math.floor(a.moving_time / 60);
             const timeSec = a.moving_time % 60;
-            const pace = (a.moving_time / 60 / (a.distance / 1000)).toFixed(2);
+            // Ritmo en M:SS (el decimal "5.32 min/km" se presta a leerse como 5:32)
+            // y con guard: una actividad manual sin distancia no debe meter Infinity.
+            const pace = a.distance > 0 && a.moving_time > 0
+                ? `${paceStr((a.moving_time / 60) / (a.distance / 1000))} min/km`
+                : 'n/d';
             const date = new Date(a.start_date).toLocaleDateString('es-ES', {
                 weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
             });
@@ -270,7 +441,7 @@ const RunQA = ({ activities }) => {
             if (a.max_speed) extras.push(`Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h`);
             if (a.average_cadence) extras.push(`Cadencia: ${Math.round(a.average_cadence * 2)} spm`);
             return `${idx + 1}. "${a.name}" - ${date}
-   • Distancia: ${distKm} km | Tiempo: ${timeMin}:${timeSec.toString().padStart(2, '0')} | Ritmo: ${pace} min/km${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
+   • Distancia: ${distKm} km | Tiempo: ${timeMin}:${timeSec.toString().padStart(2, '0')} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
         }).join('\n\n');
     };
 
@@ -300,16 +471,18 @@ const RunQA = ({ activities }) => {
         return `Eres un analista experto de running y entrenamiento deportivo.
 El usuario te proporcionará sus últimas carreras/entrenamientos y te hará preguntas sobre ellas.
 
+HOY ES: ${new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Usa esta fecha como referencia para "esta semana", "último mes", etc.
+
 DATOS DE LAS ÚLTIMAS ${selectedActs.length} CARRERAS/ENTRENAMIENTOS:
 ${activitiesText}
 ${garminText ? '\n' + garminText : ''}
 ${seed ? `\nANÁLISIS PREVIO DEL PANEL DE IA (el usuario viene de aquí; sus preguntas son SEGUIMIENTO de este diagnóstico — trátalo como contexto principal y mantén coherencia con él):\n${seedToText(seed)}\n` : ''}
 INSTRUCCIONES:
 - Responde de forma clara, directa y útil
-- Usa los datos proporcionados para dar respuestas precisas
-- Si necesitas hacer cálculos (promedios, tendencias, etc.), hazlos
+- Usa SOLO los datos proporcionados para dar respuestas precisas; si un dato no está en ellos, dilo claramente en lugar de estimarlo o inventarlo
+- Si necesitas hacer cálculos (promedios, tendencias, etc.), hazlos con las cifras exactas de los datos
 - Puedes dar recomendaciones basadas en los datos
-- Responde en español
+- Responde en el mismo idioma en el que pregunta el usuario (por defecto, español)
 - Sé conciso pero completo
 - Usa formato markdown: **negrita** para destacar, listas con - o números`;
     };
@@ -335,16 +508,39 @@ INSTRUCCIONES:
             ];
 
             setConversation(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
-            const full = await streamAI(
-                { provider, model: selectedModel, messages, temperature: 0.7, signal: controller.signal },
-                (_chunk, aiContent) => {
-                    setConversation(prev => {
-                        const next = [...prev];
-                        next[next.length - 1] = { ...next[next.length - 1], content: aiContent };
-                        return next;
-                    });
+            const onChunk = (_chunk, aiContent) => {
+                setConversation(prev => {
+                    const next = [...prev];
+                    next[next.length - 1] = { ...next[next.length - 1], content: aiContent };
+                    return next;
+                });
+            };
+
+            // Cadena de proveedores (misma que el resto de herramientas IA):
+            // Gemini primero y, si falla (p. ej. 429 de cuota), Groq. El abort
+            // del usuario se propaga tal cual y conserva el texto parcial.
+            const chain = [
+                { provider, model: selectedModel },
+                { provider: 'groq', model: 'llama-3.3-70b-versatile' },
+            ];
+            let full = '';
+            let primaryErr = null;
+            for (const step of chain) {
+                if (controller.signal.aborted) break;
+                try {
+                    onChunk(null, ''); // limpia el parcial del intento anterior
+                    full = await streamAI(
+                        { provider: step.provider, model: step.model, messages, temperature: 0.7, signal: controller.signal },
+                        onChunk
+                    );
+                    primaryErr = null;
+                    break;
+                } catch (e) {
+                    if (e?.name === 'AbortError') throw e;
+                    if (!primaryErr) primaryErr = e;
                 }
-            );
+            }
+            if (primaryErr) throw primaryErr;
             // Si el stream terminó sin texto (p. ej. corte del servidor a mitad),
             // no dejamos una burbuja vacía: la quitamos y avisamos.
             if (!full.trim() && !controller.signal.aborted) {
@@ -361,6 +557,12 @@ INSTRUCCIONES:
             } else {
                 console.error('Error en la consulta:', err);
                 setError(`Error: ${err.message}`);
+                // No dejes la burbuja del asistente vacía si nadie respondió.
+                setConversation(prev => {
+                    const next = [...prev];
+                    if (next[next.length - 1]?.role === 'assistant' && !next[next.length - 1].content) next.pop();
+                    return next;
+                });
             }
         } finally {
             setLoading(false);
@@ -386,6 +588,17 @@ INSTRUCCIONES:
         setConversation(newHistory);
         runQuery(newHistory);
     };
+
+    // Lanza automáticamente la pregunta de ampliación que llegó con el seed
+    // (botón "Ampliar" de una sección del panel de IA). El ref evita el doble
+    // disparo del StrictMode en desarrollo.
+    useEffect(() => {
+        if (!pendingAsk || loading || autoAskedRef.current) return;
+        if (!activities?.length) return;
+        autoAskedRef.current = true;
+        setPendingAsk(null);
+        sendSuggestion(pendingAsk);
+    }, [pendingAsk, loading, activities]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const stopGeneration = () => abortRef.current?.abort();
 
@@ -432,15 +645,16 @@ INSTRUCCIONES:
         <div className={fullscreen
             ? 'fixed inset-0 z-50 bg-slate-100 p-3 sm:p-4 flex flex-col gap-3 overflow-hidden'
             : 'flex flex-col gap-3 flex-1 min-h-0'}>
-            {/* Compact Header */}
-            <Card className="p-2.5 ring-1 ring-slate-200 shadow-sm bg-white shrink-0">
+            {/* Compact Header — mismo lenguaje visual que el módulo Coach IA */}
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shrink-0 px-4 py-3">
+                <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg shadow-sm shadow-blue-200 shrink-0">
-                            <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
+                        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                            <Title className="text-sm font-bold text-slate-900 leading-tight truncate">Pregunta sobre tus Carreras</Title>
+                            <p className="text-sm font-black uppercase tracking-tight text-slate-800 leading-tight truncate">Pregunta sobre tus Carreras</p>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600">
                                 <BoltIcon className="w-3 h-3" />
                                 {selectedCount} carreras cargadas
@@ -531,7 +745,7 @@ INSTRUCCIONES:
                         </div>
                     </div>
                 </div>
-            </Card>
+            </div>
 
             {/* Context from the AI panel (when arriving via "Seguir preguntando en el chat") */}
             {seed && (
@@ -550,9 +764,18 @@ INSTRUCCIONES:
                             <ChevronDownIcon className={`w-3.5 h-3.5 text-blue-500 shrink-0 transition-transform ${seedOpen ? 'rotate-180' : ''}`} />
                         </button>
                         <button
+                            onClick={() => copyMessage(seedToText(seed), 'seed')}
+                            title="Copiar contexto"
+                            className="ml-auto shrink-0 text-slate-400 hover:text-blue-600 transition-colors"
+                        >
+                            {copiedIdx === 'seed'
+                                ? <CheckIcon className="w-4 h-4 text-emerald-500" />
+                                : <ClipboardDocumentIcon className="w-4 h-4" />}
+                        </button>
+                        <button
                             onClick={() => setSeed(null)}
                             title="Quitar contexto"
-                            className="ml-auto shrink-0 text-slate-400 hover:text-rose-500 transition-colors"
+                            className="shrink-0 text-slate-400 hover:text-rose-500 transition-colors"
                         >
                             <TrashIcon className="w-4 h-4" />
                         </button>

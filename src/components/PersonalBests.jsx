@@ -4,11 +4,44 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import { TrophyIcon as TrophyIconSolid } from '@heroicons/react/24/solid';
 
 const RANGES = [
-  { id: '5k',  min: 4900,  max: 5200  },
-  { id: '10k', min: 9900,  max: 10500 },
-  { id: 'hm',  min: 21000, max: 21500 },
-  { id: 'fm',  min: 42000, max: 43000 },
+  { id: '5k',  min: 4900,  max: 5200,  effortNames: ['5k'] },
+  { id: '10k', min: 9900,  max: 10500, effortNames: ['10k'] },
+  { id: 'hm',  min: 21000, max: 21500, effortNames: ['half-marathon'] },
+  { id: 'fm',  min: 42000, max: 43000, effortNames: ['marathon'] },
 ];
+
+// Un candidato a PB por actividad y distancia. Preferimos el best_effort de
+// Strava (mejor tramo continuo dentro de la actividad, calculado sobre el
+// stream GPS); si la actividad no está enriquecida, cae a la lógica clásica
+// de distancia total dentro del rango.
+const getCandidate = (activity, range) => {
+  const effort = activity.best_efforts?.find(
+    e => range.effortNames.includes(e.name?.toLowerCase()) && (e.elapsed_time || e.moving_time) > 0
+  );
+  if (effort) {
+    return {
+      id: activity.id,
+      name: activity.name,
+      start_date: activity.start_date,
+      time: effort.elapsed_time || effort.moving_time,
+      distance: effort.distance,
+      // Marcar cuando el esfuerzo es un tramo dentro de una tirada más larga
+      isEffort: activity.distance > range.max,
+    };
+  }
+  const time = activity.elapsed_time || activity.moving_time;
+  if (activity.distance >= range.min && activity.distance <= range.max && time > 0) {
+    return {
+      id: activity.id,
+      name: activity.name,
+      start_date: activity.start_date,
+      time,
+      distance: activity.distance,
+      isEffort: false,
+    };
+  }
+  return null;
+};
 
 const MEDAL_COLORS = ['text-amber-400', 'text-slate-400', 'text-orange-600'];
 
@@ -53,9 +86,14 @@ function DistanceRecord({ record, t }) {
         {/* Time — big */}
         <div className="flex items-baseline gap-3 mb-1.5">
           <span className="text-3xl font-black text-slate-900 tabular-nums leading-none">
-            {formatTime(pr.elapsed_time || pr.moving_time)}
+            {formatTime(pr.time)}
           </span>
-          <span className="text-xs font-semibold text-slate-400">{formatPace(pr.distance / (pr.elapsed_time || pr.moving_time))}/km</span>
+          <span className="text-xs font-semibold text-slate-400">{formatPace(pr.distance / pr.time)}/km</span>
+          {pr.isEffort && (
+            <span className="text-[9px] font-bold uppercase tracking-wide text-violet-500 bg-violet-50 rounded px-1.5 py-0.5">
+              {t('dashboard.records.effort_badge', 'parcial')}
+            </span>
+          )}
         </div>
 
         {/* Activity name */}
@@ -106,8 +144,11 @@ function DistanceRecord({ record, t }) {
                     <span className="text-[10px] text-slate-400">{formatDate(a.start_date)}</span>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-slate-800 tabular-nums">{formatTime(a.elapsed_time || a.moving_time)}</p>
-                    <p className="text-[10px] text-slate-400">{formatPace(a.distance / (a.elapsed_time || a.moving_time))}/km</p>
+                    <p className="text-sm font-bold text-slate-800 tabular-nums">
+                      {formatTime(a.time)}
+                      {a.isEffort && <span className="ml-1 text-[9px] font-bold text-violet-500 align-middle">✦</span>}
+                    </p>
+                    <p className="text-[10px] text-slate-400">{formatPace(a.distance / a.time)}/km</p>
                   </div>
                 </div>
               ))}
@@ -127,13 +168,9 @@ const PersonalBests = ({ activities, horizontal = false }) => {
 
     return RANGES.map(range => {
       const matches = activities
-        .filter(a => a.distance >= range.min && a.distance <= range.max && (a.elapsed_time || a.moving_time) > 0)
-        .sort((a, b) => {
-          // sort by pace = elapsed_time / distance (lower = faster)
-          const paceA = (a.elapsed_time || a.moving_time) / a.distance;
-          const paceB = (b.elapsed_time || b.moving_time) / b.distance;
-          return paceA - paceB;
-        })
+        .map(a => getCandidate(a, range))
+        .filter(Boolean)
+        .sort((a, b) => a.time / a.distance - b.time / b.distance)
         .slice(0, 5);
 
       if (matches.length === 0) return null;
