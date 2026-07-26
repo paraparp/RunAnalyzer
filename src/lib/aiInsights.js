@@ -74,7 +74,7 @@ export const coachObjectToBlocks = (obj) => {
     meta: {
       estado: obj.estado ?? null,
       tendencia: obj.tendenciaClave ?? null,
-      sesion: { tipo: s.tipo ?? null, distancia: s.distancia ?? null, ritmo: s.ritmo ?? null, zona },
+      sesion: { tipo: s.tipo ?? null, distancia: s.distancia ?? null, ritmo: s.ritmo ?? null, zona, structured_workout: Array.isArray(s.structured_workout) ? s.structured_workout : null },
     },
   };
 };

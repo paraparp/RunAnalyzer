@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { generateAIObjectWithFallback } from '../services/ai';
+import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import {
     Card,
     Title,
@@ -199,7 +199,7 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
             abortRef.current = controller;
 
             const object = await generateAIObjectWithFallback({
-                model: selectedModel,
+                ...parseModelValue(selectedModel),
                 prompt,
                 temperature: 0.2, // Predicción numérica: consistencia entre ejecuciones, no creatividad
                 schema: 'racePrediction',

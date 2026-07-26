@@ -3,7 +3,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { generateAIObjectWithFallback } from '../services/ai';
+import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
@@ -30,6 +30,10 @@ REGLAS:
 - 80/20 polarizado; mantén segura la rampa de carga semanal (ACWR ~0,8–1,3); dimensiona el volumen al CTL actual.
 - Este plan cubre la SEMANA 1 de las ${weeks} disponibles: periodízala como el inicio del camino al objetivo (base → construcción → específico → taper según el tiempo restante).
 - Usa los ritmos de referencia y las zonas de FC EXACTOS del contexto; PROHIBIDO inventar cifras que no salgan de esos anclajes. Si un dato no está, no lo estimes.
+- CALIDAD OBLIGATORIA salvo excepción: si hay ≥2 días disponibles Y el READINESS SCORE permite intensidad (≥62) Y no es semana de descarga/taper, incluye AL MENOS una sesión de calidad con SERIES/INTERVALOS reales expresadas como repeticiones (campo "reps": N × "duration_min"′), con "pace" del ancla "Intervalos/series" (o "Tempo/umbral" si es tempo), "recovery" concreta entre reps (ej: 90″ trote) y "hr" del rango de zona. Empieza conservador (pocas reps) por ser la semana 1.
+  EXCEPCIONES en las que NO metes series (haz rodaje/tirada de calidad en su lugar y dilo): CTL bajo/fase base pura donde el limitante es el VOLUMEN, readiness <62, o carga cruzada que ya cubre la intensidad del 80/20.
+- Toda sesión de calidad lleva "Calentamiento" (trote progresivo + alguna progresión) y "Vuelta a la calma"; nunca empieces en frío ni acabes en seco.
+- "hrv_guidance": da la regla verde/ámbar/rojo de auto-regulación del día duro según la VFC/readiness al despertar.
 - Los porcentajes de distribución (easy/moderate/hard) deben cuadrar con las sesiones prescritas.
 - GENERA EXACTAMENTE ${daysCount} SESIÓN(ES), una por día disponible, en los días indicados.`;
 };
@@ -146,7 +150,7 @@ const TrainingPlanner = ({ activities }) => {
             abortRef.current = controller;
 
             // 0.5: la prescripción debe ser consistente entre ejecuciones, no creativa.
-            const object = await generateAIObjectWithFallback({ model: selectedModel, prompt, temperature: 0.5, schema: 'plan', signal: controller.signal });
+            const object = await generateAIObjectWithFallback({ ...parseModelValue(selectedModel), prompt, temperature: 0.5, schema: 'plan', signal: controller.signal });
             setPlan(object);
             setLoading(false);
         } catch (err) {
@@ -308,6 +312,16 @@ const TrainingPlanner = ({ activities }) => {
                         </div>
                     </div>
 
+                    {plan.hrv_guidance && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-3">
+                            <HandRaisedIcon className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">VFC / Readiness</p>
+                                <p className="text-sm font-semibold text-amber-800 leading-relaxed">{plan.hrv_guidance}</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-4">
                         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
                             Calendario Semanal
@@ -359,9 +373,16 @@ const TrainingPlanner = ({ activities }) => {
                                                                     </div>
                                                                     <div className="flex items-center gap-1 text-slate-500 font-black text-xs tabular-nums">
                                                                         <ClockIcon className="w-3.5 h-3.5 opacity-50" />
-                                                                        {step.duration_min}m
+                                                                        {step.reps > 1 ? `${step.reps} × ${step.duration_min}′` : `${step.duration_min}m`}
                                                                     </div>
                                                                 </div>
+                                                                {(step.pace || step.hr || (step.reps > 1 && step.recovery)) && (
+                                                                    <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
+                                                                        {step.pace && <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 tabular-nums">{step.pace}</span>}
+                                                                        {step.hr && <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 tabular-nums">{step.hr} ppm</span>}
+                                                                        {step.reps > 1 && step.recovery && <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600">rec. {step.recovery}</span>}
+                                                                    </div>
+                                                                )}
                                                                 <p className="text-xs text-slate-400 font-medium leading-relaxed">{step.description}</p>
                                                             </div>
                                                         </div>

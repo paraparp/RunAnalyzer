@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { generateAIObject, fetchGeminiModels } from '../services/ai';
+import {
+  generateAIObject, fetchModelGroups, buildModelGroups, buildProviderChain,
+  parseModelValue, normalizeModelValue, FALLBACK_GEMINI,
+} from '../services/ai';
 import { buildPrompt } from '../lib/athleteContext';
 import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
-import { FALLBACK_GEMINI, DEFAULT_GEMINI_MODEL } from '../components/ModelSelector';
 import { paceStr, coachObjectToBlocks, coachCoherenceWarnings } from '../lib/aiInsights';
 
 // Máquina de estados del análisis IA: caché con validación, backup/restore,
@@ -29,7 +31,7 @@ export default function useAIInsights(activities) {
   const [usedProvider, setUsedProvider] = useState('');
   const [isFallback, setIsFallback] = useState(false);
   const [selectedModel, setSelectedModel] = useState(
-    () => cloudStorage.getItem('ai_insights_model') || DEFAULT_GEMINI_MODEL
+    () => normalizeModelValue(cloudStorage.getItem('ai_insights_model'))
   );
   const [weeklyTarget, setWeeklyTarget] = useState(
     () => cloudStorage.getItem('ai_weekly_target') || '2'
@@ -53,36 +55,37 @@ export default function useAIInsights(activities) {
     return { distance, pace, date: nextRace.date };
   }, [nextRace]);
 
-  // Model list — starts with the shared fallback, replaced by the live
-  // ListModels response when the API key is available.
-  const [availableModels, setAvailableModels] = useState(FALLBACK_GEMINI);
+  // Grupos "empresa → modelos" — arrancan con la reserva Gemini y se reemplazan
+  // con la lista viva (Gemini + OpenRouter) cuando el endpoint responde.
+  const [modelGroups, setModelGroups] = useState(() => buildModelGroups({ gemini: FALLBACK_GEMINI }));
   useEffect(() => {
     const ctrl = new AbortController();
-    fetchGeminiModels(ctrl.signal)
-      .then(models => { if (models.length) setAvailableModels(models); })
+    fetchModelGroups(ctrl.signal)
+      .then(g => { if (g.length) setModelGroups(g); })
       .catch(() => { /* keep shared fallback */ });
     return () => ctrl.abort();
   }, []);
 
-  // Si el modelo persistido no está en la lista viva (id obsoleto), se corrige
-  // al primero disponible — así el <select> nunca queda en blanco ni se envía
-  // un modelo inexistente (mismo criterio que ModelSelector).
+  // Si el valor persistido no está entre las opciones vivas (modelo obsoleto), se
+  // corrige al primero disponible — así el <select> nunca queda en blanco ni se
+  // envía un modelo inexistente (mismo criterio que ModelSelector).
+  const modelValues = useMemo(() => modelGroups.flatMap(g => g.options.map(o => o.value)), [modelGroups]);
   useEffect(() => {
-    if (availableModels.length && !availableModels.some(m => m.id === selectedModel)) {
-      const next = availableModels[0].id;
+    if (modelValues.length && !modelValues.includes(selectedModel)) {
+      const next = modelValues[0];
       setSelectedModel(next);
       cloudStorage.setItem('ai_insights_model', next);
     }
-  }, [availableModels, selectedModel]);
+  }, [modelValues, selectedModel]);
 
   // Ajustes en ref-espejo: `run` los lee de aquí para NO depender de ellos.
   // Así cambiar modelo/frecuencia/objetivo no recrea `run` ni re-dispara el
   // efecto de auto-arranque (= no quema cuota API por tocar un selector);
   // el nuevo ajuste se aplica al pulsar "Recalcular" o al cambiar los datos.
-  const settingsRef = useRef({ selectedModel, weeklyTarget, goal, availableModels });
+  const settingsRef = useRef({ selectedModel, weeklyTarget, goal });
   useEffect(() => {
-    settingsRef.current = { selectedModel, weeklyTarget, goal, availableModels };
-  }, [selectedModel, weeklyTarget, goal, availableModels]);
+    settingsRef.current = { selectedModel, weeklyTarget, goal };
+  }, [selectedModel, weeklyTarget, goal]);
 
   // Ref to always-current state for backup/restore inside run (avoids stale closure)
   const stateRef = useRef({ cur, trend, nextWork, lastWork, meta, cacheTs });
@@ -132,7 +135,7 @@ export default function useAIInsights(activities) {
 
   const run = useCallback(async (force = false) => {
     if (!activities?.length || activities.length < 3) return;
-    const { selectedModel: model, weeklyTarget: weekly, goal: raceGoal, availableModels: models } = settingsRef.current;
+    const { selectedModel: model, weeklyTarget: weekly, goal: raceGoal } = settingsRef.current;
     const built = buildPrompt(activities, garmin, sleep, weekly, raceGoal);
     if (!built) return;
     const { prompt, sci: builtSci } = built;
@@ -162,20 +165,10 @@ export default function useAIInsights(activities) {
       }
     }
 
-    // Cadena de proveedores: Gemini primero, Groq como fallback. Las API keys
-    // viven en el servidor; aquí solo se indica proveedor + modelo.
-    const providers = [
-      {
-        name: models.find(m => m.id === model)?.label.split(' ·')[0] ?? 'Gemini',
-        provider: 'gemini',
-        model,
-      },
-      {
-        name: 'Groq Llama',
-        provider: 'groq',
-        model: 'llama-3.3-70b-versatile',
-      },
-    ];
+    // Cadena de proveedores: el modelo elegido (empresa|modelo) primero, luego el
+    // resto de proveedores gratuitos como fallback. Las API keys viven en el
+    // servidor; aquí solo se indica proveedor + modelo.
+    const providers = buildProviderChain(parseModelValue(model));
 
     // Snapshot current state via ref (avoids stale closure)
     const { cur: prevCur, trend: prevTrend, nextWork: prevNextWork, lastWork: prevLastWork, meta: prevMeta, cacheTs: prevTs } = stateRef.current;
@@ -307,7 +300,7 @@ export default function useAIInsights(activities) {
     garmin, stravaFetch,
     selectedModel, changeModel,
     weeklyTarget, changeWeeklyTarget,
-    availableModels, goal,
+    modelGroups, goal,
     run,
   };
 }

@@ -1,12 +1,12 @@
-import { listGeminiModels } from '../_lib/ai.js';
+import { listGeminiModels, listOpenRouterModels } from '../_lib/ai.js';
 import { ensureAuth } from '../_lib/auth.js';
 
 export default async function handler(req, res) {
   if (!(await ensureAuth(req, res))) return;
   try {
-    const models = await listGeminiModels();
-    res.json({ models });
+    const [models, openrouter] = await Promise.all([listGeminiModels(), listOpenRouterModels()]);
+    res.json({ models, openrouter });
   } catch {
-    res.json({ models: [] });
+    res.json({ models: [], openrouter: [] });
   }
 }

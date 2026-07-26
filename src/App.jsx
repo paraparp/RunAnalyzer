@@ -644,10 +644,11 @@ const Dashboard = ({ user, handleLogout }) => {
       <>
         {/* Logo */}
         <div className="px-5 py-6 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <Logo />
-            <div>
-              <div className="text-[18px] font-black italic text-blue-700 leading-tight">RunAnalyzer</div>
+          <div className="flex items-center gap-3">
+            <Logo className="w-11 h-11 rounded-2xl ring-1 ring-blue-100 shadow-sm shadow-blue-500/10" />
+            <div className="leading-none">
+              <div className="text-[18px] font-black italic tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 bg-clip-text text-transparent">RunAnalyzer</div>
+              <div className="text-[9.5px] font-semibold uppercase tracking-[0.18em] text-slate-400 mt-1.5">AI Running Analytics</div>
             </div>
           </div>
         </div>

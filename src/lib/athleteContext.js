@@ -741,6 +741,10 @@ Diseña la sesión de running más adecuada para los próximos 1-2 días, COHERE
 - Estructura de la sesión (calentamiento, bloques/series, vuelta a la calma) si aplica.
 - Una condición fisiológica de seguridad concreta (ej: "para si FC>{valor}ppm", "si VFC sigue bajo baseline mañana, pásalo a regenerativo").
 - Distribución de intensidad: cuenta el cruzado (fútbol, etc.) como la parte DURA del 80/20. Si tu carrera ya es 100% fácil y el cruzado cubre la intensidad, NO añadas calidad en carrera "para rellenar" el 0% de umbral. Con CTL bajo, el limitante es el VOLUMEN: prioriza progresar la tirada larga / km semanales, no frenar aún más el ritmo.
+Además, rellena "structured_workout" con el desglose de la sesión en bloques (calentamiento → bloque(s) principal(es) → vuelta a la calma), basándote en tus TIRADAS ANTERIORES y forma actual:
+- Si el READINESS SCORE permite calidad (≥62) y no procede solo volumen, el bloque principal DEBE ser SERIES/INTERVALOS reales con "reps" (N repeticiones), "duration_min" = duración de UNA repetición, "pace" del ancla "Intervalos/series" (o "Tempo/umbral" si es tempo), "recovery" concreta entre reps (ej: 90″ trote) y "hr" del rango de zona. Dimensiona reps/volumen a tu CTL y a tus tiradas recientes (no saltes de golpe).
+- Si toca base/rodaje/regenerativo, describe los bloques continuos sin "reps" pero con "pace" y "hr" de los anclajes.
+- Cada bloque con su "pace" y "hr" EXACTOS de los anclajes; PROHIBIDO inventar. Calentamiento y vuelta a la calma siempre en sesiones de calidad.
 
 "ultimoEntreno" — ANÁLISIS DEL ÚLTIMO ENTRENAMIENTO:
 ${lastIsRun

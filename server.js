@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { streamText, generateObject } from 'ai';
-import { resolveModel, SCHEMAS, listGeminiModels, pipeStream, validateAIRequest } from './api/_lib/ai.js';
+import { resolveModel, SCHEMAS, listGeminiModels, listOpenRouterModels, pipeStream, validateAIRequest } from './api/_lib/ai.js';
 import { getUserFromReq } from './api/_lib/auth.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
@@ -331,8 +331,10 @@ app.post('/api/ai/object', requireUser, async (req, res) => {
 });
 
 app.get('/api/ai/models', requireUser, async (_req, res) => {
-  try { res.json({ models: await listGeminiModels() }); }
-  catch { res.json({ models: [] }); }
+  try {
+    const [models, openrouter] = await Promise.all([listGeminiModels(), listOpenRouterModels()]);
+    res.json({ models, openrouter });
+  } catch { res.json({ models: [], openrouter: [] }); }
 });
 
 // ---------------------------------------------------------------------------

@@ -170,7 +170,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
     garmin, stravaFetch,
     selectedModel, changeModel,
     weeklyTarget, changeWeeklyTarget,
-    availableModels, goal,
+    modelGroups, goal,
     run,
   } = useAIInsights(activities);
 
@@ -360,8 +360,12 @@ const AIInsights = ({ activities, onOpenChat }) => {
                 className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
                 style={SELECT_ARROW}
               >
-                {availableModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
+                {modelGroups.map(g => (
+                  <optgroup key={g.provider} label={g.label}>
+                    {g.options.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -610,6 +614,41 @@ const AIInsights = ({ activities, onOpenChat }) => {
                           <span className="font-bold uppercase tracking-wider mr-1">LT2</span>{lt2} ppm · umbral
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {/* Desglose estructurado de la sesión (bloques / series) */}
+                  {Array.isArray(meta?.sesion?.structured_workout) && meta.sesion.structured_workout.length > 0 && (
+                    <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Estructura de la Sesión</span>
+                      <div className="space-y-2">
+                        {meta.sesion.structured_workout.map((step, i) => {
+                          const z = Number(step.intensity) || 0;
+                          const dot = z >= 4 ? 'bg-rose-500' : z === 3 ? 'bg-amber-500' : 'bg-emerald-500';
+                          const reps = Number(step.reps) || 0;
+                          return (
+                            <div key={i} className="flex items-start gap-3 rounded-lg border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 px-3 py-2.5">
+                              <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${dot}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 tracking-tight">{step.phase}</span>
+                                  <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
+                                    {reps > 1 ? `${reps} × ${step.duration_min}′` : `${step.duration_min}′`}
+                                  </span>
+                                </div>
+                                {(step.pace || step.hr || (reps > 1 && step.recovery)) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                    {step.pace && <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{step.pace}</span>}
+                                    {step.hr && <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400">{step.hr} ppm</span>}
+                                    {reps > 1 && step.recovery && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">rec. {step.recovery}</span>}
+                                  </div>
+                                )}
+                                {step.description && <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed mt-1">{step.description}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

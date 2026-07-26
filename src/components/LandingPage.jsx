@@ -44,7 +44,7 @@ const LandingPage = () => {
                     <div className="absolute inset-0 -z-10 bg-white/90 backdrop-blur-md border-b border-slate-200/70" />
                     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                         className="flex items-center gap-3">
-                        <Logo className="w-9 h-9" />
+                        <Logo className="w-9 h-9 rounded-xl ring-1 ring-slate-200 shadow-sm" />
                         <span className="font-black text-lg tracking-tighter text-slate-900">RunAnalyzer</span>
                     </motion.div>
 

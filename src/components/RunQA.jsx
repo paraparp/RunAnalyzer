@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
-import { streamAI } from '../services/ai';
+import { streamAI, buildProviderChain, parseModelValue } from '../services/ai';
 import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
@@ -343,7 +343,6 @@ const RunQA = ({ activities }) => {
     const [pendingAsk, setPendingAsk] = useState(null); // pregunta auto-lanzada al llegar con foco desde el panel
     const autoAskedRef = useRef(false);
     const [error, setError] = useState('');
-    const provider = 'gemini'; // chat usa exclusivamente Google Gemini
     const [selectedModel, setSelectedModel] = useState(() => cloudStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
     const [copiedIdx, setCopiedIdx] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
@@ -520,13 +519,11 @@ INSTRUCCIONES:
                 });
             };
 
-            // Cadena de proveedores (misma que el resto de herramientas IA):
-            // Gemini primero y, si falla (p. ej. 429 de cuota), Groq. El abort
-            // del usuario se propaga tal cual y conserva el texto parcial.
-            const chain = [
-                { provider, model: selectedModel },
-                { provider: 'groq', model: 'llama-3.3-70b-versatile' },
-            ];
+            // Cadena de proveedores (misma que el resto de herramientas IA): el
+            // modelo elegido primero y, si falla (p. ej. 429 de cuota), el resto
+            // de proveedores gratuitos. El abort del usuario se propaga tal cual
+            // y conserva el texto parcial.
+            const chain = buildProviderChain(parseModelValue(selectedModel));
             let full = '';
             let primaryErr = null;
             for (const step of chain) {
