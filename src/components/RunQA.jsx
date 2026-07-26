@@ -813,29 +813,30 @@ INSTRUCCIONES:
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto">
                     {conversation.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center p-4 sm:p-8">
-                            <div className="relative mb-4 sm:mb-6">
-                                <div className="absolute inset-0 bg-blue-200 rounded-full blur-xl opacity-50 animate-pulse" />
-                                <div className="relative p-4 sm:p-5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-xl">
-                                    <SparklesIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                        <div className="h-full flex flex-col items-center justify-center p-3 sm:p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-blue-200 rounded-full blur-md opacity-50 animate-pulse" />
+                                    <div className="relative p-1.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg shadow">
+                                        <SparklesIcon className="w-4 h-4 text-white" />
+                                    </div>
                                 </div>
+                                <h3 className="text-sm sm:text-base font-bold text-slate-800">¿Qué quieres saber?</h3>
                             </div>
-
-                            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">¿Qué quieres saber?</h3>
-                            <Text className="text-slate-500 mb-5 sm:mb-8 text-center max-w-md text-sm">
+                            <Text className="text-slate-500 mb-3 text-center max-w-md text-[11px] sm:text-xs">
                                 Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full max-w-lg">
                                 {suggestedQuestions.map((q, idx) => (
                                     <button
                                         key={idx}
                                         onClick={() => sendSuggestion(q.text)}
                                         disabled={loading}
-                                        className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-lg transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                     >
-                                        <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-base transition-colors">{q.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 group-hover:text-blue-700 leading-snug">{q.text}</span>
+                                        <span className="flex-shrink-0 text-sm">{q.icon}</span>
+                                        <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700 leading-snug">{q.text}</span>
                                     </button>
                                 ))}
                             </div>

@@ -61,10 +61,6 @@ describe('coachObjectToBlocks', () => {
 
 describe('coachCoherenceWarnings', () => {
   const sesion = (over) => ({ sesion: { tipo: 'Tempo', fcMin: 158, fcMax: 168, ...over } });
-  it('avisa si un readiness muy bajo lleva sesión de calidad', () => {
-    const w = coachCoherenceWarnings(sesion({ tipo: 'Intervalos' }), { readiness: { score: 40 } });
-    expect(w.join(' ')).toMatch(/regenerativo o descansar/);
-  });
   it('avisa si el tope de FC supera la FCmax', () => {
     const w = coachCoherenceWarnings(sesion({ fcMax: 200 }), { fcmax: 190, readiness: { score: 80 } });
     expect(w.join(' ')).toMatch(/supera tu FCmax/);

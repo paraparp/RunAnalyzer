@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Title, Text, Button, Select, SelectItem, Grid, NumberInput, DateRangePicker, ProgressBar } from "@tremor/react";
+import cloudStorage from '../lib/cloudStorage';
+import { Card, Title, Text, Button, Select, SelectItem, Grid, NumberInput, DatePicker, ProgressBar } from "@tremor/react";
 import { ClipboardDocumentListIcon, CheckIcon, ArrowPathIcon, ArrowDownTrayIcon, TableCellsIcon, CodeBracketIcon, ChevronDownIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 import { es } from 'date-fns/locale';
 
@@ -22,6 +23,14 @@ const ALL_FIELDS = [
 
 const DEFAULT_FIELDS = new Set(['date', 'name', 'type', 'distance_km', 'time_min', 'pace', 'avg_hr', 'elevation_gain', 'laps']);
 
+// Garmin health export: solo VFC (HRV) y FC en reposo, un registro por día.
+const GARMIN_FIELDS = [
+    { key: 'date',      label: 'Fecha' },
+    { key: 'hrv',       label: 'VFC (ms)' },
+    { key: 'restingHR', label: 'FC reposo (ppm)' },
+    { key: 'hrvStatus', label: 'Estado VFC' },
+];
+
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 
 const calculatePace = (speed) => {
@@ -34,8 +43,34 @@ const calculatePace = (speed) => {
 
 const isRunning = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);
 
+const readGarmin = () => {
+    try { return JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null') || []; }
+    catch { return []; }
+};
+
+const buildGarminObj = (r) => ({
+    date:      r.date,
+    hrv:       r.hrv ?? null,
+    restingHR: r.restingHR ?? null,
+    hrvStatus: r.hrvStatus ?? null,
+});
+
 const DataExporter = ({ activities, onEnrichActivity }) => {
     const { t } = useTranslation();
+
+    const [source, setSource]   = useState('strava'); // 'strava' | 'garmin'
+    const [garminData, setGarminData] = useState(readGarmin);
+    useEffect(() => {
+        const onUpdate = () => setGarminData(readGarmin());
+        window.addEventListener('garmin-cardiac-updated', onUpdate);
+        window.addEventListener('garmin_sync_complete', onUpdate);
+        window.addEventListener('storage', onUpdate);
+        return () => {
+            window.removeEventListener('garmin-cardiac-updated', onUpdate);
+            window.removeEventListener('garmin_sync_complete', onUpdate);
+            window.removeEventListener('storage', onUpdate);
+        };
+    }, []);
 
     const [dateRange, setDateRange] = useState({
         from: new Date(new Date().setMonth(new Date().getMonth() - 3)),
@@ -52,7 +87,6 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
     const [format, setFormat]                 = useState('json');
     const [selectedFields, setSelectedFields] = useState(DEFAULT_FIELDS);
     const [previewMode, setPreviewMode]       = useState('raw'); // 'raw' | 'table'
-    const [exportedData, setExportedData]     = useState('');
     const [copied, setCopied]                 = useState(false);
     const [enriching, setEnriching]           = useState(false);
     const [enrichProgress, setEnrichProgress] = useState(0);
@@ -99,6 +133,17 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         return counts;
     }, [filteredActivities]);
 
+    // Garmin: registros diarios (VFC + FC reposo) filtrados por el mismo rango de fechas.
+    const garminFiltered = useMemo(() => {
+        const rows = (garminData || []).filter(r => r.hrv != null || r.restingHR != null);
+        rows.sort((a, b) => b.date.localeCompare(a.date));
+        if (exportAll) return rows;
+        const fromDate = dateRange?.from ? new Date(new Date(dateRange.from).setHours(0, 0, 0, 0)) : new Date(0);
+        const toDate   = dateRange?.to   ? new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)) : new Date();
+        return rows.filter(r => { const d = new Date(r.date); return d >= fromDate && d <= toDate; });
+    }, [garminData, dateRange, exportAll]);
+
+
     const buildActivityObj = useMemo(() => (a) => {
         const obj = {};
         if (selectedFields.has('id'))             obj.id             = a.id;
@@ -131,8 +176,51 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         return obj;
     }, [selectedFields]);
 
-    useEffect(() => {
+    const exportedData = useMemo(() => {
         let dataStr = '';
+
+        if (source === 'garmin') {
+            const rows = garminFiltered;
+            const fields = GARMIN_FIELDS;
+            if (format === 'json') {
+                dataStr = JSON.stringify(rows.map(buildGarminObj), null, 2);
+            } else if (format === 'csv') {
+                const headers = fields.map(f => f.label);
+                const body = rows.map(r => {
+                    const o = buildGarminObj(r);
+                    return fields.map(f => {
+                        const v = o[f.key];
+                        if (v === undefined || v === null) return '';
+                        if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) return `"${v.replace(/"/g, '""')}"`;
+                        return v;
+                    }).join(',');
+                });
+                dataStr = [headers.join(','), ...body].join('\n');
+            } else if (format === 'text') {
+                dataStr = rows.map(r => {
+                    const o = buildGarminObj(r);
+                    let line = `• ${new Date(o.date).toLocaleDateString('es-ES')}`;
+                    if (o.hrv != null)       line += ` — VFC: ${o.hrv} ms`;
+                    if (o.restingHR != null) line += `, FC reposo: ${o.restingHR} ppm`;
+                    if (o.hrvStatus)         line += ` (${o.hrvStatus})`;
+                    return line;
+                }).join('\n');
+            } else if (format === 'markdown') {
+                const header    = `| ${fields.map(f => f.label).join(' | ')} |`;
+                const separator = `| ${fields.map(() => '---').join(' | ')} |`;
+                const body = rows.map(r => {
+                    const o = buildGarminObj(r);
+                    const vals = fields.map(f => {
+                        const v = o[f.key];
+                        if (v === undefined || v === null) return '';
+                        if (f.key === 'date') return new Date(v).toLocaleDateString('es-ES');
+                        return String(v).replace(/\|/g, '\\|');
+                    });
+                    return `| ${vals.join(' | ')} |`;
+                });
+                dataStr = `## VFC y FC reposo (Garmin) — ${rows.length} días\n\n` + [header, separator, ...body].join('\n');
+            }
+        } else {
         const filtered = filteredActivities;
 
         if (format === 'json') {
@@ -200,9 +288,10 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
             }
             dataStr = md;
         }
+        }
 
-        setExportedData(dataStr);
-    }, [filteredActivities, format, selectedFields]);
+        return dataStr;
+    }, [filteredActivities, format, selectedFields, source, garminFiltered, buildActivityObj]);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(exportedData);
@@ -253,6 +342,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         });
     };
 
+    const isGarmin          = source === 'garmin';
     const missingLapsCount  = filteredActivities.filter(a => !a.laps).length;
     const estimatedTokens   = Math.round(exportedData.length / 4);
     const tableFields       = ALL_FIELDS.filter(f => selectedFields.has(f.key) && f.key !== 'laps');
@@ -271,6 +361,24 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     </div>
                 </div>
 
+                {/* Source selector: Strava activities vs Garmin health */}
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden mb-3 text-sm">
+                    {[
+                        { value: 'strava', label: 'Actividades (Strava)' },
+                        { value: 'garmin', label: 'VFC y FC reposo (Garmin)' },
+                    ].map(opt => (
+                        <button
+                            key={opt.value}
+                            onClick={() => setSource(opt.value)}
+                            className={`flex-1 px-4 py-2 font-semibold transition-colors ${
+                                source === opt.value ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Export all toggle */}
                 <div className="flex items-center gap-2 mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                     <input
@@ -281,29 +389,49 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         className="w-4 h-4 accent-emerald-600 cursor-pointer"
                     />
                     <label htmlFor="export-all-check" className="text-sm font-semibold text-emerald-800 cursor-pointer select-none">
-                        Exportar todas las actividades (sin ningún filtro)
+                        {isGarmin ? 'Exportar todos los registros (sin filtro de fecha)' : 'Exportar todas las actividades (sin ningún filtro)'}
                     </label>
                     {exportAll && (
-                        <span className="ml-auto text-xs text-emerald-600 font-medium">{activities?.length || 0} actividades</span>
+                        <span className="ml-auto text-xs text-emerald-600 font-medium">
+                            {isGarmin ? `${garminData?.length || 0} días` : `${activities?.length || 0} actividades`}
+                        </span>
                     )}
                 </div>
 
                 {/* Main filters */}
                 <div className={`space-y-3 transition-opacity ${exportAll ? 'opacity-40 pointer-events-none' : ''}`}>
-                    {/* Primary: date range */}
+                    {/* Primary: date range — two simple from/to fields */}
                     <div>
                         <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.date_range')}</Text>
-                        <DateRangePicker
-                            className="w-full"
-                            value={dateRange}
-                            onValueChange={setDateRange}
-                            locale={es}
-                            selectPlaceholder={t('exporter.select_range')}
-                            color="blue"
-                            enableSelect={false}
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block mb-1 text-xs font-medium text-slate-500">Desde</label>
+                                <DatePicker
+                                    className="w-full"
+                                    value={dateRange?.from}
+                                    onValueChange={from => setDateRange(prev => ({ ...prev, from }))}
+                                    maxDate={dateRange?.to}
+                                    locale={es}
+                                    enableClear={false}
+                                    placeholder="Desde"
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-xs font-medium text-slate-500">Hasta</label>
+                                <DatePicker
+                                    className="w-full"
+                                    value={dateRange?.to}
+                                    onValueChange={to => setDateRange(prev => ({ ...prev, to }))}
+                                    minDate={dateRange?.from}
+                                    locale={es}
+                                    enableClear={false}
+                                    placeholder="Hasta"
+                                />
+                            </div>
+                        </div>
                     </div>
 
+                    {!isGarmin && <>
                     {/* Primary: running toggle + laps filter side by side */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label htmlFor="only-running-check" className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
@@ -372,18 +500,27 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             </Grid>
                         )}
                     </div>
+                    </>}
                 </div>
 
                 {/* Stats summary chips */}
                 <div className="flex flex-wrap gap-2 mt-4">
-                    <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg font-semibold">
-                        {filteredActivities.length} / {activities?.length || 0} actividades
-                    </span>
-                    {Object.entries(typeCounts).map(([type, count]) => (
-                        <span key={type} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium">
-                            {type}: {count}
+                    {isGarmin ? (
+                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg font-semibold">
+                            {garminFiltered.length} / {garminData?.length || 0} días con VFC/FC reposo
                         </span>
-                    ))}
+                    ) : (
+                        <>
+                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg font-semibold">
+                            {filteredActivities.length} / {activities?.length || 0} actividades
+                        </span>
+                        {Object.entries(typeCounts).map(([type, count]) => (
+                            <span key={type} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium">
+                                {type}: {count}
+                            </span>
+                        ))}
+                        </>
+                    )}
                 </div>
             </Card>
 
@@ -392,21 +529,31 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 <div className="flex flex-col md:flex-row gap-6">
                     <div className="flex-1">
                         <Text className="mb-2 font-bold text-xs uppercase text-slate-500">Campos a exportar</Text>
-                        <div className="flex flex-wrap gap-2">
-                            {ALL_FIELDS.map(f => (
-                                <button
-                                    key={f.key}
-                                    onClick={() => toggleField(f.key)}
-                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                                        selectedFields.has(f.key)
-                                            ? 'bg-emerald-600 text-white border-emerald-600'
-                                            : 'bg-white text-slate-500 border-slate-300 hover:border-emerald-400'
-                                    }`}
-                                >
-                                    {f.label}
-                                </button>
-                            ))}
-                        </div>
+                        {isGarmin ? (
+                            <div className="flex flex-wrap gap-2">
+                                {GARMIN_FIELDS.map(f => (
+                                    <span key={f.key} className="px-3 py-1 rounded-full text-xs font-medium border bg-emerald-600 text-white border-emerald-600">
+                                        {f.label}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {ALL_FIELDS.map(f => (
+                                    <button
+                                        key={f.key}
+                                        onClick={() => toggleField(f.key)}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                            selectedFields.has(f.key)
+                                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                                : 'bg-white text-slate-500 border-slate-300 hover:border-emerald-400'
+                                        }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="w-full md:w-44 shrink-0">
                         <Text className="mb-2 font-bold text-xs uppercase text-slate-500">Formato</Text>
@@ -444,7 +591,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
-                        {missingLapsCount > 0 && onEnrichActivity && (
+                        {!isGarmin && missingLapsCount > 0 && onEnrichActivity && (
                             <>
                                 <Text className="text-xs text-slate-500">{missingLapsCount} sin parciales</Text>
                                 <Button size="xs" variant="light" color="blue" icon={ArrowPathIcon} loading={enriching} onClick={handleEnrichAll}>
@@ -468,7 +615,35 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     </div>
                 )}
 
-                {previewMode === 'table' ? (
+                {previewMode === 'table' && isGarmin ? (
+                    <div className="overflow-auto max-h-96 border border-slate-200 rounded-xl">
+                        <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-100 sticky top-0 z-10">
+                                <tr>
+                                    {GARMIN_FIELDS.map(f => (
+                                        <th key={f.key} className="px-3 py-2 font-semibold text-slate-600 whitespace-nowrap">{f.label}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {garminFiltered.map((r, i) => {
+                                    const o = buildGarminObj(r);
+                                    return (
+                                        <tr key={r.date} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                            {GARMIN_FIELDS.map(f => (
+                                                <td key={f.key} className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                                    {f.key === 'date'
+                                                        ? new Date(o.date).toLocaleDateString('es-ES')
+                                                        : (o[f.key] ?? '—')}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : previewMode === 'table' ? (
                     <div className="overflow-auto max-h-96 border border-slate-200 rounded-xl">
                         <table className="w-full text-xs text-left">
                             <thead className="bg-slate-100 sticky top-0 z-10">
@@ -521,7 +696,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     </div>
                 ) : (
                   <>
-                    {onEnrichActivity && missingLapsCount > 0 && (
+                    {!isGarmin && onEnrichActivity && missingLapsCount > 0 && (
                         <div className="mb-3 border border-slate-200 rounded-xl p-3 bg-slate-50">
                             <Text className="text-xs font-bold uppercase text-slate-500 mb-2">
                                 Carreras sin parciales ({missingLapsCount}) — pulsa para obtenerlos

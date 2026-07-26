@@ -768,6 +768,7 @@ REGLAS ESTRICTAS DE SALIDA:
     athleteContext,
     sci: {
       readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr,
+      easyHr: avgHR, // FC media real de rodaje fácil (4 sem): centro observado de Z1
       lt: {
         lt1Hr, lt2Hr: lthr,
         lt1Pace: lt?.lt1Pace ?? null, lt2Pace: lt?.lt2Pace ?? null,

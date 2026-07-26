@@ -13,6 +13,7 @@ import {
   CheckIcon,
 } from '@heroicons/react/24/outline';
 import useAIInsights from '../hooks/useAIInsights';
+import HRZonesCard from './HRZonesCard';
 import {
   RUN_TYPES, RIDE_TYPES, activityEmoji,
   paceStr, formatTs, formatDataDate,
@@ -473,6 +474,9 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
       </div>
       </section>
+
+      {/* ── ZONAS DE FC — mismas que usa el coach (umbrales LT1/LT2) ── */}
+      <HRZonesCard sci={sci} />
 
       {/* ── BANNERS ── */}
       {loading && providerLabel && (

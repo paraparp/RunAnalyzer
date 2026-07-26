@@ -82,20 +82,11 @@ export const coachObjectToBlocks = (obj) => {
 // Validación post-hoc de la prescripción contra la ciencia calculada (sci):
 // el prompt exige estas reglas pero nada las garantizaba al recibir la
 // respuesta. Devuelve avisos legibles para el atleta ([] si todo es coherente).
-const HARD_TYPES = /tempo|interv|series/i;
 const EASY_TYPES = /regen|aer[oó]bico/i;
 export const coachCoherenceWarnings = (obj, sci) => {
   const warns = [];
   const s = obj?.sesion;
   if (!s) return warns;
-  const readiness = sci?.readiness?.score;
-  if (readiness != null && s.tipo) {
-    if (readiness < 45 && !EASY_TYPES.test(s.tipo)) {
-      warns.push(`Readiness ${readiness}/100 (muy bajo) pero la sesión propuesta es "${s.tipo}": conviene pasarla a regenerativo o descansar.`);
-    } else if (readiness < 62 && HARD_TYPES.test(s.tipo)) {
-      warns.push(`Readiness ${readiness}/100 pide bajar la carga y la sesión propuesta es "${s.tipo}": valora suavizarla.`);
-    }
-  }
   if (s.fcMin && s.fcMax && s.fcMin >= s.fcMax) {
     warns.push('El rango de FC propuesto está invertido; ignóralo y guíate por la zona.');
   }
