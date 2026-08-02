@@ -39,6 +39,22 @@ create policy "user_storage_delete_own"
   on public.user_storage for delete
   using (auth.uid() = user_id);
 
+-- ============================================================================
+-- OAuth: authorization codes ya canjeados (single-use del servidor MCP).
+-- Los codes son JWT sin estado; esta tabla registra su `jti` al canjearlos para
+-- impedir el replay dentro de su ventana de validez. Solo se accede con la
+-- SERVICE ROLE key (salta RLS); habilitamos RLS sin políticas para bloquear anon.
+-- ============================================================================
+create table if not exists public.oauth_used_codes (
+  jti        text        primary key,
+  expires_at timestamptz not null,
+  used_at    timestamptz not null default now()
+);
+alter table public.oauth_used_codes enable row level security;
+
+-- Limpieza opcional de jtis ya expirados (ejecutar por cron/pg_cron si se desea):
+--   delete from public.oauth_used_codes where expires_at < now();
+
 -- Mantener updated_at al día en cada upsert.
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$

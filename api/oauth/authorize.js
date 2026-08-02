@@ -48,14 +48,19 @@ export default async function handler(req, res) {
   const src = req.method === 'POST' ? req.body || {} : req.query || {};
   const params = Object.fromEntries(OAUTH_KEYS.map((k) => [k, src[k] ?? '']));
 
-  // Validaciones básicas del cliente/redirect.
-  const client = await decodeClient(params.client_id);
-  const redirectOk = client && (!client.redirect_uris?.length || client.redirect_uris.includes(params.redirect_uri));
-  if (!params.client_id || !params.redirect_uri || (client && !redirectOk)) {
-    return res.status(400).send('invalid_request: client_id / redirect_uri no válidos');
+  // Validación estricta (fail-closed) del cliente y el redirect_uri: si el
+  // client_id no decodifica o el redirect_uri no está registrado, se rechaza.
+  if (!params.client_id || !params.redirect_uri) {
+    return res.status(400).send('invalid_request: falta client_id o redirect_uri');
   }
-  if (params.code_challenge_method && params.code_challenge_method !== 'S256') {
-    return res.status(400).send('invalid_request: solo se admite PKCE S256');
+  const client = await decodeClient(params.client_id);
+  if (!client) return res.status(400).send('invalid_client');
+  if (!client.redirect_uris?.length || !client.redirect_uris.includes(params.redirect_uri)) {
+    return res.status(400).send('invalid_request: redirect_uri no registrado');
+  }
+  // PKCE obligatorio (S256): sin él, un code interceptado sería canjeable.
+  if (!params.code_challenge || (params.code_challenge_method && params.code_challenge_method !== 'S256')) {
+    return res.status(400).send('invalid_request: se requiere PKCE S256');
   }
 
   if (req.method === 'GET') {

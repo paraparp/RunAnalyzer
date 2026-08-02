@@ -21,6 +21,22 @@ function service() {
   return _client;
 }
 
+/**
+ * Marca un authorization code (por su `jti`) como consumido. La inserción con PK
+ * en `jti` es atómica: si ya existía (violación de unicidad 23505) devolvemos
+ * false → el code se está reusando (replay) y debe rechazarse.
+ */
+export async function consumeAuthCode(jti, expUnix) {
+  const { error } = await service()
+    .from('oauth_used_codes')
+    .insert({ jti, expires_at: new Date(expUnix * 1000).toISOString() });
+  if (error) {
+    if (error.code === '23505') return false; // ya canjeado
+    throw new Error(`oauth_used_codes insert: ${error.message}`);
+  }
+  return true;
+}
+
 /** Lee una clave del almacén del usuario y la parsea como JSON (o null). */
 export async function readKey(userId, key) {
   const { data, error } = await service()
