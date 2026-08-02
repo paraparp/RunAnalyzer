@@ -46,11 +46,14 @@ const en = {
       annual_distribution: "Annual activity distribution",
       personal_bests: "Personal Bests",
       records: {
+        "flat1k": "Flat 1K",
+        "flat2k": "Flat 2K",
         "5k": "5K",
         "10k": "10K",
         "hm": "Half Marathon",
         "fm": "Marathon",
-        "effort_badge": "best effort"
+        "effort_badge": "best effort",
+        "flat_badge": "flat"
       },
       recent_activities: "Recent Activities",
       view_all: "View all",
@@ -672,11 +675,14 @@ const es = {
       annual_distribution: "Distribución anual de actividades",
       personal_bests: "Marcas Personales",
       records: {
+        "flat1k": "1K llano",
+        "flat2k": "2K llano",
         "5k": "5K",
         "10k": "10K",
         "hm": "Media Maratón",
         "fm": "Maratón",
-        "effort_badge": "mejor parcial"
+        "effort_badge": "mejor parcial",
+        "flat_badge": "llano"
       },
       recent_activities: "Actividades Recientes",
       view_all: "Ver todas",

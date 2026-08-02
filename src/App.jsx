@@ -31,6 +31,7 @@ import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
+import { computeFlatEfforts } from './lib/flatEfforts';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import {
   AdjustmentsHorizontalIcon,
@@ -115,7 +116,7 @@ const slimActivity = (act, fallback = {}) => {
 // splits_metric, laps ni best_efforts). Este merge conserva el detalle ya
 // enriquecido y persistido de cada actividad, de modo que el sync NO borre los
 // parciales que costó traer. Clave para que el dato viva de forma estable en Supabase.
-const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts'];
+const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts'];
 const mergeEnrichedActivities = (fresh, existing) => {
   const byId = new Map((existing || []).map(a => [a.id, a]));
   return (fresh || []).map(f => {
@@ -249,6 +250,40 @@ const Dashboard = ({ user, handleLogout }) => {
     }
   };
 
+  // Enriquece los "tramos llanos" (flat_efforts) que falten: descarga los streams
+  // (distance+altitude+time), calcula el mejor 1km/2km llano con ventana deslizante
+  // y guarda SOLO el resultado (pequeño) en la actividad. Como los parciales, va en
+  // segundo plano, con throttle y tope por sync; a lo largo de varios syncs cubre
+  // todo el histórico y no se vuelve a pedir. Se cachea también el resultado vacío.
+  const enrichMissingFlatEfforts = async (acts, accessToken, { cap = 30 } = {}) => {
+    if (!accessToken || !Array.isArray(acts)) return;
+    const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
+    const need = acts
+      .filter(a => isRun(a) && a.distance >= 1000 && !a.flat_efforts)
+      .sort((a, b) => b.start_date.localeCompare(a.start_date))
+      .slice(0, cap);
+    for (const act of need) {
+      try {
+        const streams = await getActivityStreams(accessToken, act.id);
+        // Guardamos aunque sea {} para no volver a pedir esta actividad nunca más.
+        const flat_efforts = computeFlatEfforts(streams) || {};
+        setStravaData(prev => {
+          if (!prev?.activities) return prev;
+          const idx = prev.activities.findIndex(x => x.id === act.id);
+          if (idx === -1) return prev;
+          const updated = [...prev.activities];
+          updated[idx] = { ...prev.activities[idx], flat_efforts };
+          const nd = { ...prev, activities: updated };
+          persistStravaData(nd);
+          return nd;
+        });
+      } catch (e) {
+        console.warn('[sync] enrich tramos llanos falló', act.id, e);
+      }
+      await new Promise(r => setTimeout(r, 400)); // throttle anti rate-limit
+    }
+  };
+
   const toggleRow = (id) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
@@ -369,6 +404,8 @@ const Dashboard = ({ user, handleLogout }) => {
 
       // Rellenar parciales que falten (en segundo plano, sin bloquear el sync)
       enrichMissingSplits(activities, accessToken);
+      // Rellenar tramos llanos (flat_efforts) que falten (en segundo plano)
+      enrichMissingFlatEfforts(activities, accessToken);
 
       // Sincronizar datos de Garmin en segundo plano
       await syncGarminData();
@@ -437,6 +474,8 @@ const Dashboard = ({ user, handleLogout }) => {
             persistStravaData(updated);
             // Rellenar parciales que falten (en segundo plano)
             enrichMissingSplits(activities, accessToken);
+            // Rellenar tramos llanos (flat_efforts) que falten (en segundo plano)
+            enrichMissingFlatEfforts(activities, accessToken);
           }
         } catch (err) {
           console.error("Failed to refresh Strava data:", err);

@@ -43,6 +43,63 @@ const getCandidate = (activity, range) => {
   return null;
 };
 
+// PBs LLANOS: no vienen de best_efforts (Strava no filtra por desnivel).
+// Fuente principal: flat_efforts, el mejor tramo continuo (ventana deslizante
+// sobre los streams) precalculado y cacheado por actividad en App.jsx. Como
+// fallback —mientras el enriquecido por streams se completa en segundo plano—
+// aproximamos con los parciales (splits_metric), agrupando N splits consecutivos.
+// effortKey → clave dentro de activity.flat_efforts; splits/min/max/maxElev →
+// fallback por parciales. maxElev = desnivel neto máximo tolerado (5m en 1k, 10m en 2k).
+const FLAT_RANGES = [
+  { id: 'flat1k', effortKey: '1k', splits: 1, min: 950,  max: 1050, maxElev: 5 },
+  { id: 'flat2k', effortKey: '2k', splits: 2, min: 1900, max: 2100, maxElev: 10 },
+];
+
+// Fallback: mejor tramo llano de una actividad agrupando N parciales (el más
+// rápido cuya distancia y desnivel neto acumulados cumplan el criterio).
+const getFlatFromSplits = (activity, range) => {
+  const splits = activity.splits_metric;
+  if (!Array.isArray(splits) || splits.length < range.splits) return null;
+
+  let best = null;
+  for (let i = 0; i + range.splits <= splits.length; i++) {
+    const window = splits.slice(i, i + range.splits);
+    if (window.some(sp => typeof sp.elevation_difference !== 'number')) continue;
+
+    const distance = window.reduce((sum, sp) => sum + sp.distance, 0);
+    const elevation = window.reduce((sum, sp) => sum + sp.elevation_difference, 0);
+    const time = window.reduce((sum, sp) => sum + (sp.moving_time || sp.elapsed_time || 0), 0);
+
+    if (Math.abs(elevation) > range.maxElev) continue;
+    if (distance < range.min || distance > range.max) continue;
+    if (time <= 0) continue;
+
+    if (!best || time / distance < best.time / best.distance) {
+      best = { time, distance, elevation };
+    }
+  }
+  return best;
+};
+
+// Candidato a PB llano: preferimos el cálculo exacto por streams (flat_efforts);
+// si aún no está enriquecido, caemos a la aproximación por parciales.
+const getFlatCandidate = (activity, range) => {
+  const eff = activity.flat_efforts?.[range.effortKey];
+  const best = (eff && eff.time > 0) ? eff : getFlatFromSplits(activity, range);
+  if (!best) return null;
+
+  return {
+    id: activity.id,
+    name: activity.name,
+    start_date: activity.start_date,
+    time: best.time,
+    distance: best.distance,
+    elevation: best.elevation,
+    isEffort: true,
+    isFlat: true,
+  };
+};
+
 const MEDAL_COLORS = ['text-amber-400', 'text-slate-400', 'text-orange-600'];
 
 function formatTime(seconds) {
@@ -89,7 +146,11 @@ function DistanceRecord({ record, t }) {
             {formatTime(pr.time)}
           </span>
           <span className="text-xs font-semibold text-slate-400">{formatPace(pr.distance / pr.time)}/km</span>
-          {pr.isEffort && (
+          {pr.isFlat ? (
+            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">
+              {t('dashboard.records.flat_badge', 'llano')}
+            </span>
+          ) : pr.isEffort && (
             <span className="text-[9px] font-bold uppercase tracking-wide text-violet-500 bg-violet-50 rounded px-1.5 py-0.5">
               {t('dashboard.records.effort_badge', 'parcial')}
             </span>
@@ -166,7 +227,19 @@ const PersonalBests = ({ activities, horizontal = false }) => {
   const records = useMemo(() => {
     if (!activities || activities.length === 0) return [];
 
-    return RANGES.map(range => {
+    const flatRecords = FLAT_RANGES.map(range => {
+      const matches = activities
+        .map(a => getFlatCandidate(a, range))
+        .filter(Boolean)
+        .sort((a, b) => a.time / a.distance - b.time / b.distance)
+        .slice(0, 5);
+
+      if (matches.length === 0) return null;
+
+      return { id: range.id, name: t(`dashboard.records.${range.id}`), top: matches };
+    }).filter(Boolean);
+
+    const distanceRecords = RANGES.map(range => {
       const matches = activities
         .map(a => getCandidate(a, range))
         .filter(Boolean)
@@ -181,6 +254,8 @@ const PersonalBests = ({ activities, horizontal = false }) => {
         top: matches,
       };
     }).filter(Boolean);
+
+    return [...flatRecords, ...distanceRecords];
   }, [activities, t]);
 
   if (records.length === 0) return null;

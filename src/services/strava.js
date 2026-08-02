@@ -89,7 +89,9 @@ export const getActivity = async (accessToken, activityId) => {
 };
 
 export const getActivityStreams = async (accessToken, activityId) => {
-    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=altitude&key_by_type=true`, {
+    // distance + altitude + time alineados por índice: sirve tanto para el
+    // desnivel de los laps como para calcular los tramos "llanos" (flat_efforts).
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,altitude,time&key_by_type=true`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`,
         },
