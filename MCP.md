@@ -12,15 +12,31 @@ despliega con la app: no hay servicio aparte que mantener.
 | Tool | Descripción |
 |------|-------------|
 | `list_activities` | Lista de actividades Strava (resumen) con filtros `from/to/sport/only_running/min_distance_km` y paginación. |
-| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`) y polyline. |
+| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`), polyline y **running dynamics de Garmin** si la carrera está correlacionada. |
 | `activity_stats` | Agregados de un rango: total km, tiempo, desnivel y desglose por tipo. |
+| `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, training effect, VO2max) fusionadas con Strava, **con medias del periodo** para agregar. |
 | `list_hrv_resting` | VFC nocturna + FC reposo por día (Garmin), con Body Battery si existe. |
 | `list_sleep` | Sueño semanal (Garmin): duración, fases y score. |
 | `search` / `fetch` | Contrato de conectores de ChatGPT (buscar actividades → recuperar documento). |
 
 **Nunca** se exponen credenciales: el MCP solo lee `stravaData.activities`,
-`garmin_cardiac_data` y `garmin_sleep_data`. Ni `garmin_creds` ni el `accessToken`
-de Strava salen del servidor.
+`garmin_cardiac_data`, `garmin_sleep_data` y `garmin_activities`. Ni `garmin_creds`
+ni el `accessToken` de Strava salen del servidor.
+
+### Running dynamics de Garmin (banda)
+
+`get_activity` y `list_running_dynamics` incluyen los datos de la banda (cadencia,
+tiempo de contacto con el suelo, oscilación/ratio vertical, longitud de zancada,
+potencia, training effect, VO2max). Se obtienen así:
+
+1. En la app, al sincronizar Garmin (panel de FC/VFC), además de la salud se
+   descargan las **actividades con running dynamics** (`/api/garmin/activities`) y
+   se guardan en `user_storage` bajo `garmin_activities`.
+2. El MCP correlaciona cada actividad de Garmin con la de Strava por **hora de
+   inicio** (±3 min) y adjunta las dynamics a esa carrera.
+
+Por tanto, para que aparezcan, hay que haber sincronizado Garmin en la app. Las
+carreras sin coincidencia salen con `has_garmin: false` y sin bloque `garmin`.
 
 ## Puesta en marcha
 
@@ -63,10 +79,28 @@ modo desarrollador.
 ## Cómo funciona la autenticación
 
 OAuth 2.1 **sin estado**: authorization codes, access/refresh tokens y el propio
-`client_id` son JWT firmados con `MCP_JWT_SECRET` (no requieren tablas). La
-identidad real la valida **Supabase Auth** (email+password) en `/api/oauth/authorize`;
-el `user_id` resultante viaja dentro del token y el MCP lo usa para leer solo las
-filas de ese usuario. El access token vive 1 h; el refresh, 30 días.
+`client_id` son JWT firmados con `MCP_JWT_SECRET`. La identidad real la valida
+**Supabase Auth** en `/api/oauth/authorize`, con dos vías:
+
+- **Google** (igual que la app): botón que reutiliza el Google OAuth ya
+  configurado en Supabase; al volver, el token de Supabase se canjea por el code.
+- **Email + contraseña** (para cuentas que tengan contraseña de Supabase).
+
+El `user_id` resultante viaja dentro del token y el MCP lo usa para leer solo las
+filas de ese usuario. El access token vive 1 h; el refresh, 30 días. Los codes son
+single-use (tabla `oauth_used_codes`).
+
+### Configuración necesaria para el login con Google
+
+En Supabase → **Authentication → URL Configuration → Redirect URLs**, añade la URL
+del authorize del conector para que Supabase acepte devolver ahí la sesión:
+
+```
+https://TU-DOMINIO/api/oauth/authorize
+```
+
+(o un comodín `https://TU-DOMINIO/**`). El proveedor Google ya debe estar activo,
+que lo está porque la app lo usa.
 
 ## Notas
 

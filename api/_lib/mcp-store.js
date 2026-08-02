@@ -81,6 +81,7 @@ export function shapeSummary(a) {
     max_hr: a.max_heartrate ?? null,
     elevation_gain_m: a.total_elevation_gain ?? null,
     has_laps: !!(a.laps && a.laps.length),
+    has_garmin: !!a._garmin, // hay running dynamics de la banda correlacionados
   };
 }
 
@@ -89,6 +90,16 @@ export function shapeFull(a) {
   const running = isRunning(a);
   return {
     ...shapeSummary(a),
+    garmin: a._garmin
+      ? {
+          garmin_id: a._garmin.garmin_id,
+          dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
+          power: a._garmin.power,            // vatios de carrera
+          training: a._garmin.training,      // training effect, carga, VO2max
+          calories: a._garmin.calories,
+          steps: a._garmin.steps,
+        }
+      : null,
     kudos: a.kudos_count ?? null,
     avg_speed_ms: a.average_speed ?? null,
     map_polyline: a.map?.summary_polyline ?? null,
@@ -128,12 +139,64 @@ function inRange(dateIso, from, to) {
   return true;
 }
 
-/** Devuelve el array de actividades Strava ya ordenado (reciente primero). */
+// Correlaciona actividades de Garmin con las de Strava por hora de inicio (UTC),
+// con tolerancia de ±3 min, y adjunta el registro Garmin como `a._garmin`.
+function attachGarmin(stravaList, garminList) {
+  const byMinute = new Map();
+  for (const g of garminList) {
+    const t = Date.parse(g.start_time);
+    if (!Number.isNaN(t)) byMinute.set(Math.round(t / 60000), g);
+  }
+  for (const a of stravaList) {
+    const t = Date.parse(a.start_date);
+    if (Number.isNaN(t)) continue;
+    const base = Math.round(t / 60000);
+    for (let d = 0; d <= 3; d++) {
+      const g = byMinute.get(base + d) || byMinute.get(base - d);
+      if (g) { a._garmin = g; break; }
+    }
+  }
+}
+
+/**
+ * Actividades de Strava (reciente primero) con las running dynamics de Garmin
+ * ya correlacionadas y adjuntas en `a._garmin` cuando hay coincidencia.
+ */
 export async function getActivities(userId) {
-  const raw = await readKey(userId, 'stravaData');
+  const [raw, garminRaw] = await Promise.all([
+    readKey(userId, 'stravaData'),
+    readKey(userId, 'garmin_activities'),
+  ]);
   const list = Array.isArray(raw) ? raw : raw?.activities;
   if (!Array.isArray(list)) return [];
-  return [...list].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+  const sorted = [...list].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+  const garmin = Array.isArray(garminRaw) ? garminRaw : garminRaw?.activities;
+  if (Array.isArray(garmin) && garmin.length) attachGarmin(sorted, garmin);
+  return sorted;
+}
+
+/** Fila compacta de running dynamics (Strava + Garmin) para agregar/analizar. */
+export function shapeDynamicsRow(a) {
+  const g = a._garmin;
+  if (!g) return null;
+  return {
+    id: a.id,
+    date: a.start_date,
+    name: a.name,
+    distance_km: round(a.distance / 1000),
+    pace_per_km: isRunning(a) ? calcPace(a.average_speed) : null,
+    avg_hr: a.average_heartrate ?? null,
+    cadence_spm: g.dynamics.cadence_spm,
+    ground_contact_ms: g.dynamics.ground_contact_ms,
+    gct_balance_pct: g.dynamics.gct_balance_pct,
+    stride_length_cm: g.dynamics.stride_length_cm,
+    vertical_oscillation_cm: g.dynamics.vertical_oscillation_cm,
+    vertical_ratio_pct: g.dynamics.vertical_ratio_pct,
+    avg_power_w: g.power.avg_w,
+    aerobic_te: g.training.aerobic_te,
+    anaerobic_te: g.training.anaerobic_te,
+    vo2max: g.training.vo2max,
+  };
 }
 
 export function filterActivities(list, { from, to, sport, only_running, min_distance_km } = {}) {

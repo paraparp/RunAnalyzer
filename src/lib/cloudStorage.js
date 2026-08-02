@@ -22,6 +22,7 @@ const MIGRATED_KEYS = [
   'stravaData',
   'garmin_cardiac_data',
   'garmin_sleep_data',
+  'garmin_activities',
   'garmin_last_sync',
   'garmin_creds',
   'garminRestHR',

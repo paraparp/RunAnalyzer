@@ -13,7 +13,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
-  getHrvResting, getSleep,
+  shapeDynamicsRow, getHrvResting, getSleep,
 } from './_lib/mcp-store.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
@@ -48,6 +48,14 @@ const TOOLS = [
   {
     name: 'activity_stats',
     description: 'Agregados de las actividades en un rango: total km, tiempo, desnivel y desglose por tipo.',
+    inputSchema: {
+      type: 'object',
+      properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
+    },
+  },
+  {
+    name: 'list_running_dynamics',
+    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, training effect, VO2max) por carrera, correlacionadas con Strava. Incluye medias del periodo para agregar.',
     inputSchema: {
       type: 'object',
       properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
@@ -116,6 +124,22 @@ async function runTool(userId, name, args = {}) {
     case 'activity_stats': {
       const all = await getActivities(userId);
       return text(summarizeActivities(filterActivities(all, args)));
+    }
+    case 'list_running_dynamics': {
+      const all = await getActivities(userId);
+      const rows = filterActivities(all, args).map(shapeDynamicsRow).filter(Boolean);
+      // Medias del periodo (solo sobre valores presentes) para agregación.
+      const avg = (key) => {
+        const vals = rows.map((r) => r[key]).filter((v) => typeof v === 'number');
+        return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+      };
+      const METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct', 'stride_length_cm',
+        'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te', 'vo2max'];
+      return text({
+        count: rows.length,
+        averages: Object.fromEntries(METRICS.map((m) => [m, avg(m)])),
+        runs: rows,
+      });
     }
     case 'list_hrv_resting':
       return text({ rows: await getHrvResting(userId, args) });

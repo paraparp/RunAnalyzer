@@ -163,6 +163,62 @@ export async function fetchSleepBulk(client, numWeeks) {
   return allRows;
 }
 
+// ── Actividades con running dynamics (todo lo que mide la banda) ─────────────
+const gnum = (v) => (typeof v === 'number' && !Number.isNaN(v) ? v : null);
+const g1 = (v) => (gnum(v) == null ? null : Math.round(v * 10) / 10);
+
+/** Normaliza un item del activitylist-service de Garmin al shape que guardamos. */
+export function normalizeGarminActivity(a) {
+  if (!a?.activityId) return null;
+  const gmt = a.startTimeGMT || null;
+  // "2026-07-15 06:00:00" (UTC, sin zona) → ISO con Z para poder correlacionar.
+  const start_time = gmt ? gmt.replace(' ', 'T').replace(/\.\d+$/, '') + (gmt.endsWith('Z') ? '' : 'Z') : null;
+  return {
+    garmin_id: a.activityId,
+    name: a.activityName ?? null,
+    type: a.activityType?.typeKey ?? null,
+    start_time,
+    distance_m: gnum(a.distance),
+    duration_s: gnum(a.duration),
+    avg_hr: gnum(a.averageHR),
+    max_hr: gnum(a.maxHR),
+    calories: gnum(a.calories),
+    steps: gnum(a.steps),
+    dynamics: {
+      cadence_spm: g1(a.averageRunningCadenceInStepsPerMinute),
+      max_cadence_spm: g1(a.maxRunningCadenceInStepsPerMinute),
+      ground_contact_ms: g1(a.avgGroundContactTime),
+      gct_balance_pct: g1(a.avgGroundContactBalance),
+      stride_length_cm: g1(a.avgStrideLength),
+      vertical_oscillation_cm: g1(a.avgVerticalOscillation),
+      vertical_ratio_pct: g1(a.avgVerticalRatio),
+    },
+    power: { avg_w: gnum(a.avgPower), max_w: gnum(a.maxPower), norm_w: gnum(a.normPower) },
+    training: {
+      aerobic_te: g1(a.aerobicTrainingEffect),
+      anaerobic_te: g1(a.anaerobicTrainingEffect),
+      training_load: g1(a.activityTrainingLoad),
+      vo2max: g1(a.vO2MaxValue),
+    },
+  };
+}
+
+/** Lista las últimas `limit` actividades de Garmin con sus running dynamics. */
+export async function fetchGarminActivities(client, limit = 100) {
+  const cap = Math.min(Math.max(limit, 1), 300);
+  let raw = [];
+  try {
+    raw = await client.client.get(
+      `https://connectapi.garmin.com/activitylist-service/activities/search/activities?start=0&limit=${cap}`
+    );
+  } catch (e) {
+    console.warn('garmin activities fetch failed:', e.message);
+    return [];
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
+}
+
 export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null) {
   const row = { date: dateStr };
   const date = new Date(dateStr);
