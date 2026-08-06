@@ -52,16 +52,53 @@ export function detectRestHR(garminData) {
   return { value: DEFAULT_REST_HR, source: 'default' };
 }
 
+// Sustained threshold blocks read from a run's per-km splits. Whole-activity
+// averages dilute a tempo/threshold block with the warm-up and cool-down around
+// it, so a genuine threshold effort embedded in a mixed run never qualifies as a
+// "field effort". Reading the splits recovers those blocks: consecutive km at
+// threshold intensity (84–97% HRmax) sustained ≥8 min → one LTHR sample each,
+// as the time-weighted mean HR of the block. Returns [{ hr, sec }].
+const SEG_LO = 0.84, SEG_HI = 0.97, SEG_MIN_SEC = 480;
+export function thresholdBlocks(splits, maxHR) {
+  if (!Array.isArray(splits) || !maxHR) return [];
+  const blocks = [];
+  let cur = [];
+  const flush = () => {
+    const sec = cur.reduce((s, x) => s + x.t, 0);
+    if (sec >= SEG_MIN_SEC) blocks.push({ hr: cur.reduce((s, x) => s + x.hr * x.t, 0) / sec, sec });
+    cur = [];
+  };
+  for (const sp of splits) {
+    const hr = sp.average_heartrate;
+    const t  = sp.moving_time || sp.elapsed_time || 0;
+    if (hr && t > 0 && hr / maxHR >= SEG_LO && hr / maxHR < SEG_HI) cur.push({ hr, t });
+    else flush();
+  }
+  flush();
+  return blocks;
+}
+
 // LTHR detection from training data.
-// Strategy 1 (field, highest confidence): sustained hard efforts 18–70 min
+// Strategy 0 (segment, highest confidence): sustained threshold blocks read from
+//   the per-km splits of ANY run — captures tempo/interval blocks embedded in a
+//   mixed run that whole-activity averaging would miss. Median of block HRs.
+// Strategy 1 (field): sustained hard efforts 18–70 min
 //   • avg HR 82–97% HRmax (genuinely hard)  • avg/max ≥ 0.92 (sustained, not spiked)
 //   → median avg HR of qualifying runs.
 // Strategy 2 (race): workout_type===1 or suffer_score>150 → p75 avg HR × 0.97
 //   (races run ~3% above LTHR, Friel).
 // Strategy 3 (formula): Friel LTHR ≈ 87.5% HRmax.
-// Returns { lthr, confidence 0-100, method: 'field'|'race'|'formula'|'none', n }.
+// Returns { lthr, confidence 0-100, method: 'segment'|'field'|'race'|'formula'|'none', n }.
 export function detectLTHR(activities, maxHR, { minFieldRuns = 3 } = {}) {
   if (!activities?.length || !maxHR) return { lthr: null, confidence: 0, method: 'none', n: 0 };
+
+  const segBlocks = activities.flatMap(a => thresholdBlocks(a.splits_metric, maxHR));
+  if (segBlocks.length >= minFieldRuns) {
+    const hrs = segBlocks.map(b => b.hr).sort((a, b) => a - b);
+    const median = hrs[Math.floor(hrs.length / 2)];
+    const conf   = Math.min(95, 48 + segBlocks.length * 6);
+    return { lthr: Math.round(median), confidence: conf, method: 'segment', n: segBlocks.length };
+  }
 
   const thresholdRuns = activities.filter(a => {
     if (!a.average_heartrate || !a.max_heartrate || !a.moving_time) return false;

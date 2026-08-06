@@ -221,7 +221,11 @@ const Dashboard = ({ user, handleLogout }) => {
   // sync. Se limita a carreras recientes sin detalle, con throttle y tope por sync,
   // para no tocar el rate-limit de Strava. Cada resultado se persiste en Supabase,
   // así que a lo largo de varios syncs se completa y no se vuelve a pedir nunca más.
-  const enrichMissingSplits = async (acts, accessToken, { cap = 25, days = 120 } = {}) => {
+  // days=400 cubre la ventana de 12 meses del gráfico mensual de "Temporal Evolution"
+  // para que TODO el histórico visible reciba parciales (y sus zonas se repartan por
+  // segmento, no por FC media). cap=60 por sync fija cuántas trae de golpe: a 400ms de
+  // throttle son ~24s en segundo plano, y a lo largo de varios syncs completa el año.
+  const enrichMissingSplits = async (acts, accessToken, { cap = 60, days = 400 } = {}) => {
     if (!accessToken || !Array.isArray(acts)) return;
     const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
     const since = Date.now() - days * 86400000;

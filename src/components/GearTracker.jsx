@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { getAthleteProfile } from '../services/strava';
@@ -18,46 +18,57 @@ import { motion } from 'framer-motion';
 export default function GearTracker({ activities, stravaData, setStravaData }) {
   const { t, i18n } = useTranslation();
   const [shoeNames, setShoeNames] = useState({});
+  // Evita re-pedir el perfil en bucle: si una zapatilla usada está RETIRADA en
+  // Strava nunca vuelve en profile.shoes, así que la condición "falta nombre"
+  // seguiría siendo verdadera indefinidamente. Solo refrescamos una vez por montaje.
+  const refreshedRef = useRef(false);
 
   useEffect(() => {
-    const fetchShoes = async () => {
-      // Si ya las tenemos decodificadas previamente
-      if (stravaData?.athlete?.shoes) {
-        const names = {};
-        stravaData.athlete.shoes.forEach(s => names[s.id] = s.name);
-        setShoeNames(names);
-        return;
-      }
+    const cachedShoes = stravaData?.athlete?.shoes;
 
-      // Si no, recabamos el perfil detallado usando el token
-      if (stravaData?.accessToken) {
+    // 1) Siembra instantánea desde la caché del perfil (sin esperar red).
+    if (cachedShoes?.length) {
+      setShoeNames(prev => {
+        const names = { ...prev };
+        cachedShoes.forEach(s => { names[s.id] = s.name; });
+        return names;
+      });
+    }
+
+    // 2) ¿Hay alguna zapatilla usada en actividades cuyo nombre NO tengamos?
+    //    (p. ej. una zapatilla nueva añadida a Strava tras cachear el perfil.)
+    const knownIds = new Set((cachedShoes || []).map(s => s.id));
+    const hasMissing = (activities || []).some(a => a.gear_id && !knownIds.has(a.gear_id));
+
+    // 3) Refresca el perfil SOLO si falta algún nombre (o no hay caché) y hay token,
+    //    y como máximo una vez por montaje para no golpear el rate-limit ni ciclar.
+    if (!refreshedRef.current && (hasMissing || !cachedShoes?.length) && stravaData?.accessToken) {
+      refreshedRef.current = true;
+      (async () => {
         try {
           const profile = await getAthleteProfile(stravaData.accessToken);
-          if (profile && profile.shoes) {
-            const names = {};
-            profile.shoes.forEach(s => names[s.id] = s.name);
-            setShoeNames(names);
-
-            if (setStravaData) {
-              setStravaData(prev => {
-                const updated = { ...prev, athlete: { ...prev.athlete, ...profile } };
-                try {
-                  cloudStorage.setItem('stravaData', JSON.stringify(updated));
-                } catch (e) {
-                  console.warn('No se pudo guardar stravaData (cuota excedida); se mantiene en memoria.', e);
-                }
-                return updated;
-              });
-            }
+          if (profile?.shoes?.length) {
+            setShoeNames(prev => {
+              const names = { ...prev };
+              profile.shoes.forEach(s => { names[s.id] = s.name; });
+              return names;
+            });
+            setStravaData?.(prev => {
+              const updated = { ...prev, athlete: { ...prev.athlete, ...profile } };
+              try {
+                cloudStorage.setItem('stravaData', JSON.stringify(updated));
+              } catch (e) {
+                console.warn('No se pudo guardar stravaData (cuota excedida); se mantiene en memoria.', e);
+              }
+              return updated;
+            });
           }
         } catch (err) {
           console.error("Error fetching athlete profile for shoes:", err);
         }
-      }
-    };
-
-    fetchShoes();
-  }, [stravaData, setStravaData]);
+      })();
+    }
+  }, [stravaData, setStravaData, activities]);
 
   const gearStats = useMemo(() => {
     if (!activities) return [];

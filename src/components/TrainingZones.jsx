@@ -30,6 +30,27 @@ const fmtBucket = (key, groupBy, lang = 'en') => {
     return new Date(+y, +m - 1).toLocaleDateString(lang, { month: 'short', year: '2-digit' });
 };
 
+// Per-segment HR samples ({ hr, time }) for time-in-zone accounting. Classifying
+// a whole run by its single average HR collapses it into ONE zone — a month of
+// easy-ish runs then reads as 100% Z2, which is physically impossible (every run
+// has warm-up in Z1, hills/surges into Z3+). The per-km splits (or laps) recover
+// the real spread. Falls back to the activity average only when no per-segment HR
+// exists (older runs whose splits haven't been enriched yet).
+const hrSegments = (a) => {
+    const src = (a.splits_metric?.length > 1 && a.splits_metric)
+             || (a.laps?.length > 1 && a.laps)
+             || null;
+    if (src) {
+        const segs = src
+            .filter(s => s.average_heartrate && (s.moving_time || s.elapsed_time))
+            .map(s => ({ hr: s.average_heartrate, time: s.moving_time || s.elapsed_time }));
+        if (segs.length) return segs;
+    }
+    return a.average_heartrate && a.moving_time
+        ? [{ hr: a.average_heartrate, time: a.moving_time }]
+        : [];
+};
+
 // ── Zone models ───────────────────────────────────────────────────────────────
 const MODELS = {
   seiler: {
@@ -182,9 +203,10 @@ export default function TrainingZones({ activities }) {
     const times = new Array(bounds.length).fill(0);
     let total = 0;
     recentActivities.forEach(a => {
-      if (!a.average_heartrate || !a.moving_time) return;
-      const z = classifyHR(a.average_heartrate, bounds);
-      if (z >= 0) { times[z] += a.moving_time; total += a.moving_time; }
+      for (const seg of hrSegments(a)) {
+        const z = classifyHR(seg.hr, bounds);
+        if (z >= 0) { times[z] += seg.time; total += seg.time; }
+      }
     });
     if (!total) return [];
     return model.zones.map((z, i) => ({
@@ -200,7 +222,8 @@ export default function TrainingZones({ activities }) {
     if (!activities?.length) return [];
     const buckets = {};
     activities.forEach(a => {
-      if (!a.average_heartrate || !a.moving_time) return;
+      const segs = hrSegments(a);
+      if (!segs.length) return;
       const d = new Date(a.start_date);
       let key;
       if (groupBy === 'week') {
@@ -214,8 +237,10 @@ export default function TrainingZones({ activities }) {
         key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       }
       if (!buckets[key]) buckets[key] = { key, zones: new Array(bounds.length).fill(0) };
-      const z = classifyHR(a.average_heartrate, bounds);
-      if (z >= 0) buckets[key].zones[z] += a.moving_time;
+      for (const seg of segs) {
+        const z = classifyHR(seg.hr, bounds);
+        if (z >= 0) buckets[key].zones[z] += seg.time;
+      }
     });
     const sorted = Object.values(buckets).sort((a, b) => a.key.localeCompare(b.key));
     return (groupBy === 'week' ? sorted.slice(-16) : sorted.slice(-12)).map(b => {
@@ -257,6 +282,7 @@ export default function TrainingZones({ activities }) {
   // ── Confidence labels ──
   const confColor = lthrResult.confidence >= 70 ? 'emerald' : lthrResult.confidence >= 40 ? 'amber' : 'rose';
   const methodText = {
+    segment: t('zones.method_segment', { n: lthrResult.n }),
     field:   t('zones.method_field', { n: lthrResult.n }),
     race:    t('zones.method_race', { n: lthrResult.n }),
     formula: t('zones.method_formula'),

@@ -128,7 +128,65 @@ export function shapeFull(a) {
       moving_time_s: b.moving_time,
     })),
     flat_efforts: a.flat_efforts ?? null, // { '1k': {time,distance,elevation}, '2k': {...} }
+    decoupling: computeDecoupling(a),      // deriva cardíaca (durabilidad) si >60 min
+    gap: computeGap(a),                    // ritmo ajustado por desnivel agregado
   };
+}
+
+// ── Desacoplamiento / durabilidad (mejor predictor de maratón) ───────────────
+// Compara el ratio FC/velocidad de la parte inicial (km 5–10) con el del último
+// 25%. Solo para sesiones >60 min con FC por split. Cálculo puro sobre splits.
+export function computeDecoupling(a) {
+  const splits = a.splits_metric;
+  const totalTime = a.moving_time || 0;
+  if (!Array.isArray(splits) || splits.length < 12 || totalTime < 3600) return null;
+  const ratioOf = (arr) => {
+    let hrSum = 0, hrTime = 0, dist = 0, time = 0;
+    for (const s of arr) {
+      const t = s.moving_time || 0;
+      if (s.average_heartrate && t) { hrSum += s.average_heartrate * t; hrTime += t; }
+      dist += s.distance || 0; time += t;
+    }
+    if (!hrTime || !time || !dist) return null;
+    const hr = hrSum / hrTime;
+    const speed = dist / time;                       // m/s
+    if (!speed) return null;
+    return { hr, speed, ratio: hr / speed };
+  };
+  const initial = ratioOf(splits.filter((s) => s.split >= 5 && s.split <= 10));
+  const n = splits.length;
+  const finalCount = Math.max(1, Math.ceil(n * 0.25));
+  const final = ratioOf(splits.slice(n - finalCount));
+  if (!initial || !final) return null;
+  return {
+    decoupling_pct: round((final.ratio / initial.ratio - 1) * 100, 1),
+    initial: { window: 'km 5–10', avg_hr: round(initial.hr, 0), avg_speed_ms: round(initial.speed, 3) },
+    final: { window: `último 25% (${finalCount} km)`, avg_hr: round(final.hr, 0), avg_speed_ms: round(final.speed, 3) },
+  };
+}
+
+// ── GAP: coste metabólico relativo por pendiente (Minetti) ───────────────────
+const minettiCost = (i) => // i = pendiente en fracción (+ subida)
+  155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
+const gapFactor = (grade) => { const c = minettiCost(grade); return c > 0 ? c / 3.6 : 1; };
+
+/** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
+export function computeGap(a) {
+  const splits = a.splits_metric;
+  if (!Array.isArray(splits) || !splits.length) return null;
+  let dist = 0, gapTime = 0;
+  const per_split = [];
+  for (const s of splits) {
+    const d = s.distance || 0;
+    const sp = s.average_speed || 0;
+    if (!d || !sp) continue;
+    const grade = s.elevation_difference != null ? s.elevation_difference / d : 0;
+    const gapSpeed = sp * gapFactor(grade);          // velocidad equivalente en llano
+    dist += d; gapTime += d / gapSpeed;
+    per_split.push({ split: s.split, grade_pct: round(grade * 100, 1), gap_pace: calcPace(gapSpeed) });
+  }
+  if (!dist || !gapTime) return null;
+  return { gap_pace: calcPace(dist / gapTime), per_split };
 }
 
 // ── Consultas de alto nivel ─────────────────────────────────────────────────
@@ -195,16 +253,27 @@ export function shapeDynamicsRow(a) {
     avg_power_w: g.power.avg_w,
     aerobic_te: g.training.aerobic_te,
     anaerobic_te: g.training.anaerobic_te,
+    training_load: g.training.training_load,
     vo2max: g.training.vo2max,
   };
 }
 
-export function filterActivities(list, { from, to, sport, only_running, min_distance_km } = {}) {
+export function filterActivities(list, {
+  from, to, sport, only_running, min_distance_km, max_distance_km, hr_min, hr_max, flat_only,
+} = {}) {
   return list.filter((a) => {
     if (!inRange(a.start_date, from, to)) return false;
     if (only_running && !isRunning(a)) return false;
     if (sport && a.type !== sport && a.sport_type !== sport) return false;
-    if (min_distance_km && (a.distance / 1000) < min_distance_km) return false;
+    const km = (a.distance || 0) / 1000;
+    if (min_distance_km && km < min_distance_km) return false;
+    if (max_distance_km && km > max_distance_km) return false;
+    if (hr_min && !(a.average_heartrate >= hr_min)) return false;
+    if (hr_max && !(a.average_heartrate <= hr_max)) return false;
+    if (flat_only) {
+      const gainPerKm = km ? (a.total_elevation_gain || 0) / km : Infinity;
+      if (gainPerKm > 10) return false;                // <10 m/km = llano
+    }
     return true;
   });
 }
@@ -243,6 +312,132 @@ export async function getHrvResting(userId, { from, to } = {}) {
       body_battery_low: r.bbLow ?? null,
       body_battery_high: r.bbHigh ?? null,
     }));
+}
+
+// ── Modelo de Banister: CTL / ATL / TSB desde la carga por sesión ────────────
+const toISODate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Serie diaria de carga crónica (CTL, 42 d), aguda (ATL, 7 d) y forma (TSB) por
+ * medias móviles exponenciales sobre el training_load de Garmin. Sin ingesta.
+ */
+export async function getTrainingLoadModel(userId, { from, to } = {}) {
+  const acts = await getActivities(userId);
+  const byDay = new Map();
+  for (const a of acts) {
+    const day = (a.start_date || '').slice(0, 10);
+    if (!day) continue;
+    let load = a._garmin?.training?.training_load;
+    if (load == null && a.moving_time) load = a.moving_time / 60; // proxy si no hay load Garmin
+    if (load == null) continue;
+    byDay.set(day, (byDay.get(day) || 0) + load);
+  }
+  if (!byDay.size) return { current: null, series: [], note: 'Sin datos de carga' };
+  const days = [...byDay.keys()].sort();
+  const first = new Date(days[0] + 'T00:00:00');
+  const last = new Date(days[days.length - 1] + 'T00:00:00');
+  const kCtl = 1 - Math.exp(-1 / 42);
+  const kAtl = 1 - Math.exp(-1 / 7);
+  let ctl = 0, atl = 0;
+  const series = [];
+  for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+    const iso = toISODate(d);
+    const load = byDay.get(iso) || 0;
+    const tsb = ctl - atl;                             // forma = CTL previo − ATL previo
+    ctl += (load - ctl) * kCtl;
+    atl += (load - atl) * kAtl;
+    series.push({ date: iso, load: round(load, 0), ctl: round(ctl, 1), atl: round(atl, 1), tsb: round(tsb, 1) });
+  }
+  const ranged = series.filter((s) => inRange(s.date + 'T12:00:00', from, to));
+  const out = ranged.length ? ranged : series;
+  const lastRow = out[out.length - 1] || null;
+  const weekly_ramp = out.length > 7 ? round(out[out.length - 1].ctl - out[out.length - 8].ctl, 1) : null;
+  return { current: lastRow ? { ...lastRow, weekly_ramp } : null, series: out };
+}
+
+// ── Alertas de patrón (firma de infección / sobrecarga) ──────────────────────
+export async function getHealthAlerts(userId, { from, to } = {}) {
+  const rows = ((await readKey(userId, 'garmin_cardiac_data')) || [])
+    .filter((r) => r.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const median = (arr) => {
+    if (!arr.length) return null;
+    const s = [...arr].sort((x, y) => x - y);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const alerts = [];
+  const hrvHist = [], rhrHist = [];
+  let prevLowBB = false;
+  for (const r of rows) {
+    const hrvBase = median(hrvHist.slice(-30));
+    const rhrBase = median(rhrHist.slice(-30));
+    const lowBB = r.bbHigh != null && r.bbHigh < 55;
+    if (lowBB && prevLowBB) {
+      alerts.push({ date: r.date, type: 'body_battery_low_streak',
+        detail: `Body Battery máx <55 dos noches seguidas (${r.bbHigh})` });
+    }
+    if (hrvBase && rhrBase && r.hrv != null && r.restingHR != null &&
+        r.hrv < hrvBase * 0.9 && r.restingHR > rhrBase + 3) {
+      alerts.push({ date: r.date, type: 'hrv_down_rhr_up',
+        detail: `VFC ${r.hrv} < baseline ${round(hrvBase, 0)} y FC reposo ${r.restingHR} > normal ${round(rhrBase, 0)}` });
+    }
+    prevLowBB = lowBB;
+    if (r.hrv != null) hrvHist.push(r.hrv);
+    if (r.restingHR != null) rhrHist.push(r.restingHR);
+  }
+  const filtered = alerts.filter((al) => inRange(al.date + 'T12:00:00', from, to)).reverse();
+  return { count: filtered.length, alerts: filtered };
+}
+
+// ── Detección automática de esfuerzos de test (umbral) ───────────────────────
+// Bloque continuo de 20–45 min por encima del 88% de FCmax → estimación de LTHR
+// y ritmo umbral, con bandera de si la FC se estabilizó (deriva <3%).
+export function detectThresholdEffort(a, hrMax) {
+  const splits = a.splits_metric;
+  if (!Array.isArray(splits) || !hrMax) return null;
+  const thr = hrMax * 0.88;
+  let best = null, run = [];
+  const flush = () => {
+    if (run.length) {
+      const time = run.reduce((s, x) => s + (x.moving_time || 0), 0);
+      if (time >= 20 * 60 && time <= 45 * 60 && (!best || time > best.time)) best = { splits: [...run], time };
+    }
+    run = [];
+  };
+  for (const s of splits) {
+    if (s.average_heartrate && s.average_heartrate >= thr) run.push(s);
+    else flush();
+  }
+  flush();
+  if (!best) return null;
+  const seg = best.splits;
+  const dist = seg.reduce((s, x) => s + (x.distance || 0), 0);
+  const lthr = round(seg.reduce((s, x) => s + x.average_heartrate * (x.moving_time || 0), 0) / best.time, 0);
+  const third = Math.max(1, Math.floor(seg.length / 3));
+  const hrAvg = (arr) => arr.reduce((s, x) => s + x.average_heartrate, 0) / arr.length;
+  const drift = (hrAvg(seg.slice(-third)) / hrAvg(seg.slice(0, third)) - 1) * 100;
+  return {
+    duration_min: round(best.time / 60, 1),
+    lthr,
+    threshold_pace: calcPace(dist / best.time),
+    hr_stabilized: Math.abs(drift) < 3,
+    hr_drift_pct: round(drift, 1),
+  };
+}
+
+/** Escanea el historial buscando tests de umbral (FCmax = máx FC observada). */
+export async function detectThresholdTests(userId, args = {}) {
+  const all = await getActivities(userId);
+  const hrMax = all.reduce((m, a) => Math.max(m, a.max_heartrate || 0), 0) || null;
+  const tests = filterActivities(all, { ...args, only_running: true })
+    .map((a) => {
+      const t = detectThresholdEffort(a, hrMax);
+      return t ? { id: a.id, date: a.start_date, name: a.name, ...t } : null;
+    })
+    .filter(Boolean);
+  return { hr_max_used: hrMax, count: tests.length, tests };
 }
 
 /** Sueño semanal (garmin_sleep_data). */

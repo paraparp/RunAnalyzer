@@ -297,12 +297,13 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const ltDet = detectLTHR(twoMonthActs, fcmax, { minFieldRuns: 2 });
   const lthr = ltDet.lthr ?? estimateLTHR(fcmax);
   const lthrMethod = {
+    segment: `segmentos (${ltDet.n} bloques umbral sostenidos en los parciales de tus carreras)`,
     field:   `campo (${ltDet.n} esfuerzos umbral detectados)`,
     race:    `competición (p75 de ${ltDet.n} carrera(s) × 0.97)`,
     formula: 'Friel approx (87.5% FCmax)',
     none:    'Friel approx (87.5% FCmax)',
   }[ltDet.method];
-  const lthrIsEstimate = ltDet.method !== 'field';
+  const lthrIsEstimate = !['segment', 'field'].includes(ltDet.method);
 
   // ── Lactate-threshold model (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold) ─
   // El modelo de Critical Speed da el LT2 anclado a RENDIMIENTO (ritmo), y el

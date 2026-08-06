@@ -14,6 +14,7 @@ import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
   shapeDynamicsRow, getHrvResting, getSleep,
+  getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
@@ -31,6 +32,10 @@ const TOOLS = [
         sport: { type: 'string', description: 'Tipo Strava exacto, p.ej. Run, TrailRun, Ride' },
         only_running: { type: 'boolean', description: 'Solo carreras (Run/TrailRun/VirtualRun)' },
         min_distance_km: { type: 'number' },
+        max_distance_km: { type: 'number', description: 'Distancia máxima (comparar sesiones equivalentes)' },
+        hr_min: { type: 'number', description: 'FC media mínima (bpm)' },
+        hr_max: { type: 'number', description: 'FC media máxima (bpm)' },
+        flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
         limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
         offset: { type: 'number', description: 'Desplazamiento para paginar (por defecto 0)' },
       },
@@ -69,6 +74,21 @@ const TOOLS = [
   {
     name: 'list_sleep',
     description: 'Resumen de sueño semanal (Garmin): duración, fases REM/profundo/ligero y score.',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
+    name: 'get_training_load_model',
+    description: 'Modelo de Banister: serie diaria de carga crónica (CTL), aguda (ATL) y forma (TSB) con la rampa semanal, desde el training_load de Garmin.',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
+    name: 'get_health_alerts',
+    description: 'Alertas de patrón sobre VFC/FC reposo/Body Battery: firma de infección o sobrecarga (Body Battery máx <55 dos noches seguidas, o VFC bajo baseline con FC reposo elevada).',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
+    name: 'detect_threshold_efforts',
+    description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
   },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
@@ -134,7 +154,8 @@ async function runTool(userId, name, args = {}) {
         return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
       };
       const METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct', 'stride_length_cm',
-        'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te', 'vo2max'];
+        'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te',
+        'training_load', 'vo2max'];
       return text({
         count: rows.length,
         averages: Object.fromEntries(METRICS.map((m) => [m, avg(m)])),
@@ -145,6 +166,12 @@ async function runTool(userId, name, args = {}) {
       return text({ rows: await getHrvResting(userId, args) });
     case 'list_sleep':
       return text({ weeks: await getSleep(userId, args) });
+    case 'get_training_load_model':
+      return text(await getTrainingLoadModel(userId, args));
+    case 'get_health_alerts':
+      return text(await getHealthAlerts(userId, args));
+    case 'detect_threshold_efforts':
+      return text(await detectThresholdTests(userId, args));
 
     case 'search': {
       const q = String(args.query || '').toLowerCase().trim();
