@@ -17,14 +17,20 @@ despliega con la app: no hay servicio aparte que mantener.
 | `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y **origen de FC**, fusionadas con Strava, **con medias del periodo** para agregar. |
 | `list_hrv_resting` | VFC nocturna + FC reposo por día (Garmin), con Body Battery si existe. |
 | `list_sleep` | Sueño semanal (Garmin): duración, fases y score. |
+| `list_sleep_daily` | Sueño **noche a noche** (en vivo): fases, score, estrés nocturno, respiración, HRV y FC reposo. |
+| `list_weight` | Peso y **composición corporal** por día (en vivo): peso, IMC, % grasa, masa muscular, % agua. |
+| `list_garmin_workouts` / `create_garmin_workout` / `update_garmin_workout` / `delete_garmin_workout` | **Escritura**: listar, crear (estructurado con repeticiones y objetivos de ritmo/FC/potencia), modificar sin duplicar y borrar entrenos en Garmin. |
 | `get_training_load_model` | Modelo de Banister: serie diaria CTL/ATL/TSB con rampa semanal (desde `training_load` de Garmin). |
 | `get_health_alerts` | Alertas de patrón (firma de infección/sobrecarga): Body Battery bajo o VFC↓ con FC reposo↑. |
 | `detect_threshold_efforts` | Detecta tests de umbral (bloque ≥88% FCmax) → LTHR y ritmo umbral, con bandera de estabilización de FC. |
 | `search` / `fetch` | Contrato de conectores de ChatGPT (buscar actividades → recuperar documento). |
 
-**Nunca** se exponen credenciales: el MCP solo lee `stravaData.activities`,
-`garmin_cardiac_data`, `garmin_sleep_data` y `garmin_activities`. Ni `garmin_creds`
-ni el `accessToken` de Strava salen del servidor.
+**Las credenciales nunca salen hacia el cliente/LLM.** Las tools de solo lectura
+cacheada usan `stravaData.activities`, `garmin_cardiac_data`, `garmin_sleep_data` y
+`garmin_activities`. Las tools de **lectura en vivo** (`list_sleep_daily`,
+`list_weight`) y de **escritura** (`*_garmin_workout`) leen `garmin_creds`
+**solo server-side** para hablar con Garmin en el momento; ni esas credenciales ni el
+`accessToken` de Strava se devuelven jamás en la respuesta del MCP.
 
 ### Running dynamics de Garmin (banda)
 

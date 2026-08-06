@@ -15,7 +15,12 @@ qué falta, **dónde se toca** (archivos reales), el **esfuerzo** y una casilla.
 > `list_activities` acepta `hr_min/hr_max/max_distance_km/flat_only`. `get_activity`
 > ahora devuelve `decoupling` y `gap`.
 > **Añadido con datos reales de Garmin (dump verificado):** 1.1 origen de FC (`hr_source` strap/wrist + filtro en `list_activities`), 1.4 WBGT y penalización por calor (del weather de Garmin), 2.4 laps reales con `intensity_type`, potencia y balance por lap. Requieren **re-sincronizar Garmin en la app** para poblar los nuevos campos.
-> Pendiente: resto de Fase 2 (sueño diario, readiness, fitness, peso, nutrición, calendario) y **escritura** (Fase 4).
+>
+> **Fase 2 (lectura en vivo):** 2.1 sueño noche a noche (`list_sleep_daily`) y 2.5 peso/composición (`list_weight`) — tools que consultan Garmin en el momento con las credenciales guardadas (no requieren re-sync). Campos exactos de los tipos de la librería.
+>
+> **Fase 4 (escritura) — decisión tomada:** el MCP usa `garmin_creds` (ya guardadas en `user_storage`) **server-side**; las credenciales nunca salen hacia el cliente/LLM. Sin cifrado extra ni cambios en la app. Tools: `list_garmin_workouts`, `create_garmin_workout` (estructurado, con repeticiones y objetivos), `update_garmin_workout` (mismo id), `delete_garmin_workout`. Constructor de JSON verificado; **falta un smoke test real** (crear un entreno de prueba, verlo en Garmin Connect, borrarlo) por si algún ID de enum necesita ajuste.
+>
+> Pendiente: 2.2 readiness, 2.3 estado de forma/VO2max/umbral, 2.6 nutrición, 2.7 carreras/planificados (esperando `garmin-fitness-dump.json`), y 4.4 rutas/courses.
 
 ---
 
@@ -136,7 +141,7 @@ Hoy solo tienes semanal. Falta el diario.
   guardar bajo `garmin_sleep_daily`; `getSleepDaily` + tool `list_sleep_daily` en
   [mcp-store.js](../api/_lib/mcp-store.js) + [api/mcp.js](../api/mcp.js).
 - **Esfuerzo**: medio (patrón de 4 pasos completo).
-- [ ] Implementado
+- [x] Implementado
 
 ### 2.2 · Training Readiness  (tu punto 6)
 - **Qué**: score + nivel diario.
@@ -170,7 +175,7 @@ Hoy `get_activity` sirve los laps **de Strava** (sin tipo INTERVAL/REST). Para 4
 - **De dónde**: `weight-service/weight/dateRange` o `getBodyComposition`.
 - **Dónde**: patrón 4 pasos → clave `garmin_weight`, tool `list_weight`. Útil para vatios/kg.
 - **Esfuerzo**: bajo.
-- [ ] Implementado
+- [x] Implementado
 
 ### 2.6 · Nutrición  (tu punto 12)
 - **De dónde**: diario de calorías/macros de Garmin (o del origen que uses).
@@ -245,17 +250,17 @@ Para escribir en Garmin necesitas credenciales/sesión en el momento de la llama
 ### 4.1 · Crear entreno estructurado en el calendario Garmin  (punto 15)
 - **De dónde**: `workout-service/workout` (POST) + `schedule`.
 - **Tool**: `create_garmin_workout` (bloques por tiempo/distancia, objetivo de zona/ritmo/potencia).
-- [ ] Implementado
+- [x] Implementado
 
 ### 4.2 · Modificar un entreno existente sin duplicarlo  (punto 16)
 - **De dónde**: `workout-service/workout/{id}` (PUT). Prerrequisito: `list_planned_workouts` (#2.7).
 - **Tool**: `update_garmin_workout`.
-- [ ] Implementado
+- [x] Implementado
 
 ### 4.3 · Borrar un entreno  (punto 17)
 - **De dónde**: `workout-service/workout/{id}` (DELETE).
 - **Tool**: `delete_garmin_workout`.
-- [ ] Implementado
+- [x] Implementado
 
 ### 4.4 · Trazar rutas (courses) sobre OSM  (punto 18)
 - **De dónde**: `course-service/course` (POST) con geometría; routing sobre OSM (OSRM/BRouter).

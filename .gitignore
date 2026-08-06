@@ -26,3 +26,4 @@ dist-ssr
 
 # Volcados de diagnóstico con datos personales de Garmin (no subir)
 garmin-details-dump.json
+garmin-fitness-dump.json

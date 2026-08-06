@@ -16,6 +16,10 @@ import {
   shapeDynamicsRow, getHrvResting, getSleep,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
+import {
+  createWorkout, updateWorkout, deleteWorkout, listWorkouts,
+} from './_lib/garmin-write.js';
+import { getSleepDaily, getWeightRange } from './_lib/garmin-live.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)' };
@@ -78,6 +82,16 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
   },
   {
+    name: 'list_sleep_daily',
+    description: 'Sueño noche a noche (Garmin, en vivo): fases profundo/REM/ligero/despierto, score, estrés nocturno, respiración, HRV nocturna y FC reposo. Rango por defecto: últimos 14 días (usa from/to para más).',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
+    name: 'list_weight',
+    description: 'Peso y composición corporal por día (báscula, en vivo): peso, IMC, % grasa, masa muscular, % agua. Rango por defecto: últimos 14 días (usa from/to para más).',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
     name: 'get_training_load_model',
     description: 'Modelo de Banister: serie diaria de carga crónica (CTL), aguda (ATL) y forma (TSB) con la rampa semanal, desde el training_load de Garmin.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
@@ -91,6 +105,77 @@ const TOOLS = [
     name: 'detect_threshold_efforts',
     description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  // ── Escritura en Garmin (usa las credenciales guardadas del usuario) ───────
+  {
+    name: 'list_garmin_workouts',
+    description: 'Lista los entrenos guardados en Garmin (id, nombre, deporte, fecha) para poder editarlos o borrarlos.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'Máx. resultados (tope 100)' } } },
+  },
+  {
+    name: 'create_garmin_workout',
+    description: 'Crea un entreno estructurado de carrera en Garmin (se sincroniza al reloj). Spec de alto nivel con pasos por tiempo/distancia y objetivo opcional de ritmo/FC/potencia; soporta repeticiones (p.ej. 4×(interval+recovery)).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        steps: {
+          type: 'array',
+          description: 'Lista de pasos. Cada paso: { kind, duration:{type,value,unit}, target? } o { kind:"repeat", repeats, steps:[...] }.',
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: ['warmup', 'interval', 'recovery', 'rest', 'cooldown', 'repeat'] },
+              repeats: { type: 'number', description: 'Solo kind=repeat: nº de repeticiones' },
+              steps: { type: 'array', description: 'Solo kind=repeat: pasos internos', items: { type: 'object' } },
+              duration: {
+                type: 'object',
+                properties: {
+                  type: { type: 'string', enum: ['distance', 'time', 'lap.button'] },
+                  value: { type: 'number' },
+                  unit: { type: 'string', enum: ['m', 'km', 's', 'min'] },
+                },
+              },
+              target: {
+                type: 'object',
+                properties: {
+                  type: { type: 'string', enum: ['no.target', 'pace', 'heart.rate', 'power', 'cadence'] },
+                  low: { type: 'number', description: 'pace en min/km; FC en bpm; potencia en W; cadencia en spm' },
+                  high: { type: 'number' },
+                  zone: { type: 'number', description: 'nº de zona en vez de rango' },
+                },
+              },
+            },
+            required: ['kind'],
+          },
+        },
+      },
+      required: ['name', 'steps'],
+    },
+  },
+  {
+    name: 'update_garmin_workout',
+    description: 'Modifica un entreno existente en Garmin SIN duplicarlo (mismo workout_id). Misma spec que create_garmin_workout.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workout_id: { type: ['string', 'number'] },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        steps: { type: 'array', items: { type: 'object' } },
+      },
+      required: ['workout_id', 'name', 'steps'],
+    },
+  },
+  {
+    name: 'delete_garmin_workout',
+    description: 'Borra un entreno de Garmin por su workout_id (usa list_garmin_workouts para obtenerlo).',
+    inputSchema: {
+      type: 'object',
+      properties: { workout_id: { type: ['string', 'number'] } },
+      required: ['workout_id'],
+    },
   },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
   {
@@ -112,6 +197,9 @@ const TOOLS = [
     },
   },
 ];
+
+// Las tools en vivo/escritura hacen login + varias peticiones a Garmin: damos margen.
+export const config = { maxDuration: 60 };
 
 const text = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
 
@@ -167,12 +255,25 @@ async function runTool(userId, name, args = {}) {
       return text({ rows: await getHrvResting(userId, args) });
     case 'list_sleep':
       return text({ weeks: await getSleep(userId, args) });
+    case 'list_sleep_daily':
+      return text(await getSleepDaily(userId, args));
+    case 'list_weight':
+      return text(await getWeightRange(userId, args));
     case 'get_training_load_model':
       return text(await getTrainingLoadModel(userId, args));
     case 'get_health_alerts':
       return text(await getHealthAlerts(userId, args));
     case 'detect_threshold_efforts':
       return text(await detectThresholdTests(userId, args));
+
+    case 'list_garmin_workouts':
+      return text(await listWorkouts(userId, args));
+    case 'create_garmin_workout':
+      return text(await createWorkout(userId, args));
+    case 'update_garmin_workout':
+      return text(await updateWorkout(userId, args.workout_id, args));
+    case 'delete_garmin_workout':
+      return text(await deleteWorkout(userId, args.workout_id));
 
     case 'search': {
       const q = String(args.query || '').toLowerCase().trim();
