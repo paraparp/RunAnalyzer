@@ -299,7 +299,7 @@ const DYNAMICS_METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct',
  * ahí), con Strava como enriquecimiento opcional por hora de inicio. Incluye un
  * bloque `_diagnostics` que localiza en qué capa se rompe si salen cero filas.
  */
-export async function listRunningDynamics(userId, { from, to } = {}) {
+export async function listRunningDynamics(userId, { from, to, limit = 50, offset = 0 } = {}) {
   const garmin = await getGarminActivitiesRaw(userId);
   const stravaRaw = await readKey(userId, 'stravaData');
   const stravaList = Array.isArray(stravaRaw) ? stravaRaw : (stravaRaw?.activities || []);
@@ -332,10 +332,13 @@ export async function listRunningDynamics(userId, { from, to } = {}) {
     const vals = rows.map((r) => r[key]).filter((v) => typeof v === 'number');
     return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
   };
+  const off = Math.max(0, offset);
+  const lim = Math.min(200, Math.max(1, limit));
   return {
-    count: rows.length,
-    averages: Object.fromEntries(DYNAMICS_METRICS.map((m) => [m, avg(m)])),
-    runs: rows,
+    count: rows.length,                                  // total en el rango
+    offset: off, limit: lim,
+    averages: Object.fromEntries(DYNAMICS_METRICS.map((m) => [m, avg(m)])), // medias sobre TODO el rango
+    runs: rows.slice(off, off + lim),                    // página, para no saturar el contexto
     _diagnostics: {
       garmin_activities_loaded: garmin.length,
       garmin_runs: runs.length,
@@ -417,6 +420,92 @@ export function summarizeActivities(list) {
     by_type,
     date_range: dates.length ? { first: dates[0], last: dates[dates.length - 1] } : null,
   };
+}
+
+// ── Personal Bests (espejo exacto de src/components/PersonalBests.jsx) ────────
+const PB_RANGES = [
+  { id: '5k', name: '5K', min: 4900, max: 5200, effortNames: ['5k'] },
+  { id: '10k', name: '10K', min: 9900, max: 10500, effortNames: ['10k'] },
+  { id: 'hm', name: 'Half Marathon', min: 21000, max: 21500, effortNames: ['half-marathon'] },
+  { id: 'fm', name: 'Marathon', min: 42000, max: 43000, effortNames: ['marathon'] },
+];
+const PB_FLAT_RANGES = [
+  { id: 'flat1k', name: 'Flat 1K', effortKey: '1k', splits: 1, min: 950, max: 1050, maxElev: 5 },
+  { id: 'flat2k', name: 'Flat 2K', effortKey: '2k', splits: 2, min: 1900, max: 2100, maxElev: 10 },
+];
+
+const fmtTime = (s) => {
+  const t = Math.round(s);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+    : `${m}:${String(sec).padStart(2, '0')}`;
+};
+
+// Candidato a PB por distancia: preferimos el best_effort de Strava; si no, la
+// distancia total dentro del rango.
+function pbCandidate(a, range) {
+  const effort = a.best_efforts?.find(
+    (e) => range.effortNames.includes(e.name?.toLowerCase()) && (e.elapsed_time || e.moving_time) > 0,
+  );
+  if (effort) {
+    return { id: a.id, name: a.name, start_date: a.start_date, time: effort.elapsed_time || effort.moving_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false };
+  }
+  const time = a.elapsed_time || a.moving_time;
+  if (a.distance >= range.min && a.distance <= range.max && time > 0) {
+    return { id: a.id, name: a.name, start_date: a.start_date, time, distance: a.distance, isEffort: false, isFlat: false };
+  }
+  return null;
+}
+
+// PB llano por parciales (fallback si no hay flat_efforts): mejor ventana de N
+// splits cuya distancia y desnivel neto cumplen el criterio.
+function pbFlatFromSplits(a, range) {
+  const splits = a.splits_metric;
+  if (!Array.isArray(splits) || splits.length < range.splits) return null;
+  let best = null;
+  for (let i = 0; i + range.splits <= splits.length; i++) {
+    const win = splits.slice(i, i + range.splits);
+    if (win.some((sp) => typeof sp.elevation_difference !== 'number')) continue;
+    const distance = win.reduce((s, sp) => s + sp.distance, 0);
+    const elevation = win.reduce((s, sp) => s + sp.elevation_difference, 0);
+    const time = win.reduce((s, sp) => s + (sp.moving_time || sp.elapsed_time || 0), 0);
+    if (Math.abs(elevation) > range.maxElev || distance < range.min || distance > range.max || time <= 0) continue;
+    if (!best || time / distance < best.time / best.distance) best = { time, distance, elevation };
+  }
+  return best;
+}
+
+function pbFlatCandidate(a, range) {
+  const eff = a.flat_efforts?.[range.effortKey];
+  const best = (eff && eff.time > 0) ? eff : pbFlatFromSplits(a, range);
+  if (!best) return null;
+  return { id: a.id, name: a.name, start_date: a.start_date, time: best.time, distance: best.distance, isEffort: true, isFlat: true };
+}
+
+/** Personal Bests (5K/10K/HM/Maratón + Flat 1K/2K), top-5 por distancia. */
+export function computePersonalBests(activities) {
+  const build = (ranges, candFn) => ranges.map((range) => {
+    const top = activities
+      .map((a) => candFn(a, range))
+      .filter(Boolean)
+      .sort((x, y) => x.time / x.distance - y.time / y.distance)
+      .slice(0, 5)
+      .map((c) => ({
+        id: c.id, name: c.name, date: c.start_date,
+        time: fmtTime(c.time), time_s: Math.round(c.time),
+        pace_per_km: calcPace(c.distance / c.time),
+        distance_m: Math.round(c.distance),
+        is_effort: !!c.isEffort, is_flat: !!c.isFlat,
+      }));
+    return top.length ? { id: range.id, name: range.name, pr: top[0], top } : null;
+  }).filter(Boolean);
+  return [...build(PB_FLAT_RANGES, pbFlatCandidate), ...build(PB_RANGES, pbCandidate)];
+}
+
+export async function getPersonalBests(userId) {
+  const all = await getActivities(userId);
+  return { records: computePersonalBests(all) };
 }
 
 /** VFC nocturna + FC reposo por día (garmin_cardiac_data). */

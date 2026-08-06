@@ -13,7 +13,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
-  listRunningDynamics, getHrvResting, getSleep,
+  listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
 import {
@@ -67,11 +67,20 @@ const TOOLS = [
   },
   {
     name: 'list_running_dynamics',
-    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC (banda/muñeca) por carrera, correlacionadas con Strava. Incluye medias del periodo para agregar.',
+    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC (banda/muñeca) por carrera. Medias sobre todo el rango + runs paginados.',
     inputSchema: {
       type: 'object',
-      properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
+      properties: {
+        from: dateArg, to: dateArg,
+        limit: { type: 'number', description: 'Máx. runs devueltos (por defecto 50, tope 200)' },
+        offset: { type: 'number', description: 'Desplazamiento para paginar' },
+      },
     },
+  },
+  {
+    name: 'get_personal_bests',
+    description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia con tiempo, ritmo, fecha y si es parcial/llano. Igual que el panel de la app.',
+    inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'list_hrv_resting',
@@ -253,6 +262,8 @@ async function runTool(userId, name, args = {}) {
     }
     case 'list_running_dynamics':
       return text(await listRunningDynamics(userId, args));
+    case 'get_personal_bests':
+      return text(await getPersonalBests(userId));
     case 'list_hrv_resting':
       return text({ rows: await getHrvResting(userId, args) });
     case 'list_sleep':
