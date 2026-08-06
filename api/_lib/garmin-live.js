@@ -7,8 +7,14 @@
 // ============================================================================
 import { getGarminClientFor } from './garmin-session.js';
 
+const API = 'https://connectapi.garmin.com';
 const round = (n, d = 1) => (n == null ? null : parseFloat(Number(n).toFixed(d)));
 const secToMin = (s) => (s == null ? null : Math.round(s / 60));
+const todayISO = () => new Date().toISOString().slice(0, 10);
+// Los DTO de Garmin vienen indexados por deviceId (clave dinámica): coge el primero.
+const firstDevice = (map) => (map && typeof map === 'object' ? Object.values(map)[0] : null);
+// "PRODUCTIVE_6" → "PRODUCTIVE"
+const cleanPhrase = (p) => (p ? String(p).replace(/_\d+$/, '') : null);
 
 // Genera las fechas YYYY-MM-DD del rango [from, to] (máx. `cap` días, recientes primero).
 function dateRange(from, to, cap = 31) {
@@ -74,4 +80,103 @@ export async function getWeightRange(userId, { from, to } = {}) {
     } catch { /* día sin pesada */ }
   }
   return { count: rows.length, weights: rows };
+}
+
+/** Training readiness: score, nivel y factores (sueño, recuperación, ACWR, VFC). */
+export async function getTrainingReadiness(userId, { date } = {}) {
+  const client = await getGarminClientFor(userId);
+  const d = date || todayISO();
+  const arr = await client.client.get(`${API}/metrics-service/metrics/trainingreadiness/${d}`);
+  const r = Array.isArray(arr) && arr.length ? arr[0] : null; // más reciente del día
+  if (!r) return { date: d, readiness: null };
+  return {
+    date: r.calendarDate || d,
+    readiness: {
+      score: r.score ?? null,
+      level: r.level ?? null,                          // LOW / MODERATE / HIGH …
+      feedback: r.feedbackShort ?? null,
+      recovery_time_h: r.recoveryTime != null ? round(r.recoveryTime / 60, 1) : null,
+      acute_load: r.acuteLoad ?? null,
+      hrv_weekly_avg: r.hrvWeeklyAverage ?? null,
+      sleep_score: r.sleepScore ?? null,
+      factors: {
+        sleep: r.sleepScoreFactorFeedback ?? null,
+        recovery: r.recoveryTimeFactorFeedback ?? null,
+        acwr: r.acwrFactorFeedback ?? null,
+        hrv: r.hrvFactorFeedback ?? null,
+        stress: r.stressHistoryFactorFeedback ?? null,
+      },
+    },
+  };
+}
+
+/** Estado de forma: VO2max carrera/ciclismo, training status, carga aguda/crónica y ACWR. */
+export async function getFitnessStatus(userId, { date } = {}) {
+  const client = await getGarminClientFor(userId);
+  const d = date || todayISO();
+  const ts = await client.client.get(`${API}/metrics-service/metrics/trainingstatus/aggregated/${d}`);
+  const status = firstDevice(ts?.mostRecentTrainingStatus?.latestTrainingStatusData);
+  const acute = status?.acuteTrainingLoadDTO;
+  const balance = firstDevice(ts?.mostRecentTrainingLoadBalance?.metricsTrainingLoadBalanceDTOMap);
+  const vo2 = ts?.mostRecentVO2Max;
+  let endurance = null, hill = null;
+  try {
+    const e = await client.client.get(`${API}/metrics-service/metrics/endurancescore?calendarDate=${d}`);
+    if (e?.overallScore != null) endurance = { score: e.overallScore, classification: e.classification ?? null };
+  } catch { /* sin endurance score */ }
+  try {
+    const h = await client.client.get(`${API}/metrics-service/metrics/hillscore?calendarDate=${d}`);
+    if (h?.overallScore != null) hill = { score: h.overallScore, strength: h.strengthScore ?? null, endurance: h.enduranceScore ?? null };
+  } catch { /* sin hill score */ }
+  return {
+    date: d,
+    vo2max_running: vo2?.generic?.vo2MaxPreciseValue ?? null,
+    vo2max_cycling: vo2?.cycling?.vo2MaxPreciseValue ?? null,
+    fitness_age: vo2?.generic?.fitnessAge ?? null,
+    training_status: cleanPhrase(status?.trainingStatusFeedbackPhrase),
+    training_status_code: status?.trainingStatus ?? null,
+    acute_load: acute?.dailyTrainingLoadAcute ?? null,
+    chronic_load: acute?.dailyTrainingLoadChronic ?? null,
+    acwr: acute?.dailyAcuteChronicWorkloadRatio ?? null,        // ratio agudo/crónico
+    acwr_status: acute?.acwrStatus ?? null,
+    load_balance: balance ? {
+      aerobic_low: round(balance.monthlyLoadAerobicLow, 0),
+      aerobic_high: round(balance.monthlyLoadAerobicHigh, 0),
+      anaerobic: round(balance.monthlyLoadAnaerobic, 0),
+      feedback: balance.trainingBalanceFeedbackPhrase ?? null,
+    } : null,
+    heat_acclimation_pct: vo2?.heatAltitudeAcclimation?.heatAcclimationPercentage ?? null,
+    endurance_score: endurance,
+    hill_score: hill,
+  };
+}
+
+/** Entrenos planificados y carreras del calendario (próximos `months` meses). */
+export async function getPlannedWorkouts(userId, { months = 3 } = {}) {
+  const client = await getGarminClientFor(userId);
+  const now = new Date();
+  const items = [];
+  for (let i = 0; i < Math.min(Math.max(months, 1), 6); i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    try {
+      const cal = await client.client.get(`${API}/calendar-service/year/${dt.getFullYear()}/month/${dt.getMonth()}`);
+      for (const it of cal?.calendarItems || []) {
+        if (it.itemType === 'workout' || it.isRace) {
+          items.push({
+            date: it.date,
+            title: it.title,
+            type: it.itemType,
+            sport: it.sportTypeKey ?? null,
+            is_race: !!it.isRace,
+            workout_id: it.workoutId ?? null,
+            calendar_id: it.id ?? null,
+            course: it.courseName ?? null,
+          });
+        }
+      }
+    } catch { /* mes sin calendario */ }
+  }
+  const today = todayISO();
+  const upcoming = items.filter((x) => x.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  return { count: upcoming.length, planned: upcoming };
 }

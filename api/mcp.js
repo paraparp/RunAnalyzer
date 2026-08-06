@@ -19,7 +19,9 @@ import {
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts,
 } from './_lib/garmin-write.js';
-import { getSleepDaily, getWeightRange } from './_lib/garmin-live.js';
+import {
+  getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
+} from './_lib/garmin-live.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)' };
@@ -90,6 +92,21 @@ const TOOLS = [
     name: 'list_weight',
     description: 'Peso y composición corporal por día (báscula, en vivo): peso, IMC, % grasa, masa muscular, % agua. Rango por defecto: últimos 14 días (usa from/to para más).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+  },
+  {
+    name: 'get_training_readiness',
+    description: 'Training readiness de Garmin (en vivo): score y nivel del día con sus factores (sueño, tiempo de recuperación, ACWR, VFC, estrés). Opcional: date.',
+    inputSchema: { type: 'object', properties: { date: dateArg } },
+  },
+  {
+    name: 'get_fitness_status',
+    description: 'Estado de forma de Garmin (en vivo): VO2max carrera y ciclismo, training status, carga aguda/crónica y ratio ACWR, balance aeróbico/anaeróbico, y scores de resistencia/colina. Opcional: date.',
+    inputSchema: { type: 'object', properties: { date: dateArg } },
+  },
+  {
+    name: 'list_planned_workouts',
+    description: 'Entrenos planificados y carreras futuras del calendario de Garmin (en vivo), con fecha, título, deporte y bandera de carrera. Por defecto los próximos 3 meses.',
+    inputSchema: { type: 'object', properties: { months: { type: 'number', description: 'Nº de meses a mirar (tope 6)' } } },
   },
   {
     name: 'get_training_load_model',
@@ -259,6 +276,12 @@ async function runTool(userId, name, args = {}) {
       return text(await getSleepDaily(userId, args));
     case 'list_weight':
       return text(await getWeightRange(userId, args));
+    case 'get_training_readiness':
+      return text(await getTrainingReadiness(userId, args));
+    case 'get_fitness_status':
+      return text(await getFitnessStatus(userId, args));
+    case 'list_planned_workouts':
+      return text(await getPlannedWorkouts(userId, args));
     case 'get_training_load_model':
       return text(await getTrainingLoadModel(userId, args));
     case 'get_health_alerts':

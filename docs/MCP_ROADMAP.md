@@ -20,7 +20,8 @@ qué falta, **dónde se toca** (archivos reales), el **esfuerzo** y una casilla.
 >
 > **Fase 4 (escritura) — decisión tomada:** el MCP usa `garmin_creds` (ya guardadas en `user_storage`) **server-side**; las credenciales nunca salen hacia el cliente/LLM. Sin cifrado extra ni cambios en la app. Tools: `list_garmin_workouts`, `create_garmin_workout` (estructurado, con repeticiones y objetivos), `update_garmin_workout` (mismo id), `delete_garmin_workout`. Constructor de JSON verificado; **falta un smoke test real** (crear un entreno de prueba, verlo en Garmin Connect, borrarlo) por si algún ID de enum necesita ajuste.
 >
-> Pendiente: 2.2 readiness, 2.3 estado de forma/VO2max/umbral, 2.6 nutrición, 2.7 carreras/planificados (esperando `garmin-fitness-dump.json`), y 4.4 rutas/courses.
+> **Cerrado con el dump de forma:** 2.2 readiness (`get_training_readiness`), 2.3 estado de forma (`get_fitness_status`: VO2max carrera/ciclismo, training status, carga aguda/crónica, ACWR, balance, endurance/hill score), 2.7 planificados + carreras (`list_planned_workouts`).
+> **Pendiente (lo menos crítico):** 2.6 nutrición y 4.4 rutas/courses. Nota: el umbral de lactato de Garmin no se expone aún (pero `detect_threshold_efforts` ya estima LTHR desde los tests).
 
 ---
 
@@ -149,7 +150,7 @@ Hoy solo tienes semanal. Falta el diario.
 - **Dónde**: patrón 4 pasos → clave `garmin_readiness`, tool `list_training_readiness`.
   Se puede fusionar con `garmin_cardiac_data` (mismo eje: por día) para no crear otra tool.
 - **Esfuerzo**: bajo-medio.
-- [ ] Implementado
+- [x] Implementado
 
 ### 2.3 · Métricas de forma Garmin  (tu punto 7)
 - **Qué**: VO2max carrera (ya) **y ciclismo**, umbral de lactato estimado, estado de
@@ -157,7 +158,7 @@ Hoy solo tienes semanal. Falta el diario.
 - **De dónde**: `metrics-service/metrics/maxmet/...`, `training-status`, `lactate-threshold`.
 - **Dónde**: patrón 4 pasos → clave `garmin_fitness`, tool `get_fitness_status`.
 - **Esfuerzo**: medio.
-- [ ] Implementado
+- [x] Implementado
 
 ### 2.4 · Laps reales de Garmin  ⭐ (tu punto 9 — top 5)
 Hoy `get_activity` sirve los laps **de Strava** (sin tipo INTERVAL/REST). Para 4×8′ no valen los splits por km.
@@ -186,7 +187,7 @@ Hoy `get_activity` sirve los laps **de Strava** (sin tipo INTERVAL/REST). Para 4
 - **De dónde**: `calendar-service` (eventos) y `workout-service/workouts` (planificados).
 - **Dónde**: dos tools de lectura → `list_races`, `list_planned_workouts`.
 - **Esfuerzo**: bajo-medio. **Prerrequisito natural de la Fase 4** (para editar hay que leer primero).
-- [ ] Implementado
+- [x] Implementado
 
 ---
 
