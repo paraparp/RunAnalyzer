@@ -52,7 +52,9 @@ function execStep(order, step) {
   if (durType === 'distance') {
     const u = step.duration.unit || 'm';
     endValue = u === 'km' ? step.duration.value * 1000 : step.duration.value;
-    unit = { unitKey: 'meter' };
+    // Garmin guarda el valor en metros pero muestra en km (como la plantilla de la
+    // librería): así un paso de 5000 m se ve "5.00 km" en el reloj, no "5000 m".
+    unit = { unitKey: 'kilometer' };
   } else if (durType === 'time') {
     const u = step.duration.unit || 's';
     endValue = u === 'min' ? step.duration.value * 60 : step.duration.value;
