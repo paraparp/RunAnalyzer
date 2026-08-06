@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Volcados de diagnóstico con datos personales de Garmin (no subir)
+garmin-details-dump.json

@@ -79,11 +79,29 @@ export function shapeSummary(a) {
       : { speed_kmh: round((a.average_speed || 0) * 3.6, 1) }),
     avg_hr: a.average_heartrate ?? null,
     max_hr: a.max_heartrate ?? null,
+    hr_source: a._garmin?.hr_source ?? null, // 'strap' | 'wrist' | 'unknown'
     elevation_gain_m: a.total_elevation_gain ?? null,
     has_laps: !!(a.laps && a.laps.length),
     has_garmin: !!a._garmin, // hay running dynamics de la banda correlacionados
   };
 }
+
+/** Lap real del reloj (garmin) con ritmo/GAP formateados. */
+const shapeGarminLap = (l) => ({
+  lap_index: l.lap_index,
+  intensity_type: l.intensity_type,          // INTERVAL / REST / RECOVERY / ACTIVE …
+  distance_km: round(l.distance_m / 1000),
+  duration_min: round(l.duration_s / 60),
+  pace_per_km: calcPace(l.avg_speed_ms),
+  gap_pace_per_km: l.gap_speed_ms ? calcPace(l.gap_speed_ms) : null,
+  avg_hr: l.avg_hr ?? null,
+  max_hr: l.max_hr ?? null,
+  cadence_spm: l.cadence_spm ?? null,
+  avg_power_w: l.avg_power_w ?? null,
+  norm_power_w: l.norm_power_w ?? null,
+  gct_balance_pct: l.gct_balance_pct ?? null,
+  elevation_gain_m: l.elevation_gain_m ?? null,
+});
 
 /** Detalle completo: incluye parciales, splits, best/flat efforts y polyline. */
 export function shapeFull(a) {
@@ -93,9 +111,13 @@ export function shapeFull(a) {
     garmin: a._garmin
       ? {
           garmin_id: a._garmin.garmin_id,
+          hr_source: a._garmin.hr_source ?? null,      // banda vs muñeca
+          data_quality: a._garmin.data_quality ?? null,
           dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
           power: a._garmin.power,            // vatios de carrera
           training: a._garmin.training,      // training effect, carga, VO2max
+          weather: a._garmin.weather ?? null, // temp, humedad, WBGT y penalización por calor
+          laps: (a._garmin.laps || []).map(shapeGarminLap), // laps reales del reloj con tipo
           calories: a._garmin.calories,
           steps: a._garmin.steps,
         }
@@ -244,6 +266,7 @@ export function shapeDynamicsRow(a) {
     distance_km: round(a.distance / 1000),
     pace_per_km: isRunning(a) ? calcPace(a.average_speed) : null,
     avg_hr: a.average_heartrate ?? null,
+    hr_source: g.hr_source ?? null, // clave para no mezclar FC de muñeca con banda
     cadence_spm: g.dynamics.cadence_spm,
     ground_contact_ms: g.dynamics.ground_contact_ms,
     gct_balance_pct: g.dynamics.gct_balance_pct,
@@ -259,12 +282,13 @@ export function shapeDynamicsRow(a) {
 }
 
 export function filterActivities(list, {
-  from, to, sport, only_running, min_distance_km, max_distance_km, hr_min, hr_max, flat_only,
+  from, to, sport, only_running, min_distance_km, max_distance_km, hr_min, hr_max, flat_only, hr_source,
 } = {}) {
   return list.filter((a) => {
     if (!inRange(a.start_date, from, to)) return false;
     if (only_running && !isRunning(a)) return false;
     if (sport && a.type !== sport && a.sport_type !== sport) return false;
+    if (hr_source && (a._garmin?.hr_source ?? 'unknown') !== hr_source) return false;
     const km = (a.distance || 0) / 1000;
     if (min_distance_km && km < min_distance_km) return false;
     if (max_distance_km && km > max_distance_km) return false;

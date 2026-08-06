@@ -36,6 +36,7 @@ const TOOLS = [
         hr_min: { type: 'number', description: 'FC media mínima (bpm)' },
         hr_max: { type: 'number', description: 'FC media máxima (bpm)' },
         flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
+        hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Filtra por origen de la FC (banda/muñeca)' },
         limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
         offset: { type: 'number', description: 'Desplazamiento para paginar (por defecto 0)' },
       },
@@ -43,7 +44,7 @@ const TOOLS = [
   },
   {
     name: 'get_activity',
-    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos y polyline.',
+    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos, polyline, desacoplamiento, GAP y (si hay Garmin) origen de FC, laps reales con tipo INTERVAL/REST, potencia por lap y WBGT.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: ['string', 'number'], description: 'ID de la actividad Strava' } },
@@ -60,7 +61,7 @@ const TOOLS = [
   },
   {
     name: 'list_running_dynamics',
-    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, training effect, VO2max) por carrera, correlacionadas con Strava. Incluye medias del periodo para agregar.',
+    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC (banda/muñeca) por carrera, correlacionadas con Strava. Incluye medias del periodo para agregar.',
     inputSchema: {
       type: 'object',
       properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },

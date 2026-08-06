@@ -14,7 +14,8 @@ qué falta, **dónde se toca** (archivos reales), el **esfuerzo** y una casilla.
 > `get_training_load_model`, `get_health_alerts`, `detect_threshold_efforts`, y
 > `list_activities` acepta `hr_min/hr_max/max_distance_km/flat_only`. `get_activity`
 > ahora devuelve `decoupling` y `gap`.
-> Pendiente: lo que requiere **ingesta nueva** (1.1, 1.4, Fase 2) y **escritura** (Fase 4).
+> **Añadido con datos reales de Garmin (dump verificado):** 1.1 origen de FC (`hr_source` strap/wrist + filtro en `list_activities`), 1.4 WBGT y penalización por calor (del weather de Garmin), 2.4 laps reales con `intensity_type`, potencia y balance por lap. Requieren **re-sincronizar Garmin en la app** para poblar los nuevos campos.
+> Pendiente: resto de Fase 2 (sueño diario, readiness, fitness, peso, nutrición, calendario) y **escritura** (Fase 4).
 
 ---
 
@@ -84,7 +85,7 @@ Evita el error de mezclar FC de muñeca con FC de banda.
   - Shape: añadir `hr_source` y `data_quality` en `normalizeGarminActivity` y exponerlo en
     `shapeFull`/`shapeDynamicsRow` ([mcp-store.js](../api/_lib/mcp-store.js)).
 - **Esfuerzo**: medio (ingesta extra por actividad).
-- [ ] Implementado
+- [x] Implementado
 
 ### 1.2 · Desacoplamiento / durabilidad  ⭐ (tu punto 2 — mejor predictor de maratón)
 **Cálculo puro sobre datos que ya tienes** (`splits_metric` con `average_heartrate` y `average_speed`).
@@ -118,7 +119,7 @@ Ya tienes `flat_efforts` y `grade_adjusted_speed` en el stream. Falta el **agreg
 - **Dónde**: nueva `fetchWeatherForActivity` (helper propio, no Garmin) + cálculo WBGT en
   [mcp-store.js](../api/_lib/mcp-store.js). Cachear el resultado en la actividad para no repetir.
 - **Esfuerzo**: medio (integración externa nueva, pero simple).
-- [ ] Implementado
+- [x] Implementado
 
 ---
 
@@ -163,7 +164,7 @@ Hoy `get_activity` sirve los laps **de Strava** (sin tipo INTERVAL/REST). Para 4
   `laps_garmin` en cada item de `garmin_activities`; exponer en `shapeFull` sustituyendo/
   complementando los laps de Strava cuando existan.
 - **Esfuerzo**: medio (comparte llamada de detalle con #1.1 → hazlos juntos).
-- [ ] Implementado
+- [x] Implementado
 
 ### 2.5 · Peso y composición corporal  (tu punto 11)
 - **De dónde**: `weight-service/weight/dateRange` o `getBodyComposition`.

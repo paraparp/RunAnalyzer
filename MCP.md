@@ -11,12 +11,15 @@ despliega con la app: no hay servicio aparte que mantener.
 
 | Tool | Descripción |
 |------|-------------|
-| `list_activities` | Lista de actividades Strava (resumen) con filtros `from/to/sport/only_running/min_distance_km` y paginación. |
-| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`), polyline y **running dynamics de Garmin** si la carrera está correlacionada. |
+| `list_activities` | Lista de actividades Strava (resumen) con filtros `from/to/sport/only_running/min_distance_km/max_distance_km/hr_min/hr_max/flat_only/hr_source` y paginación. |
+| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`), polyline, **desacoplamiento** (deriva cardíaca) y **GAP**; si la carrera está correlacionada con Garmin: **origen de FC** (banda/muñeca), **laps reales** con tipo INTERVAL/REST, potencia y balance por lap, **WBGT** y running dynamics. |
 | `activity_stats` | Agregados de un rango: total km, tiempo, desnivel y desglose por tipo. |
-| `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, training effect, VO2max) fusionadas con Strava, **con medias del periodo** para agregar. |
+| `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y **origen de FC**, fusionadas con Strava, **con medias del periodo** para agregar. |
 | `list_hrv_resting` | VFC nocturna + FC reposo por día (Garmin), con Body Battery si existe. |
 | `list_sleep` | Sueño semanal (Garmin): duración, fases y score. |
+| `get_training_load_model` | Modelo de Banister: serie diaria CTL/ATL/TSB con rampa semanal (desde `training_load` de Garmin). |
+| `get_health_alerts` | Alertas de patrón (firma de infección/sobrecarga): Body Battery bajo o VFC↓ con FC reposo↑. |
+| `detect_threshold_efforts` | Detecta tests de umbral (bloque ≥88% FCmax) → LTHR y ritmo umbral, con bandera de estabilización de FC. |
 | `search` / `fetch` | Contrato de conectores de ChatGPT (buscar actividades → recuperar documento). |
 
 **Nunca** se exponen credenciales: el MCP solo lee `stravaData.activities`,
@@ -37,6 +40,12 @@ potencia, training effect, VO2max). Se obtienen así:
 
 Por tanto, para que aparezcan, hay que haber sincronizado Garmin en la app. Las
 carreras sin coincidencia salen con `has_garmin: false` y sin bloque `garmin`.
+
+Además, al sincronizar se **enriquecen las carreras más recientes** con su detalle
+(`activity-service/activity/{id}` + `/splits` + `/weather`): de ahí salen el **origen
+de FC** (`hr_source`: banda/muñeca), los **laps reales** con su tipo (INTERVAL/REST…),
+la potencia y el balance L/D por lap, y el **WBGT** con la penalización por calor. Estos
+campos solo aparecen tras **re-sincronizar Garmin** (los caches antiguos no los tienen).
 
 ## Puesta en marcha
 

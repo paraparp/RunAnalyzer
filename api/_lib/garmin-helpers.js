@@ -203,8 +203,120 @@ export function normalizeGarminActivity(a) {
   };
 }
 
-/** Lista las últimas `limit` actividades de Garmin con sus running dynamics. */
-export async function fetchGarminActivities(client, limit = 100) {
+// ── Enriquecido por actividad (detalle): origen de FC, laps reales, WBGT ──────
+// El activitylist-service no trae estos campos; hay que pedir el detalle por id.
+
+const HR_SENSOR_TYPES = new Set(['HEART_RATE', 'HEARTRATE', 'HRM']);
+
+/** banda vs muñeca a partir de los sensores conectados (metadataDTO.sensors). */
+export function deriveHrSource(metadataDTO, summaryDTO) {
+  const sensors = Array.isArray(metadataDTO?.sensors) ? metadataDTO.sensors : [];
+  const hasStrap = sensors.some((s) =>
+    HR_SENSOR_TYPES.has(String(s.bleDeviceType || '').toUpperCase()) ||
+    HR_SENSOR_TYPES.has(String(s.antDeviceType || '').toUpperCase()));
+  if (hasStrap) return 'strap';
+  if (summaryDTO?.averageHR != null) return 'wrist';
+  return 'unknown';
+}
+
+/** Calidad de datos: origen de FC + si había medidor de potencia externo. */
+export function deriveDataQuality(metadataDTO, summaryDTO) {
+  const sensors = Array.isArray(metadataDTO?.sensors) ? metadataDTO.sensors : [];
+  const asStr = (s) => `${s.bleDeviceType || ''} ${s.antDeviceType || ''} ${s.sku || ''}`.toUpperCase();
+  return {
+    hr_source: deriveHrSource(metadataDTO, summaryDTO),
+    external_power_meter: sensors.some((s) => /POWER|STRYD/.test(asStr(s))),
+    sensor_count: sensors.length,
+  };
+}
+
+// Temperatura de Garmin: puede venir en °F (según ajustes de la cuenta). Heurística:
+// por encima de 45 la tratamos como Fahrenheit (poco realista en °C para correr).
+const toCelsius = (t) => (t == null ? null : t > 45 ? (t - 32) * 5 / 9 : t);
+
+/** WBGT (aprox. sombra, fórmula BoM) y penalización de ritmo estimada por calor. */
+export function computeWbgt(weather) {
+  if (!weather || weather.temp == null || weather.relativeHumidity == null) return null;
+  const ta = toCelsius(weather.temp);
+  const rh = weather.relativeHumidity;
+  if (ta == null) return null;
+  const e = (rh / 100) * 6.105 * Math.exp((17.27 * ta) / (237.7 + ta)); // presión de vapor (hPa)
+  const wbgt = 0.567 * ta + 0.393 * e + 3.94;
+  // Modelo lineal simple (estimación): sin coste por debajo de ~12 °C WBGT.
+  const penalty = wbgt <= 12 ? 0 : Math.min(12, (wbgt - 12) * 0.65);
+  return {
+    temp_c: g1(ta),
+    dew_point_c: g1(toCelsius(weather.dewPoint)),
+    humidity_pct: rh,
+    wbgt_c: g1(wbgt),
+    heat_penalty_pct: g1(penalty),
+    condition: weather.weatherTypeDTO?.desc ?? null,
+  };
+}
+
+/** Lap real del reloj (splits.lapDTOs) → shape compacto con tipo e intensidad. */
+export function normalizeGarminLap(l) {
+  return {
+    lap_index: l.lapIndex ?? null,
+    intensity_type: l.intensityType ?? null, // INTERVAL / REST / RECOVERY / ACTIVE / WARMUP …
+    distance_m: gnum(l.distance),
+    duration_s: g1(l.duration),
+    avg_speed_ms: gnum(l.averageSpeed),
+    gap_speed_ms: gnum(l.avgGradeAdjustedSpeed),
+    avg_hr: gnum(l.averageHR),
+    max_hr: gnum(l.maxHR),
+    cadence_spm: g1(l.averageRunCadence),
+    avg_power_w: gnum(l.averagePower),
+    norm_power_w: gnum(l.normalizedPower),
+    gct_balance_pct: g1(l.groundContactBalanceLeft),
+    elevation_gain_m: g1(l.elevationGain),
+  };
+}
+
+/** Pide el detalle de una actividad y le añade hr_source, data_quality, laps y weather. */
+export async function enrichGarminActivity(client, base) {
+  const id = base.garmin_id;
+  try {
+    const summary = await client.client.get(
+      `https://connectapi.garmin.com/activity-service/activity/${id}`
+    );
+    base.hr_source = deriveHrSource(summary?.metadataDTO, summary?.summaryDTO);
+    base.data_quality = deriveDataQuality(summary?.metadataDTO, summary?.summaryDTO);
+    if (summary?.summaryDTO?.avgGradeAdjustedSpeed != null) {
+      base.gap_speed_ms = gnum(summary.summaryDTO.avgGradeAdjustedSpeed);
+    }
+  } catch (e) { console.warn(`enrich summary ${id}:`, e.message); }
+  try {
+    const splits = await client.client.get(
+      `https://connectapi.garmin.com/activity-service/activity/${id}/splits`
+    );
+    const laps = Array.isArray(splits?.lapDTOs) ? splits.lapDTOs.map(normalizeGarminLap) : [];
+    if (laps.length) base.laps = laps;
+  } catch (e) { console.warn(`enrich splits ${id}:`, e.message); }
+  try {
+    const weather = await client.client.get(
+      `https://connectapi.garmin.com/activity-service/activity/${id}/weather`
+    );
+    const w = computeWbgt(weather);
+    if (w) base.weather = w;
+  } catch (e) { console.warn(`enrich weather ${id}:`, e.message); }
+  return base;
+}
+
+/** map con concurrencia limitada (para no saturar Garmin al enriquecer). */
+async function mapLimit(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; await fn(items[idx]); }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * Lista las últimas `limit` actividades de Garmin con running dynamics, y enriquece
+ * las `enrichRuns` carreras más recientes con detalle (origen FC, laps reales, WBGT).
+ */
+export async function fetchGarminActivities(client, limit = 100, { enrichRuns = 20 } = {}) {
   const cap = Math.min(Math.max(limit, 1), 300);
   let raw = [];
   try {
@@ -216,7 +328,16 @@ export async function fetchGarminActivities(client, limit = 100) {
     return [];
   }
   if (!Array.isArray(raw)) return [];
-  return raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
+  const normalized = raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
+  if (enrichRuns > 0) {
+    const runs = normalized.filter((a) => (a.type || '').includes('run')).slice(0, enrichRuns);
+    try {
+      await mapLimit(runs, 4, (a) => enrichGarminActivity(client, a));
+    } catch (e) {
+      console.warn('garmin enrich phase failed:', e.message);
+    }
+  }
+  return normalized;
 }
 
 export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null) {
