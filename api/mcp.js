@@ -13,7 +13,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
-  shapeDynamicsRow, getHrvResting, getSleep,
+  listRunningDynamics, getHrvResting, getSleep,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
 import {
@@ -251,23 +251,8 @@ async function runTool(userId, name, args = {}) {
       const all = await getActivities(userId);
       return text(summarizeActivities(filterActivities(all, args)));
     }
-    case 'list_running_dynamics': {
-      const all = await getActivities(userId);
-      const rows = filterActivities(all, args).map(shapeDynamicsRow).filter(Boolean);
-      // Medias del periodo (solo sobre valores presentes) para agregación.
-      const avg = (key) => {
-        const vals = rows.map((r) => r[key]).filter((v) => typeof v === 'number');
-        return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
-      };
-      const METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct', 'stride_length_cm',
-        'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te',
-        'training_load', 'vo2max'];
-      return text({
-        count: rows.length,
-        averages: Object.fromEntries(METRICS.map((m) => [m, avg(m)])),
-        runs: rows,
-      });
-    }
+    case 'list_running_dynamics':
+      return text(await listRunningDynamics(userId, args));
     case 'list_hrv_resting':
       return text({ rows: await getHrvResting(userId, args) });
     case 'list_sleep':

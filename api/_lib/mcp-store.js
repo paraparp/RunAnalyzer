@@ -255,6 +255,103 @@ export async function getActivities(userId) {
   return sorted;
 }
 
+/** Lista cruda de actividades de Garmin (garmin_activities) sin correlacionar. */
+export async function getGarminActivitiesRaw(userId) {
+  const raw = await readKey(userId, 'garmin_activities');
+  const list = Array.isArray(raw) ? raw : raw?.activities;
+  return Array.isArray(list) ? list : [];
+}
+
+/** Fila de running dynamics tomando Garmin como fuente (Strava opcional). */
+export function shapeDynamicsFromGarmin(g, strava = null) {
+  const d = g?.dynamics;
+  if (!d) return null;
+  const speed = g.duration_s && g.distance_m ? g.distance_m / g.duration_s : null;
+  return {
+    garmin_id: g.garmin_id,
+    strava_id: strava?.id ?? null,
+    date: strava?.start_date || g.start_time,
+    name: strava?.name || g.name,
+    distance_km: round((g.distance_m ?? 0) / 1000),
+    pace_per_km: speed ? calcPace(speed) : null,
+    avg_hr: g.avg_hr ?? strava?.average_heartrate ?? null,
+    hr_source: g.hr_source ?? null,
+    cadence_spm: d.cadence_spm ?? null,
+    ground_contact_ms: d.ground_contact_ms ?? null,
+    gct_balance_pct: d.gct_balance_pct ?? null,
+    stride_length_cm: d.stride_length_cm ?? null,
+    vertical_oscillation_cm: d.vertical_oscillation_cm ?? null,
+    vertical_ratio_pct: d.vertical_ratio_pct ?? null,
+    avg_power_w: g.power?.avg_w ?? null,
+    aerobic_te: g.training?.aerobic_te ?? null,
+    anaerobic_te: g.training?.anaerobic_te ?? null,
+    training_load: g.training?.training_load ?? null,
+    vo2max: g.training?.vo2max ?? null,
+  };
+}
+
+const DYNAMICS_METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct', 'stride_length_cm',
+  'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te',
+  'training_load', 'vo2max'];
+
+/**
+ * Running dynamics leyendo de `garmin_activities` directamente (la dinámica vive
+ * ahí), con Strava como enriquecimiento opcional por hora de inicio. Incluye un
+ * bloque `_diagnostics` que localiza en qué capa se rompe si salen cero filas.
+ */
+export async function listRunningDynamics(userId, { from, to } = {}) {
+  const garmin = await getGarminActivitiesRaw(userId);
+  const stravaRaw = await readKey(userId, 'stravaData');
+  const stravaList = Array.isArray(stravaRaw) ? stravaRaw : (stravaRaw?.activities || []);
+
+  const byMin = new Map();
+  for (const s of stravaList) {
+    const t = Date.parse(s.start_date);
+    if (!Number.isNaN(t)) byMin.set(Math.round(t / 60000), s);
+  }
+  const runs = garmin.filter((g) => (g.type || '').includes('run'));
+
+  let correlated = 0;
+  const rows = [];
+  for (const g of runs) {
+    if (g.start_time && !inRange(g.start_time, from, to)) continue;
+    let strava = null;
+    const t = Date.parse(g.start_time);
+    if (!Number.isNaN(t)) {
+      const base = Math.round(t / 60000);
+      for (let dd = 0; dd <= 3 && !strava; dd++) strava = byMin.get(base + dd) || byMin.get(base - dd) || null;
+    }
+    const row = shapeDynamicsFromGarmin(g, strava);
+    if (!row) continue;
+    if (strava) correlated++;
+    rows.push(row);
+  }
+  rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const avg = (key) => {
+    const vals = rows.map((r) => r[key]).filter((v) => typeof v === 'number');
+    return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+  };
+  return {
+    count: rows.length,
+    averages: Object.fromEntries(DYNAMICS_METRICS.map((m) => [m, avg(m)])),
+    runs: rows,
+    _diagnostics: {
+      garmin_activities_loaded: garmin.length,
+      garmin_runs: runs.length,
+      runs_with_dynamics: rows.length,
+      strava_activities_loaded: stravaList.length,
+      strava_correlated: correlated,
+      hint:
+        garmin.length === 0 ? 'garmin_activities VACÍO en user_storage → la app no ha sincronizado esa clave (fallo de ingest/tabla).'
+        : runs.length === 0 ? 'Hay actividades Garmin pero ninguna de tipo run → revisa el typeKey en normalizeGarminActivity.'
+        : rows.length === 0 ? 'Hay carreras Garmin pero sin bloque dynamics → la banda no lo grabó o normalizeGarminActivity lo pierde.'
+        : correlated === 0 ? 'Dynamics OK y ya se muestran; Strava no correlaciona (stravaData desfasado), pero ya no bloquea.'
+        : 'ok',
+    },
+  };
+}
+
 /** Fila compacta de running dynamics (Strava + Garmin) para agregar/analizar. */
 export function shapeDynamicsRow(a) {
   const g = a._garmin;
