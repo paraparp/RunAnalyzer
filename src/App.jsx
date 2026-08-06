@@ -371,6 +371,24 @@ const Dashboard = ({ user, handleLogout }) => {
 
       const syncTime = new Date().toLocaleString('es-ES');
       cloudStorage.setItem('garmin_last_sync', syncTime);
+
+      // Actividades con running dynamics (banda) para el MCP. El sync de fondo solo
+      // bajaba salud+sueño; sin esto, `garmin_activities` quedaba vacío aunque la
+      // banda grabara la dinámica. Best-effort: si falla, no rompe el sync de salud.
+      try {
+        const actRes = await fetch('/api/garmin/activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: creds.username, password: creds.password, limit: 200 }),
+        });
+        const actJson = await actRes.json();
+        if (actRes.ok && Array.isArray(actJson.activities)) {
+          cloudStorage.setItem('garmin_activities', JSON.stringify(actJson.activities));
+        }
+      } catch (e) {
+        console.warn('No se pudieron sincronizar las actividades de Garmin:', e.message);
+      }
+
       window.dispatchEvent(new Event('garmin_sync_complete'));
     } catch (err) {
       console.error("Failed to sync Garmin data in background", err);
