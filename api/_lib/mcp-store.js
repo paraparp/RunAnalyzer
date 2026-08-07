@@ -508,6 +508,78 @@ export async function getPersonalBests(userId) {
   return { records: computePersonalBests(all) };
 }
 
+// ── Récords personales analíticos (best_efforts, moving_time, top-3, HR) ──────
+// Orden canónico de las distancias de best_efforts de Strava.
+const BEST_EFFORT_ORDER = ['400m', '1/2 mile', '1k', '1 mile', '2 mile', '5k', '10k',
+  '15k', '10 mile', '20k', 'half-marathon', '30k', 'marathon', '50k'];
+const effortOrder = (k) => { const i = BEST_EFFORT_ORDER.indexOf(k); return i < 0 ? 999 : i; };
+// Tiempo del esfuerzo: moving_time (no el de pared), como pidió el atleta.
+const effortTime = (e) => e.moving_time || e.elapsed_time || 0;
+
+/**
+ * Récords por distancia desde best_efforts: top-3 por moving_time, con actividad,
+ * fecha, FC media y origen de FC. `from/to` acota a "récord de temporada".
+ */
+export async function getPersonalRecords(userId, { sport, from, to } = {}) {
+  const all = await getActivities(userId);
+  const list = filterActivities(all, { from, to, sport, only_running: !sport });
+  const byDist = new Map();
+  for (const a of list) {
+    for (const e of a.best_efforts || []) {
+      const t = effortTime(e);
+      if (!t || !e.name) continue;
+      const key = e.name.toLowerCase();
+      if (!byDist.has(key)) byDist.set(key, []);
+      byDist.get(key).push({
+        distance_m: e.distance, time: t,
+        activity_id: a.id, activity_name: a.name, date: a.start_date,
+        avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null,
+      });
+    }
+  }
+  const records = [...byDist.entries()]
+    .sort((x, y) => effortOrder(x[0]) - effortOrder(y[0]))
+    .map(([key, cands]) => {
+      const top = cands.sort((p, q) => p.time - q.time).slice(0, 3).map((c, i) => ({
+        rank: i + 1,
+        time: fmtTime(c.time), time_s: c.time,
+        pace_per_km: calcPace(c.distance_m / c.time),
+        activity_id: c.activity_id, activity_name: c.activity_name, date: c.date,
+        avg_hr: c.avg_hr, hr_source: c.hr_source,
+      }));
+      return { distance: key, distance_m: Math.round(cands[0].distance_m), top };
+    });
+  return { count: records.length, records };
+}
+
+/**
+ * Progresión temporal de una distancia: el best_effort de cada actividad en orden
+ * cronológico, marcando el récord acumulado. Para una gráfica de progreso real.
+ */
+export async function getBestEffortsProgression(userId, { distance, sport, from, to } = {}) {
+  if (!distance) return { error: 'Falta "distance" (p.ej. "5k", "10k", "half-marathon", "marathon").' };
+  const key = String(distance).toLowerCase();
+  const all = await getActivities(userId);
+  const list = filterActivities(all, { from, to, sport, only_running: !sport });
+  const series = [];
+  for (const a of list) {
+    const e = (a.best_efforts || []).find((x) => x.name?.toLowerCase() === key);
+    const t = e ? effortTime(e) : 0;
+    if (!t) continue;
+    series.push({
+      date: a.start_date,
+      time: fmtTime(t), time_s: t,
+      pace_per_km: calcPace(e.distance / t),
+      activity_id: a.id, activity_name: a.name,
+      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null,
+    });
+  }
+  series.sort((x, y) => new Date(x.date) - new Date(y.date));
+  let best = Infinity;
+  for (const p of series) { p.is_pr = p.time_s < best; if (p.is_pr) best = p.time_s; }
+  return { distance: key, count: series.length, series };
+}
+
 /** VFC nocturna + FC reposo por día (garmin_cardiac_data). */
 export async function getHrvResting(userId, { from, to } = {}) {
   const rows = (await readKey(userId, 'garmin_cardiac_data')) || [];

@@ -14,6 +14,7 @@ import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
+  getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
 import {
@@ -81,6 +82,30 @@ const TOOLS = [
     name: 'get_personal_bests',
     description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia con tiempo, ritmo, fecha y si es parcial/llano. Igual que el panel de la app.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'personal_records',
+    description: 'Récords personales por distancia (400m, 1k, 1 milla, 5k, 10k, 15k, 20k, media, maratón…) desde best_efforts de Strava, usando moving_time. Top-3 por distancia con actividad, fecha, ritmo, FC media y origen de FC. Con from/to da el récord de temporada.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
+        from: dateArg, to: dateArg,
+      },
+    },
+  },
+  {
+    name: 'best_efforts_progression',
+    description: 'Serie temporal del best_effort de una distancia (cada actividad, cronológico) marcando el récord acumulado. Para gráfica de progreso real. Requiere distance (p.ej. "5k", "10k", "half-marathon").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        distance: { type: 'string', description: 'Nombre de la distancia: 5k, 10k, half-marathon, marathon…' },
+        sport: { type: 'string' },
+        from: dateArg, to: dateArg,
+      },
+      required: ['distance'],
+    },
   },
   {
     name: 'list_hrv_resting',
@@ -264,6 +289,10 @@ async function runTool(userId, name, args = {}) {
       return text(await listRunningDynamics(userId, args));
     case 'get_personal_bests':
       return text(await getPersonalBests(userId));
+    case 'personal_records':
+      return text(await getPersonalRecords(userId, args));
+    case 'best_efforts_progression':
+      return text(await getBestEffortsProgression(userId, args));
     case 'list_hrv_resting':
       return text({ rows: await getHrvResting(userId, args) });
     case 'list_sleep':
