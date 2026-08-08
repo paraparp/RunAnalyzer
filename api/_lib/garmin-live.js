@@ -27,17 +27,30 @@ function dateRange(from, to, cap = 31) {
   return out;
 }
 
+// map con concurrencia limitada que conserva el orden de entrada. Cada día es una
+// request independiente a Garmin: lanzarlas en serie encadena decenas de llamadas
+// (riesgo de timeout con maxDuration=60); con concurrencia acotada van en paralelo
+// sin saturar Garmin.
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; results[idx] = await fn(items[idx]); }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** Sueño noche a noche: fases, score, estrés nocturno, respiración, HRV. */
 export async function getSleepDaily(userId, { from, to } = {}) {
   const client = await getGarminClientFor(userId);
-  const dates = dateRange(from, to, from ? 31 : 14); // por defecto 14 días; rango explícito hasta 31
-  const nights = [];
-  for (const date of dates) {
+  const dates = dateRange(from, to, from ? 62 : 14); // por defecto 14 días; rango explícito hasta 62
+  const nights = (await mapLimit(dates, 5, async (date) => {
     try {
       const s = await client.getSleepData(new Date(date + 'T12:00:00'));
       const dto = s?.dailySleepDTO;
-      if (!dto || !dto.sleepTimeSeconds) continue;
-      nights.push({
+      if (!dto || !dto.sleepTimeSeconds) return null;
+      return {
         date: dto.calendarDate || date,
         score: s?.dailySleepDTO?.sleepScores?.overall?.value ?? null,
         duration_min: secToMin(dto.sleepTimeSeconds),
@@ -52,23 +65,22 @@ export async function getSleepDaily(userId, { from, to } = {}) {
         resting_hr: s?.restingHeartRate ?? null,
         body_battery_change: s?.bodyBatteryChange ?? null,
         feedback: dto.sleepScoreFeedback ?? null,
-      });
-    } catch { /* noche sin datos */ }
-  }
+      };
+    } catch { return null; /* noche sin datos */ }
+  })).filter(Boolean);
   return { count: nights.length, nights };
 }
 
 /** Peso y composición corporal (báscula) en un rango. */
 export async function getWeightRange(userId, { from, to } = {}) {
   const client = await getGarminClientFor(userId);
-  const dates = dateRange(from, to, from ? 31 : 14); // por defecto 14 días; rango explícito hasta 31
-  const rows = [];
-  for (const date of dates) {
+  const dates = dateRange(from, to, from ? 62 : 14); // por defecto 14 días; rango explícito hasta 62
+  const rows = (await mapLimit(dates, 5, async (date) => {
     try {
       const w = await client.getDailyWeightData(new Date(date + 'T12:00:00'));
       const d = w?.dateWeightList?.[0];
-      if (!d || d.weight == null) continue;
-      rows.push({
+      if (!d || d.weight == null) return null;
+      return {
         date: d.calendarDate || date,
         weight_kg: round(d.weight / 1000, 2),   // Garmin devuelve gramos
         bmi: d.bmi ?? null,
@@ -76,9 +88,9 @@ export async function getWeightRange(userId, { from, to } = {}) {
         muscle_mass_kg: d.muscleMass != null ? round(d.muscleMass / 1000, 2) : null,
         body_water_pct: d.bodyWater ?? null,
         source: d.sourceType ?? null,
-      });
-    } catch { /* día sin pesada */ }
-  }
+      };
+    } catch { return null; /* día sin pesada */ }
+  })).filter(Boolean);
   return { count: rows.length, weights: rows };
 }
 

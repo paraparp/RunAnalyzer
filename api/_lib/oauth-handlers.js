@@ -263,6 +263,7 @@ export async function handleToken(req, res) {
 
     return fail(res, 400, 'unsupported_grant_type', `grant_type no soportado: ${b.grant_type}`);
   } catch (e) {
-    return fail(res, 500, 'server_error', e.message);
+    console.error('oauth token error:', e);
+    return fail(res, 500, 'server_error', 'error interno');
   }
 }

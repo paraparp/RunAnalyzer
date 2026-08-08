@@ -18,6 +18,13 @@ const TARGET = {
   'no.target': 1, 'power.zone': 2, 'cadence.zone': 3,
   'heart.rate.zone': 4, 'speed.zone': 5, 'pace.zone': 6,
 };
+// Tipos de alto nivel del schema → clave real de Garmin. `heart.rate` ya lleva un
+// punto, así que no vale con sufijar ".zone" (daría "heart.rate", que no existe en
+// TARGET y caía a no.target, dejando los objetivos de FC sin efecto).
+const TARGET_KEY = {
+  pace: 'pace.zone', power: 'power.zone', cadence: 'cadence.zone',
+  'heart.rate': 'heart.rate.zone', hr: 'heart.rate.zone',
+};
 
 let _stepId = 1;
 
@@ -29,7 +36,9 @@ function buildTarget(target) {
       targetValueOne: null, targetValueTwo: null, zoneNumber: null,
     };
   }
-  const key = target.type.includes('.') ? target.type : `${target.type}.zone`;
+  const key = target.type.endsWith('.zone')
+    ? target.type
+    : (TARGET_KEY[target.type] || `${target.type}.zone`);
   const id = TARGET[key] || 1;
   let one = target.low ?? null;
   let two = target.high ?? null;

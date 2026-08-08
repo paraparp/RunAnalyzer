@@ -37,8 +37,17 @@ export async function consumeAuthCode(jti, expUnix) {
   return true;
 }
 
+// Cache de lecturas por (userId, key). `stravaData` pesa varios MB y varias tools lo
+// releen (incluso dos veces dentro de la misma request). TTL corto: dedup dentro de
+// una request y entre requests rápidas seguidas, sin arrastrar datos rancios.
+const _cache = new Map(); // `${userId}:${key}` -> { value, ts }
+const CACHE_TTL_MS = 15000;
+
 /** Lee una clave del almacén del usuario y la parsea como JSON (o null). */
 export async function readKey(userId, key) {
+  const ck = `${userId}:${key}`;
+  const hit = _cache.get(ck);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.value;
   const { data, error } = await service()
     .from('user_storage')
     .select('value')
@@ -46,8 +55,10 @@ export async function readKey(userId, key) {
     .eq('key', key)
     .maybeSingle();
   if (error) throw new Error(`user_storage read "${key}": ${error.message}`);
-  if (!data?.value) return null;
-  try { return JSON.parse(data.value); } catch { return null; }
+  let value = null;
+  if (data?.value) { try { value = JSON.parse(data.value); } catch { value = null; } }
+  _cache.set(ck, { value, ts: Date.now() });
+  return value;
 }
 
 // ── Reshape (espejo de DataExporter / flatEfforts) ──────────────────────────
@@ -212,10 +223,14 @@ export function computeGap(a) {
 }
 
 // ── Consultas de alto nivel ─────────────────────────────────────────────────
+// Compara por fecha de calendario (YYYY-MM-DD) en vez de por Date: `from`/`to` son
+// fechas puras y antes se parseaban en hora local mientras que las fechas de
+// actividad vienen en UTC, lo que descolocaba los límites según el TZ del server.
 function inRange(dateIso, from, to) {
-  const d = new Date(dateIso);
-  if (from && d < new Date(from + 'T00:00:00')) return false;
-  if (to && d > new Date(to + 'T23:59:59.999')) return false;
+  if (!from && !to) return true;
+  const day = String(dateIso).slice(0, 10); // YYYY-MM-DD
+  if (from && day < from) return false;
+  if (to && day > to) return false;
   return true;
 }
 
@@ -355,32 +370,6 @@ export async function listRunningDynamics(userId, { from, to, limit = 50, offset
   };
 }
 
-/** Fila compacta de running dynamics (Strava + Garmin) para agregar/analizar. */
-export function shapeDynamicsRow(a) {
-  const g = a._garmin;
-  if (!g) return null;
-  return {
-    id: a.id,
-    date: a.start_date,
-    name: a.name,
-    distance_km: round(a.distance / 1000),
-    pace_per_km: isRunning(a) ? calcPace(a.average_speed) : null,
-    avg_hr: a.average_heartrate ?? null,
-    hr_source: g.hr_source ?? null, // clave para no mezclar FC de muñeca con banda
-    cadence_spm: g.dynamics.cadence_spm,
-    ground_contact_ms: g.dynamics.ground_contact_ms,
-    gct_balance_pct: g.dynamics.gct_balance_pct,
-    stride_length_cm: g.dynamics.stride_length_cm,
-    vertical_oscillation_cm: g.dynamics.vertical_oscillation_cm,
-    vertical_ratio_pct: g.dynamics.vertical_ratio_pct,
-    avg_power_w: g.power.avg_w,
-    aerobic_te: g.training.aerobic_te,
-    anaerobic_te: g.training.anaerobic_te,
-    training_load: g.training.training_load,
-    vo2max: g.training.vo2max,
-  };
-}
-
 export function filterActivities(list, {
   from, to, sport, only_running, min_distance_km, max_distance_km, hr_min, hr_max, flat_only, hr_source,
 } = {}) {
@@ -511,7 +500,7 @@ export async function getPersonalBests(userId, { sport, from, to } = {}) {
   return { records: computePersonalBests(list) };
 }
 
-// ── Récords personales analíticos (best_efforts, moving_time, top-3, HR) ──────
+// ── Récords personales analíticos (best_efforts, moving_time, top-N, HR) ──────
 // Orden canónico de las distancias de best_efforts de Strava.
 const BEST_EFFORT_ORDER = ['400m', '1/2 mile', '1k', '1 mile', '2 mile', '5k', '10k',
   '15k', '10 mile', '20k', 'half-marathon', '30k', 'marathon', '50k'];
@@ -520,8 +509,9 @@ const effortOrder = (k) => { const i = BEST_EFFORT_ORDER.indexOf(k); return i < 
 const effortTime = (e) => e.moving_time || e.elapsed_time || 0;
 
 /**
- * Récords por distancia desde best_efforts: top-3 por moving_time, con actividad,
- * fecha, FC media y origen de FC. `from/to` acota a "récord de temporada".
+ * Récords por distancia desde best_efforts: top-N (5 por defecto, tope 10) por
+ * moving_time, con actividad, fecha, FC media y origen de FC. `from/to` acota a
+ * "récord de temporada".
  */
 export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = {}) {
   const all = await getActivities(userId);
@@ -544,14 +534,14 @@ export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = 
   const records = [...byDist.entries()]
     .sort((x, y) => effortOrder(x[0]) - effortOrder(y[0]))
     .map(([key, cands]) => {
-      const top = cands.sort((p, q) => p.time - q.time).slice(0, n).map((c, i) => ({
+      const topN = cands.sort((p, q) => p.time - q.time).slice(0, n).map((c, i) => ({
         rank: i + 1,
         time: fmtTime(c.time), time_s: c.time,
         pace_per_km: calcPace(c.distance_m / c.time),
         activity_id: c.activity_id, activity_name: c.activity_name, date: c.date,
         avg_hr: c.avg_hr, hr_source: c.hr_source,
       }));
-      return { distance: key, distance_m: Math.round(cands[0].distance_m), top };
+      return { distance: key, distance_m: Math.round(cands[0].distance_m), top: topN };
     });
   return { count: records.length, records };
 }

@@ -25,7 +25,11 @@ import {
 } from './_lib/garmin-live.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
+// Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
+// su `run(userId, args)` juntos, para que schema y handler no puedan desincronizarse.
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)' };
+
+const text = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
 
 const TOOLS = [
   {
@@ -48,6 +52,17 @@ const TOOLS = [
         offset: { type: 'number', description: 'Desplazamiento para paginar (por defecto 0)' },
       },
     },
+    run: async (userId, args) => {
+      const all = await getActivities(userId);
+      const filtered = filterActivities(all, args);
+      const offset = Math.max(0, args.offset || 0);
+      const limit = Math.min(200, Math.max(1, args.limit || 50));
+      const page = filtered.slice(offset, offset + limit);
+      return text({
+        total: filtered.length, offset, limit,
+        activities: page.map(shapeSummary),
+      });
+    },
   },
   {
     name: 'get_activity',
@@ -57,6 +72,12 @@ const TOOLS = [
       properties: { id: { type: ['string', 'number'], description: 'ID de la actividad Strava' } },
       required: ['id'],
     },
+    run: async (userId, args) => {
+      const all = await getActivities(userId);
+      const a = all.find((x) => String(x.id) === String(args.id));
+      if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
+      return text(shapeFull(a));
+    },
   },
   {
     name: 'activity_stats',
@@ -64,6 +85,10 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
+    },
+    run: async (userId, args) => {
+      const all = await getActivities(userId);
+      return text(summarizeActivities(filterActivities(all, args)));
     },
   },
   {
@@ -77,6 +102,7 @@ const TOOLS = [
         offset: { type: 'number', description: 'Desplazamiento para paginar' },
       },
     },
+    run: (userId, args) => listRunningDynamics(userId, args).then(text),
   },
   {
     name: 'get_personal_bests',
@@ -88,6 +114,7 @@ const TOOLS = [
         from: dateArg, to: dateArg,
       },
     },
+    run: (userId, args) => getPersonalBests(userId, args).then(text),
   },
   {
     name: 'personal_records',
@@ -100,6 +127,7 @@ const TOOLS = [
         from: dateArg, to: dateArg,
       },
     },
+    run: (userId, args) => getPersonalRecords(userId, args).then(text),
   },
   {
     name: 'best_efforts_progression',
@@ -113,62 +141,74 @@ const TOOLS = [
       },
       required: ['distance'],
     },
+    run: (userId, args) => getBestEffortsProgression(userId, args).then(text),
   },
   {
     name: 'list_hrv_resting',
     description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery si está disponible.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: async (userId, args) => text({ rows: await getHrvResting(userId, args) }),
   },
   {
     name: 'list_sleep',
     description: 'Resumen de sueño semanal (Garmin): duración, fases REM/profundo/ligero y score.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: async (userId, args) => text({ weeks: await getSleep(userId, args) }),
   },
   {
     name: 'list_sleep_daily',
     description: 'Sueño noche a noche (Garmin, en vivo): fases profundo/REM/ligero/despierto, score, estrés nocturno, respiración, HRV nocturna y FC reposo. Rango por defecto: últimos 14 días (usa from/to para más).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getSleepDaily(userId, args).then(text),
   },
   {
     name: 'list_weight',
     description: 'Peso y composición corporal por día (báscula, en vivo): peso, IMC, % grasa, masa muscular, % agua. Rango por defecto: últimos 14 días (usa from/to para más).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getWeightRange(userId, args).then(text),
   },
   {
     name: 'get_training_readiness',
     description: 'Training readiness de Garmin (en vivo): score y nivel del día con sus factores (sueño, tiempo de recuperación, ACWR, VFC, estrés). Opcional: date.',
     inputSchema: { type: 'object', properties: { date: dateArg } },
+    run: (userId, args) => getTrainingReadiness(userId, args).then(text),
   },
   {
     name: 'get_fitness_status',
     description: 'Estado de forma de Garmin (en vivo): VO2max carrera y ciclismo, training status, carga aguda/crónica y ratio ACWR, balance aeróbico/anaeróbico, y scores de resistencia/colina. Opcional: date.',
     inputSchema: { type: 'object', properties: { date: dateArg } },
+    run: (userId, args) => getFitnessStatus(userId, args).then(text),
   },
   {
     name: 'list_planned_workouts',
     description: 'Entrenos planificados y carreras futuras del calendario de Garmin (en vivo), con fecha, título, deporte y bandera de carrera. Por defecto los próximos 3 meses.',
     inputSchema: { type: 'object', properties: { months: { type: 'number', description: 'Nº de meses a mirar (tope 6)' } } },
+    run: (userId, args) => getPlannedWorkouts(userId, args).then(text),
   },
   {
     name: 'get_training_load_model',
     description: 'Modelo de Banister: serie diaria de carga crónica (CTL), aguda (ATL) y forma (TSB) con la rampa semanal, desde el training_load de Garmin.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getTrainingLoadModel(userId, args).then(text),
   },
   {
     name: 'get_health_alerts',
     description: 'Alertas de patrón sobre VFC/FC reposo/Body Battery: firma de infección o sobrecarga (Body Battery máx <55 dos noches seguidas, o VFC bajo baseline con FC reposo elevada).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getHealthAlerts(userId, args).then(text),
   },
   {
     name: 'detect_threshold_efforts',
     description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => detectThresholdTests(userId, args).then(text),
   },
   // ── Escritura en Garmin (usa las credenciales guardadas del usuario) ───────
   {
     name: 'list_garmin_workouts',
     description: 'Lista los entrenos guardados en Garmin (id, nombre, deporte, fecha) para poder editarlos o borrarlos.',
     inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'Máx. resultados (tope 100)' } } },
+    run: (userId, args) => listWorkouts(userId, args).then(text),
   },
   {
     name: 'create_garmin_workout',
@@ -211,6 +251,7 @@ const TOOLS = [
       },
       required: ['name', 'steps'],
     },
+    run: (userId, args) => createWorkout(userId, args).then(text),
   },
   {
     name: 'update_garmin_workout',
@@ -225,6 +266,7 @@ const TOOLS = [
       },
       required: ['workout_id', 'name', 'steps'],
     },
+    run: (userId, args) => updateWorkout(userId, args.workout_id, args).then(text),
   },
   {
     name: 'delete_garmin_workout',
@@ -234,6 +276,7 @@ const TOOLS = [
       properties: { workout_id: { type: ['string', 'number'] } },
       required: ['workout_id'],
     },
+    run: (userId, args) => deleteWorkout(userId, args.workout_id).then(text),
   },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
   {
@@ -244,93 +287,7 @@ const TOOLS = [
       properties: { query: { type: 'string' } },
       required: ['query'],
     },
-  },
-  {
-    name: 'fetch',
-    description: 'Recupera el documento completo de una actividad por su id (el que devuelve search).',
-    inputSchema: {
-      type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
-    },
-  },
-];
-
-// Las tools en vivo/escritura hacen login + varias peticiones a Garmin: damos margen.
-export const config = { maxDuration: 60 };
-
-const text = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
-
-// Respuesta JSON con res crudo de Node (no depende del azúcar .status().json() de
-// Vercel, porque este handler comparte res con el transporte MCP que escribe raw).
-function sendJson(res, status, obj, headers = {}) {
-  res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
-  res.end(JSON.stringify(obj));
-}
-
-// ── Ejecución de cada tool para un userId concreto ───────────────────────────
-async function runTool(userId, name, args = {}) {
-  switch (name) {
-    case 'list_activities': {
-      const all = await getActivities(userId);
-      const filtered = filterActivities(all, args);
-      const offset = Math.max(0, args.offset || 0);
-      const limit = Math.min(200, Math.max(1, args.limit || 50));
-      const page = filtered.slice(offset, offset + limit);
-      return text({
-        total: filtered.length, offset, limit,
-        activities: page.map(shapeSummary),
-      });
-    }
-    case 'get_activity': {
-      const all = await getActivities(userId);
-      const a = all.find((x) => String(x.id) === String(args.id));
-      if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
-      return text(shapeFull(a));
-    }
-    case 'activity_stats': {
-      const all = await getActivities(userId);
-      return text(summarizeActivities(filterActivities(all, args)));
-    }
-    case 'list_running_dynamics':
-      return text(await listRunningDynamics(userId, args));
-    case 'get_personal_bests':
-      return text(await getPersonalBests(userId, args));
-    case 'personal_records':
-      return text(await getPersonalRecords(userId, args));
-    case 'best_efforts_progression':
-      return text(await getBestEffortsProgression(userId, args));
-    case 'list_hrv_resting':
-      return text({ rows: await getHrvResting(userId, args) });
-    case 'list_sleep':
-      return text({ weeks: await getSleep(userId, args) });
-    case 'list_sleep_daily':
-      return text(await getSleepDaily(userId, args));
-    case 'list_weight':
-      return text(await getWeightRange(userId, args));
-    case 'get_training_readiness':
-      return text(await getTrainingReadiness(userId, args));
-    case 'get_fitness_status':
-      return text(await getFitnessStatus(userId, args));
-    case 'list_planned_workouts':
-      return text(await getPlannedWorkouts(userId, args));
-    case 'get_training_load_model':
-      return text(await getTrainingLoadModel(userId, args));
-    case 'get_health_alerts':
-      return text(await getHealthAlerts(userId, args));
-    case 'detect_threshold_efforts':
-      return text(await detectThresholdTests(userId, args));
-
-    case 'list_garmin_workouts':
-      return text(await listWorkouts(userId, args));
-    case 'create_garmin_workout':
-      return text(await createWorkout(userId, args));
-    case 'update_garmin_workout':
-      return text(await updateWorkout(userId, args.workout_id, args));
-    case 'delete_garmin_workout':
-      return text(await deleteWorkout(userId, args.workout_id));
-
-    case 'search': {
+    run: async (userId, args) => {
       const q = String(args.query || '').toLowerCase().trim();
       const all = await getActivities(userId);
       const hits = (q
@@ -347,8 +304,17 @@ async function runTool(userId, name, args = {}) {
           url: `https://www.strava.com/activities/${a.id}`,
         })),
       });
-    }
-    case 'fetch': {
+    },
+  },
+  {
+    name: 'fetch',
+    description: 'Recupera el documento completo de una actividad por su id (el que devuelve search).',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+    },
+    run: async (userId, args) => {
       const all = await getActivities(userId);
       const a = all.find((x) => String(x.id) === String(args.id));
       if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
@@ -360,10 +326,30 @@ async function runTool(userId, name, args = {}) {
         url: `https://www.strava.com/activities/${a.id}`,
         metadata: { type: a.type, distance_km: full.distance_km, date: a.start_date },
       });
-    }
-    default:
-      return text({ error: `Tool desconocida: ${name}` });
-  }
+    },
+  },
+];
+
+// Índice name → tool para el dispatch, y la lista de descriptores que ve el cliente
+// (sin `run`). Ambos derivan del mismo array: imposible que un schema no tenga handler.
+const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
+const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+
+// Las tools en vivo/escritura hacen login + varias peticiones a Garmin: damos margen.
+export const config = { maxDuration: 60 };
+
+// Respuesta JSON con res crudo de Node (no depende del azúcar .status().json() de
+// Vercel, porque este handler comparte res con el transporte MCP que escribe raw).
+function sendJson(res, status, obj, headers = {}) {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+  res.end(JSON.stringify(obj));
+}
+
+// ── Ejecución de cada tool para un userId concreto ───────────────────────────
+async function runTool(userId, name, args = {}) {
+  const tool = TOOL_MAP.get(name);
+  if (!tool) return text({ error: `Tool desconocida: ${name}` });
+  return tool.run(userId, args);
 }
 
 function buildServer(userId) {
@@ -371,7 +357,7 @@ function buildServer(userId) {
     { name: 'runanalyzer', version: '1.0.0' },
     { capabilities: { tools: {} } },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_DESCRIPTORS }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     try {
       return await runTool(userId, req.params.name, req.params.arguments || {});
@@ -412,8 +398,9 @@ export default async function handler(req, res) {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (e) {
+    console.error('MCP handler error:', e);
     if (!res.headersSent) {
-      sendJson(res, 500, { jsonrpc: '2.0', error: { code: -32603, message: e.message }, id: null });
+      sendJson(res, 500, { jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null });
     }
   }
 }
