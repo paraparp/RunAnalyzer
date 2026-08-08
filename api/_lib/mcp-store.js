@@ -523,9 +523,10 @@ const effortTime = (e) => e.moving_time || e.elapsed_time || 0;
  * Récords por distancia desde best_efforts: top-3 por moving_time, con actividad,
  * fecha, FC media y origen de FC. `from/to` acota a "récord de temporada".
  */
-export async function getPersonalRecords(userId, { sport, from, to } = {}) {
+export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = {}) {
   const all = await getActivities(userId);
   const list = filterActivities(all, { from, to, sport, only_running: !sport });
+  const n = Math.min(Math.max(top, 1), 10);
   const byDist = new Map();
   for (const a of list) {
     for (const e of a.best_efforts || []) {
@@ -543,7 +544,7 @@ export async function getPersonalRecords(userId, { sport, from, to } = {}) {
   const records = [...byDist.entries()]
     .sort((x, y) => effortOrder(x[0]) - effortOrder(y[0]))
     .map(([key, cands]) => {
-      const top = cands.sort((p, q) => p.time - q.time).slice(0, 3).map((c, i) => ({
+      const top = cands.sort((p, q) => p.time - q.time).slice(0, n).map((c, i) => ({
         rank: i + 1,
         time: fmtTime(c.time), time_s: c.time,
         pace_per_km: calcPace(c.distance_m / c.time),

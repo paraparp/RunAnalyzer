@@ -91,11 +91,12 @@ const TOOLS = [
   },
   {
     name: 'personal_records',
-    description: 'Récords personales por distancia (400m, 1k, 1 milla, 5k, 10k, 15k, 20k, media, maratón…) desde best_efforts de Strava, usando moving_time. Top-3 por distancia con actividad, fecha, ritmo, FC media y origen de FC. Con from/to da el récord de temporada.',
+    description: 'Récords personales por distancia (400m, 1k, 1 milla, 5k, 10k, 15k, 20k, media, maratón…) desde best_efforts de Strava, usando moving_time. Top-5 por distancia (configurable) con actividad, fecha, ritmo, FC media y origen de FC. Con from/to da el récord de temporada.',
     inputSchema: {
       type: 'object',
       properties: {
         sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
+        top: { type: 'number', description: 'Nº de mejores por distancia (por defecto 5, tope 10)' },
         from: dateArg, to: dateArg,
       },
     },
