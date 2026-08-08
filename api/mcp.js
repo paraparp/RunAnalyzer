@@ -66,17 +66,24 @@ const TOOLS = [
   },
   {
     name: 'get_activity',
-    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos, polyline, desacoplamiento, GAP y (si hay Garmin) origen de FC, laps reales con tipo INTERVAL/REST, potencia por lap y WBGT.',
+    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos, polyline, desacoplamiento, GAP y (si hay Garmin) origen de FC, laps reales (con is_autolap), potencia por lap y WBGT. Usa `include` para pedir solo lo necesario y ahorrar contexto (la actividad completa pesa ~10-12k tokens).',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: ['string', 'number'], description: 'ID de la actividad Strava' } },
+      properties: {
+        id: { type: ['string', 'number'], description: 'ID de la actividad Strava' },
+        include: {
+          type: 'array',
+          items: { type: 'string', enum: ['garmin', 'laps', 'splits', 'best_efforts', 'flat_efforts', 'decoupling', 'gap', 'map'] },
+          description: 'Secciones a incluir (por defecto todas). El resumen base va siempre.',
+        },
+      },
       required: ['id'],
     },
     run: async (userId, args) => {
       const all = await getActivities(userId);
       const a = all.find((x) => String(x.id) === String(args.id));
       if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
-      return text(shapeFull(a));
+      return text(shapeFull(a, args.include));
     },
   },
   {

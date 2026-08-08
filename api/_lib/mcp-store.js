@@ -114,29 +114,58 @@ const shapeGarminLap = (l) => ({
   elevation_gain_m: l.elevation_gain_m ?? null,
 });
 
-/** Detalle completo: incluye parciales, splits, best/flat efforts y polyline. */
-export function shapeFull(a) {
+// Los autolaps por km/milla llegan de Garmin con intensity_type "INTERVAL" aunque
+// sean un rodaje continuo, lo que hace ese campo inservible para clasificar sesiones.
+// Si los laps son de distancia casi uniforme (~1 km o ~1 milla) los marcamos como
+// autolaps para que un agente sepa que intensity_type no refleja estructura real.
+function shapeGarminLaps(laps) {
+  const ds = laps.map((l) => l.distance_m).filter((v) => typeof v === 'number' && v > 0);
+  let autolap = false;
+  if (ds.length >= 3) {
+    const sorted = [...ds].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] || 0;
+    const near = (t) => median > 0 && Math.abs(median - t) / t <= 0.03;
+    const uniform = ds.filter((v) => Math.abs(v - median) / median <= 0.05).length / ds.length;
+    if (uniform >= 0.7 && (near(1000) || near(1609))) autolap = true;
+  }
+  return laps.map((l) => ({ ...shapeGarminLap(l), is_autolap: autolap }));
+}
+
+// Secciones opcionales de get_activity. Por defecto van todas; con `include` el
+// cliente pide solo las que necesita (una actividad completa ~10-12k tokens: la
+// polyline y los laps triplicados —garmin.laps/laps/splits_metric— son el grueso).
+const FULL_SECTIONS = ['garmin', 'laps', 'splits', 'best_efforts', 'flat_efforts', 'decoupling', 'gap', 'map'];
+
+/**
+ * Detalle completo. `include` (array) limita las secciones devueltas; el resumen base
+ * (id, nombre, distancia, ritmo, FC…) va siempre. Sin `include` se devuelve todo.
+ */
+export function shapeFull(a, include = null) {
   const running = isRunning(a);
-  return {
-    ...shapeSummary(a),
-    garmin: a._garmin
-      ? {
-          garmin_id: a._garmin.garmin_id,
-          hr_source: a._garmin.hr_source ?? null,      // banda vs muñeca
-          data_quality: a._garmin.data_quality ?? null,
-          dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
-          power: a._garmin.power,            // vatios de carrera
-          training: a._garmin.training,      // training effect, carga, VO2max
-          weather: a._garmin.weather ?? null, // temp, humedad, WBGT y penalización por calor
-          laps: (a._garmin.laps || []).map(shapeGarminLap), // laps reales del reloj con tipo
-          calories: a._garmin.calories,
-          steps: a._garmin.steps,
-        }
-      : null,
-    kudos: a.kudos_count ?? null,
-    avg_speed_ms: a.average_speed ?? null,
-    map_polyline: a.map?.summary_polyline ?? null,
-    laps: (a.laps || []).map((l) => ({
+  const want = Array.isArray(include) && include.length
+    ? new Set(include.map((s) => (s === 'splits_metric' ? 'splits' : s === 'polyline' ? 'map' : s)))
+    : new Set(FULL_SECTIONS);
+  const out = { ...shapeSummary(a) };
+
+  if (want.has('garmin')) {
+    out.garmin = a._garmin ? {
+      garmin_id: a._garmin.garmin_id,
+      hr_source: a._garmin.hr_source ?? null,      // banda vs muñeca
+      data_quality: a._garmin.data_quality ?? null,
+      dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
+      power: a._garmin.power,            // vatios de carrera
+      training: a._garmin.training,      // training effect, carga, VO2max
+      weather: a._garmin.weather ?? null, // temp, humedad, WBGT y penalización por calor
+      laps: shapeGarminLaps(a._garmin.laps || []), // laps reales del reloj (con is_autolap)
+      calories: a._garmin.calories,
+      steps: a._garmin.steps,
+    } : null;
+  }
+  out.kudos = a.kudos_count ?? null;
+  out.avg_speed_ms = a.average_speed ?? null;
+  if (want.has('map')) out.map_polyline = a.map?.summary_polyline ?? null;
+  if (want.has('laps')) {
+    out.laps = (a.laps || []).map((l) => ({
       lap_index: l.lap_index,
       distance_km: round(l.distance / 1000),
       moving_time_min: round(l.moving_time / 60),
@@ -144,35 +173,44 @@ export function shapeFull(a) {
       avg_hr: l.average_heartrate ?? null,
       max_hr: l.max_heartrate ?? null,
       cadence: l.average_cadence ?? null,
-      elevation_gain_m: l.total_elevation_gain ?? null,
-    })),
-    splits_metric: (a.splits_metric || []).map((s) => ({
+      elevation_gain_m: l.total_elevation_gain ?? null, // desnivel POSITIVO del lap
+    }));
+  }
+  if (want.has('splits')) {
+    out.splits_metric = (a.splits_metric || []).map((s) => ({
       split: s.split,
       distance_km: round(s.distance / 1000),
       moving_time_min: round(s.moving_time / 60),
       pace_per_km: running ? calcPace(s.average_speed) : undefined,
-      elevation_difference_m: s.elevation_difference ?? null,
+      elevation_difference_m: s.elevation_difference ?? null, // desnivel NETO del split (puede ser −)
       avg_hr: s.average_heartrate ?? null,
-    })),
-    best_efforts: (a.best_efforts || []).map((b) => ({
+    }));
+  }
+  if (want.has('best_efforts')) {
+    out.best_efforts = (a.best_efforts || []).map((b) => ({
       name: b.name,
       distance_m: b.distance,
       elapsed_time_s: b.elapsed_time,
       moving_time_s: b.moving_time,
-    })),
-    flat_efforts: a.flat_efforts ?? null, // { '1k': {time,distance,elevation}, '2k': {...} }
-    decoupling: computeDecoupling(a),      // deriva cardíaca (durabilidad) si >60 min
-    gap: computeGap(a),                    // ritmo ajustado por desnivel agregado
-  };
+    }));
+  }
+  if (want.has('flat_efforts')) out.flat_efforts = a.flat_efforts ?? null; // { '1k': {time,distance,elevation}, '2k': {...} }
+  if (want.has('decoupling')) out.decoupling = computeDecoupling(a); // deriva cardíaca (durabilidad)
+  if (want.has('gap')) out.gap = computeGap(a);                      // ritmo ajustado por desnivel
+  return out;
 }
 
 // ── Desacoplamiento / durabilidad (mejor predictor de maratón) ───────────────
 // Compara el ratio FC/velocidad de la parte inicial (km 5–10) con el del último
-// 25%. Solo para sesiones >60 min con FC por split. Cálculo puro sobre splits.
+// 25%. Para sesiones ≥45 min con FC por split. Devuelve un motivo cuando no calcula
+// (en vez de un null mudo, que no distingue "roto" de "no aplica").
+const decoupNull = (reason) => ({ decoupling_pct: null, reason });
 export function computeDecoupling(a) {
   const splits = a.splits_metric;
   const totalTime = a.moving_time || 0;
-  if (!Array.isArray(splits) || splits.length < 12 || totalTime < 3600) return null;
+  if (!Array.isArray(splits) || !splits.length) return decoupNull('Sin splits por km');
+  if (totalTime < 2700) return decoupNull('Sesión < 45 min (deriva poco informativa)');
+  if (splits.length < 10) return decoupNull('Menos de 10 km/splits');
   const ratioOf = (arr) => {
     let hrSum = 0, hrTime = 0, dist = 0, time = 0;
     for (const s of arr) {
@@ -190,7 +228,7 @@ export function computeDecoupling(a) {
   const n = splits.length;
   const finalCount = Math.max(1, Math.ceil(n * 0.25));
   const final = ratioOf(splits.slice(n - finalCount));
-  if (!initial || !final) return null;
+  if (!initial || !final) return decoupNull('Sin FC por split en las ventanas comparadas');
   return {
     decoupling_pct: round((final.ratio / initial.ratio - 1) * 100, 1),
     initial: { window: 'km 5–10', avg_hr: round(initial.hr, 0), avg_speed_ms: round(initial.speed, 3) },
@@ -201,7 +239,14 @@ export function computeDecoupling(a) {
 // ── GAP: coste metabólico relativo por pendiente (Minetti) ───────────────────
 const minettiCost = (i) => // i = pendiente en fracción (+ subida)
   155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
-const gapFactor = (grade) => { const c = minettiCost(grade); return c > 0 ? c / 3.6 : 1; };
+// Minetti sobre-estima el beneficio de la bajada moderada (un −7,5% daría ~2:19/km
+// de crédito, poco creíble). Acotamos el factor a [0.83, 1.55]: como mucho ~20% de
+// crédito por bajada y ~55% de penalización por subida, en línea con GAP de Strava.
+const gapFactor = (grade) => {
+  const c = minettiCost(grade);
+  const f = c > 0 ? c / 3.6 : 1;
+  return Math.min(1.55, Math.max(0.83, f));
+};
 
 /** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
 export function computeGap(a) {
@@ -212,7 +257,7 @@ export function computeGap(a) {
   for (const s of splits) {
     const d = s.distance || 0;
     const sp = s.average_speed || 0;
-    if (!d || !sp) continue;
+    if (!d || !sp || d < 500) continue;              // ignora parciales cortos (ruido de pendiente)
     const grade = s.elevation_difference != null ? s.elevation_difference / d : 0;
     const gapSpeed = sp * gapFactor(grade);          // velocidad equivalente en llano
     dist += d; gapTime += d / gapSpeed;
@@ -652,6 +697,25 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
   if (!key) {
     return { error: `No reconozco la distancia "${distance}".`, available: availableEfforts(list) };
   }
+  // Contexto ALL-TIME (sin from/to): el récord real de la distancia. Sin esto, un
+  // 10k lento marcado como "PR" dentro de una ventana engaña al agente ("récord de
+  // forma") aunque tu marca real sea mucho mejor.
+  const allTimeList = filterActivities(all, { sport, only_running: !sport });
+  const allEfforts = [];
+  for (const a of allTimeList) {
+    const e = (a.best_efforts || []).find((x) => effortId(x) === key);
+    const t = e ? effortTime(e) : 0;
+    if (t) allEfforts.push({ activity_id: a.id, date: a.start_date, time_s: t });
+  }
+  allEfforts.sort((x, y) => new Date(x.date) - new Date(y.date));
+  let atBest = Infinity;
+  const alltimePrIds = new Set();     // actividades que fijaron un récord all-time
+  let alltimeBest = null;
+  for (const p of allEfforts) {
+    if (p.time_s < atBest) { atBest = p.time_s; alltimePrIds.add(p.activity_id); }
+    if (!alltimeBest || p.time_s < alltimeBest.time_s) alltimeBest = p;
+  }
+
   const series = [];
   for (const a of list) {
     const e = (a.best_efforts || []).find((x) => effortId(x) === key);
@@ -666,17 +730,42 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
     });
   }
   series.sort((x, y) => new Date(x.date) - new Date(y.date));
-  let best = Infinity;
-  for (const p of series) { p.is_pr = p.time_s < best; if (p.is_pr) best = p.time_s; }
+  let winBest = Infinity;
+  for (const p of series) {
+    p.is_window_pr = p.time_s < winBest;               // mejor dentro del rango pedido
+    if (p.is_window_pr) winBest = p.time_s;
+    p.is_alltime_pr = alltimePrIds.has(p.activity_id); // récord real de la distancia
+  }
+  const alltime_best = alltimeBest
+    ? { time: fmtTime(alltimeBest.time_s), time_s: alltimeBest.time_s, date: alltimeBest.date, activity_id: alltimeBest.activity_id }
+    : null;
   // Distancia válida pero sin registros: guía al usuario con lo que sí hay.
-  if (!series.length) return { distance: key, count: 0, series, available: availableEfforts(list) };
-  return { distance: key, count: series.length, series };
+  if (!series.length) return { distance: key, count: 0, series, alltime_best, available: availableEfforts(list) };
+  return { distance: key, count: series.length, alltime_best, series };
+}
+
+// El baseline de Garmin puede venir como número o como objeto con el rango
+// balanceado ({ balancedLow, balancedUpper, ... }). Lo normalizamos a {low, high}.
+function normalizeBaseline(b) {
+  if (b == null) return null;
+  if (typeof b === 'number') return { low: null, high: null, marker: b };
+  return { low: b.balancedLow ?? b.lowUpper ?? null, high: b.balancedUpper ?? null, marker: b.markerValue ?? null };
+}
+// Dirección de la desviación respecto al rango balanceado. Clave: `hrv_status`
+// "UNBALANCED" no dice el sentido, y una VFC ALTA (buena) sale igual que una baja;
+// automatizar el semáforo con ese campo da la señal invertida.
+function hrvDeviation(hrv, base) {
+  if (hrv == null || !base) return null;
+  if (base.high != null && hrv > base.high) return 'above';
+  if (base.low != null && hrv < base.low) return 'below';
+  if (base.low != null || base.high != null) return 'within';
+  return null;
 }
 
 /**
- * VFC nocturna + FC reposo por día (garmin_cardiac_data). Incluye el baseline de
- * Garmin (rango balanceado de referencia) y una media móvil de 7 días de la VFC,
- * más un `current` con el último dato: sin eso no se puede automatizar el semáforo.
+ * VFC nocturna + FC reposo por día (garmin_cardiac_data). Cada fila lleva
+ * `hrv_deviation` (above/below/within respecto al rango balanceado de Garmin). El
+ * baseline (rango) y la media móvil de 7 días van en `current`, no repetidos por fila.
  */
 export async function getHrvResting(userId, { from, to } = {}) {
   const rows = ((await readKey(userId, 'garmin_cardiac_data')) || [])
@@ -687,20 +776,26 @@ export async function getHrvResting(userId, { from, to } = {}) {
       hrv_ms: r.hrv ?? null,
       resting_hr: r.restingHR ?? null,
       hrv_status: r.hrvStatus ?? null,
-      hrv_baseline: r.baseline ?? null,
+      hrv_deviation: hrvDeviation(r.hrv, normalizeBaseline(r.baseline)),
       body_battery_low: r.bbLow ?? null,
       body_battery_high: r.bbHigh ?? null,
     }));
   const avg = (vals) => (vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
-  const hrv7 = avg(rows.slice(0, 7).map((r) => r.hrv_ms).filter((v) => typeof v === 'number'));
-  const cur = rows[0] || null;
-  const current = cur ? {
-    date: cur.date,
-    hrv_ms: cur.hrv_ms,
+  const hrv7 = avg(rows.map((r) => r.hrv_ms).filter((v) => typeof v === 'number').slice(0, 7));
+  // La noche de HRV más reciente (rows[0] podría ser un día solo con FC reposo): el
+  // baseline y la desviación deben salir de la misma noche para no mezclar fechas.
+  const curRaw = ((await readKey(userId, 'garmin_cardiac_data')) || [])
+    .filter((r) => r.hrv != null && inRange(r.date + 'T12:00:00', from, to))
+    .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+  const base = curRaw ? normalizeBaseline(curRaw.baseline) : null;
+  const current = curRaw ? {
+    date: curRaw.date,
+    hrv_ms: curRaw.hrv,
     hrv_7d_avg: hrv7,
-    hrv_baseline: cur.hrv_baseline,
-    hrv_status: cur.hrv_status,
-    resting_hr: cur.resting_hr,
+    hrv_baseline: base,                                 // { low, high, marker }
+    hrv_deviation: hrvDeviation(curRaw.hrv, base),      // above | below | within
+    hrv_status: curRaw.hrvStatus ?? null,
+    resting_hr: curRaw.restingHR ?? null,
   } : null;
   return { count: rows.length, current, rows };
 }
@@ -814,7 +909,21 @@ export async function getHealthAlerts(userId, { from, to } = {}) {
     if (r.restingHR != null) rhrHist.push(r.restingHR);
   }
   const filtered = alerts.filter((al) => inRange(al.date + 'T12:00:00', from, to)).reverse();
-  return { count: filtered.length, alerts: filtered };
+  const withHrv = rows.filter((r) => r.hrv != null).length;
+  const withBB = rows.filter((r) => r.bbHigh != null).length;
+  // `evaluated` distingue "todo bien" (reglas corridas sobre datos) de "no evalúa"
+  // (sin datos): un count 0 a secas no lo dejaba claro.
+  return {
+    count: filtered.length,
+    alerts: filtered,
+    evaluated: {
+      days: rows.length,
+      days_with_hrv: withHrv,
+      days_with_body_battery: withBB,
+      rules: ['body_battery_low_streak (BB máx <55 dos noches)', 'hrv_down_rhr_up (VFC <90% baseline y FC reposo >+3)'],
+      status: rows.length ? (filtered.length ? 'alertas' : 'sin alertas') : 'sin datos',
+    },
+  };
 }
 
 // ── Detección automática de esfuerzos de test (umbral) ───────────────────────
@@ -844,12 +953,19 @@ export function detectThresholdEffort(a, hrMax) {
   const third = Math.max(1, Math.floor(seg.length / 3));
   const hrAvg = (arr) => arr.reduce((s, x) => s + x.average_heartrate, 0) / arr.length;
   const drift = (hrAvg(seg.slice(-third)) / hrAvg(seg.slice(0, third)) - 1) * 100;
+  // Con deriva alta fue un esfuerzo progresivo, no un TT constante: el LTHR/ritmo
+  // estimados son poco fiables. Lo marcamos para que no se tomen como referencia.
+  const absDrift = Math.abs(drift);
+  const confidence = absDrift < 3 ? 'high' : absDrift <= 5 ? 'medium' : 'low';
   return {
     duration_min: round(best.time / 60, 1),
     lthr,
     threshold_pace: calcPace(dist / best.time),
-    hr_stabilized: Math.abs(drift) < 3,
+    hr_stabilized: absDrift < 3,
     hr_drift_pct: round(drift, 1),
+    confidence,
+    lthr_reliable: confidence !== 'low',
+    ...(confidence === 'low' ? { warning: 'FC derivó >5%: esfuerzo progresivo, LTHR/ritmo poco fiables' } : {}),
   };
 }
 
@@ -892,11 +1008,22 @@ export async function detectThresholdTests(userId, { hr_max, from, to } = {}) {
   };
 }
 
-/** Sueño semanal (garmin_sleep_data). */
+/**
+ * Sueño semanal (garmin_sleep_data). El ingest guardó ventanas rodantes solapadas
+ * (p.ej. 28/7–3/8 y 27/7–2/8), así que deduplicamos por semana ISO (lunes): una fila
+ * por semana, prefiriendo la que ya empieza en lunes.
+ */
 export async function getSleep(userId, { from, to } = {}) {
   const rows = (await readKey(userId, 'garmin_sleep_data')) || [];
-  return rows
-    .filter((r) => inRange((r.weekStart || '') + 'T12:00:00', from, to))
+  const byWeek = new Map(); // lunes ISO -> fila elegida
+  for (const r of rows) {
+    if (!r.weekStart || !inRange(r.weekStart + 'T12:00:00', from, to)) continue;
+    const wk = mondayOf(r.weekStart);
+    const prev = byWeek.get(wk);
+    // Prefiere la ventana que ya arranca en lunes (weekStart === lunes ISO).
+    if (!prev || (r.weekStart === wk && prev.weekStart !== wk)) byWeek.set(wk, r);
+  }
+  return [...byWeek.values()]
     .sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || ''))
     .map((r) => ({
       week_start: r.weekStart,

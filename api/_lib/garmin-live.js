@@ -91,7 +91,11 @@ export async function getWeightRange(userId, { from, to } = {}) {
       };
     } catch { return null; /* día sin pesada */ }
   })).filter(Boolean);
-  return { count: rows.length, weights: rows };
+  return {
+    count: rows.length,
+    weights: rows,
+    ...(rows.length ? {} : { note: `Sin pesadas en el rango (${dates.length} días consultados). Si nunca devuelve datos, revisa que haya una báscula Garmin/compatible vinculada a la cuenta.` }),
+  };
 }
 
 /** Training readiness: score, nivel y factores (sueño, recuperación, ACWR, VFC). */
