@@ -411,6 +411,43 @@ export function summarizeActivities(list) {
   };
 }
 
+/**
+ * Agregados combinando Strava y Garmin. Strava es la fuente base; añadimos las
+ * actividades de Garmin NO correlacionadas (p.ej. calentamiento/vuelta a la calma
+ * registrados sueltos en el reloj) para no infravalorar el volumen semanal. Devuelve
+ * el resumen Strava + `garmin_only` (lo que aporta Garmin) + `combined` (total real).
+ */
+export async function activityStats(userId, args = {}) {
+  const all = await getActivities(userId);
+  const stravaList = filterActivities(all, args);
+  const base = summarizeActivities(stravaList);
+
+  const garmin = await getGarminActivitiesRaw(userId);
+  const correlated = new Set(all.filter((a) => a._garmin).map((a) => a._garmin.garmin_id));
+  const onlyRun = args.only_running;
+  const gOnly = garmin.filter((g) => {
+    if (correlated.has(g.garmin_id)) return false;                 // ya cuenta vía Strava
+    if (onlyRun && !(g.type || '').includes('run')) return false;
+    if (g.start_time && !inRange(g.start_time, args.from, args.to)) return false;
+    return true;
+  });
+  let gDist = 0, gTime = 0;
+  for (const g of gOnly) { gDist += g.distance_m || 0; gTime += g.duration_s || 0; }
+
+  const garmin_only = {
+    count: gOnly.length,
+    distance_km: round(gDist / 1000, 1),
+    moving_time_h: round(gTime / 3600, 1),
+    note: gOnly.length ? 'Actividades presentes en Garmin pero no en Strava (no correlacionadas).' : undefined,
+  };
+  const combined = {
+    count: base.count + gOnly.length,
+    total_distance_km: round((base.total_distance_km || 0) + gDist / 1000, 1),
+    total_moving_time_h: round((base.total_moving_time_h || 0) + gTime / 3600, 1),
+  };
+  return { source: 'strava', ...base, garmin_only, combined };
+}
+
 // ── Personal Bests (espejo exacto de src/components/PersonalBests.jsx) ────────
 const PB_RANGES = [
   { id: '5k', name: '5K', min: 4900, max: 5200, effortNames: ['5k'] },
@@ -435,7 +472,7 @@ const fmtTime = (s) => {
 // distancia total dentro del rango.
 function pbCandidate(a, range) {
   const effort = a.best_efforts?.find(
-    (e) => range.effortNames.includes(e.name?.toLowerCase()) && (e.moving_time || e.elapsed_time) > 0,
+    (e) => range.effortNames.includes(canonEffortByMeters(e.distance) || e.name?.toLowerCase()) && (e.moving_time || e.elapsed_time) > 0,
   );
   if (effort) {
     return { id: a.id, name: a.name, start_date: a.start_date, time: effort.moving_time || effort.elapsed_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false };
@@ -501,10 +538,67 @@ export async function getPersonalBests(userId, { sport, from, to } = {}) {
 }
 
 // ── Récords personales analíticos (best_efforts, moving_time, top-N, HR) ──────
-// Orden canónico de las distancias de best_efforts de Strava.
-const BEST_EFFORT_ORDER = ['400m', '1/2 mile', '1k', '1 mile', '2 mile', '5k', '10k',
-  '15k', '10 mile', '20k', 'half-marathon', '30k', 'marathon', '50k'];
+// Distancias canónicas de best_effort, identificadas por sus METROS (no por el
+// nombre): Strava localiza los nombres según el idioma de la cuenta ("10 km",
+// "1 milla", "media maratón"), así que casar por texto fallaba en silencio.
+const CANON_EFFORTS = [
+  { id: '400m', m: 400 }, { id: '1/2 mile', m: 805 }, { id: '1k', m: 1000 },
+  { id: '1 mile', m: 1609 }, { id: '2 mile', m: 3219 }, { id: '5k', m: 5000 },
+  { id: '10k', m: 10000 }, { id: '15k', m: 15000 }, { id: '10 mile', m: 16093 },
+  { id: '20k', m: 20000 }, { id: 'half-marathon', m: 21097 }, { id: '30k', m: 30000 },
+  { id: 'marathon', m: 42195 }, { id: '50k', m: 50000 },
+];
+const BEST_EFFORT_ORDER = CANON_EFFORTS.map((e) => e.id);
 const effortOrder = (k) => { const i = BEST_EFFORT_ORDER.indexOf(k); return i < 0 ? 999 : i; };
+
+// metros → id canónico (tolerancia 1.5%, sobrada para las distancias estándar).
+function canonEffortByMeters(m) {
+  if (!m) return null;
+  let best = null;
+  for (const e of CANON_EFFORTS) {
+    const rel = Math.abs(m - e.m) / e.m;
+    if (rel <= 0.015 && (!best || rel < best.rel)) best = { id: e.id, rel };
+  }
+  return best?.id ?? null;
+}
+// id canónico de un best_effort de Strava: por metros primero, nombre como fallback.
+const effortId = (e) => canonEffortByMeters(e?.distance) || (e?.name ? e.name.toLowerCase() : null);
+
+// Interpreta la distancia que pide el usuario en cualquier formato/idioma
+// ("10k", "10 km", "10000m", "1 milla", "media maratón") → id canónico.
+function parseDistanceInput(input) {
+  const s = String(input || '').toLowerCase().trim();
+  if (!s) return null;
+  if (BEST_EFFORT_ORDER.includes(s)) return s;
+  if (/^(media|half)$/.test(s) || /(media|half)[\s-]*marat/.test(s) || s === 'hm') return 'half-marathon';
+  if (/marat(h?[oó]n)?$/.test(s)) return 'marathon';
+  const mile = s.match(/([\d.]+)\s*(mile|milla|millas)/);
+  if (mile) return canonEffortByMeters(parseFloat(mile[1]) * 1609.344);
+  if (/^(mile|milla)$/.test(s)) return '1 mile';
+  const km = s.match(/([\d.]+)\s*k(m)?\b/);
+  if (km) return canonEffortByMeters(parseFloat(km[1]) * 1000);
+  const m = s.match(/([\d.]+)\s*m\b/);
+  if (m) return canonEffortByMeters(parseFloat(m[1]));
+  const num = s.match(/^([\d.]+)$/);
+  if (num) { const v = parseFloat(num[1]); return canonEffortByMeters(v < 100 ? v * 1000 : v); }
+  return null;
+}
+
+// Distancias realmente presentes en los datos (con su recuento), para orientar al
+// usuario cuando pide una que no existe o escribe mal el nombre.
+function availableEfforts(list) {
+  const counts = new Map();
+  for (const a of list) {
+    for (const e of a.best_efforts || []) {
+      const id = effortId(e);
+      if (id && effortTime(e)) counts.set(id, (counts.get(id) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((x, y) => effortOrder(x[0]) - effortOrder(y[0]))
+    .map(([distance, count]) => ({ distance, count }));
+}
+
 // Tiempo del esfuerzo: moving_time (no el de pared), como pidió el atleta.
 const effortTime = (e) => e.moving_time || e.elapsed_time || 0;
 
@@ -521,8 +615,8 @@ export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = 
   for (const a of list) {
     for (const e of a.best_efforts || []) {
       const t = effortTime(e);
-      if (!t || !e.name) continue;
-      const key = e.name.toLowerCase();
+      const key = effortId(e);
+      if (!t || !key) continue;
       if (!byDist.has(key)) byDist.set(key, []);
       byDist.get(key).push({
         distance_m: e.distance, time: t,
@@ -552,12 +646,15 @@ export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = 
  */
 export async function getBestEffortsProgression(userId, { distance, sport, from, to } = {}) {
   if (!distance) return { error: 'Falta "distance" (p.ej. "5k", "10k", "half-marathon", "marathon").' };
-  const key = String(distance).toLowerCase();
   const all = await getActivities(userId);
   const list = filterActivities(all, { from, to, sport, only_running: !sport });
+  const key = parseDistanceInput(distance);
+  if (!key) {
+    return { error: `No reconozco la distancia "${distance}".`, available: availableEfforts(list) };
+  }
   const series = [];
   for (const a of list) {
-    const e = (a.best_efforts || []).find((x) => x.name?.toLowerCase() === key);
+    const e = (a.best_efforts || []).find((x) => effortId(x) === key);
     const t = e ? effortTime(e) : 0;
     if (!t) continue;
     series.push({
@@ -571,34 +668,80 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
   series.sort((x, y) => new Date(x.date) - new Date(y.date));
   let best = Infinity;
   for (const p of series) { p.is_pr = p.time_s < best; if (p.is_pr) best = p.time_s; }
+  // Distancia válida pero sin registros: guía al usuario con lo que sí hay.
+  if (!series.length) return { distance: key, count: 0, series, available: availableEfforts(list) };
   return { distance: key, count: series.length, series };
 }
 
-/** VFC nocturna + FC reposo por día (garmin_cardiac_data). */
+/**
+ * VFC nocturna + FC reposo por día (garmin_cardiac_data). Incluye el baseline de
+ * Garmin (rango balanceado de referencia) y una media móvil de 7 días de la VFC,
+ * más un `current` con el último dato: sin eso no se puede automatizar el semáforo.
+ */
 export async function getHrvResting(userId, { from, to } = {}) {
-  const rows = (await readKey(userId, 'garmin_cardiac_data')) || [];
-  return rows
+  const rows = ((await readKey(userId, 'garmin_cardiac_data')) || [])
     .filter((r) => (r.hrv != null || r.restingHR != null) && inRange(r.date + 'T12:00:00', from, to))
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort((a, b) => b.date.localeCompare(a.date)) // reciente primero
     .map((r) => ({
       date: r.date,
       hrv_ms: r.hrv ?? null,
       resting_hr: r.restingHR ?? null,
       hrv_status: r.hrvStatus ?? null,
+      hrv_baseline: r.baseline ?? null,
       body_battery_low: r.bbLow ?? null,
       body_battery_high: r.bbHigh ?? null,
     }));
+  const avg = (vals) => (vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
+  const hrv7 = avg(rows.slice(0, 7).map((r) => r.hrv_ms).filter((v) => typeof v === 'number'));
+  const cur = rows[0] || null;
+  const current = cur ? {
+    date: cur.date,
+    hrv_ms: cur.hrv_ms,
+    hrv_7d_avg: hrv7,
+    hrv_baseline: cur.hrv_baseline,
+    hrv_status: cur.hrv_status,
+    resting_hr: cur.resting_hr,
+  } : null;
+  return { count: rows.length, current, rows };
 }
 
 // ── Modelo de Banister: CTL / ATL / TSB desde la carga por sesión ────────────
 const toISODate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+// Lunes (ISO) de la semana de una fecha YYYY-MM-DD.
+function mondayOf(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const day = (d.getDay() + 6) % 7; // Lun=0
+  d.setDate(d.getDate() - day);
+  return toISODate(d);
+}
+
+// Colapsa la serie diaria a semanal: por semana, la forma (CTL/ATL/TSB) del último
+// día y la carga total de la semana. Reduce ~7× el payload para un LLM.
+function toWeekly(series) {
+  const byWeek = new Map();
+  for (const s of series) {
+    const wk = mondayOf(s.date);
+    const acc = byWeek.get(wk) || { week_start: wk, load_week: 0, last: null };
+    acc.load_week += s.load || 0;
+    acc.last = s; // series va cronológica → el último visto es el más reciente
+    byWeek.set(wk, acc);
+  }
+  return [...byWeek.values()].map(({ week_start, load_week, last }) => ({
+    week_start, load_week: Math.round(load_week),
+    ctl: last.ctl, atl: last.atl, tsb: last.tsb, tsb_today: last.tsb_today,
+  }));
+}
+
 /**
- * Serie diaria de carga crónica (CTL, 42 d), aguda (ATL, 7 d) y forma (TSB) por
- * medias móviles exponenciales sobre el training_load de Garmin. Sin ingesta.
+ * Serie de carga crónica (CTL, 42 d), aguda (ATL, 7 d) y forma (TSB) por medias
+ * móviles exponenciales sobre el training_load de Garmin. Sin ingesta.
+ * - `tsb`: forma con la convención TrainingPeaks (CTL−ATL del día ANTERIOR).
+ * - `tsb_today`: CTL−ATL del propio día (evita el desfase al leerlo junto a CTL/ATL).
+ * - `granularity: 'weekly'` colapsa a semana; `summary_only` devuelve solo `current`.
  */
-export async function getTrainingLoadModel(userId, { from, to } = {}) {
+export async function getTrainingLoadModel(userId, { from, to, granularity = 'daily', summary_only = false } = {}) {
   const acts = await getActivities(userId);
   const byDay = new Map();
   for (const a of acts) {
@@ -623,13 +766,20 @@ export async function getTrainingLoadModel(userId, { from, to } = {}) {
     const tsb = ctl - atl;                             // forma = CTL previo − ATL previo
     ctl += (load - ctl) * kCtl;
     atl += (load - atl) * kAtl;
-    series.push({ date: iso, load: round(load, 0), ctl: round(ctl, 1), atl: round(atl, 1), tsb: round(tsb, 1) });
+    series.push({
+      date: iso, load: round(load, 0),
+      ctl: round(ctl, 1), atl: round(atl, 1),
+      tsb: round(tsb, 1), tsb_today: round(ctl - atl, 1),
+    });
   }
-  const ranged = series.filter((s) => inRange(s.date + 'T12:00:00', from, to));
-  const out = ranged.length ? ranged : series;
-  const lastRow = out[out.length - 1] || null;
-  const weekly_ramp = out.length > 7 ? round(out[out.length - 1].ctl - out[out.length - 8].ctl, 1) : null;
-  return { current: lastRow ? { ...lastRow, weekly_ramp } : null, series: out };
+  const ranged = series.filter((s) => inRange(s.date, from, to));
+  const daily = ranged.length ? ranged : series;
+  const lastRow = daily[daily.length - 1] || null;
+  const weekly_ramp = daily.length > 7 ? round(daily[daily.length - 1].ctl - daily[daily.length - 8].ctl, 1) : null;
+  const current = lastRow ? { ...lastRow, weekly_ramp } : null;
+  if (summary_only) return { current, granularity: 'summary' };
+  const out = granularity === 'weekly' ? toWeekly(daily) : daily;
+  return { current, granularity, count: out.length, series: out };
 }
 
 // ── Alertas de patrón (firma de infección / sobrecarga) ──────────────────────
@@ -703,17 +853,43 @@ export function detectThresholdEffort(a, hrMax) {
   };
 }
 
-/** Escanea el historial buscando tests de umbral (FCmax = máx FC observada). */
-export async function detectThresholdTests(userId, args = {}) {
+// FCmax robusta: el máximo absoluto lo dispara cualquier spike de la banda/muñeca
+// (p.ej. 214 con una máxima real de 194), y eso sube el umbral del 88% hasta hacer
+// que no se detecte ningún test. Tomamos el percentil 98 de las FCmax por carrera de
+// los últimos 12 meses (descarta spikes aislados) en un rango fisiológico plausible.
+function estimateHrMax(activities) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 12);
+  const pick = (arr) => arr
+    .map((a) => a.max_heartrate)
+    .filter((v) => typeof v === 'number' && v > 120 && v < 225)
+    .sort((x, y) => x - y);
+  let vals = pick(activities.filter((a) => new Date(a.start_date) >= cutoff));
+  if (vals.length < 8) vals = pick(activities);   // histórico si el último año es escaso
+  if (!vals.length) return null;
+  const idx = Math.min(vals.length - 1, Math.floor(vals.length * 0.98));
+  return vals[idx];
+}
+
+/**
+ * Escanea el historial buscando tests de umbral. FCmax: `hr_max` si se pasa; si no,
+ * estimación robusta (percentil 98 del último año) en vez del máximo absoluto.
+ */
+export async function detectThresholdTests(userId, { hr_max, from, to } = {}) {
   const all = await getActivities(userId);
-  const hrMax = all.reduce((m, a) => Math.max(m, a.max_heartrate || 0), 0) || null;
-  const tests = filterActivities(all, { ...args, only_running: true })
+  const hrMax = hr_max || estimateHrMax(all);
+  const tests = filterActivities(all, { from, to, only_running: true })
     .map((a) => {
       const t = detectThresholdEffort(a, hrMax);
       return t ? { id: a.id, date: a.start_date, name: a.name, ...t } : null;
     })
     .filter(Boolean);
-  return { hr_max_used: hrMax, count: tests.length, tests };
+  return {
+    hr_max_used: hrMax,
+    hr_max_source: hr_max ? 'parámetro' : 'estimado (p98 últimos 12 meses)',
+    count: tests.length,
+    tests,
+  };
 }
 
 /** Sueño semanal (garmin_sleep_data). */

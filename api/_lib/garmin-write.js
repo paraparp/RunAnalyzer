@@ -147,9 +147,29 @@ export async function deleteWorkout(userId, workoutId) {
   return { deleted: true, workout_id: workoutId };
 }
 
+// Garmin devuelve 427 (o lo empaqueta como { error: { 'status-code': '427' } })
+// cuando limita las peticiones. Lo traducimos a un mensaje accionable.
+function asRateLimit(codeOrErr) {
+  const s = String(codeOrErr ?? '');
+  if (s.includes('427') || /rate.?limit|too many/i.test(s)) {
+    return new Error('Garmin está limitando las peticiones (rate-limit 427). Espera ~1 min y reintenta.');
+  }
+  return null;
+}
+
 export async function listWorkouts(userId, { limit = 20 } = {}) {
   const client = await getGarminClientFor(userId);
-  const rows = await client.getWorkouts(0, Math.min(Math.max(limit, 1), 100));
+  let rows;
+  try {
+    rows = await client.getWorkouts(0, Math.min(Math.max(limit, 1), 100));
+  } catch (e) {
+    throw asRateLimit(e?.message) || new Error(`No se pudieron listar los entrenos de Garmin: ${e.message}`);
+  }
+  // Algunos errores no se lanzan: llegan como cuerpo { error: { 'status-code': ... } }.
+  if (rows && !Array.isArray(rows)) {
+    const code = rows.error?.['status-code'] ?? rows['status-code'] ?? rows.error ?? 'desconocido';
+    throw asRateLimit(code) || new Error(`Garmin devolvió un error al listar entrenos (${code}).`);
+  }
   return {
     count: Array.isArray(rows) ? rows.length : 0,
     workouts: (Array.isArray(rows) ? rows : []).map((w) => ({

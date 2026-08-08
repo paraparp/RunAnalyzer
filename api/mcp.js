@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
-  getActivities, filterActivities, summarizeActivities, shapeSummary, shapeFull,
+  getActivities, filterActivities, activityStats, shapeSummary, shapeFull,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
@@ -81,15 +81,12 @@ const TOOLS = [
   },
   {
     name: 'activity_stats',
-    description: 'Agregados de las actividades en un rango: total km, tiempo, desnivel y desglose por tipo.',
+    description: 'Agregados de las actividades en un rango: total km, tiempo, desnivel y desglose por tipo. Incluye `garmin_only` (lo que hay en Garmin y no en Strava) y `combined` (volumen real) para no infravalorar la semana.',
     inputSchema: {
       type: 'object',
       properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
     },
-    run: async (userId, args) => {
-      const all = await getActivities(userId);
-      return text(summarizeActivities(filterActivities(all, args)));
-    },
+    run: (userId, args) => activityStats(userId, args).then(text),
   },
   {
     name: 'list_running_dynamics',
@@ -145,9 +142,9 @@ const TOOLS = [
   },
   {
     name: 'list_hrv_resting',
-    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery si está disponible.',
+    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery. Incluye baseline de Garmin (rango balanceado), media móvil 7d y un `current` para el semáforo HRV.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
-    run: async (userId, args) => text({ rows: await getHrvResting(userId, args) }),
+    run: (userId, args) => getHrvResting(userId, args).then(text),
   },
   {
     name: 'list_sleep',
@@ -187,8 +184,15 @@ const TOOLS = [
   },
   {
     name: 'get_training_load_model',
-    description: 'Modelo de Banister: serie diaria de carga crónica (CTL), aguda (ATL) y forma (TSB) con la rampa semanal, desde el training_load de Garmin.',
-    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal, desde el training_load de Garmin. Usa granularity=weekly o summary_only para no saturar el contexto.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: dateArg, to: dateArg,
+        granularity: { type: 'string', enum: ['daily', 'weekly'], description: 'daily (por defecto) o weekly (colapsa la serie por semana)' },
+        summary_only: { type: 'boolean', description: 'Devuelve solo el estado actual, sin la serie' },
+      },
+    },
     run: (userId, args) => getTrainingLoadModel(userId, args).then(text),
   },
   {
@@ -199,8 +203,14 @@ const TOOLS = [
   },
   {
     name: 'detect_threshold_efforts',
-    description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado).',
-    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado). FCmax: se estima de forma robusta (p98 del último año) salvo que pases hr_max.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: dateArg, to: dateArg,
+        hr_max: { type: 'number', description: 'FCmax real en bpm (recomendado); si se omite, se estima descartando spikes' },
+      },
+    },
     run: (userId, args) => detectThresholdTests(userId, args).then(text),
   },
   // ── Escritura en Garmin (usa las credenciales guardadas del usuario) ───────
