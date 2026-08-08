@@ -446,12 +446,12 @@ const fmtTime = (s) => {
 // distancia total dentro del rango.
 function pbCandidate(a, range) {
   const effort = a.best_efforts?.find(
-    (e) => range.effortNames.includes(e.name?.toLowerCase()) && (e.elapsed_time || e.moving_time) > 0,
+    (e) => range.effortNames.includes(e.name?.toLowerCase()) && (e.moving_time || e.elapsed_time) > 0,
   );
   if (effort) {
-    return { id: a.id, name: a.name, start_date: a.start_date, time: effort.elapsed_time || effort.moving_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false };
+    return { id: a.id, name: a.name, start_date: a.start_date, time: effort.moving_time || effort.elapsed_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false };
   }
-  const time = a.elapsed_time || a.moving_time;
+  const time = a.moving_time || a.elapsed_time;
   if (a.distance >= range.min && a.distance <= range.max && time > 0) {
     return { id: a.id, name: a.name, start_date: a.start_date, time, distance: a.distance, isEffort: false, isFlat: false };
   }
@@ -489,7 +489,7 @@ export function computePersonalBests(activities) {
     const top = activities
       .map((a) => candFn(a, range))
       .filter(Boolean)
-      .sort((x, y) => x.time / x.distance - y.time / y.distance)
+      .sort((x, y) => x.time - y.time)   // por tiempo: el PR es el más rápido, orden consistente
       .slice(0, 5)
       .map((c) => ({
         id: c.id, name: c.name, date: c.start_date,
@@ -503,9 +503,12 @@ export function computePersonalBests(activities) {
   return [...build(PB_FLAT_RANGES, pbFlatCandidate), ...build(PB_RANGES, pbCandidate)];
 }
 
-export async function getPersonalBests(userId) {
+export async function getPersonalBests(userId, { sport, from, to } = {}) {
   const all = await getActivities(userId);
-  return { records: computePersonalBests(all) };
+  // Por defecto solo carreras: si no, el fallback por distancia total mete bicis
+  // (una salida de 42 km saldría como "maratón").
+  const list = filterActivities(all, { sport, from, to, only_running: !sport });
+  return { records: computePersonalBests(list) };
 }
 
 // ── Récords personales analíticos (best_efforts, moving_time, top-3, HR) ──────

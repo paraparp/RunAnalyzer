@@ -80,8 +80,14 @@ const TOOLS = [
   },
   {
     name: 'get_personal_bests',
-    description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia con tiempo, ritmo, fecha y si es parcial/llano. Igual que el panel de la app.',
-    inputSchema: { type: 'object', properties: {} },
+    description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia (ordenado por tiempo), con ritmo, fecha y si es parcial/llano. Solo carreras por defecto. Igual que el panel de la app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
+        from: dateArg, to: dateArg,
+      },
+    },
   },
   {
     name: 'personal_records',
@@ -288,7 +294,7 @@ async function runTool(userId, name, args = {}) {
     case 'list_running_dynamics':
       return text(await listRunningDynamics(userId, args));
     case 'get_personal_bests':
-      return text(await getPersonalBests(userId));
+      return text(await getPersonalBests(userId, args));
     case 'personal_records':
       return text(await getPersonalRecords(userId, args));
     case 'best_efforts_progression':
