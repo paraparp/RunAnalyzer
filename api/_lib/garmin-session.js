@@ -22,6 +22,7 @@ export async function getGarminClientFor(userId) {
   }
   const cached = _clients.get(userId);
   if (cached && Date.now() - cached.ts < TTL_MS) return cached.client;
+  if (cached) _clients.delete(userId); // sesión caducada: no retener el cliente muerto
   const client = await createClient(creds.username, creds.password);
   _clients.set(userId, { client, ts: Date.now() });
   return client;

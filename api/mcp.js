@@ -10,7 +10,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { applyCors, baseUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
+import { applyCors, baseUrl, resourceUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, activityStats, shapeSummary, shapeFull,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
@@ -430,7 +430,13 @@ export default async function handler(req, res) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   let userId = null;
   if (token) {
-    try { userId = (await verifyAccessToken(token)).sub; } catch { userId = null; }
+    try {
+      const claims = await verifyAccessToken(token);
+      // Enforce audience (RFC 8707): un token emitido para otro recurso no vale aquí.
+      // El `aud` lo pone nuestro propio token endpoint = resourceUrl(req); solo lo
+      // exigimos si el token lo trae, para no invalidar tokens antiguos sin `aud`.
+      if (!claims.aud || claims.aud === resourceUrl(req)) userId = claims.sub;
+    } catch { userId = null; }
   }
   if (!userId) {
     return sendJson(res, 401, { jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null }, {

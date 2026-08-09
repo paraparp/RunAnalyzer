@@ -27,6 +27,19 @@ function dateRange(from, to, cap = 31) {
   return out;
 }
 
+// Nota de truncado: `dateRange` limita a `cap` días (recientes primero). Si se pidió
+// un `from` más antiguo que la fecha más vieja devuelta, el rango se recortó: avisamos
+// en vez de devolver menos días en silencio. `dates` va de reciente a antiguo.
+function truncationNote(dates, from, cap) {
+  if (!from || !dates.length) return null;
+  const oldest = dates[dates.length - 1];
+  if (oldest > from) {
+    return `Rango recortado a los ${cap} días más recientes (desde ${oldest}); ` +
+      `pediste desde ${from}. Consulta en tramos más cortos para cubrir todo.`;
+  }
+  return null;
+}
+
 // map con concurrencia limitada que conserva el orden de entrada. Cada día es una
 // request independiente a Garmin: lanzarlas en serie encadena decenas de llamadas
 // (riesgo de timeout con maxDuration=60); con concurrencia acotada van en paralelo
@@ -44,7 +57,8 @@ async function mapLimit(items, limit, fn) {
 /** Sueño noche a noche: fases, score, estrés nocturno, respiración, HRV. */
 export async function getSleepDaily(userId, { from, to } = {}) {
   const client = await getGarminClientFor(userId);
-  const dates = dateRange(from, to, from ? 62 : 14); // por defecto 14 días; rango explícito hasta 62
+  const cap = from ? 62 : 14; // por defecto 14 días; rango explícito hasta 62
+  const dates = dateRange(from, to, cap);
   const nights = (await mapLimit(dates, 5, async (date) => {
     try {
       const s = await client.getSleepData(new Date(date + 'T12:00:00'));
@@ -68,13 +82,15 @@ export async function getSleepDaily(userId, { from, to } = {}) {
       };
     } catch { return null; /* noche sin datos */ }
   })).filter(Boolean);
-  return { count: nights.length, nights };
+  const note = truncationNote(dates, from, cap);
+  return { count: nights.length, nights, ...(note ? { note } : {}) };
 }
 
 /** Peso y composición corporal (báscula) en un rango. */
 export async function getWeightRange(userId, { from, to } = {}) {
   const client = await getGarminClientFor(userId);
-  const dates = dateRange(from, to, from ? 62 : 14); // por defecto 14 días; rango explícito hasta 62
+  const cap = from ? 62 : 14; // por defecto 14 días; rango explícito hasta 62
+  const dates = dateRange(from, to, cap);
   const rows = (await mapLimit(dates, 5, async (date) => {
     try {
       const w = await client.getDailyWeightData(new Date(date + 'T12:00:00'));
@@ -91,10 +107,13 @@ export async function getWeightRange(userId, { from, to } = {}) {
       };
     } catch { return null; /* día sin pesada */ }
   })).filter(Boolean);
+  const note = rows.length
+    ? truncationNote(dates, from, cap)
+    : `Sin pesadas en el rango (${dates.length} días consultados). Si nunca devuelve datos, revisa que haya una báscula Garmin/compatible vinculada a la cuenta.`;
   return {
     count: rows.length,
     weights: rows,
-    ...(rows.length ? {} : { note: `Sin pesadas en el rango (${dates.length} días consultados). Si nunca devuelve datos, revisa que haya una báscula Garmin/compatible vinculada a la cuenta.` }),
+    ...(note ? { note } : {}),
   };
 }
 

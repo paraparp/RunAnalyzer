@@ -26,8 +26,6 @@ const TARGET_KEY = {
   'heart.rate': 'heart.rate.zone', hr: 'heart.rate.zone',
 };
 
-let _stepId = 1;
-
 // Objetivo de un step (ritmo, FC, potencia, cadencia o ninguno).
 function buildTarget(target) {
   if (!target || !target.type || target.type === 'no.target') {
@@ -53,8 +51,10 @@ function buildTarget(target) {
   };
 }
 
-// Step ejecutable (warmup / interval / recovery / rest / cooldown).
-function execStep(order, step) {
+// Step ejecutable (warmup / interval / recovery / rest / cooldown). `ctx.next` es un
+// contador de stepId local a cada build (antes era un global de módulo: dos builds
+// concurrentes en el mismo proceso caliente se pisaban los ids).
+function execStep(ctx, order, step) {
   const durType = step.duration?.type || 'lap.button';
   let endValue = null;
   let unit = null;
@@ -70,7 +70,7 @@ function execStep(order, step) {
   }
   return {
     type: 'ExecutableStepDTO',
-    stepId: _stepId++,
+    stepId: ctx.next++,
     stepOrder: order,
     childStepId: null,
     description: step.description ?? null,
@@ -84,12 +84,12 @@ function execStep(order, step) {
 }
 
 // Grupo de repeticiones (p.ej. 4× (interval + recovery)).
-function repeatStep(order, step) {
+function repeatStep(ctx, order, step) {
   let childOrder = 1;
-  const children = (step.steps || []).map((s) => execStep(childOrder++, s));
+  const children = (step.steps || []).map((s) => execStep(ctx, childOrder++, s));
   return {
     type: 'RepeatGroupDTO',
-    stepId: _stepId++,
+    stepId: ctx.next++,
     stepOrder: order,
     childStepId: 1,
     stepType: { stepTypeId: STEP_TYPE.repeat, stepTypeKey: 'repeat' },
@@ -111,9 +111,9 @@ export function buildRunningWorkout(spec) {
   if (!spec?.name || !Array.isArray(spec.steps) || !spec.steps.length) {
     throw new Error('El workout necesita "name" y al menos un step en "steps".');
   }
-  _stepId = 1;
+  const ctx = { next: 1 };
   let order = 1;
-  const steps = spec.steps.map((s) => (s.kind === 'repeat' ? repeatStep(order++, s) : execStep(order++, s)));
+  const steps = spec.steps.map((s) => (s.kind === 'repeat' ? repeatStep(ctx, order++, s) : execStep(ctx, order++, s)));
   const sport = { sportTypeId: 1, sportTypeKey: 'running' };
   return {
     sportType: sport,
@@ -159,8 +159,76 @@ export async function updateWorkout(userId, workoutId, spec) {
   const json = buildRunningWorkout(spec);
   json.workoutId = workoutId;
   const client = await getGarminClientFor(userId);
-  await client.put(`https://connectapi.garmin.com/workout-service/workout/${workoutId}`, json);
+  await client.client.put(`https://connectapi.garmin.com/workout-service/workout/${workoutId}`, json);
   return { updated: true, workout_id: workoutId, name: json.workoutName };
+}
+
+// ── Lectura: decodifica un workout de Garmin a la spec de alto nivel ─────────
+// Inverso de buildRunningWorkout: para poder LEER los pasos de un entreno (antes solo
+// se veía nombre/fecha) y editarlo sin re-mandar `steps` a ciegas.
+const paceMinKmFromMs = (v) => (v ? round(16.6667 / v, 2) : null);
+const round = (n, d = 2) => (n == null ? null : parseFloat(Number(n).toFixed(d)));
+
+function decodeDuration(step) {
+  const key = step.endCondition?.conditionTypeKey;
+  const v = step.endConditionValue;
+  if (key === 'distance') {
+    return v != null && v % 1000 === 0
+      ? { type: 'distance', value: v / 1000, unit: 'km' }
+      : { type: 'distance', value: v ?? null, unit: 'm' };
+  }
+  if (key === 'time') {
+    return v != null && v % 60 === 0
+      ? { type: 'time', value: v / 60, unit: 'min' }
+      : { type: 'time', value: v ?? null, unit: 's' };
+  }
+  return { type: 'lap.button' };
+}
+
+function decodeTarget(step) {
+  const key = step.targetType?.workoutTargetTypeKey;
+  if (!key || key === 'no.target') return { type: 'no.target' };
+  let one = step.targetValueOne ?? null;
+  let two = step.targetValueTwo ?? null;
+  if (key === 'pace.zone') {                 // m/s → min/km (más lento = número mayor)
+    const lo = paceMinKmFromMs(two);         // two = m/s alto = ritmo rápido → min/km bajo
+    const hi = paceMinKmFromMs(one);
+    return { type: 'pace', low: lo, high: hi, zone: step.zoneNumber ?? null };
+  }
+  const type = { 'heart.rate.zone': 'heart.rate', 'power.zone': 'power', 'cadence.zone': 'cadence' }[key] || key;
+  return { type, low: one, high: two, zone: step.zoneNumber ?? null };
+}
+
+function decodeStep(step) {
+  if (step.type === 'RepeatGroupDTO') {
+    return {
+      kind: 'repeat',
+      repeats: step.numberOfIterations ?? null,
+      steps: (step.workoutSteps || []).map(decodeStep),
+    };
+  }
+  return {
+    kind: step.stepType?.stepTypeKey ?? 'interval',
+    duration: decodeDuration(step),
+    target: decodeTarget(step),
+    ...(step.description ? { description: step.description } : {}),
+  };
+}
+
+/** Lee un entreno de Garmin y devuelve su spec de alto nivel (name, description, steps). */
+export async function getWorkout(userId, workoutId) {
+  if (!workoutId) throw new Error('Falta workout_id.');
+  const client = await getGarminClientFor(userId);
+  const w = await client.getWorkoutDetail({ workoutId });
+  if (!w || !w.workoutId) throw new Error(`Entreno ${workoutId} no encontrado en Garmin.`);
+  const steps = (w.workoutSegments || []).flatMap((seg) => (seg.workoutSteps || []).map(decodeStep));
+  return {
+    workout_id: w.workoutId,
+    name: w.workoutName ?? null,
+    description: w.description ?? null,
+    sport: w.sportType?.sportTypeKey ?? null,
+    steps,
+  };
 }
 
 export async function deleteWorkout(userId, workoutId) {

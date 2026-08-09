@@ -48,6 +48,7 @@ export async function readKey(userId, key) {
   const ck = `${userId}:${key}`;
   const hit = _cache.get(ck);
   if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.value;
+  if (hit) _cache.delete(ck); // caducado: no dejar crecer el Map sin límite en lambdas calientes
   const { data, error } = await service()
     .from('user_storage')
     .select('value')
@@ -156,7 +157,9 @@ export function shapeFull(a, include = null) {
       power: a._garmin.power,            // vatios de carrera
       training: a._garmin.training,      // training effect, carga, VO2max
       weather: a._garmin.weather ?? null, // temp, humedad, WBGT y penalización por calor
-      laps: shapeGarminLaps(a._garmin.laps || []), // laps reales del reloj (con is_autolap)
+      // Los laps reales del reloj pesan mucho (~3k tokens): solo si se piden con
+      // include:["laps"]; así "garmin" trae dynamics/power/weather sin arrastrarlos.
+      ...(want.has('laps') ? { laps: shapeGarminLaps(a._garmin.laps || []) } : {}),
       calories: a._garmin.calories,
       steps: a._garmin.steps,
     } : null;
@@ -264,7 +267,10 @@ export function computeGap(a) {
     per_split.push({ split: s.split, grade_pct: round(grade * 100, 1), gap_pace: calcPace(gapSpeed) });
   }
   if (!dist || !gapTime) return null;
-  return { gap_pace: calcPace(dist / gapTime), per_split };
+  // Etiquetado explícito: este GAP es cálculo propio (Minetti sobre splits por km) y NO
+  // coincide con `garmin.laps[].gap_pace` (avgGradeAdjustedSpeed del reloj, modelo
+  // distinto y por lap). No mezclar: pueden diferir ~30 s/km en el mismo km.
+  return { source: 'computed (Minetti, por split de 1 km)', gap_pace: calcPace(dist / gapTime), per_split };
 }
 
 // ── Consultas de alto nivel ─────────────────────────────────────────────────
@@ -968,19 +974,25 @@ export async function getHealthAlerts(userId, { from, to } = {}) {
     if (r.restingHR != null) rhrHist.push(r.restingHR);
   }
   const filtered = alerts.filter((al) => inRange(al.date + 'T12:00:00', from, to)).reverse();
-  const withHrv = rows.filter((r) => r.hrv != null).length;
-  const withBB = rows.filter((r) => r.bbHigh != null).length;
+  // Los baselines rodantes se calculan sobre TODO el histórico (necesitan las 30 noches
+  // previas a cada día), pero los contadores de `evaluated` deben reflejar SOLO la
+  // ventana pedida: si no, `days` sale igual (histórico completo) llames como llames y
+  // parece que from/to se ignora.
+  const windowRows = (from || to) ? rows.filter((r) => inRange(r.date + 'T12:00:00', from, to)) : rows;
+  const withHrv = windowRows.filter((r) => r.hrv != null).length;
+  const withBB = windowRows.filter((r) => r.bbHigh != null).length;
   // `evaluated` distingue "todo bien" (reglas corridas sobre datos) de "no evalúa"
   // (sin datos): un count 0 a secas no lo dejaba claro.
   return {
     count: filtered.length,
     alerts: filtered,
     evaluated: {
-      days: rows.length,
+      days: windowRows.length,
       days_with_hrv: withHrv,
       days_with_body_battery: withBB,
+      baseline_history_days: rows.length, // ventana usada para los baselines (histórico completo)
       rules: ['body_battery_low_streak (BB máx <55 dos noches)', 'hrv_down_rhr_up (VFC <90% baseline y FC reposo >+3)'],
-      status: rows.length ? (filtered.length ? 'alertas' : 'sin alertas') : 'sin datos',
+      status: windowRows.length ? (filtered.length ? 'alertas' : 'sin alertas') : 'sin datos',
     },
   };
 }
@@ -1056,7 +1068,10 @@ function estimateHrMax(activities) {
   let vals = pick(activities.filter((a) => new Date(a.start_date) >= cutoff));
   if (vals.length < 8) vals = pick(activities);   // histórico si el último año es escaso
   if (!vals.length) return null;
-  const idx = Math.min(vals.length - 1, Math.floor(vals.length * 0.98));
+  // Percentil 98 por rango-más-cercano: el índice se escala sobre (n−1), no sobre n.
+  // Con n≤50, Math.floor(n*0.98) === n−1 y devolvía SIEMPRE el máximo (el spike que
+  // esto debía descartar); escalar sobre (n−1) sí recorta la cola alta.
+  const idx = Math.floor((vals.length - 1) * 0.98);
   return vals[idx];
 }
 
