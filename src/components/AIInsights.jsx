@@ -486,9 +486,6 @@ const AIInsights = ({ activities, onOpenChat }) => {
       </div>
       </section>
 
-      {/* ── ZONAS DE FC — mismas que usa el coach (umbrales LT1/LT2) ── */}
-      <HRZonesCard sci={sci} />
-
       {/* ── BANNERS ── */}
       {loading && providerLabel && (
         <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-semibold ${isFallback
@@ -616,30 +613,8 @@ const AIInsights = ({ activities, onOpenChat }) => {
                     </div>
                   </div>
 
-                  {/* Referencias cardiacas: FC media objetivo + umbrales del atleta */}
-                  {(hrMid || lt1 || lt2) && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 rounded-lg bg-slate-50/80 dark:bg-slate-800/20 border border-slate-200/65 dark:border-slate-800/65">
-                      {hrMid && (
-                        <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300">
-                          <span className="font-bold text-slate-400 uppercase tracking-wider mr-1">FC media objetivo</span>
-                          ≈{hrMid} ppm{lt1 ? (hrMid <= lt1 ? ' (bajo LT1: fácil)' : lt2 && hrMid >= lt2 ? ' (sobre LT2: calidad)' : ' (entre umbrales)') : ''}
-                        </span>
-                      )}
-                      {lt1 && (
-                        <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
-                          <span className="font-bold uppercase tracking-wider mr-1">LT1</span>{lt1} ppm · techo fácil
-                        </span>
-                      )}
-                      {lt2 && (
-                        <span className="text-[10px] font-mono text-rose-500 dark:text-rose-400">
-                          <span className="font-bold uppercase tracking-wider mr-1">LT2</span>{lt2} ppm · umbral
-                        </span>
-                      )}
-                    </div>
-                  )}
-
                   {/* Desglose estructurado de la sesión (bloques / series) */}
-                  {Array.isArray(meta?.sesion?.structured_workout) && meta.sesion.structured_workout.length > 0 && (
+                  {hasStructure && (
                     <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Estructura de la Sesión</span>
                       <div className="space-y-2">
@@ -673,11 +648,17 @@ const AIInsights = ({ activities, onOpenChat }) => {
                     </div>
                   )}
 
-                  {/* Guías de ejecución */}
-                  <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
-                    <MD text={nextWork} accent="text-blue-500" />
-                  </div>
+                  {/* Guías de ejecución: visibles solo si no hay estructura */}
+                  {hasStructure ? (
+                    <Disclosure label="Notas del coach">
+                      <MD text={nextWork} accent="text-blue-500" />
+                    </Disclosure>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
+                      <MD text={nextWork} accent="text-blue-500" />
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -773,11 +754,32 @@ const AIInsights = ({ activities, onOpenChat }) => {
       </div>
       </section>
 
-      {/* ═══════════ 04 · FUENTES — actividades analizadas + sincronización ═══════════ */}
-      <section>
-      <ZoneHeader num="04" marker="bg-slate-400" title="Datos Analizados" scope="Últimas sesiones" />
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <ClockIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      {/* ── ZONAS DE FC — referencia (plegada): mismos umbrales que usa el coach ── */}
+      <HRZonesCard sci={sci} />
+
+      {/* ═══════════ 04 · FUENTES — pie único: qué se analizó, cuándo y con qué ═══════════ */}
+      <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-[10px] font-semibold text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+            {sortedActivities.length} sesiones analizadas
+          </span>
+          {stravaFresh && <span className="font-mono">Strava {stravaFresh}</span>}
+          {garminFresh && <span className="font-mono">Garmin {garminFresh}</span>}
+        </div>
+        {onOpenChat && (cur || trend || nextWork) && (
+          <button
+            onClick={() => openInChat()}
+            className="shrink-0 self-start sm:self-center inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
+          >
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+            <span>Consultar Coach Virtual</span>
+          </button>
+        )}
+      </div>
+
+      {/* Detalle de las sesiones que alimentan el análisis (plegado) */}
+      <Disclosure label="Sesiones analizadas">
         <div className="flex flex-wrap gap-2">
           {sortedActivities.slice(0, 5).map(a => {
             const tooltipParts = [];
@@ -812,46 +814,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             );
           })}
         </div>
-
-        {(stravaFresh || garminFresh) && (
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            {stravaFresh && (
-              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Última actualización de datos de Strava">
-                <ArrowPathIcon className="w-3 h-3 text-orange-400" />
-                <span className="text-slate-500 dark:text-slate-400">Strava</span>
-                <span className="font-mono text-slate-400 font-medium">{stravaFresh}</span>
-              </span>
-            )}
-            {garminFresh && (
-              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Datos de Garmin disponibles hasta esta fecha">
-                <ArrowPathIcon className="w-3 h-3 text-blue-400" />
-                <span className="text-slate-500 dark:text-slate-400">Garmin</span>
-                <span className="font-mono text-slate-400 font-medium">{garminFresh}</span>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      </section>
-
-      {/* ── FOOTER & ACTION PANEL ── */}
-      <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-1.5 min-w-0 self-start sm:self-center">
-          <SparklesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-[10px] text-slate-400 font-semibold truncate">
-            Módulo de asistencia inteligente IA · Garmin Connect Sync Activo
-          </span>
-        </div>
-        {onOpenChat && (cur || trend || nextWork) && (
-          <button
-            onClick={() => openInChat()}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
-          >
-            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-            <span>Consultar Coach Virtual</span>
-          </button>
-        )}
-      </div>
+      </Disclosure>
 
     </div>
   );
