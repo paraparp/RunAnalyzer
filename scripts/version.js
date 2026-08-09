@@ -26,7 +26,7 @@ const git = (...args) => {
  */
 export function getBuildInfo() {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-  const [major = '0', minor = '0'] = String(pkg.version || '0.0.0').split('.');
+  const [major = '0'] = String(pkg.version || '0.0.0').split('.');
 
   const isShallow = git('rev-parse', '--is-shallow-repository') === 'true';
   const count = isShallow ? '' : git('rev-list', '--count', 'HEAD');
@@ -36,7 +36,9 @@ export function getBuildInfo() {
   const subject = git('log', '-1', '--format=%s') || process.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0] || '';
   const dirty = Boolean(git('status', '--porcelain'));
 
-  const version = count ? `${major}.${minor}.${count}` : `${major}.${minor}`;
+  // Un solo número corriendo: v0.99 → v0.100 → v0.101. El "major" sale de
+  // package.json y sólo cambia si tú lo cambias; el resto lo lleva git.
+  const version = count ? `${major}.${count}` : major;
 
   return {
     version,
