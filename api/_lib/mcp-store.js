@@ -1200,80 +1200,113 @@ export async function getTimeInZones(userId, { from, to, sport, hr_max, granular
   return out;
 }
 
+const addDays = (iso, n) => {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+};
+
+// Reconstruye una fila semanal desde noches sueltas (list_sleep_daily). Los campos
+// semanales de Garmin son MEDIAS por noche, no sumas: verificado contra el cache
+// (semana 27/7 → media de duration_min de sus 7 noches = 435 = avg_duration_min).
+function weekFromNights(weekStart, nights) {
+  const avg = (k) => {
+    const vals = nights.map((n) => n[k]).filter((v) => v != null);
+    return vals.length ? round(vals.reduce((a, b) => a + b, 0) / vals.length, 0) : null;
+  };
+  return {
+    weekStart,
+    weekEnd: nights.map((n) => n.date).sort().pop(),
+    score: avg('score'),
+    quality: null,
+    durationMin: avg('duration_min'),
+    remMin: avg('rem_min'),
+    deepMin: avg('deep_min'),
+    lightMin: avg('light_min'),
+    awakeMin: avg('awake_min'),
+    daysCount: nights.length,
+    fromDaily: true,
+  };
+}
+
 /**
- * Sueño semanal (garmin_sleep_data). El ingest guardó ventanas rodantes solapadas
- * (p.ej. 28/7–3/8 y 27/7–2/8), así que deduplicamos por semana ISO (lunes): una fila
- * por semana, prefiriendo la que ya empieza en lunes. Además, si la semana en curso
- * no está en el cache, intentamos reconstruirla desde datos diarios.
+ * Sueño semanal. El cache (`garmin_sleep_data`) guarda ventanas RODANTES: cada ingest
+ * ancló en el día en que se ejecutó, así que conviven 21/7–27/7 (mar–lun) y 27/7–2/8
+ * (lun–dom) y el 27/7 salía en dos filas. Clavamos cada ventana a la semana ISO que
+ * realmente cubre (el lunes de su punto medio) y devolvemos lunes–domingo canónico,
+ * exponiendo `source_window` cuando la ventana de origen no coincide.
+ *
+ * La semana en curso nunca está en el cache (el ingest solo cierra semanas completas),
+ * así que se reconstruye desde el sueño diario EN VIVO. La versión anterior leía una
+ * clave `garmin_sleep_daily` que ningún ingest escribe: era código muerto.
  */
 export async function getSleep(userId, { from, to } = {}) {
   const weeklyRows = (await readKey(userId, 'garmin_sleep_data')) || [];
-  const dailyData = await readKey(userId, 'garmin_sleep_daily');
-  
-  const byWeek = new Map(); // lunes ISO -> fila elegida
-  
-  // Procesar datos semanales (cache)
-  for (const r of weeklyRows) {
-    if (!r.weekStart || !inRange(r.weekStart + 'T12:00:00', from, to)) continue;
-    const duration = new Date(r.weekEnd) - new Date(r.weekStart);
-    const days = duration / 86400000;
-    // Filtrar semanas no estándar (deben ser ~7 días)
-    if (days < 6 || days > 8) continue;
-    const wk = mondayOf(r.weekStart);
-    const prev = byWeek.get(wk);
-    // Prefiere la ventana que ya arranca en lunes (weekStart === lunes ISO).
-    if (!prev || (r.weekStart === wk && prev.weekStart !== wk)) byWeek.set(wk, r);
-  }
-  
   const today = toISODate(new Date());
   const thisMonday = mondayOf(today);
-  
-  // Reconstruir semana en curso desde datos diarios si no está en el cache
-  if (dailyData && dailyData.nights && dailyData.nights.length > 0) {
-    const currentWeekNights = dailyData.nights.filter((n) => {
-      const nightDate = new Date(n.date);
-      const nightWeekStart = mondayOf(n.date);
-      return nightWeekStart === thisMonday && inRange(n.date, from, to);
-    });
-    
-    if (currentWeekNights.length > 0 && !byWeek.has(thisMonday)) {
-      // Crear agregación semanal sintética
-      const totalScore = currentWeekNights.reduce((sum, n) => sum + (n.score || 0), 0);
-      const avgScore = currentWeekNights.length > 0 ? totalScore / currentWeekNights.length : null;
-      const totalRem = currentWeekNights.reduce((sum, n) => sum + (n.rem_min || 0), 0);
-      const totalDeep = currentWeekNights.reduce((sum, n) => sum + (n.deep_min || 0), 0);
-      const totalLight = currentWeekNights.reduce((sum, n) => sum + (n.light_min || 0), 0);
-      const totalAwake = currentWeekNights.reduce((sum, n) => sum + (n.awake_min || 0), 0);
-      const totalDuration = currentWeekNights.reduce((sum, n) => sum + (n.duration_min || 0), 0);
-      
-      byWeek.set(thisMonday, {
-        weekStart: thisMonday,
-        weekEnd: today,
-        score: round(avgScore, 0),
-        quality: null,
-        durationMin: totalDuration,
-        remMin: totalRem,
-        deepMin: totalDeep,
-        lightMin: totalLight,
-        awakeMin: totalAwake,
-      });
-    }
+  // Una semana entra si SOLAPA el rango pedido, no solo si empieza dentro: pedir
+  // desde el 1/8 debe devolver la semana que contiene el 1/8.
+  const overlaps = (wk) => (!from || addDays(wk, 6) >= from) && (!to || wk <= to);
+
+  const byWeek = new Map(); // lunes ISO -> fila elegida
+  for (const r of weeklyRows) {
+    if (!r.weekStart || !r.weekEnd) continue;
+    const span = Math.round((Date.parse(r.weekEnd) - Date.parse(r.weekStart)) / 86400000);
+    if (span < 5 || span > 8) continue; // descarta ventanas que no son semanales
+    const wk = mondayOf(addDays(r.weekStart, Math.round(span / 2))); // semana ISO dominante
+    if (!overlaps(wk)) continue;
+    // Ante ventanas rivales gana la que ya arranca en lunes; a igualdad, la que
+    // tiene más noches con datos.
+    const rank = (x) => (x.weekStart === wk ? 100 : 0) + (x.daysCount ?? 0);
+    const prev = byWeek.get(wk);
+    if (!prev || rank(r) > rank(prev)) byWeek.set(wk, r);
   }
-  
-  const weeks = [...byWeek.values()]
-    .sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || ''))
-    .map((r) => ({
-      week_start: r.weekStart,
-      week_end: r.weekEnd,
-      partial: (r.weekEnd || '') >= today, // semana aún en curso
-      score: r.score ?? null,
-      quality: r.quality ?? null,
-      avg_duration_min: r.durationMin ?? null,
-      rem_min: r.remMin ?? null,
-      deep_min: r.deepMin ?? null,
-      light_min: r.lightMin ?? null,
-      awake_min: r.awakeMin ?? null,
-    }));
-  
-  return { count: weeks.length, weeks };
+
+  // Semana en curso (y la anterior, si tampoco está) desde Garmin en vivo. Solo si el
+  // rango pedido llega hasta hoy, para no pagar 14 requests en consultas históricas.
+  if (overlaps(thisMonday) && !byWeek.has(thisMonday)) {
+    try {
+      const { getSleepDaily } = await import('./garmin-live.js');
+      const { nights = [] } = await getSleepDaily(userId, {}); // por defecto, 14 días
+      const groups = new Map();
+      for (const n of nights) {
+        const wk = mondayOf(n.date);
+        if (byWeek.has(wk) || !overlaps(wk)) continue;
+        if (!groups.has(wk)) groups.set(wk, []);
+        groups.get(wk).push(n);
+      }
+      for (const [wk, ns] of groups) byWeek.set(wk, weekFromNights(wk, ns));
+    } catch { /* sin credenciales o Garmin caído: seguimos solo con el cache */ }
+  }
+
+  let shiftedAny = false;
+  const weeks = [...byWeek.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([wk, r]) => {
+      const weekEnd = addDays(wk, 6);
+      const shifted = !r.fromDaily && (r.weekStart !== wk || r.weekEnd !== weekEnd);
+      if (shifted) shiftedAny = true;
+      return {
+        week_start: wk,
+        week_end: weekEnd,
+        partial: wk === thisMonday,
+        source: r.fromDaily ? 'daily_live' : 'weekly_cache',
+        days_with_data: r.daysCount ?? null,
+        score: r.score ?? null,
+        quality: r.quality ?? null,
+        // Todos los campos de fases son MEDIA POR NOCHE, no total semanal.
+        avg_duration_min: r.durationMin ?? null,
+        avg_rem_min: r.remMin ?? null,
+        avg_deep_min: r.deepMin ?? null,
+        avg_light_min: r.lightMin ?? null,
+        avg_awake_min: r.awakeMin ?? null,
+        ...(shifted ? { source_window: { start: r.weekStart, end: r.weekEnd } } : {}),
+      };
+    });
+
+  const note = shiftedAny
+    ? 'Algunas semanas vienen de ventanas rodantes del ingest (ver source_window): ' +
+      'la media corresponde a esos 7 días, desplazados respecto al lunes–domingo mostrado.'
+    : null;
+  return { count: weeks.length, weeks, ...(note ? { note } : {}) };
 }
