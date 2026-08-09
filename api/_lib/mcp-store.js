@@ -806,9 +806,8 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
   const allTimeList = filterActivities(all, { sport, only_running: !sport });
   const allEfforts = [];
   for (const a of allTimeList) {
-    const e = (a.best_efforts || []).find((x) => effortId(x) === key);
-    const t = e ? effortTime(e) : 0;
-    if (t) allEfforts.push({ activity_id: a.id, date: a.start_date, time_s: t });
+    const ef = effortForKey(a, key); // best_effort real o sintetizado desde distancia total
+    if (ef) allEfforts.push({ activity_id: a.id, date: a.start_date, time_s: ef.time });
   }
   allEfforts.sort((x, y) => new Date(x.date) - new Date(y.date));
   let atBest = Infinity;
