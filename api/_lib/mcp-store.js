@@ -817,14 +817,13 @@ function normalizeBaseline(b) {
 // Dirección de la desviación respecto al rango balanceado. Clave: `hrv_status`
 // "UNBALANCED" no dice el sentido, y una VFC ALTA (buena) sale igual que una baja;
 // automatizar el semáforo con ese campo da la señal invertida.
-// Usamos marker si está disponible (prioridad), sino el rango [low, high].
+//
+// SOLO se compara contra el rango balanceado [low, high]. NO usar `base.marker`:
+// `markerValue` de Garmin no viene en ms comparables con la VFC (es una posición en
+// otra escala), así que `hrv > marker` daba 'above' en casi todas las noches —incluso
+// por debajo del rango— rompiendo el semáforo. `marker` se conserva solo informativo.
 function hrvDeviation(hrv, base) {
   if (hrv == null || !base) return null;
-  // Si hay marker (valor central de Garmin), usarlo como referencia
-  if (base.marker != null) {
-    return hrv > base.marker ? 'above' : hrv < base.marker ? 'below' : 'within';
-  }
-  // Fallback al rango balanceado
   if (base.high != null && hrv > base.high) return 'above';
   if (base.low != null && hrv < base.low) return 'below';
   if (base.low != null || base.high != null) return 'within';
