@@ -152,7 +152,7 @@ const TOOLS = [
   },
   {
     name: 'list_hrv_resting',
-    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery. Incluye baseline de Garmin (rango balanceado), media móvil 7d y un `current` para el semáforo HRV.',
+    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery. Incluye baseline de Garmin (`hrv_baseline`: {low, high, marker} en ms — rango balanceado y marcador de Garmin dentro de él), media móvil 7d y un `current` con `hrv_deviation` (above|below|within) para el semáforo HRV.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
     run: (userId, args) => getHrvResting(userId, args).then(text),
   },

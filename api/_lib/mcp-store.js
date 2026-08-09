@@ -613,7 +613,15 @@ export function computePersonalBests(activities) {
         exact: Math.abs(c.distance - range.std) <= 15,         // best_effort/parcial a la distancia justa
         is_effort: !!c.isEffort, is_flat: !!c.isFlat,
       }));
-    return top.length ? { id: range.id, name: range.name, distance_m: range.std, pr: top[0], top } : null;
+    // PR: por defecto el más rápido (top[0]). Pero un tiempo sobre-distancia es solo
+    // una cota superior del tiempo a la distancia estándar; si su margen es grande
+    // (>1% de la distancia) y existe una marca `exact`, esa representa mejor el PR.
+    let pr = top[0];
+    if (pr && !pr.exact && pr.distance_delta_m > range.std * 0.01) {
+      const exactPr = top.find((e) => e.exact);   // top ya está ordenado por tiempo → el exact más rápido
+      if (exactPr) pr = exactPr;
+    }
+    return top.length ? { id: range.id, name: range.name, distance_m: range.std, pr, top } : null;
   }).filter(Boolean);
   return [...build(PB_FLAT_RANGES, pbFlatCandidate), ...build(PB_RANGES, pbCandidate)];
 }
@@ -792,7 +800,11 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
 // balanceado ({ balancedLow, balancedUpper, ... }). Lo normalizamos a {low, high}.
 function normalizeBaseline(b) {
   if (!b || typeof b !== 'object') return null; // Garmin lo manda como objeto de rango
-  return { low: b.balancedLow ?? b.lowUpper ?? null, high: b.balancedUpper ?? null }; // rango balanceado en ms
+  return {
+    low: b.balancedLow ?? b.lowUpper ?? null,   // límite bajo del rango balanceado (ms)
+    high: b.balancedUpper ?? null,              // límite alto del rango balanceado (ms)
+    marker: b.markerValue ?? null,              // posición del marcador de Garmin dentro del rango (ms)
+  };
 }
 // Dirección de la desviación respecto al rango balanceado. Clave: `hrv_status`
 // "UNBALANCED" no dice el sentido, y una VFC ALTA (buena) sale igual que una baja;
