@@ -108,7 +108,7 @@ const shapeGarminLap = (l) => ({
   gap_pace_per_km: l.gap_speed_ms ? calcPace(l.gap_speed_ms) : null,
   avg_hr: l.avg_hr ?? null,
   max_hr: l.max_hr ?? null,
-  cadence_spm: l.cadence_spm ?? null,
+  cadence_spm: l.cadence_spm ?? null,  // Garmin: steps/min (ambas piernas)
   avg_power_w: l.avg_power_w ?? null,
   norm_power_w: l.norm_power_w ?? null,
   gct_balance_pct: l.gct_balance_pct ?? null,
@@ -175,7 +175,7 @@ export function shapeFull(a, include = null) {
       ...(running ? { pace_per_km: calcPace(l.average_speed) } : { speed_kmh: round((l.average_speed || 0) * 3.6, 1) }),
       avg_hr: l.average_heartrate ?? null,
       max_hr: l.max_heartrate ?? null,
-      cadence: l.average_cadence ?? null,
+      cadence_spm: l.average_cadence ? round(l.average_cadence * 2, 1) : null, // Strava: steps/min por pierna → x2 para spm
       elevation_gain_m: l.total_elevation_gain ?? null, // desnivel POSITIVO del lap
     }));
   }
@@ -817,8 +817,14 @@ function normalizeBaseline(b) {
 // Dirección de la desviación respecto al rango balanceado. Clave: `hrv_status`
 // "UNBALANCED" no dice el sentido, y una VFC ALTA (buena) sale igual que una baja;
 // automatizar el semáforo con ese campo da la señal invertida.
+// Usamos marker si está disponible (prioridad), sino el rango [low, high].
 function hrvDeviation(hrv, base) {
   if (hrv == null || !base) return null;
+  // Si hay marker (valor central de Garmin), usarlo como referencia
+  if (base.marker != null) {
+    return hrv > base.marker ? 'above' : hrv < base.marker ? 'below' : 'within';
+  }
+  // Fallback al rango balanceado
   if (base.high != null && hrv > base.high) return 'above';
   if (base.low != null && hrv < base.low) return 'below';
   if (base.low != null || base.high != null) return 'within';
@@ -844,7 +850,13 @@ export async function getHrvResting(userId, { from, to } = {}) {
       body_battery_high: r.bbHigh ?? null,
     }));
   const avg = (vals) => (vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
-  const hrv7 = avg(rows.map((r) => r.hrv_ms).filter((v) => typeof v === 'number').slice(0, 7));
+  // hrv_7d_avg: media móvil de 7 días sobre el HISTÓRICO COMPLETO, NO sobre el rango filtrado.
+  // Así el semáforo HRV siempre lee el mismo valor independiente de from/to.
+  const allHrvData = ((await readKey(userId, 'garmin_cardiac_data')) || [])
+    .filter((r) => r.hrv != null)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((r) => r.hrv);
+  const hrv7 = avg(allHrvData.slice(0, 7));
   // La noche de HRV más reciente (rows[0] podría ser un día solo con FC reposo): el
   // baseline y la desviación deben salir de la misma noche para no mezclar fechas.
   const curRaw = ((await readKey(userId, 'garmin_cardiac_data')) || [])
@@ -1191,20 +1203,63 @@ export async function getTimeInZones(userId, { from, to, sport, hr_max, granular
 /**
  * Sueño semanal (garmin_sleep_data). El ingest guardó ventanas rodantes solapadas
  * (p.ej. 28/7–3/8 y 27/7–2/8), así que deduplicamos por semana ISO (lunes): una fila
- * por semana, prefiriendo la que ya empieza en lunes.
+ * por semana, prefiriendo la que ya empieza en lunes. Además, si la semana en curso
+ * no está en el cache, intentamos reconstruirla desde datos diarios.
  */
 export async function getSleep(userId, { from, to } = {}) {
-  const rows = (await readKey(userId, 'garmin_sleep_data')) || [];
+  const weeklyRows = (await readKey(userId, 'garmin_sleep_data')) || [];
+  const dailyData = await readKey(userId, 'garmin_sleep_daily');
+  
   const byWeek = new Map(); // lunes ISO -> fila elegida
-  for (const r of rows) {
+  
+  // Procesar datos semanales (cache)
+  for (const r of weeklyRows) {
     if (!r.weekStart || !inRange(r.weekStart + 'T12:00:00', from, to)) continue;
+    const duration = new Date(r.weekEnd) - new Date(r.weekStart);
+    const days = duration / 86400000;
+    // Filtrar semanas no estándar (deben ser ~7 días)
+    if (days < 6 || days > 8) continue;
     const wk = mondayOf(r.weekStart);
     const prev = byWeek.get(wk);
     // Prefiere la ventana que ya arranca en lunes (weekStart === lunes ISO).
     if (!prev || (r.weekStart === wk && prev.weekStart !== wk)) byWeek.set(wk, r);
   }
+  
   const today = toISODate(new Date());
   const thisMonday = mondayOf(today);
+  
+  // Reconstruir semana en curso desde datos diarios si no está en el cache
+  if (dailyData && dailyData.nights && dailyData.nights.length > 0) {
+    const currentWeekNights = dailyData.nights.filter((n) => {
+      const nightDate = new Date(n.date);
+      const nightWeekStart = mondayOf(n.date);
+      return nightWeekStart === thisMonday && inRange(n.date, from, to);
+    });
+    
+    if (currentWeekNights.length > 0 && !byWeek.has(thisMonday)) {
+      // Crear agregación semanal sintética
+      const totalScore = currentWeekNights.reduce((sum, n) => sum + (n.score || 0), 0);
+      const avgScore = currentWeekNights.length > 0 ? totalScore / currentWeekNights.length : null;
+      const totalRem = currentWeekNights.reduce((sum, n) => sum + (n.rem_min || 0), 0);
+      const totalDeep = currentWeekNights.reduce((sum, n) => sum + (n.deep_min || 0), 0);
+      const totalLight = currentWeekNights.reduce((sum, n) => sum + (n.light_min || 0), 0);
+      const totalAwake = currentWeekNights.reduce((sum, n) => sum + (n.awake_min || 0), 0);
+      const totalDuration = currentWeekNights.reduce((sum, n) => sum + (n.duration_min || 0), 0);
+      
+      byWeek.set(thisMonday, {
+        weekStart: thisMonday,
+        weekEnd: today,
+        score: round(avgScore, 0),
+        quality: null,
+        durationMin: totalDuration,
+        remMin: totalRem,
+        deepMin: totalDeep,
+        lightMin: totalLight,
+        awakeMin: totalAwake,
+      });
+    }
+  }
+  
   const weeks = [...byWeek.values()]
     .sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || ''))
     .map((r) => ({
@@ -1219,10 +1274,6 @@ export async function getSleep(userId, { from, to } = {}) {
       light_min: r.lightMin ?? null,
       awake_min: r.awakeMin ?? null,
     }));
-  // La agregación semanal es un cache; la semana en curso puede no estar todavía.
-  const out = { count: weeks.length, weeks };
-  if (!weeks.some((w) => w.week_start >= thisMonday)) {
-    out.note = 'La semana en curso puede no estar en el cache semanal; usa list_sleep_daily para las noches recientes.';
-  }
-  return out;
+  
+  return { count: weeks.length, weeks };
 }

@@ -44,8 +44,8 @@ const TOOLS = [
         only_running: { type: 'boolean', description: 'Solo carreras (Run/TrailRun/VirtualRun)' },
         min_distance_km: { type: 'number' },
         max_distance_km: { type: 'number', description: 'Distancia máxima (comparar sesiones equivalentes)' },
-        avg_hr_min: { type: 'number', description: 'FC MEDIA mínima (bpm)' },
-        avg_hr_max: { type: 'number', description: 'FC MEDIA máxima (bpm)' },
+        avg_hr_min: { type: 'number', description: 'FC MEDIA mínima de la actividad (bpm)' },
+        avg_hr_max: { type: 'number', description: 'FC MEDIA máxima de la actividad (bpm)' },
         flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
         hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Filtra por origen de la FC (banda/muñeca)' },
         limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
@@ -227,12 +227,12 @@ const TOOLS = [
   },
   {
     name: 'detect_threshold_efforts',
-    description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado). FCmax: se estima de forma robusta (p98 del último año) salvo que pases hr_max.',
+    description: 'Detecta esfuerzos de test de umbral (bloque continuo de 20–45 min por encima del 88% de FCmax fisiológica) y devuelve LTHR y ritmo umbral estimados, con bandera de si la FC se estabilizó (test válido) o derivó (contaminado). FCmax fisiológica: se estima (p98 últimos 12 meses) salvo que pases hr_max.',
     inputSchema: {
       type: 'object',
       properties: {
         from: dateArg, to: dateArg,
-        hr_max: { type: 'number', description: 'FCmax real en bpm (recomendado); si se omite, se estima descartando spikes' },
+        hr_max: { type: 'number', description: 'FCmax fisiológica REAL en bpm (recomendado); si se omite, se estima (p98 últimos 12 meses)' },
       },
     },
     run: (userId, args) => detectThresholdTests(userId, args).then(text),

@@ -109,11 +109,13 @@ export async function getWeightRange(userId, { from, to } = {}) {
   })).filter(Boolean);
   const note = rows.length
     ? truncationNote(dates, from, cap)
-    : `Sin pesadas en el rango (${dates.length} días consultados). Si nunca devuelve datos, revisa que haya una báscula Garmin/compatible vinculada a la cuenta.`;
+    : `Sin pesadas en el rango (${dates.length} días consultados).`;
   return {
     count: rows.length,
     weights: rows,
+    has_scale: rows.length > 0 || dates.length < cap, // true si hay al menos una pesada O el rango es pequeño
     ...(note ? { note } : {}),
+    ...(rows.length === 0 && dates.length >= cap ? { warning: 'No hay báscula Garmin vinculada o sin pesadas registradas.' } : {}),
   };
 }
 
