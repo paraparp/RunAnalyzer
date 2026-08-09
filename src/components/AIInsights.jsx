@@ -53,6 +53,17 @@ const MD = ({ text, accent, isDark = false, lg = false }) => {
   );
 };
 
+// ── Disclosure: lo que es referencia o detalle largo no compite con el foco ──
+const Disclosure = ({ label, children, className = '' }) => (
+  <details className={`group rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 ${className}`}>
+    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+      <span className="transition-transform group-open:rotate-90 text-slate-300 dark:text-slate-600">▸</span>
+      {label}
+    </summary>
+    <div className="px-3.5 pb-3.5">{children}</div>
+  </details>
+);
+
 // ── Skeleton loading ─────────────────────────────────────────────────────────
 const Pulse = () => (
   <div className="space-y-2 animate-pulse mt-2">
@@ -288,8 +299,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
     if (sci?.sleep?.score != null) pills.push({ k: 'Sueño', v: `${sci.sleep.score}/100`, c: sci.sleep.score >= 75 ? 'text-emerald-500' : 'text-amber-500' });
     if (sci?.pmc) pills.push({ k: 'TSB', v: sci.pmc.tsb > 0 ? `+${sci.pmc.tsb}` : `${sci.pmc.tsb}`, c: sci.pmc.tsb >= 5 ? 'text-emerald-500' : sci.pmc.tsb >= -10 ? 'text-amber-500' : 'text-rose-500' });
     if (sci?.pmc?.acwr != null) pills.push({ k: 'ACWR', v: `${sci.pmc.acwr}`, c: sci.pmc.acwr > 1.5 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-300' });
-    if (sci?.lt?.lt1Hr) pills.push({ k: 'LT1', v: `${sci.lt.lt1Hr} ppm`, c: 'text-sky-600 dark:text-sky-400' });
-    if (sci?.lt?.lt2Hr) pills.push({ k: 'LT2', v: `${sci.lt.lt2Hr} ppm`, c: 'text-rose-500 dark:text-rose-400' });
+    // LT1/LT2 viven en la tarjeta de zonas de FC: no se repiten aquí.
     return pills;
   })();
 
@@ -437,24 +447,21 @@ const AIInsights = ({ activities, onOpenChat }) => {
                   </div>
                 );
               })()}
-              {sci?.readiness && (() => {
-                const { label, band } = sci.readiness;
-                const c = band === 'high' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50'
-                  : band === 'good' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50'
-                    : band === 'mod' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50'
-                      : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50';
-                return <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border text-center ${c}`}>{label}</span>;
-              })()}
+              {sci?.readiness?.label && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-center">
+                  {sci.readiness.label}
+                </span>
+              )}
             </div>
 
-            {/* Diagnóstico — protagonista */}
+            {/* Diagnóstico — protagonista. Un único badge de estado: el de la IA
+                si existe; el anillo ya aporta el número y su banda de color. */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Diagnóstico IA</span>
-                <span className="ml-auto flex items-center gap-2">
-                  {curBadge && <Badge badge={curBadge} />}
-                  {cur && <AskChatBtn focus="cur" />}
-                </span>
+                {curBadge
+                  ? <Badge badge={curBadge} />
+                  : <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Diagnóstico IA</span>}
+                <span className="ml-auto">{cur && <AskChatBtn focus="cur" />}</span>
               </div>
               <div className="min-h-[84px]">
                 {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" lg />}
@@ -478,9 +485,6 @@ const AIInsights = ({ activities, onOpenChat }) => {
         </div>
       </div>
       </section>
-
-      {/* ── ZONAS DE FC — mismas que usa el coach (umbrales LT1/LT2) ── */}
-      <HRZonesCard sci={sci} />
 
       {/* ── BANNERS ── */}
       {loading && providerLabel && (
@@ -554,6 +558,17 @@ const AIInsights = ({ activities, onOpenChat }) => {
               const hrMid = hrLo && hrHi ? Math.round((hrLo + hrHi) / 2) : null;
               const lt1 = sci?.lt?.lt1Hr ?? null;
               const lt2 = sci?.lt?.lt2Hr ?? null;
+              // Una sola frase de contexto: dónde cae la FC prescrita respecto a
+              // los umbrales del atleta. Sustituye a la fila de referencias.
+              const hrRef = hrMid && lt1
+                ? (hrMid <= lt1 ? `≈${hrMid} ppm · bajo LT1 (fácil)`
+                  : lt2 && hrMid >= lt2 ? `≈${hrMid} ppm · sobre LT2 (calidad)`
+                    : `≈${hrMid} ppm · entre umbrales`)
+                : null;
+              // El desglose por bloques ya describe la sesión: si existe, la
+              // prosa del coach pasa a ser detalle plegado, no un tercer relato.
+              const hasStructure = Array.isArray(meta?.sesion?.structured_workout)
+                && meta.sesion.structured_workout.length > 0;
               return (
                 <div className="space-y-3">
                   {/* Ticket: talón de intensidad + campos perforados */}
@@ -582,7 +597,9 @@ const AIInsights = ({ activities, onOpenChat }) => {
                       {[
                         { k: 'Distancia', v: w?.distance || 'Varía' },
                         { k: 'Ritmo objetivo', v: w?.pace?.replace(/\s*min\/km/i, '') || 'Aeróbico', unit: w?.pace ? 'min/km' : null },
-                        { k: 'Frecuencia cardiaca', v: hrRange || w?.hrZone || 'Zona 2', unit: hrRange ? 'ppm' : null },
+                        // La FC objetivo se lee junto a su referencia (LT1/LT2)
+                        // en la misma celda: sin fila extra de umbrales.
+                        { k: 'Frecuencia cardiaca', v: hrRange || w?.hrZone || 'Zona 2', unit: hrRange ? 'ppm' : null, note: hrRef },
                       ].map(m => (
                         <div key={m.k} className="px-3 text-center min-w-0">
                           <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">{m.k}</span>
@@ -590,35 +607,14 @@ const AIInsights = ({ activities, onOpenChat }) => {
                             {m.v}
                           </span>
                           {m.unit && <span className="font-mono text-[9px] text-slate-400 block mt-0.5">{m.unit}</span>}
+                          {m.note && <span className="text-[9px] text-slate-400 block mt-0.5 leading-tight">{m.note}</span>}
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Referencias cardiacas: FC media objetivo + umbrales del atleta */}
-                  {(hrMid || lt1 || lt2) && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 rounded-lg bg-slate-50/80 dark:bg-slate-800/20 border border-slate-200/65 dark:border-slate-800/65">
-                      {hrMid && (
-                        <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300">
-                          <span className="font-bold text-slate-400 uppercase tracking-wider mr-1">FC media objetivo</span>
-                          ≈{hrMid} ppm{lt1 ? (hrMid <= lt1 ? ' (bajo LT1: fácil)' : lt2 && hrMid >= lt2 ? ' (sobre LT2: calidad)' : ' (entre umbrales)') : ''}
-                        </span>
-                      )}
-                      {lt1 && (
-                        <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
-                          <span className="font-bold uppercase tracking-wider mr-1">LT1</span>{lt1} ppm · techo fácil
-                        </span>
-                      )}
-                      {lt2 && (
-                        <span className="text-[10px] font-mono text-rose-500 dark:text-rose-400">
-                          <span className="font-bold uppercase tracking-wider mr-1">LT2</span>{lt2} ppm · umbral
-                        </span>
-                      )}
-                    </div>
-                  )}
-
                   {/* Desglose estructurado de la sesión (bloques / series) */}
-                  {Array.isArray(meta?.sesion?.structured_workout) && meta.sesion.structured_workout.length > 0 && (
+                  {hasStructure && (
                     <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-3">Estructura de la Sesión</span>
                       <div className="space-y-2">
@@ -652,11 +648,17 @@ const AIInsights = ({ activities, onOpenChat }) => {
                     </div>
                   )}
 
-                  {/* Guías de ejecución */}
-                  <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
-                    <MD text={nextWork} accent="text-blue-500" />
-                  </div>
+                  {/* Guías de ejecución: visibles solo si no hay estructura */}
+                  {hasStructure ? (
+                    <Disclosure label="Notas del coach">
+                      <MD text={nextWork} accent="text-blue-500" />
+                    </Disclosure>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 p-3.5">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-2">Instrucciones del Entrenamiento</span>
+                      <MD text={nextWork} accent="text-blue-500" />
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -752,11 +754,32 @@ const AIInsights = ({ activities, onOpenChat }) => {
       </div>
       </section>
 
-      {/* ═══════════ 04 · FUENTES — actividades analizadas + sincronización ═══════════ */}
-      <section>
-      <ZoneHeader num="04" marker="bg-slate-400" title="Datos Analizados" scope="Últimas sesiones" />
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <ClockIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      {/* ── ZONAS DE FC — referencia (plegada): mismos umbrales que usa el coach ── */}
+      <HRZonesCard sci={sci} />
+
+      {/* ═══════════ 04 · FUENTES — pie único: qué se analizó, cuándo y con qué ═══════════ */}
+      <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-[10px] font-semibold text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+            {sortedActivities.length} sesiones analizadas
+          </span>
+          {stravaFresh && <span className="font-mono">Strava {stravaFresh}</span>}
+          {garminFresh && <span className="font-mono">Garmin {garminFresh}</span>}
+        </div>
+        {onOpenChat && (cur || trend || nextWork) && (
+          <button
+            onClick={() => openInChat()}
+            className="shrink-0 self-start sm:self-center inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
+          >
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+            <span>Consultar Coach Virtual</span>
+          </button>
+        )}
+      </div>
+
+      {/* Detalle de las sesiones que alimentan el análisis (plegado) */}
+      <Disclosure label="Sesiones analizadas">
         <div className="flex flex-wrap gap-2">
           {sortedActivities.slice(0, 5).map(a => {
             const tooltipParts = [];
@@ -791,46 +814,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             );
           })}
         </div>
-
-        {(stravaFresh || garminFresh) && (
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            {stravaFresh && (
-              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Última actualización de datos de Strava">
-                <ArrowPathIcon className="w-3 h-3 text-orange-400" />
-                <span className="text-slate-500 dark:text-slate-400">Strava</span>
-                <span className="font-mono text-slate-400 font-medium">{stravaFresh}</span>
-              </span>
-            )}
-            {garminFresh && (
-              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400" title="Datos de Garmin disponibles hasta esta fecha">
-                <ArrowPathIcon className="w-3 h-3 text-blue-400" />
-                <span className="text-slate-500 dark:text-slate-400">Garmin</span>
-                <span className="font-mono text-slate-400 font-medium">{garminFresh}</span>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      </section>
-
-      {/* ── FOOTER & ACTION PANEL ── */}
-      <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-1.5 min-w-0 self-start sm:self-center">
-          <SparklesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-[10px] text-slate-400 font-semibold truncate">
-            Módulo de asistencia inteligente IA · Garmin Connect Sync Activo
-          </span>
-        </div>
-        {onOpenChat && (cur || trend || nextWork) && (
-          <button
-            onClick={() => openInChat()}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/50 dark:border-blue-900/50 hover:bg-blue-100/80 hover:text-blue-700 transition-all"
-          >
-            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-            <span>Consultar Coach Virtual</span>
-          </button>
-        )}
-      </div>
+      </Disclosure>
 
     </div>
   );

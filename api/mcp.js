@@ -158,7 +158,7 @@ const TOOLS = [
   },
   {
     name: 'list_sleep',
-    description: 'Resumen de sueño semanal (Garmin): duración, fases REM/profundo/ligero y score. Marca `partial` la semana en curso; para noches recientes usa list_sleep_daily.',
+    description: 'Resumen de sueño por semana ISO (lunes–domingo): score y MEDIA POR NOCHE de duración y fases REM/profundo/ligero/despierto (avg_*), no totales semanales. La semana en curso se reconstruye en vivo y va marcada `partial` con `days_with_data`; `source_window` indica que esa media viene de una ventana desplazada del ingest. Para noches sueltas usa list_sleep_daily.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
     run: (userId, args) => getSleep(userId, args).then(text),
   },
