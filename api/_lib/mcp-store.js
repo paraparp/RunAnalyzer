@@ -588,23 +588,29 @@ function pbFlatCandidate(a, range) {
   return { id: a.id, name: a.name, start_date: a.start_date, time: best.time, distance: best.distance, isEffort: true, isFlat: true };
 }
 
-/** Personal Bests (5K/10K/HM/Maratón + Flat 1K/2K), top-5 por distancia. */
+/**
+ * Personal Bests (5K/10K/HM/Maratón + Flat 1K/2K), top-5 por distancia.
+ * NUNCA se reescala el tiempo: se usa el best_effort exacto de Strava cuando existe
+ * (distance_delta_m = 0) y, si no, el tiempo REAL sobre la distancia total, marcando
+ * `distance_delta_m` como aviso. Reescalar a la distancia estándar fabricaría marcas
+ * que no se han corrido (un 5097 m no es un 5000 m más rápido, son 97 m de GPS).
+ * Orden por tiempo real: para esfuerzos sobre-distancia, ese tiempo es una cota
+ * superior honesta del tiempo a la distancia estándar (nunca inventa uno más rápido).
+ */
 export function computePersonalBests(activities) {
   const build = (ranges, candFn) => ranges.map((range) => {
     const top = activities
       .map((a) => candFn(a, range))
       .filter(Boolean)
-      // Ordena por RITMO (tiempo/distancia): así no gana un tramo más largo por tener
-      // menos tiempo bruto, ni un 5097 m se compara injustamente con un 5000 m.
-      .sort((x, y) => x.time / x.distance - y.time / y.distance)
+      .sort((x, y) => x.time - y.time)   // tiempo REAL, sin reescalar
       .slice(0, 5)
       .map((c) => ({
         id: c.id, name: c.name, date: c.start_date,
         time: fmtTime(c.time), time_s: Math.round(c.time),
         pace_per_km: calcPace(c.distance / c.time),
         distance_m: Math.round(c.distance),
-        distance_delta_m: Math.round(c.distance - range.std),   // desvío vs distancia estándar
-        equiv_time: fmtTime((c.time / c.distance) * range.std),  // tiempo equivalente a la distancia estándar
+        distance_delta_m: Math.round(c.distance - range.std), // 0 = distancia exacta; >0 = sobre-distancia (tiempo es cota superior)
+        exact: Math.abs(c.distance - range.std) <= 15,         // best_effort/parcial a la distancia justa
         is_effort: !!c.isEffort, is_flat: !!c.isFlat,
       }));
     return top.length ? { id: range.id, name: range.name, distance_m: range.std, pr: top[0], top } : null;
