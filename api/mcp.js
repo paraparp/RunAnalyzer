@@ -18,7 +18,7 @@ import {
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
 } from './_lib/mcp-store.js';
 import {
-  createWorkout, updateWorkout, deleteWorkout, listWorkouts,
+  createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout,
 } from './_lib/garmin-write.js';
 import {
   getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
@@ -44,8 +44,8 @@ const TOOLS = [
         only_running: { type: 'boolean', description: 'Solo carreras (Run/TrailRun/VirtualRun)' },
         min_distance_km: { type: 'number' },
         max_distance_km: { type: 'number', description: 'Distancia máxima (comparar sesiones equivalentes)' },
-        hr_min: { type: 'number', description: 'FC media mínima (bpm)' },
-        hr_max: { type: 'number', description: 'FC media máxima (bpm)' },
+        avg_hr_min: { type: 'number', description: 'FC MEDIA mínima (bpm)' },
+        avg_hr_max: { type: 'number', description: 'FC MEDIA máxima (bpm)' },
         flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
         hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Filtra por origen de la FC (banda/muñeca)' },
         limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
@@ -88,10 +88,13 @@ const TOOLS = [
   },
   {
     name: 'activity_stats',
-    description: 'Agregados de las actividades en un rango: total km, tiempo, desnivel y desglose por tipo. Incluye `garmin_only` (lo que hay en Garmin y no en Strava) y `combined` (volumen real) para no infravalorar la semana.',
+    description: 'Agregados de las actividades en un rango: total km, tiempo, desnivel y desglose por tipo. Incluye `garmin_only` (lo que hay en Garmin y no en Strava) y `combined` (volumen real). Con `granularity=weekly` devuelve el desglose por semana con la rampa % (para seguir la subida de volumen).',
     inputSchema: {
       type: 'object',
-      properties: { from: dateArg, to: dateArg, only_running: { type: 'boolean' } },
+      properties: {
+        from: dateArg, to: dateArg, only_running: { type: 'boolean' },
+        granularity: { type: 'string', enum: ['total', 'weekly'], description: 'total (por defecto) o weekly (km/tiempo/rampa por semana)' },
+      },
     },
     run: (userId, args) => activityStats(userId, args).then(text),
   },
@@ -155,9 +158,9 @@ const TOOLS = [
   },
   {
     name: 'list_sleep',
-    description: 'Resumen de sueño semanal (Garmin): duración, fases REM/profundo/ligero y score.',
+    description: 'Resumen de sueño semanal (Garmin): duración, fases REM/profundo/ligero y score. Marca `partial` la semana en curso; para noches recientes usa list_sleep_daily.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
-    run: async (userId, args) => text({ weeks: await getSleep(userId, args) }),
+    run: (userId, args) => getSleep(userId, args).then(text),
   },
   {
     name: 'list_sleep_daily',
@@ -229,12 +232,13 @@ const TOOLS = [
   },
   {
     name: 'create_garmin_workout',
-    description: 'Crea un entreno estructurado de carrera en Garmin (se sincroniza al reloj). Spec de alto nivel con pasos por tiempo/distancia y objetivo opcional de ritmo/FC/potencia; soporta repeticiones (p.ej. 4×(interval+recovery)).',
+    description: 'Crea un entreno estructurado de carrera en Garmin (se sincroniza al reloj). Spec de alto nivel con pasos por tiempo/distancia y objetivo opcional de ritmo/FC/potencia; soporta repeticiones (p.ej. 4×(interval+recovery)). Con `date` (YYYY-MM-DD) además lo agenda en el calendario.',
     inputSchema: {
       type: 'object',
       properties: {
         name: { type: 'string' },
         description: { type: 'string' },
+        date: { type: 'string', description: 'Fecha YYYY-MM-DD para agendarlo en el calendario (opcional)' },
         steps: {
           type: 'array',
           description: 'Lista de pasos. Cada paso: { kind, duration:{type,value,unit}, target? } o { kind:"repeat", repeats, steps:[...] }.',
@@ -294,6 +298,19 @@ const TOOLS = [
       required: ['workout_id'],
     },
     run: (userId, args) => deleteWorkout(userId, args.workout_id).then(text),
+  },
+  {
+    name: 'schedule_garmin_workout',
+    description: 'Agenda un entreno ya existente en una fecha del calendario de Garmin (se sincroniza al reloj). Usa list_garmin_workouts para obtener el workout_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workout_id: { type: ['string', 'number'] },
+        date: { type: 'string', description: 'Fecha YYYY-MM-DD' },
+      },
+      required: ['workout_id', 'date'],
+    },
+    run: (userId, args) => scheduleWorkout(userId, args.workout_id, args.date).then(text),
   },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
   {

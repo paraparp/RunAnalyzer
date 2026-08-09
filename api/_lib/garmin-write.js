@@ -124,11 +124,34 @@ export function buildRunningWorkout(spec) {
 }
 
 // ── Operaciones ──────────────────────────────────────────────────────────────
+const SCHEDULE_URL = (id) => `https://connectapi.garmin.com/workout-service/schedule/${id}`;
+const isISODate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+
 export async function createWorkout(userId, spec) {
   const json = buildRunningWorkout(spec);
   const client = await getGarminClientFor(userId);
   const res = await client.addWorkout(json);
-  return { created: true, workout_id: res?.workoutId ?? null, name: json.workoutName };
+  const workout_id = res?.workoutId ?? null;
+  const out = { created: true, workout_id, name: json.workoutName };
+  // Si la spec trae `date`, lo agendamos en el calendario en el acto (antes solo se
+  // creaba, sin programar). Un fallo al agendar no invalida la creación.
+  if (spec.date && workout_id) {
+    if (!isISODate(spec.date)) { out.scheduled = false; out.schedule_error = 'date debe ser YYYY-MM-DD'; return out; }
+    try {
+      await client.client.post(SCHEDULE_URL(workout_id), { date: spec.date });
+      out.scheduled = true; out.date = spec.date;
+    } catch (e) { out.scheduled = false; out.schedule_error = e.message; }
+  }
+  return out;
+}
+
+/** Agenda un entreno ya existente en una fecha del calendario de Garmin. */
+export async function scheduleWorkout(userId, workoutId, date) {
+  if (!workoutId) throw new Error('Falta workout_id.');
+  if (!isISODate(date)) throw new Error('Falta date en formato YYYY-MM-DD.');
+  const client = await getGarminClientFor(userId);
+  const res = await client.client.post(SCHEDULE_URL(workoutId), { date });
+  return { scheduled: true, workout_id: workoutId, date, schedule_id: res?.workoutScheduleId ?? null };
 }
 
 export async function updateWorkout(userId, workoutId, spec) {

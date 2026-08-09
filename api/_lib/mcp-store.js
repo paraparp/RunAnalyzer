@@ -416,8 +416,14 @@ export async function listRunningDynamics(userId, { from, to, limit = 50, offset
 }
 
 export function filterActivities(list, {
-  from, to, sport, only_running, min_distance_km, max_distance_km, hr_min, hr_max, flat_only, hr_source,
+  from, to, sport, only_running, min_distance_km, max_distance_km,
+  avg_hr_min, avg_hr_max, hr_min, hr_max, flat_only, hr_source,
 } = {}) {
+  // `avg_hr_min/avg_hr_max` filtran por FC MEDIA. Nombres nuevos para evitar la
+  // colisión con el `hr_max` (FCmax del atleta) de detect_threshold_efforts; se
+  // aceptan los antiguos hr_min/hr_max por retrocompatibilidad.
+  const loHr = avg_hr_min ?? hr_min;
+  const hiHr = avg_hr_max ?? hr_max;
   return list.filter((a) => {
     if (!inRange(a.start_date, from, to)) return false;
     if (only_running && !isRunning(a)) return false;
@@ -426,8 +432,8 @@ export function filterActivities(list, {
     const km = (a.distance || 0) / 1000;
     if (min_distance_km && km < min_distance_km) return false;
     if (max_distance_km && km > max_distance_km) return false;
-    if (hr_min && !(a.average_heartrate >= hr_min)) return false;
-    if (hr_max && !(a.average_heartrate <= hr_max)) return false;
+    if (loHr && !(a.average_heartrate >= loHr)) return false;
+    if (hiHr && !(a.average_heartrate <= hiHr)) return false;
     if (flat_only) {
       const gainPerKm = km ? (a.total_elevation_gain || 0) / km : Infinity;
       if (gainPerKm > 10) return false;                // <10 m/km = llano
@@ -490,19 +496,47 @@ export async function activityStats(userId, args = {}) {
     total_distance_km: round((base.total_distance_km || 0) + gDist / 1000, 1),
     total_moving_time_h: round((base.total_moving_time_h || 0) + gTime / 3600, 1),
   };
+
+  // Desglose semanal (km, tiempo y rampa % vs semana previa): para seguir la subida
+  // de volumen sin tener que llamar una vez por semana.
+  if (args.granularity === 'weekly') {
+    const byWeek = new Map();
+    for (const a of stravaList) {
+      const day = (a.start_date || '').slice(0, 10);
+      if (!day) continue;
+      const wk = mondayOf(day);
+      const acc = byWeek.get(wk) || { week_start: wk, count: 0, dist: 0, time: 0 };
+      acc.count++; acc.dist += a.distance || 0; acc.time += a.moving_time || 0;
+      byWeek.set(wk, acc);
+    }
+    const weeks = [...byWeek.values()].sort((x, y) => x.week_start.localeCompare(y.week_start));
+    const weekly = weeks.map((w, i) => {
+      const km = round(w.dist / 1000, 1);
+      const prevKm = i > 0 ? weeks[i - 1].dist / 1000 : null;
+      return {
+        week_start: w.week_start, count: w.count,
+        distance_km: km, moving_time_h: round(w.time / 3600, 1),
+        ramp_pct: prevKm ? round((km / prevKm - 1) * 100, 1) : null,
+      };
+    });
+    return { source: 'strava', granularity: 'weekly', weeks: weekly, garmin_only, combined };
+  }
   return { source: 'strava', ...base, garmin_only, combined };
 }
 
 // ── Personal Bests (espejo exacto de src/components/PersonalBests.jsx) ────────
+// `std` = distancia estándar de referencia (m) para normalizar tiempos: un candidato
+// puede venir de un best_effort exacto (5000 m) o de la distancia total (5097 m), y
+// compararlos por tiempo bruto mezcla peras y manzanas. Ordenamos por ritmo.
 const PB_RANGES = [
-  { id: '5k', name: '5K', min: 4900, max: 5200, effortNames: ['5k'] },
-  { id: '10k', name: '10K', min: 9900, max: 10500, effortNames: ['10k'] },
-  { id: 'hm', name: 'Half Marathon', min: 21000, max: 21500, effortNames: ['half-marathon'] },
-  { id: 'fm', name: 'Marathon', min: 42000, max: 43000, effortNames: ['marathon'] },
+  { id: '5k', name: '5K', std: 5000, min: 4900, max: 5200, effortNames: ['5k'] },
+  { id: '10k', name: '10K', std: 10000, min: 9900, max: 10500, effortNames: ['10k'] },
+  { id: 'hm', name: 'Half Marathon', std: 21097, min: 21000, max: 21500, effortNames: ['half-marathon'] },
+  { id: 'fm', name: 'Marathon', std: 42195, min: 42000, max: 43000, effortNames: ['marathon'] },
 ];
 const PB_FLAT_RANGES = [
-  { id: 'flat1k', name: 'Flat 1K', effortKey: '1k', splits: 1, min: 950, max: 1050, maxElev: 5 },
-  { id: 'flat2k', name: 'Flat 2K', effortKey: '2k', splits: 2, min: 1900, max: 2100, maxElev: 10 },
+  { id: 'flat1k', name: 'Flat 1K', effortKey: '1k', std: 1000, splits: 1, min: 950, max: 1050, maxElev: 5 },
+  { id: 'flat2k', name: 'Flat 2K', effortKey: '2k', std: 2000, splits: 2, min: 1900, max: 2100, maxElev: 10 },
 ];
 
 const fmtTime = (s) => {
@@ -560,16 +594,20 @@ export function computePersonalBests(activities) {
     const top = activities
       .map((a) => candFn(a, range))
       .filter(Boolean)
-      .sort((x, y) => x.time - y.time)   // por tiempo: el PR es el más rápido, orden consistente
+      // Ordena por RITMO (tiempo/distancia): así no gana un tramo más largo por tener
+      // menos tiempo bruto, ni un 5097 m se compara injustamente con un 5000 m.
+      .sort((x, y) => x.time / x.distance - y.time / y.distance)
       .slice(0, 5)
       .map((c) => ({
         id: c.id, name: c.name, date: c.start_date,
         time: fmtTime(c.time), time_s: Math.round(c.time),
         pace_per_km: calcPace(c.distance / c.time),
         distance_m: Math.round(c.distance),
+        distance_delta_m: Math.round(c.distance - range.std),   // desvío vs distancia estándar
+        equiv_time: fmtTime((c.time / c.distance) * range.std),  // tiempo equivalente a la distancia estándar
         is_effort: !!c.isEffort, is_flat: !!c.isFlat,
       }));
-    return top.length ? { id: range.id, name: range.name, pr: top[0], top } : null;
+    return top.length ? { id: range.id, name: range.name, distance_m: range.std, pr: top[0], top } : null;
   }).filter(Boolean);
   return [...build(PB_FLAT_RANGES, pbFlatCandidate), ...build(PB_RANGES, pbCandidate)];
 }
@@ -747,9 +785,8 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
 // El baseline de Garmin puede venir como número o como objeto con el rango
 // balanceado ({ balancedLow, balancedUpper, ... }). Lo normalizamos a {low, high}.
 function normalizeBaseline(b) {
-  if (b == null) return null;
-  if (typeof b === 'number') return { low: null, high: null, marker: b };
-  return { low: b.balancedLow ?? b.lowUpper ?? null, high: b.balancedUpper ?? null, marker: b.markerValue ?? null };
+  if (!b || typeof b !== 'object') return null; // Garmin lo manda como objeto de rango
+  return { low: b.balancedLow ?? b.lowUpper ?? null, high: b.balancedUpper ?? null }; // rango balanceado en ms
 }
 // Dirección de la desviación respecto al rango balanceado. Clave: `hrv_status`
 // "UNBALANCED" no dice el sentido, y una VFC ALTA (buena) sale igual que una baja;
@@ -812,20 +849,22 @@ function mondayOf(iso) {
   return toISODate(d);
 }
 
-// Colapsa la serie diaria a semanal: por semana, la forma (CTL/ATL/TSB) del último
-// día y la carga total de la semana. Reduce ~7× el payload para un LLM.
+// Colapsa la serie diaria a semanal: CTL/ATL y forma al CIERRE de la semana (último
+// día) + carga total. En una fila semanal `tsb_today` no significa nada, así que la
+// forma se expone como `tsb_week_end`. Reduce ~7× el payload para un LLM.
 function toWeekly(series) {
   const byWeek = new Map();
   for (const s of series) {
     const wk = mondayOf(s.date);
-    const acc = byWeek.get(wk) || { week_start: wk, load_week: 0, last: null };
+    const acc = byWeek.get(wk) || { week_start: wk, week_end: s.date, load_week: 0, last: null };
     acc.load_week += s.load || 0;
+    acc.week_end = s.date;
     acc.last = s; // series va cronológica → el último visto es el más reciente
     byWeek.set(wk, acc);
   }
-  return [...byWeek.values()].map(({ week_start, load_week, last }) => ({
-    week_start, load_week: Math.round(load_week),
-    ctl: last.ctl, atl: last.atl, tsb: last.tsb, tsb_today: last.tsb_today,
+  return [...byWeek.values()].map(({ week_start, week_end, load_week, last }) => ({
+    week_start, week_end, load_week: Math.round(load_week),
+    ctl: last.ctl, atl: last.atl, tsb_week_end: last.tsb_today,
   }));
 }
 
@@ -950,22 +989,36 @@ export function detectThresholdEffort(a, hrMax) {
   const seg = best.splits;
   const dist = seg.reduce((s, x) => s + (x.distance || 0), 0);
   const lthr = round(seg.reduce((s, x) => s + x.average_heartrate * (x.moving_time || 0), 0) / best.time, 0);
+  const pace = calcPace(dist / best.time);
   const third = Math.max(1, Math.floor(seg.length / 3));
   const hrAvg = (arr) => arr.reduce((s, x) => s + x.average_heartrate, 0) / arr.length;
   const drift = (hrAvg(seg.slice(-third)) / hrAvg(seg.slice(0, third)) - 1) * 100;
+  // Ventana detectada, para poder auditar el recorte (desde qué minuto/km).
+  const startIdx = splits.indexOf(seg[0]);
+  const beforeTime = splits.slice(0, Math.max(0, startIdx)).reduce((s, x) => s + (x.moving_time || 0), 0);
   // Con deriva alta fue un esfuerzo progresivo, no un TT constante: el LTHR/ritmo
-  // estimados son poco fiables. Lo marcamos para que no se tomen como referencia.
+  // estimados son poco fiables → los devolvemos en null (con el estimado aparte para
+  // auditar) para que nadie los copie como referencia.
   const absDrift = Math.abs(drift);
   const confidence = absDrift < 3 ? 'high' : absDrift <= 5 ? 'medium' : 'low';
+  const reliable = confidence !== 'low';
   return {
     duration_min: round(best.time / 60, 1),
-    lthr,
-    threshold_pace: calcPace(dist / best.time),
+    from_km: seg[0].split ?? null,
+    to_km: seg[seg.length - 1].split ?? null,
+    window_start_min: round(beforeTime / 60, 1),
+    window_end_min: round((beforeTime + best.time) / 60, 1),
+    lthr: reliable ? lthr : null,
+    threshold_pace: reliable ? pace : null,
     hr_stabilized: absDrift < 3,
     hr_drift_pct: round(drift, 1),
     confidence,
-    lthr_reliable: confidence !== 'low',
-    ...(confidence === 'low' ? { warning: 'FC derivó >5%: esfuerzo progresivo, LTHR/ritmo poco fiables' } : {}),
+    lthr_reliable: reliable,
+    ...(reliable ? {} : {
+      estimated_lthr: lthr,
+      estimated_threshold_pace: pace,
+      warning: 'FC derivó >5% (esfuerzo progresivo): LTHR/ritmo poco fiables, en null a propósito',
+    }),
   };
 }
 
@@ -1023,11 +1076,14 @@ export async function getSleep(userId, { from, to } = {}) {
     // Prefiere la ventana que ya arranca en lunes (weekStart === lunes ISO).
     if (!prev || (r.weekStart === wk && prev.weekStart !== wk)) byWeek.set(wk, r);
   }
-  return [...byWeek.values()]
+  const today = toISODate(new Date());
+  const thisMonday = mondayOf(today);
+  const weeks = [...byWeek.values()]
     .sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || ''))
     .map((r) => ({
       week_start: r.weekStart,
       week_end: r.weekEnd,
+      partial: (r.weekEnd || '') >= today, // semana aún en curso
       score: r.score ?? null,
       quality: r.quality ?? null,
       avg_duration_min: r.durationMin ?? null,
@@ -1036,4 +1092,10 @@ export async function getSleep(userId, { from, to } = {}) {
       light_min: r.lightMin ?? null,
       awake_min: r.awakeMin ?? null,
     }));
+  // La agregación semanal es un cache; la semana en curso puede no estar todavía.
+  const out = { count: weeks.length, weeks };
+  if (!weeks.some((w) => w.week_start >= thisMonday)) {
+    out.note = 'La semana en curso puede no estar en el cache semanal; usa list_sleep_daily para las noches recientes.';
+  }
+  return out;
 }
