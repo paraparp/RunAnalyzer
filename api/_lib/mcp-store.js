@@ -554,11 +554,11 @@ function pbCandidate(a, range) {
     (e) => range.effortNames.includes(canonEffortByMeters(e.distance) || e.name?.toLowerCase()) && (e.moving_time || e.elapsed_time) > 0,
   );
   if (effort) {
-    return { id: a.id, name: a.name, start_date: a.start_date, time: effort.moving_time || effort.elapsed_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false };
+    return { id: a.id, name: a.name, start_date: a.start_date, time: effort.moving_time || effort.elapsed_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false, source: 'best_effort' };
   }
   const time = a.moving_time || a.elapsed_time;
   if (a.distance >= range.min && a.distance <= range.max && time > 0) {
-    return { id: a.id, name: a.name, start_date: a.start_date, time, distance: a.distance, isEffort: false, isFlat: false };
+    return { id: a.id, name: a.name, start_date: a.start_date, time, distance: a.distance, isEffort: false, isFlat: false, source: 'total_distance' };
   }
   return null;
 }
@@ -583,9 +583,10 @@ function pbFlatFromSplits(a, range) {
 
 function pbFlatCandidate(a, range) {
   const eff = a.flat_efforts?.[range.effortKey];
-  const best = (eff && eff.time > 0) ? eff : pbFlatFromSplits(a, range);
+  const usedEff = !!(eff && eff.time > 0);
+  const best = usedEff ? eff : pbFlatFromSplits(a, range);
   if (!best) return null;
-  return { id: a.id, name: a.name, start_date: a.start_date, time: best.time, distance: best.distance, isEffort: true, isFlat: true };
+  return { id: a.id, name: a.name, start_date: a.start_date, time: best.time, distance: best.distance, isEffort: true, isFlat: true, source: usedEff ? 'flat_effort' : 'splits_window' };
 }
 
 /**
@@ -611,6 +612,7 @@ export function computePersonalBests(activities) {
         distance_m: Math.round(c.distance),
         distance_delta_m: Math.round(c.distance - range.std), // 0 = distancia exacta; >0 = sobre-distancia (tiempo es cota superior)
         exact: Math.abs(c.distance - range.std) <= 15,         // best_effort/parcial a la distancia justa
+        source: c.source,                                      // best_effort | total_distance | flat_effort | splits_window
         is_effort: !!c.isEffort, is_flat: !!c.isFlat,
       }));
     // PR: por defecto el más rápido (top[0]). Pero un tiempo sobre-distancia es solo

@@ -113,7 +113,7 @@ const TOOLS = [
   },
   {
     name: 'get_personal_bests',
-    description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia (ordenado por tiempo), con ritmo, fecha y si es parcial/llano. Solo carreras por defecto. Igual que el panel de la app.',
+    description: 'Mejores marcas (Personal Bests) en 5K, 10K, media maratón y maratón (desde best_efforts de Strava), y llanas Flat 1K/2K (desde flat_efforts). Top-5 por distancia (ordenado por tiempo), con ritmo, fecha, `exact` (distancia justa vs sobre-distancia con `distance_delta_m`) y `source` (best_effort | total_distance | flat_effort | splits_window, para no confundir procedencias). El `pr` prefiere una marca `exact` cuando el margen es grande. Solo carreras por defecto.',
     inputSchema: {
       type: 'object',
       properties: {
