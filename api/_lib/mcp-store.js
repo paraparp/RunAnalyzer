@@ -820,13 +820,13 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
 
   const series = [];
   for (const a of list) {
-    const e = (a.best_efforts || []).find((x) => effortId(x) === key);
-    const t = e ? effortTime(e) : 0;
-    if (!t) continue;
+    const ef = effortForKey(a, key); // best_effort real o sintetizado desde distancia total
+    if (!ef) continue;
     series.push({
       date: a.start_date,
-      time: fmtTime(t), time_s: t,
-      pace_per_km: calcPace(e.distance / t),
+      time: fmtTime(ef.time), time_s: ef.time,
+      pace_per_km: calcPace(ef.distance_m / ef.time),
+      source: ef.source,                                 // best_effort | total_distance
       activity_id: a.id, activity_name: a.name,
       avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null,
     });
