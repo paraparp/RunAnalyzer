@@ -1061,6 +1061,98 @@ export async function detectThresholdTests(userId, { hr_max, from, to } = {}) {
   };
 }
 
+// ── Tiempo en zonas de FC (distribución polarizada) ──────────────────────────
+// Zonas como % de FCmax (modelo de 5 zonas). Clasifica cada split por su FC MEDIA
+// desde los datos cacheados (sin stream punto a punto): aproximado pero suficiente
+// para ver el reparto easy/moderado/hard y verificar la polarización.
+const HR_ZONES = [
+  { zone: 1, name: 'Z1 recuperación', lo: 0.50, hi: 0.60 },
+  { zone: 2, name: 'Z2 aeróbico', lo: 0.60, hi: 0.70 },
+  { zone: 3, name: 'Z3 tempo', lo: 0.70, hi: 0.80 },
+  { zone: 4, name: 'Z4 umbral', lo: 0.80, hi: 0.90 },
+  { zone: 5, name: 'Z5 VO2max', lo: 0.90, hi: 2 },
+];
+function zoneOf(hr, hrMax) {
+  if (!hr || !hrMax) return null;
+  const pct = hr / hrMax;
+  if (pct < 0.50) return 1;                          // por debajo de Z1 → recuperación
+  return (HR_ZONES.find((z) => pct >= z.lo && pct < z.hi) || HR_ZONES[4]).zone;
+}
+// Reparte el tiempo de una actividad en zonas: por split si hay FC por split; si no,
+// toda la sesión a la zona de su FC media. Devuelve segundos por zona + no clasificado.
+function activityZoneSeconds(a, hrMax) {
+  const secs = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let unclassified = 0;
+  const splits = Array.isArray(a.splits_metric) ? a.splits_metric : [];
+  if (splits.some((s) => s.average_heartrate)) {
+    for (const s of splits) {
+      const t = s.moving_time || 0;
+      const z = zoneOf(s.average_heartrate, hrMax);
+      if (z && t) secs[z] += t; else unclassified += t;
+    }
+  } else if (a.average_heartrate && a.moving_time) {
+    const z = zoneOf(a.average_heartrate, hrMax);
+    if (z) secs[z] += a.moving_time; else unclassified += a.moving_time;
+  } else {
+    unclassified += a.moving_time || 0;
+  }
+  return { secs, unclassified };
+}
+const zonesReport = (secs) => {
+  const total = Object.values(secs).reduce((s, v) => s + v, 0);
+  const pct = (v) => (total ? round((v / total) * 100, 1) : 0);
+  return {
+    total_min: Math.round(total / 60),
+    zones: HR_ZONES.map((z) => ({ zone: z.zone, name: z.name, minutes: Math.round(secs[z.zone] / 60), pct: pct(secs[z.zone]) })),
+    // 3 zonas para polarización: fácil (Z1-2) / moderado (Z3) / duro (Z4-5).
+    polarized: { easy_pct: pct(secs[1] + secs[2]), moderate_pct: pct(secs[3]), hard_pct: pct(secs[4] + secs[5]) },
+  };
+};
+
+/**
+ * Tiempo en zonas de FC en un rango. `granularity=weekly` da el reparto por semana
+ * (para seguir la polarización). FCmax: `hr_max` o estimación robusta.
+ */
+export async function getTimeInZones(userId, { from, to, sport, hr_max, granularity = 'total' } = {}) {
+  const all = await getActivities(userId);
+  const hrMax = hr_max || estimateHrMax(all);
+  const list = filterActivities(all, { from, to, sport, only_running: !sport });
+  const totals = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  const byWeek = new Map();
+  const per_activity = [];
+  let unclassifiedSec = 0;
+  for (const a of list) {
+    const { secs, unclassified } = activityZoneSeconds(a, hrMax);
+    unclassifiedSec += unclassified;
+    const actTotal = Object.values(secs).reduce((s, v) => s + v, 0);
+    if (!actTotal) continue;
+    for (const z of [1, 2, 3, 4, 5]) totals[z] += secs[z];
+    per_activity.push({ id: a.id, date: a.start_date, name: a.name, ...zonesReport(secs) });
+    if (granularity === 'weekly') {
+      const wk = mondayOf((a.start_date || '').slice(0, 10));
+      const acc = byWeek.get(wk) || { week_start: wk, secs: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+      for (const z of [1, 2, 3, 4, 5]) acc.secs[z] += secs[z];
+      byWeek.set(wk, acc);
+    }
+  }
+  const out = {
+    hr_max_used: hrMax,
+    hr_max_source: hr_max ? 'parámetro' : 'estimado (p98 últimos 12 meses)',
+    model: '5 zonas por % de FCmax (aprox. desde FC media por split)',
+    activities: per_activity.length,
+    unclassified_min: Math.round(unclassifiedSec / 60),
+    ...zonesReport(totals),
+  };
+  if (granularity === 'weekly') {
+    out.weeks = [...byWeek.values()]
+      .sort((x, y) => x.week_start.localeCompare(y.week_start))
+      .map((w) => ({ week_start: w.week_start, ...zonesReport(w.secs) }));
+  } else {
+    out.per_activity = per_activity;
+  }
+  return out;
+}
+
 /**
  * Sueño semanal (garmin_sleep_data). El ingest guardó ventanas rodantes solapadas
  * (p.ej. 28/7–3/8 y 27/7–2/8), así que deduplicamos por semana ISO (lunes): una fila

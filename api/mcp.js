@@ -15,7 +15,7 @@ import {
   getActivities, filterActivities, activityStats, shapeSummary, shapeFull,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
-  getTrainingLoadModel, getHealthAlerts, detectThresholdTests,
+  getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
 } from './_lib/mcp-store.js';
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout,
@@ -210,6 +210,20 @@ const TOOLS = [
     description: 'Alertas de patrón sobre VFC/FC reposo/Body Battery: firma de infección o sobrecarga (Body Battery máx <55 dos noches seguidas, o VFC bajo baseline con FC reposo elevada).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
     run: (userId, args) => getHealthAlerts(userId, args).then(text),
+  },
+  {
+    name: 'time_in_zones',
+    description: 'Tiempo en zonas de FC (5 zonas por % de FCmax) en un rango, con reparto polarizado easy/moderado/hard. Aproximado desde la FC media por split (sin stream). `granularity=weekly` da el reparto por semana; `hr_max` opcional (si no, se estima).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: dateArg, to: dateArg,
+        sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
+        hr_max: { type: 'number', description: 'FCmax en bpm (recomendado); si se omite, se estima' },
+        granularity: { type: 'string', enum: ['total', 'weekly'], description: 'total (por defecto) o weekly' },
+      },
+    },
+    run: (userId, args) => getTimeInZones(userId, args).then(text),
   },
   {
     name: 'detect_threshold_efforts',
