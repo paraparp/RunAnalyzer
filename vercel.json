@@ -1,4 +1,5 @@
 {
+  "buildCommand": "git fetch --unshallow || true && npm run build",
   "rewrites": [
     {
       "source": "/.well-known/oauth-authorization-server",
