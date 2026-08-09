@@ -621,14 +621,13 @@ export function computePersonalBests(activities) {
         source: c.source,                                      // best_effort | total_distance | flat_effort | splits_window
         is_effort: !!c.isEffort, is_flat: !!c.isFlat,
       }));
-    // PR: por defecto el más rápido (top[0]). Pero un tiempo sobre-distancia es solo
-    // una cota superior del tiempo a la distancia estándar; si su margen es grande
-    // (>1% de la distancia) y existe una marca `exact`, esa representa mejor el PR.
-    let pr = top[0];
-    if (pr && !pr.exact && pr.distance_delta_m > range.std * 0.01) {
-      const exactPr = top.find((e) => e.exact);   // top ya está ordenado por tiempo → el exact más rápido
-      if (exactPr) pr = exactPr;
-    }
+    // PR = el tiempo real más rápido (top[0]). Un tiempo sobre-distancia es una COTA
+    // SUPERIOR del tiempo a la distancia estándar (correr 21.47 km en 1:36:32 implica
+    // ≤1:36:32 en los 21.097 km): si ya bate a una marca `exact` más lenta, el PR real
+    // es aún mejor. La versión anterior degradaba el sobre-distancia a la `exact` cuando
+    // el margen pasaba del 1%, y así ocultaba carreras reales medidas un poco largas
+    // (una C21 de 21.47 km quedaba tapada por una media más lenta a distancia justa).
+    const pr = top[0];
     return top.length ? { id: range.id, name: range.name, distance_m: range.std, pr, top } : null;
   }).filter(Boolean);
   return [...build(PB_FLAT_RANGES, pbFlatCandidate), ...build(PB_RANGES, pbCandidate)];
@@ -654,6 +653,7 @@ const CANON_EFFORTS = [
   { id: 'marathon', m: 42195 }, { id: '50k', m: 50000 },
 ];
 const BEST_EFFORT_ORDER = CANON_EFFORTS.map((e) => e.id);
+const CANON_M = Object.fromEntries(CANON_EFFORTS.map((e) => [e.id, e.m])); // id → metros de referencia
 const effortOrder = (k) => { const i = BEST_EFFORT_ORDER.indexOf(k); return i < 0 ? 999 : i; };
 
 // metros → id canónico (tolerancia 1.5%, sobrada para las distancias estándar).
@@ -668,6 +668,34 @@ function canonEffortByMeters(m) {
 }
 // id canónico de un best_effort de Strava: por metros primero, nombre como fallback.
 const effortId = (e) => canonEffortByMeters(e?.distance) || (e?.name ? e.name.toLowerCase() : null);
+
+// Distancia TOTAL de una actividad → id canónico si la actividad ES esa distancia (una
+// carrera clavada). Todo el histórico previo al ingest de efforts trae `best_efforts: []`;
+// para una carrera, el tiempo de actividad es prácticamente su best_effort, así que lo
+// sintetizamos. Rango asimétrico [−0.2%, +3%]: las carreras miden justo o un poco largas
+// por GPS/vueltas, nunca cortas. Las tolerancias no solapan entre distancias canónicas.
+function raceDistanceId(m) {
+  if (!m) return null;
+  for (const e of CANON_EFFORTS) {
+    if (m >= e.m * 0.998 && m <= e.m * 1.03) return e.id;
+  }
+  return null;
+}
+
+// Esfuerzo de una actividad para una distancia canónica: best_effort real de Strava si
+// existe; si no, sintetizado desde la distancia total cuando la actividad ES esa carrera
+// (histórico sin efforts poblados). `source`: 'best_effort' | 'total_distance'. El tiempo
+// sobre-distancia es una cota superior honesta del tiempo a la distancia estándar.
+function effortForKey(a, key) {
+  const e = (a.best_efforts || []).find((x) => effortId(x) === key);
+  const t = e ? effortTime(e) : 0;
+  if (t) return { distance_m: e.distance, time: t, source: 'best_effort' };
+  if (raceDistanceId(a.distance) === key) {
+    const tt = a.moving_time || a.elapsed_time || 0;
+    if (tt) return { distance_m: a.distance, time: tt, source: 'total_distance' };
+  }
+  return null;
+}
 
 // Interpreta la distancia que pide el usuario en cualquier formato/idioma
 // ("10k", "10 km", "10000m", "1 milla", "media maratón") → id canónico.
