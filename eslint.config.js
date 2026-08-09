@@ -15,7 +15,8 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      // __BUILD_INFO__ lo inyecta Vite en tiempo de build (ver vite.config.js).
+      globals: { ...globals.browser, __BUILD_INFO__: 'readonly' },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
@@ -27,8 +28,8 @@ export default defineConfig([
     },
   },
   {
-    // Código de servidor (funciones serverless + proxy dev): entorno Node, no navegador.
-    files: ['api/**/*.js', 'server.js'],
+    // Código de servidor y de build (serverless, proxy dev, scripts): entorno Node.
+    files: ['api/**/*.js', 'server.js', 'scripts/**/*.{js,mjs}', 'vite.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,

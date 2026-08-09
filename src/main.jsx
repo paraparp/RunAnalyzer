@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
 import './i18n';
+import { buildInfo } from './lib/buildInfo';
+
+// Útil para soporte: saber qué build está corriendo el usuario desde la consola.
+window.__APP_BUILD__ = buildInfo;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -15,6 +15,7 @@ import DataExporter from './components/DataExporter';
 import StatusSnapshot from './components/StatusSnapshot';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
+import VersionBadge from './components/VersionBadge';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
 import HRAnalysis from './components/HRAnalysis';
@@ -786,6 +787,7 @@ const Dashboard = ({ user, handleLogout }) => {
             <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
             {t('topbar.logout')}
           </button>
+          <VersionBadge className="mt-3 px-4" />
         </div>
       </>
     );
