@@ -18,7 +18,7 @@ import {
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
 } from './_lib/mcp-store.js';
 import {
-  createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout,
+  createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
 } from './_lib/garmin-write.js';
 import {
   getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
@@ -243,6 +243,16 @@ const TOOLS = [
     description: 'Lista los entrenos guardados en Garmin (id, nombre, deporte, fecha) para poder editarlos o borrarlos.',
     inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'Máx. resultados (tope 100)' } } },
     run: (userId, args) => listWorkouts(userId, args).then(text),
+  },
+  {
+    name: 'get_garmin_workout',
+    description: 'Lee los pasos completos de un entreno de Garmin (misma spec de alto nivel que create/update: kind, duration, target, repeticiones). Úsalo antes de update_garmin_workout para editar sin reescribir los pasos a ciegas.',
+    inputSchema: {
+      type: 'object',
+      properties: { workout_id: { type: ['string', 'number'] } },
+      required: ['workout_id'],
+    },
+    run: (userId, args) => getWorkout(userId, args.workout_id).then(text),
   },
   {
     name: 'create_garmin_workout',
