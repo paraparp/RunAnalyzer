@@ -1205,6 +1205,13 @@ const addDays = (iso, n) => {
   return toISODate(d);
 };
 
+// Etiqueta de calidad de Garmin derivada del score (sleepScoreQuality): la semana en
+// vivo no la trae, así que la reproducimos con el mismo mapeo que las cerradas
+// (EXCELLENT ≥90, GOOD ≥80, FAIR ≥60, POOR <60) para no devolver null donde el resto
+// da string.
+const sleepQualityFromScore = (s) =>
+  (s == null ? null : s >= 90 ? 'EXCELLENT' : s >= 80 ? 'GOOD' : s >= 60 ? 'FAIR' : 'POOR');
+
 // Reconstruye una fila semanal desde noches sueltas (list_sleep_daily). Los campos
 // semanales de Garmin son MEDIAS por noche, no sumas: verificado contra el cache
 // (semana 27/7 → media de duration_min de sus 7 noches = 435 = avg_duration_min).
@@ -1213,11 +1220,12 @@ function weekFromNights(weekStart, nights) {
     const vals = nights.map((n) => n[k]).filter((v) => v != null);
     return vals.length ? round(vals.reduce((a, b) => a + b, 0) / vals.length, 0) : null;
   };
+  const score = avg('score');
   return {
     weekStart,
     weekEnd: nights.map((n) => n.date).sort().pop(),
-    score: avg('score'),
-    quality: null,
+    score,
+    quality: sleepQualityFromScore(score),
     durationMin: avg('duration_min'),
     remMin: avg('rem_min'),
     deepMin: avg('deep_min'),
