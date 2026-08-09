@@ -745,30 +745,45 @@ export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = 
   const list = filterActivities(all, { from, to, sport, only_running: !sport });
   const n = Math.min(Math.max(top, 1), 10);
   const byDist = new Map();
+  const push = (key, cand) => {
+    if (!byDist.has(key)) byDist.set(key, []);
+    byDist.get(key).push(cand);
+  };
   for (const a of list) {
+    const base = { activity_id: a.id, activity_name: a.name, date: a.start_date,
+      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null };
+    const seen = new Set();
     for (const e of a.best_efforts || []) {
       const t = effortTime(e);
       const key = effortId(e);
       if (!t || !key) continue;
-      if (!byDist.has(key)) byDist.set(key, []);
-      byDist.get(key).push({
-        distance_m: e.distance, time: t,
-        activity_id: a.id, activity_name: a.name, date: a.start_date,
-        avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null,
-      });
+      seen.add(key);
+      push(key, { distance_m: e.distance, time: t, source: 'best_effort', ...base });
+    }
+    // Fallback histórico: carrera clavada cuyo best_efforts está vacío (todo lo previo
+    // al ingest de efforts). Sin esto, `personal_records` arrancaba en otoño 2025 e
+    // ignoraba años de carreras reales (medias, 10K…).
+    const rk = raceDistanceId(a.distance);
+    if (rk && !seen.has(rk)) {
+      const t = a.moving_time || a.elapsed_time || 0;
+      if (t) push(rk, { distance_m: a.distance, time: t, source: 'total_distance', ...base });
     }
   }
   const records = [...byDist.entries()]
     .sort((x, y) => effortOrder(x[0]) - effortOrder(y[0]))
     .map(([key, cands]) => {
+      const std = CANON_M[key] ?? null;
       const topN = cands.sort((p, q) => p.time - q.time).slice(0, n).map((c, i) => ({
         rank: i + 1,
         time: fmtTime(c.time), time_s: c.time,
         pace_per_km: calcPace(c.distance_m / c.time),
+        distance_m: Math.round(c.distance_m),
+        distance_delta_m: std != null ? Math.round(c.distance_m - std) : null, // >0 = sobre-distancia (tiempo es cota superior)
+        source: c.source,                                                      // best_effort | total_distance
         activity_id: c.activity_id, activity_name: c.activity_name, date: c.date,
         avg_hr: c.avg_hr, hr_source: c.hr_source,
       }));
-      return { distance: key, distance_m: Math.round(cands[0].distance_m), top: topN };
+      return { distance: key, distance_m: std ?? Math.round(cands[0].distance_m), top: topN };
     });
   return { count: records.length, records };
 }
