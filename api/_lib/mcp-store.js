@@ -247,13 +247,19 @@ export function computeDecoupling(a) {
 // ── GAP: coste metabólico relativo por pendiente (Minetti) ───────────────────
 const minettiCost = (i) => // i = pendiente en fracción (+ subida)
   155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
-// Minetti sobre-estima el beneficio de la bajada moderada (un −7,5% daría ~2:19/km
-// de crédito, poco creíble). Acotamos el factor a [0.83, 1.55]: como mucho ~20% de
-// crédito por bajada y ~55% de penalización por subida, en línea con GAP de Strava.
+// Usar el ratio de coste como ratio de velocidad sobre-reacciona: la derivada de
+// Minetti en cero es 19,5/3,6 = 5,4% de velocidad por cada 1% de pendiente, cuando
+// lo aceptado empíricamente es ~2-3%. Amortiguamos la desviación relativa con K_*
+// (calibración empírica, NO Minetti puro) y con asimetría: el crédito por bajar es
+// menor que la penalización por subir, porque la bajada no se convierte entera en
+// velocidad (frenada, coste excéntrico).
+const K_UP = 0.5, K_DOWN = 0.35;
 const gapFactor = (grade) => {
   const c = minettiCost(grade);
-  const f = c > 0 ? c / 3.6 : 1;
-  return Math.min(1.55, Math.max(0.83, f));
+  if (!(c > 0)) return 1;
+  const rel = c / 3.6 - 1;
+  const f = 1 + rel * (grade >= 0 ? K_UP : K_DOWN);
+  return Math.min(1.35, Math.max(0.88, f));
 };
 
 /** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
@@ -272,10 +278,16 @@ export function computeGap(a) {
     per_split.push({ split: s.split, grade_pct: round(grade * 100, 1), gap_pace: calcPace(gapSpeed) });
   }
   if (!dist || !gapTime) return null;
-  // Etiquetado explícito: este GAP es cálculo propio (Minetti sobre splits por km) y NO
-  // coincide con `garmin.laps[].gap_pace` (avgGradeAdjustedSpeed del reloj, modelo
-  // distinto y por lap). No mezclar: pueden diferir ~30 s/km en el mismo km.
-  return { source: 'computed (Minetti, por split de 1 km)', gap_pace: calcPace(dist / gapTime), per_split };
+  // Etiquetado explícito: este GAP es cálculo propio (Minetti amortiguado sobre splits
+  // por km) y NO coincide con `garmin.laps[].gap_pace` (avgGradeAdjustedSpeed del reloj,
+  // modelo distinto y por lap). No mezclar: pueden diferir ~30 s/km en el mismo km.
+  // El desnivel por split es NETO, así que las subidas y bajadas dentro de un mismo km
+  // se cancelan antes de entrar al modelo: un km rompepiernas se procesa como llano.
+  return {
+    source: 'computed (Minetti amortiguado K_up=0.5/K_down=0.35, por split de 1 km, desnivel neto)',
+    gap_pace: calcPace(dist / gapTime),
+    per_split,
+  };
 }
 
 // ── Consultas de alto nivel ─────────────────────────────────────────────────

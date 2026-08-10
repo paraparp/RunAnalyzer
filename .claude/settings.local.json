@@ -16,7 +16,11 @@
       "Bash(cp __TRACKED_VAR__/mcptest.mjs ./.mcptest.mjs)",
       "Bash(node ./.mcptest.mjs)",
       "Bash(rm -f ./.mcptest.mjs)",
-      "Bash(git commit -q -m '@ *)"
+      "Bash(git commit -q -m '@ *)",
+      "Bash(node -e ' *)",
+      "Bash(node --check api/_lib/mcp-store.js)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).scripts\\)\")",
+      "Bash(npx vitest *)"
     ]
   }
 }
