@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import cloudStorage from '../lib/cloudStorage';
+import { syncGarminActivities } from '../lib/garminActivitiesSync';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush
@@ -486,27 +487,8 @@ export default function GarminCardiac() {
       cloudStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
       setCreds({ username: usr, password: pwd });
       // Fase 2: traer también las actividades con running dynamics (banda) para el MCP.
+      // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
       syncGarminActivities(usr, pwd);
-    }
-  };
-
-  // Descarga las actividades de Garmin (con running dynamics) y las guarda para
-  // que el MCP las correlacione con las carreras de Strava. Best-effort: si falla,
-  // no interrumpe la sync de salud.
-  const syncGarminActivities = async (usr, pwd) => {
-    try {
-      const res = await fetch('/api/garmin/activities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usr, password: pwd, limit: 200 }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Error del servidor');
-      if (Array.isArray(json.activities)) {
-        cloudStorage.setItem('garmin_activities', JSON.stringify(json.activities));
-      }
-    } catch (e) {
-      console.warn('No se pudieron sincronizar las actividades de Garmin:', e.message);
     }
   };
 

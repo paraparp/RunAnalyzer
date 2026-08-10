@@ -74,7 +74,7 @@ const TOOLS = [
         avg_hr_min: { type: 'number', description: 'FC MEDIA mínima de la actividad (bpm)' },
         avg_hr_max: { type: 'number', description: 'FC MEDIA máxima de la actividad (bpm)' },
         flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
-        hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Filtra por origen de la FC (banda/muñeca)' },
+        hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Filtra por origen de la FC. `unknown` = no se sabe (no es lo mismo que "sin banda"); mira `hr_source_origin` en la respuesta para saber si el valor viene de los sensores o de la fecha de corte declarada' },
         limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
         offset: { type: 'number', description: 'Desplazamiento para paginar (por defecto 0)' },
       },
@@ -127,7 +127,7 @@ const TOOLS = [
   },
   {
     name: 'list_running_dynamics',
-    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC (banda/muñeca) por carrera. Medias sobre todo el rango + runs paginados.',
+    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC por carrera. Medias sobre todo el rango + runs paginados. Lee la MISMA clave que el bloque `garmin` de get_activity: si aquí sale count 0, allí también saldrá garmin:null.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -507,6 +507,9 @@ const INSTRUCTIONS = [
   'Marcas: un `distance_delta_m` > 0 significa que el tiempo es cota superior del tiempo',
   'a la distancia estándar (se corrió algo más largo); nunca se reescala el tiempo.',
   'GAP: `gap.source` distingue el cálculo propio (Minetti) del `gap_pace` de los laps de Garmin: no mezclarlos.',
+  'GAP: si `gap.caveat` viene informado, el recorrido es ondulado y el ajuste queda corto (cota inferior).',
+  'FC origen: `hr_source` nunca es null; `unknown` significa "no se sabe", no "sin banda".',
+  '`hr_source_origin` = sensors (leído de Garmin) | cutoff (inferido de `hr_strap_since`) | missing.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
 ].join(' ');
 

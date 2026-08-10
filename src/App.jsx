@@ -33,6 +33,7 @@ import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { computeFlatEfforts } from './lib/flatEfforts';
+import { syncGarminActivities } from './lib/garminActivitiesSync';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import {
   AdjustmentsHorizontalIcon,
@@ -375,20 +376,9 @@ const Dashboard = ({ user, handleLogout }) => {
 
       // Actividades con running dynamics (banda) para el MCP. El sync de fondo solo
       // bajaba salud+sueño; sin esto, `garmin_activities` quedaba vacío aunque la
-      // banda grabara la dinámica. Best-effort: si falla, no rompe el sync de salud.
-      try {
-        const actRes = await fetch('/api/garmin/activities', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: creds.username, password: creds.password, limit: 200 }),
-        });
-        const actJson = await actRes.json();
-        if (actRes.ok && Array.isArray(actJson.activities)) {
-          cloudStorage.setItem('garmin_activities', JSON.stringify(actJson.activities));
-        }
-      } catch (e) {
-        console.warn('No se pudieron sincronizar las actividades de Garmin:', e.message);
-      }
+      // banda grabara la dinámica. Best-effort: si falla, no rompe el sync de salud
+      // y (a diferencia de antes) no borra el histórico ya guardado.
+      await syncGarminActivities(creds.username, creds.password);
 
       window.dispatchEvent(new Event('garmin_sync_complete'));
     } catch (err) {

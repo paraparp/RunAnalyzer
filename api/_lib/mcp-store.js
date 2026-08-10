@@ -91,7 +91,9 @@ export function shapeSummary(a) {
       : { speed_kmh: round((a.average_speed || 0) * 3.6, 1) }),
     avg_hr: a.average_heartrate ?? null,
     max_hr: a.max_heartrate ?? null,
-    hr_source: a._garmin?.hr_source ?? null, // 'strap' | 'wrist' | 'unknown'
+    // Nunca null: sin Garmin correlacionado el origen es desconocido, no "sin banda".
+    hr_source: a._garmin?.hr_source ?? 'unknown',      // 'strap' | 'wrist' | 'unknown'
+    hr_source_origin: a._garmin?.hr_source_origin ?? 'missing', // sensors | cutoff | missing
     elevation_gain_m: a.total_elevation_gain ?? null,
     has_laps: !!(a.laps && a.laps.length),
     has_garmin: !!a._garmin, // hay running dynamics de la banda correlacionados
@@ -151,7 +153,8 @@ export function shapeFull(a, include = null) {
   if (want.has('garmin')) {
     out.garmin = a._garmin ? {
       garmin_id: a._garmin.garmin_id,
-      hr_source: a._garmin.hr_source ?? null,      // banda vs muñeca
+      hr_source: a._garmin.hr_source ?? 'unknown',                  // banda vs muñeca
+      hr_source_origin: a._garmin.hr_source_origin ?? 'missing',    // cómo se supo
       data_quality: a._garmin.data_quality ?? null,
       dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
       power: a._garmin.power,            // vatios de carrera
@@ -254,19 +257,24 @@ const minettiCost = (i) => // i = pendiente en fracción (+ subida)
 // menor que la penalización por subir, porque la bajada no se convierte entera en
 // velocidad (frenada, coste excéntrico).
 const K_UP = 0.5, K_DOWN = 0.35;
+// Tope inferior = el factor a −10%. El polinomio de Minetti tiene su mínimo de coste
+// mucho más abajo (≈ −18% en esta regresión), pero por debajo de −10% el coste real
+// deja de bajar: la frenada y el trabajo excéntrico se comen el ahorro. Cortar ahí es
+// el comportamiento correcto; el 0.88 anterior recortaba ya en −8% y aplanaba de más.
+const GAP_FLOOR = 0.86, GAP_CEIL = 1.35;
 const gapFactor = (grade) => {
   const c = minettiCost(grade);
   if (!(c > 0)) return 1;
   const rel = c / 3.6 - 1;
   const f = 1 + rel * (grade >= 0 ? K_UP : K_DOWN);
-  return Math.min(1.35, Math.max(0.88, f));
+  return Math.min(GAP_CEIL, Math.max(GAP_FLOOR, f));
 };
 
 /** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
 export function computeGap(a) {
   const splits = a.splits_metric;
   if (!Array.isArray(splits) || !splits.length) return null;
-  let dist = 0, gapTime = 0;
+  let dist = 0, gapTime = 0, netElev = 0;
   const per_split = [];
   for (const s of splits) {
     const d = s.distance || 0;
@@ -274,7 +282,7 @@ export function computeGap(a) {
     if (!d || !sp || d < 500) continue;              // ignora parciales cortos (ruido de pendiente)
     const grade = s.elevation_difference != null ? s.elevation_difference / d : 0;
     const gapSpeed = sp * gapFactor(grade);          // velocidad equivalente en llano
-    dist += d; gapTime += d / gapSpeed;
+    dist += d; gapTime += d / gapSpeed; netElev += s.elevation_difference || 0;
     per_split.push({ split: s.split, grade_pct: round(grade * 100, 1), gap_pace: calcPace(gapSpeed) });
   }
   if (!dist || !gapTime) return null;
@@ -283,9 +291,27 @@ export function computeGap(a) {
   // modelo distinto y por lap). No mezclar: pueden diferir ~30 s/km en el mismo km.
   // El desnivel por split es NETO, así que las subidas y bajadas dentro de un mismo km
   // se cancelan antes de entrar al modelo: un km rompepiernas se procesa como llano.
+  //
+  // Ese sesgo es sistemático y hacia el lado equivocado: en un circuito ondulado el GAP
+  // sale casi igual al ritmo real cuando debería salir algo más rápido (subir cuesta más
+  // de lo que baja compensa). Publicamos el desnivel bruto de la actividad frente al neto
+  // agregado para que se vea cuánta oscilación se ha perdido, en vez de fingir precisión.
+  const gross = a.total_elevation_gain ?? null;
+  const rolling = gross != null && Math.abs(netElev) < gross * 0.5;
   return {
     source: 'computed (Minetti amortiguado K_up=0.5/K_down=0.35, por split de 1 km, desnivel neto)',
     gap_pace: calcPace(dist / gapTime),
+    elevation: {
+      net_m: round(netElev, 0),                 // suma de los desniveles NETOS por split
+      activity_gain_m: gross,                   // desnivel POSITIVO acumulado (Strava)
+      splits_used: per_split.length,
+    },
+    // Aviso, no error: con estas dos cifras un agente sabe si puede fiarse del número.
+    caveat: rolling
+      ? 'Recorrido ondulado (desnivel bruto >> neto): el modelo trabaja sobre el desnivel neto por km, '
+        + 'así que subidas y bajadas dentro del mismo km se cancelan y este GAP INFRAESTIMA el ajuste. '
+        + 'Trátalo como cota inferior; para tramos concretos usa garmin.laps[].gap_pace.'
+      : null,
     per_split,
   };
 }
@@ -321,28 +347,67 @@ function attachGarmin(stravaList, garminList) {
   }
 }
 
+// ── Origen de la FC (banda vs muñeca) ───────────────────────────────────────
+// `hr_source` solo existe en las actividades enriquecidas con el detalle de Garmin,
+// así que el histórico venía `null` y era imposible distinguir "sin banda" de "no
+// lo sé" — justo la diferencia que hace útil el filtro. Ahora:
+//   · nunca se devuelve null: si no hay dato, es 'unknown';
+//   · el usuario puede declarar desde cuándo lleva banda con la clave de
+//     user_storage `hr_strap_since` ("YYYY-MM-DD", o { since, before }), y las
+//     actividades sin dato a partir de esa fecha se resuelven como 'strap'.
+// `hr_source_origin` dice siempre de dónde sale el valor: 'sensors' (leído de los
+// sensores de Garmin), 'cutoff' (inferido de la fecha declarada) o 'missing'.
+const HR_SOURCES = new Set(['strap', 'wrist', 'unknown']);
+
+async function getHrSourcePolicy(userId) {
+  const raw = await readKey(userId, 'hr_strap_since');
+  const cfg = typeof raw === 'string' ? { since: raw } : (raw && typeof raw === 'object' ? raw : {});
+  const since = /^\d{4}-\d{2}-\d{2}$/.test(String(cfg.since || '')) ? String(cfg.since) : null;
+  const before = HR_SOURCES.has(cfg.before) ? cfg.before : 'unknown'; // qué asumir antes del corte
+  return { since, before };
+}
+
+/** Resuelve hr_source/hr_source_origin de una actividad Garmin según la política. */
+function resolveHrSource(g, policy) {
+  if (HR_SOURCES.has(g?.hr_source)) return { hr_source: g.hr_source, hr_source_origin: 'sensors' };
+  const day = String(g?.start_time || '').slice(0, 10);
+  if (policy.since && day) {
+    return { hr_source: day >= policy.since ? 'strap' : policy.before, hr_source_origin: 'cutoff' };
+  }
+  return { hr_source: 'unknown', hr_source_origin: 'missing' };
+}
+
+/** Aplica la política a la lista cruda de Garmin (no muta lo almacenado). */
+function withHrSource(garmin, policy) {
+  return garmin.map((g) => ({ ...g, ...resolveHrSource(g, policy) }));
+}
+
 /**
  * Actividades de Strava (reciente primero) con las running dynamics de Garmin
  * ya correlacionadas y adjuntas en `a._garmin` cuando hay coincidencia.
  */
 export async function getActivities(userId) {
-  const [raw, garminRaw] = await Promise.all([
+  const [raw, garminRaw, policy] = await Promise.all([
     readKey(userId, 'stravaData'),
     readKey(userId, 'garmin_activities'),
+    getHrSourcePolicy(userId),
   ]);
   const list = Array.isArray(raw) ? raw : raw?.activities;
   if (!Array.isArray(list)) return [];
   const sorted = [...list].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
   const garmin = Array.isArray(garminRaw) ? garminRaw : garminRaw?.activities;
-  if (Array.isArray(garmin) && garmin.length) attachGarmin(sorted, garmin);
+  if (Array.isArray(garmin) && garmin.length) attachGarmin(sorted, withHrSource(garmin, policy));
   return sorted;
 }
 
 /** Lista cruda de actividades de Garmin (garmin_activities) sin correlacionar. */
 export async function getGarminActivitiesRaw(userId) {
-  const raw = await readKey(userId, 'garmin_activities');
+  const [raw, policy] = await Promise.all([
+    readKey(userId, 'garmin_activities'),
+    getHrSourcePolicy(userId),
+  ]);
   const list = Array.isArray(raw) ? raw : raw?.activities;
-  return Array.isArray(list) ? list : [];
+  return Array.isArray(list) ? withHrSource(list, policy) : [];
 }
 
 /** Fila de running dynamics tomando Garmin como fuente (Strava opcional). */
@@ -358,10 +423,12 @@ export function shapeDynamicsFromGarmin(g, strava = null) {
     distance_km: round((g.distance_m ?? 0) / 1000),
     pace_per_km: speed ? calcPace(speed) : null,
     avg_hr: g.avg_hr ?? strava?.average_heartrate ?? null,
-    hr_source: g.hr_source ?? null,
+    hr_source: g.hr_source ?? 'unknown',
+    hr_source_origin: g.hr_source_origin ?? 'missing',
     cadence_spm: d.cadence_spm ?? null,
     ground_contact_ms: d.ground_contact_ms ?? null,
     gct_balance_pct: d.gct_balance_pct ?? null,
+    gct_balance_source: d.gct_balance_source ?? null, // 'laps' si se reconstruyó
     stride_length_cm: d.stride_length_cm ?? null,
     vertical_oscillation_cm: d.vertical_oscillation_cm ?? null,
     vertical_ratio_pct: d.vertical_ratio_pct ?? null,
@@ -428,8 +495,11 @@ export async function listRunningDynamics(userId, { from, to, limit = 50, offset
       runs_with_dynamics: rows.length,
       strava_activities_loaded: stravaList.length,
       strava_correlated: correlated,
+      // `garmin_activities` es la MISMA clave que alimenta el bloque `garmin` de
+      // get_activity: no hay dos rutas de datos. Si aquí sale 0, get_activity también
+      // devuelve garmin:null; si allí ves dinámica, es que la clave se vació después.
       hint:
-        garmin.length === 0 ? 'garmin_activities VACÍO en user_storage → la app no ha sincronizado esa clave (fallo de ingest/tabla).'
+        garmin.length === 0 ? 'garmin_activities VACÍO en user_storage → vuelve a sincronizar Garmin desde la app. Es la misma clave que usa get_activity, así que ahí también saldrá garmin:null.'
         : runs.length === 0 ? 'Hay actividades Garmin pero ninguna de tipo run → revisa el typeKey en normalizeGarminActivity.'
         : rows.length === 0 ? 'Hay carreras Garmin pero sin bloque dynamics → la banda no lo grabó o normalizeGarminActivity lo pierde.'
         : correlated === 0 ? 'Dynamics OK y ya se muestran; Strava no correlaciona (stravaData desfasado), pero ya no bloquea.'
@@ -768,7 +838,7 @@ export async function getPersonalRecords(userId, { sport, from, to, top = 5 } = 
   };
   for (const a of list) {
     const base = { activity_id: a.id, activity_name: a.name, date: a.start_date,
-      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null };
+      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? 'unknown' };
     const seen = new Set();
     for (const e of a.best_efforts || []) {
       const t = effortTime(e);
@@ -845,7 +915,7 @@ export async function getBestEffortsProgression(userId, { distance, sport, from,
       pace_per_km: calcPace(ef.distance_m / ef.time),
       source: ef.source,                                 // best_effort | total_distance
       activity_id: a.id, activity_name: a.name,
-      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? null,
+      avg_hr: a.average_heartrate ?? null, hr_source: a._garmin?.hr_source ?? 'unknown',
     });
   }
   series.sort((x, y) => new Date(x.date) - new Date(y.date));

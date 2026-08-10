@@ -273,6 +273,49 @@ export function normalizeGarminLap(l) {
   };
 }
 
+// El activitylist-service omite parte de la dinámica en actividades antiguas (p.ej.
+// `avgGroundContactBalance` llega null aunque la banda sí lo grabó). El detalle
+// (summaryDTO) sí la trae, así que al enriquecer rellenamos los huecos. Mapea
+// nuestro campo → claves candidatas en summaryDTO (Garmin ha usado varias).
+const DYNAMICS_FROM_SUMMARY = {
+  cadence_spm: ['averageRunningCadenceInStepsPerMinute', 'averageRunCadence'],
+  max_cadence_spm: ['maxRunningCadenceInStepsPerMinute', 'maxRunCadence'],
+  ground_contact_ms: ['avgGroundContactTime', 'groundContactTime'],
+  gct_balance_pct: ['avgGroundContactBalance', 'groundContactBalanceLeft'],
+  stride_length_cm: ['avgStrideLength', 'strideLength'],
+  vertical_oscillation_cm: ['avgVerticalOscillation', 'verticalOscillation'],
+  vertical_ratio_pct: ['avgVerticalRatio', 'verticalRatio'],
+};
+
+/** Rellena los huecos de `dynamics` desde summaryDTO (no pisa lo que ya hay). */
+function backfillDynamicsFromSummary(base, summaryDTO) {
+  if (!summaryDTO || !base.dynamics) return;
+  for (const [field, keys] of Object.entries(DYNAMICS_FROM_SUMMARY)) {
+    if (base.dynamics[field] != null) continue;
+    for (const k of keys) {
+      const v = g1(summaryDTO[k]);
+      if (v != null) { base.dynamics[field] = v; break; }
+    }
+  }
+}
+
+// Último recurso para el equilibrio GCT: media de los laps ponderada por duración.
+// Garmin lo publica por lap (`groundContactBalanceLeft`) incluso en actividades cuyo
+// agregado viene vacío, así que reconstruirlo aquí recupera sesiones antiguas.
+function backfillGctBalanceFromLaps(base, laps) {
+  if (base.dynamics?.gct_balance_pct != null) return;
+  let num = 0, den = 0;
+  for (const l of laps) {
+    if (l.gct_balance_pct == null) continue;
+    const w = l.duration_s || 1;
+    num += l.gct_balance_pct * w; den += w;
+  }
+  if (den > 0) {
+    base.dynamics.gct_balance_pct = g1(num / den);
+    base.dynamics.gct_balance_source = 'laps'; // reconstruido, no agregado de Garmin
+  }
+}
+
 /** Pide el detalle de una actividad y le añade hr_source, data_quality, laps y weather. */
 export async function enrichGarminActivity(client, base) {
   const id = base.garmin_id;
@@ -282,6 +325,7 @@ export async function enrichGarminActivity(client, base) {
     );
     base.hr_source = deriveHrSource(summary?.metadataDTO, summary?.summaryDTO);
     base.data_quality = deriveDataQuality(summary?.metadataDTO, summary?.summaryDTO);
+    backfillDynamicsFromSummary(base, summary?.summaryDTO);
     if (summary?.summaryDTO?.avgGradeAdjustedSpeed != null) {
       base.gap_speed_ms = gnum(summary.summaryDTO.avgGradeAdjustedSpeed);
     }
@@ -291,7 +335,7 @@ export async function enrichGarminActivity(client, base) {
       `https://connectapi.garmin.com/activity-service/activity/${id}/splits`
     );
     const laps = Array.isArray(splits?.lapDTOs) ? splits.lapDTOs.map(normalizeGarminLap) : [];
-    if (laps.length) base.laps = laps;
+    if (laps.length) { base.laps = laps; backfillGctBalanceFromLaps(base, laps); }
   } catch (e) { console.warn(`enrich splits ${id}:`, e.message); }
   try {
     const weather = await client.client.get(
@@ -312,25 +356,50 @@ async function mapLimit(items, limit, fn) {
   await Promise.all(workers);
 }
 
+// Plazas del presupuesto de enriquecido reservadas a las carreras más recientes.
+const RECENT_ENRICH_SLOTS = 10;
+
 /**
- * Lista las últimas `limit` actividades de Garmin con running dynamics, y enriquece
- * las `enrichRuns` carreras más recientes con detalle (origen FC, laps reales, WBGT).
+ * Lista las últimas `limit` actividades de Garmin con running dynamics y enriquece
+ * carreras con el detalle (origen FC, laps reales, WBGT, dinámica que falte).
+ *
+ * El enriquecido es INCREMENTAL: `alreadyEnriched` trae los garmin_id que ya tienen
+ * detalle guardado y se saltan, de modo que cada sync gasta su presupuesto en las
+ * carreras que aún no lo tienen. Antes se enriquecían siempre las 20 más recientes,
+ * así que `hr_source` solo existía en una ventana móvil y el histórico nunca se
+ * completaba por mucho que se sincronizara.
+ *
+ * Un fallo al listar LANZA en vez de devolver []: quien llama no puede distinguir
+ * "Garmin caído" de "no hay actividades", y guardar ese [] borraba el histórico.
  */
-export async function fetchGarminActivities(client, limit = 100, { enrichRuns = 20 } = {}) {
+export async function fetchGarminActivities(
+  client, limit = 100, { enrichRuns = 40, alreadyEnriched = null } = {}
+) {
   const cap = Math.min(Math.max(limit, 1), 300);
-  let raw = [];
+  let raw;
   try {
     raw = await client.client.get(
       `https://connectapi.garmin.com/activitylist-service/activities/search/activities?start=0&limit=${cap}`
     );
   } catch (e) {
-    console.warn('garmin activities fetch failed:', e.message);
-    return [];
+    throw new Error(`No se pudo listar actividades de Garmin: ${e.message}`);
   }
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) throw new Error('Respuesta inesperada del activitylist-service de Garmin');
   const normalized = raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
   if (enrichRuns > 0) {
-    const runs = normalized.filter((a) => (a.type || '').includes('run')).slice(0, enrichRuns);
+    const done = alreadyEnriched instanceof Set ? alreadyEnriched
+      : new Set(Array.isArray(alreadyEnriched) ? alreadyEnriched.map(String) : []);
+    // Presupuesto repartido: primero las carreras recientes pendientes (para que un
+    // entreno de hoy tenga hr_source ya en este sync) y el resto hacia atrás en el
+    // tiempo, de modo que los syncs sucesivos completen el histórico. Solo hacia
+    // atrás dejaría lo nuevo sin enriquecer hasta vaciar el backlog.
+    const pending = normalized
+      .filter((a) => (a.type || '').includes('run') && !done.has(String(a.garmin_id)))
+      .sort((x, y) => new Date(y.start_time) - new Date(x.start_time)); // reciente primero
+    const recent = pending.slice(0, Math.min(RECENT_ENRICH_SLOTS, enrichRuns));
+    const backfill = pending.slice(recent.length).reverse()             // antigua primero
+      .slice(0, enrichRuns - recent.length);
+    const runs = [...recent, ...backfill];
     try {
       await mapLimit(runs, 4, (a) => enrichGarminActivity(client, a));
     } catch (e) {

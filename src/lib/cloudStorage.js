@@ -24,6 +24,7 @@ const MIGRATED_KEYS = [
   'garmin_sleep_data',
   'garmin_activities',
   'garmin_last_sync',
+  'hr_strap_since',   // fecha desde la que el usuario lleva banda (la lee el MCP)
   'garmin_creds',
   'garminRestHR',
   'ai_insights_model',
