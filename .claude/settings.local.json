@@ -11,7 +11,12 @@
       "Bash(grep -rn name.*''[A-Zá-ú] /d/Projects/RunAnalyzer/src/components/*.jsx)",
       "Bash(npx vite *)",
       "Bash(perl -0pi -e 's/\\(\\\\n          domain=\\\\{domain\\\\}\\\\n          xFmt=\\\\{xFmt\\\\}\\)/$1\\\\n          bands={goodBands}/g' src/components/VitalsOverview.jsx)",
-      "Bash(perl -0pi -e 's/\\(\\\\n          domain=\\\\{domain\\\\}\\)\\(\\\\n          xFmt=\\\\{xFmt\\\\}\\)/$1\\\\n          ticks={xTicks}$2/g' src/components/VitalsOverview.jsx)"
+      "Bash(perl -0pi -e 's/\\(\\\\n          domain=\\\\{domain\\\\}\\)\\(\\\\n          xFmt=\\\\{xFmt\\\\}\\)/$1\\\\n          ticks={xTicks}$2/g' src/components/VitalsOverview.jsx)",
+      "Bash(node -p \"require\\('./node_modules/@modelcontextprotocol/sdk/package.json'\\).version\")",
+      "Bash(cp __TRACKED_VAR__/mcptest.mjs ./.mcptest.mjs)",
+      "Bash(node ./.mcptest.mjs)",
+      "Bash(rm -f ./.mcptest.mjs)",
+      "Bash(git commit -q -m '@ *)"
     ]
   }
 }

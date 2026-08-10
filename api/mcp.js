@@ -27,9 +27,36 @@ import {
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 // Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
 // su `run(userId, args)` juntos, para que schema y handler no puedan desincronizarse.
-const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)' };
+const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
 
+// Resultado de tool. NO emitimos `structuredContent` en el camino de éxito: la spec
+// obliga a mandar además el JSON serializado en `content`, así que el payload viaja
+// DOS veces. En tools que ya pesan 10-12k tokens (get_activity) eso dobla el coste de
+// contexto, y sin `outputSchema` declarado el cliente no gana nada a cambio. En los
+// errores sí se emite: son diminutos y hacen que el cliente pueda parsearlos.
 const text = (obj) => ({ content: [{ type: 'text', text: JSON.stringify(obj, null, 2) }] });
+
+// Error de EJECUCIÓN de una tool. En MCP no se señalan con un error JSON-RPC (eso es
+// para fallos de protocolo): van en el resultado con `isError: true`, para que el
+// modelo pueda leerlos y corregir. Antes se devolvían como texto normal y el cliente
+// no distinguía "no encontrado" de un resultado válido.
+const toolError = (message, extra = {}) => ({
+  content: [{ type: 'text', text: JSON.stringify({ error: message, ...extra }, null, 2) }],
+  structuredContent: { error: message, ...extra },
+  isError: true,
+});
+
+// Anotaciones de comportamiento (ToolAnnotations de la spec MCP). Permiten al cliente
+// saber qué tools mutan estado antes de llamarlas: `readOnlyHint` para las de solo
+// lectura, `destructiveHint` para las que borran/sobrescriben, `openWorldHint` para
+// las que salen a un sistema externo (Garmin en vivo) frente al cache de Supabase.
+// Secciones de get_activity sin la polyline (la parte más pesada del documento).
+const FULL_SECTIONS_NO_MAP = ['garmin', 'laps', 'splits', 'best_efforts', 'flat_efforts', 'decoupling', 'gap'];
+
+const READ_CACHED = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const READ_LIVE = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+const WRITE_CREATE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+const WRITE_UPDATE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true };
 
 const TOOLS = [
   {
@@ -82,7 +109,7 @@ const TOOLS = [
     run: async (userId, args) => {
       const all = await getActivities(userId);
       const a = all.find((x) => String(x.id) === String(args.id));
-      if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
+      if (!a) return toolError(`Actividad ${args.id} no encontrada.`);
       return text(shapeFull(a, args.include));
     },
   },
@@ -375,8 +402,10 @@ const TOOLS = [
     run: async (userId, args) => {
       const all = await getActivities(userId);
       const a = all.find((x) => String(x.id) === String(args.id));
-      if (!a) return text({ error: `Actividad ${args.id} no encontrada` });
-      const full = shapeFull(a);
+      if (!a) return toolError(`Actividad ${args.id} no encontrada.`);
+      // Sin la polyline del mapa: es la sección más pesada del documento y no aporta
+      // nada legible a un modelo. Quien la necesite usa get_activity con include:["map"].
+      const full = shapeFull(a, FULL_SECTIONS_NO_MAP);
       return text({
         id: String(a.id),
         title: `${a.name} — ${new Date(a.start_date).toLocaleDateString('es-ES')}`,
@@ -391,7 +420,43 @@ const TOOLS = [
 // Índice name → tool para el dispatch, y la lista de descriptores que ve el cliente
 // (sin `run`). Ambos derivan del mismo array: imposible que un schema no tenga handler.
 const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
-const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+
+// Título legible por tool (campo `title` de la spec: lo que enseña la UI, frente a
+// `name` que es el identificador). Centralizado aquí para poder auditar de un vistazo
+// que ninguna tool se queda sin él.
+const TITLES = {
+  list_activities: 'Listar actividades', get_activity: 'Detalle de actividad',
+  activity_stats: 'Agregados de actividad', list_running_dynamics: 'Running dynamics',
+  get_personal_bests: 'Mejores marcas', personal_records: 'Récords por distancia',
+  best_efforts_progression: 'Progresión por distancia', list_hrv_resting: 'VFC y FC en reposo',
+  list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición',
+  get_training_readiness: 'Training readiness', get_fitness_status: 'Estado de forma',
+  list_planned_workouts: 'Entrenos planificados', get_training_load_model: 'Carga de entrenamiento',
+  get_health_alerts: 'Alertas de salud', time_in_zones: 'Tiempo en zonas de FC',
+  detect_threshold_efforts: 'Detectar tests de umbral', list_garmin_workouts: 'Listar entrenos Garmin',
+  get_garmin_workout: 'Leer entreno Garmin', create_garmin_workout: 'Crear entreno Garmin',
+  update_garmin_workout: 'Modificar entreno Garmin', delete_garmin_workout: 'Borrar entreno Garmin',
+  schedule_garmin_workout: 'Agendar entreno Garmin', search: 'Buscar actividades', fetch: 'Recuperar actividad',
+};
+
+// Excepciones al comportamiento por defecto (READ_CACHED). Las de lectura EN VIVO salen
+// a Garmin en el momento; las de escritura mutan el calendario/biblioteca del usuario.
+const ANNOTATIONS = {
+  list_sleep: READ_LIVE,            // completa la semana en curso desde Garmin en vivo
+  list_sleep_daily: READ_LIVE, list_weight: READ_LIVE,
+  get_training_readiness: READ_LIVE, get_fitness_status: READ_LIVE,
+  list_planned_workouts: READ_LIVE, list_garmin_workouts: READ_LIVE, get_garmin_workout: READ_LIVE,
+  create_garmin_workout: WRITE_CREATE, schedule_garmin_workout: WRITE_CREATE,
+  update_garmin_workout: WRITE_UPDATE, delete_garmin_workout: WRITE_UPDATE,
+};
+
+const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({
+  name,
+  title: TITLES[name] || name,
+  description,
+  inputSchema,
+  annotations: { title: TITLES[name] || name, ...(ANNOTATIONS[name] || READ_CACHED) },
+}));
 
 // Las tools en vivo/escritura hacen login + varias peticiones a Garmin: damos margen.
 export const config = { maxDuration: 60 };
@@ -404,23 +469,59 @@ function sendJson(res, status, obj, headers = {}) {
 }
 
 // ── Ejecución de cada tool para un userId concreto ───────────────────────────
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Validación de los args de fecha antes de ejecutar. Una fecha mal formada (p.ej.
+// "2026-8-1" o "hace un mes") caía al filtro como string y comparaba lexicográficamente
+// sin avisar: devolvía un rango silenciosamente incorrecto en vez de un error.
+function validateArgs(args) {
+  for (const k of ['from', 'to', 'date']) {
+    if (args[k] != null && args[k] !== '' && !ISO_DATE.test(String(args[k]))) {
+      return `El parámetro "${k}" debe ser una fecha ISO YYYY-MM-DD (recibido: ${JSON.stringify(args[k])}).`;
+    }
+  }
+  if (args.from && args.to && String(args.from) > String(args.to)) {
+    return `Rango invertido: "from" (${args.from}) es posterior a "to" (${args.to}).`;
+  }
+  return null;
+}
+
 async function runTool(userId, name, args = {}) {
   const tool = TOOL_MAP.get(name);
-  if (!tool) return text({ error: `Tool desconocida: ${name}` });
+  if (!tool) {
+    return toolError(`Tool desconocida: ${name}`, { available: [...TOOL_MAP.keys()] });
+  }
+  const bad = validateArgs(args);
+  if (bad) return toolError(bad);
   return tool.run(userId, args);
 }
 
+// `instructions` (spec MCP): orientación de uso que el cliente puede dar al modelo.
+// Aquí resume las trampas reales de estos datos, que ya han causado lecturas erróneas.
+const INSTRUCTIONS = [
+  'Datos de entrenamiento de un corredor (Strava + Garmin).',
+  'Fuentes: las tools marcadas openWorldHint consultan Garmin en vivo (más lentas); el resto lee cache.',
+  'Contexto: get_activity pesa ~10-12k tokens; usa `include` para pedir solo las secciones necesarias.',
+  'FC: `avg_hr_min`/`avg_hr_max` en list_activities filtran por FC MEDIA de la sesión;',
+  '`hr_max` en time_in_zones y detect_threshold_efforts es la FCmax FISIOLÓGICA del atleta.',
+  'Marcas: un `distance_delta_m` > 0 significa que el tiempo es cota superior del tiempo',
+  'a la distancia estándar (se corrió algo más largo); nunca se reescala el tiempo.',
+  'GAP: `gap.source` distingue el cálculo propio (Minetti) del `gap_pace` de los laps de Garmin: no mezclarlos.',
+  'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
+].join(' ');
+
 function buildServer(userId) {
   const server = new Server(
-    { name: 'runanalyzer', version: '1.0.0' },
-    { capabilities: { tools: {} } },
+    { name: 'runanalyzer', version: '1.1.0' },
+    { capabilities: { tools: {} }, instructions: INSTRUCTIONS },
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_DESCRIPTORS }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     try {
       return await runTool(userId, req.params.name, req.params.arguments || {});
     } catch (e) {
-      return { content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true };
+      console.error(`tool ${req.params?.name} failed:`, e);
+      return toolError(e.message);
     }
   });
   return server;

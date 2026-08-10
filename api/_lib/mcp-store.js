@@ -175,7 +175,12 @@ export function shapeFull(a, include = null) {
       ...(running ? { pace_per_km: calcPace(l.average_speed) } : { speed_kmh: round((l.average_speed || 0) * 3.6, 1) }),
       avg_hr: l.average_heartrate ?? null,
       max_hr: l.max_heartrate ?? null,
-      cadence_spm: l.average_cadence ? round(l.average_cadence * 2, 1) : null, // Strava: steps/min por pierna → x2 para spm
+      // Strava da la cadencia de CARRERA por pierna (~90) → x2 para spm de ambas, y así
+      // coincide con la de Garmin (~180) en la misma respuesta. En bici NO se dobla:
+      // ahí `average_cadence` ya son rpm de biela (doblarlo daba 170 rpm en un lap de 85).
+      ...(running
+        ? { cadence_spm: l.average_cadence ? round(l.average_cadence * 2, 1) : null }
+        : { cadence_rpm: l.average_cadence ?? null }),
       elevation_gain_m: l.total_elevation_gain ?? null, // desnivel POSITIVO del lap
     }));
   }
