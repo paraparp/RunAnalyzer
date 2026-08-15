@@ -62,6 +62,42 @@ export async function readKey(userId, key) {
   return value;
 }
 
+/** Invalida la entrada cacheada de una clave (tras escribirla desde otro sitio). */
+export function invalidateKey(userId, key) {
+  _cache.delete(`${userId}:${key}`);
+}
+
+/**
+ * Lectura saltándose el cache. La usa el sync antes de MEZCLAR y reescribir un
+ * blob: partir de una copia de hasta 15 s de antigüedad puede pisar una escritura
+ * reciente del front.
+ */
+export async function readKeyFresh(userId, key) {
+  invalidateKey(userId, key);
+  return readKey(userId, key);
+}
+
+/** Escribe (upsert) una clave del almacén del usuario y refresca el cache local. */
+export async function writeKey(userId, key, value) {
+  const str = JSON.stringify(value);
+  const { error } = await service()
+    .from('user_storage')
+    .upsert({ user_id: userId, key, value: str, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,key' });
+  if (error) throw new Error(`user_storage write "${key}": ${error.message}`);
+  _cache.set(`${userId}:${key}`, { value, ts: Date.now() });
+}
+
+/** user_id de todos los usuarios que tienen guardada una clave dada (para el cron). */
+export async function listUsersWithKey(key) {
+  const { data, error } = await service()
+    .from('user_storage')
+    .select('user_id')
+    .eq('key', key);
+  if (error) throw new Error(`user_storage list "${key}": ${error.message}`);
+  return [...new Set((data || []).map((r) => r.user_id))];
+}
+
 // ── Reshape (espejo de DataExporter / flatEfforts) ──────────────────────────
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 export const isRunning = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);

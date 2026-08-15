@@ -1,0 +1,44 @@
+# Cron del sync del MCP (carril caro: Garmin + backlog de Strava).
+#
+# Vive aquí y no en `crons` de vercel.json porque el plan Hobby de Vercel limita los
+# cron jobs a UNA ejecución diaria, y el cache que leen las tools del MCP se queda
+# rancio. GitHub Actions no tiene esa limitación y el job es un curl de un segundo.
+#
+# Secrets necesarios en el repo (Settings → Secrets and variables → Actions):
+#   SYNC_URL     https://<tu-dominio>/api/sync
+#   CRON_SECRET  el mismo valor que la env var CRON_SECRET en Vercel
+name: sync
+
+on:
+  schedule:
+    # Cada 30 min. GitHub encola estos disparos: pueden retrasarse varios minutos
+    # cuando hay carga, y no se ejecutan al minuto exacto. Para este uso da igual.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:        # botón para lanzarlo a mano desde la pestaña Actions
+
+# Dos ejecuciones solapadas no corrompen nada (mcp-sync mezcla por id y toma un lock),
+# pero duplican peticiones a Strava y Garmin para nada.
+concurrency:
+  group: mcp-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar /api/sync
+        run: |
+          code=$(curl -sS -X POST "$SYNC_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            --max-time 300 \
+            -o response.json -w '%{http_code}')
+          echo "HTTP $code"
+          # `head -c` acota la salida: la respuesta trae un resumen por usuario.
+          head -c 2000 response.json; echo
+          # Un 4xx/5xx tiene que teñir el job de rojo: si no, el sync puede llevar
+          # semanas caído y el MCP sirviendo datos rancios sin que nadie se entere.
+          [ "$code" -lt 400 ] || exit 1
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

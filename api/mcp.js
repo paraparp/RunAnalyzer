@@ -23,6 +23,7 @@ import {
 import {
   getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
 } from './_lib/garmin-live.js';
+import { ensureFresh } from './_lib/mcp-sync.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 // Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
@@ -493,6 +494,12 @@ async function runTool(userId, name, args = {}) {
   }
   const bad = validateArgs(args);
   if (bad) return toolError(bad);
+  // Frescura del cache antes de leerlo. Solo en las tools de LECTURA (las de
+  // escritura no lo consultan). Casi siempre es un no-op sin I/O (ver mcp-sync):
+  // el delta real se paga como mucho una vez cada 10 min, no una vez por tool.
+  if ((ANNOTATIONS[name] || READ_CACHED).readOnlyHint) {
+    await ensureFresh(userId);
+  }
   return tool.run(userId, args);
 }
 
