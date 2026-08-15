@@ -13,6 +13,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { applyCors, baseUrl, resourceUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, activityStats, shapeSummary, shapeFull,
+  estimateHrMax, compareSimilarSessions,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
@@ -94,7 +95,7 @@ const TOOLS = [
   },
   {
     name: 'get_activity',
-    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos, polyline, desacoplamiento, GAP y (si hay Garmin) origen de FC, laps reales (con is_autolap), potencia por lap y WBGT. Usa `include` para pedir solo lo necesario y ahorrar contexto (la actividad completa pesa ~10-12k tokens).',
+    description: 'Detalle completo de una actividad: parciales, splits por km, best efforts, tramos llanos, polyline, desacoplamiento, GAP y (si hay Garmin) origen de FC, laps reales (con is_autolap), potencia por lap y WBGT. Incluye `data_consistency` (avisa si la suma de los laps no cuadra con la cabecera >1 %) y, en `garmin.weather`, `heat_penalty_session_pct` (penalización por calor ya escalada a la intensidad de ESA sesión) frente a `heat_penalty_pct` (referencia de tabla a ritmo de competición): usa la primera, no la segunda. Distancias en `distance_m` entero además de km. Usa `include` para pedir solo lo necesario y ahorrar contexto (la actividad completa pesa ~10-12k tokens).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -111,7 +112,9 @@ const TOOLS = [
       const all = await getActivities(userId);
       const a = all.find((x) => String(x.id) === String(args.id));
       if (!a) return toolError(`Actividad ${args.id} no encontrada.`);
-      return text(shapeFull(a, args.include));
+      // La FCmax del atleta hace falta para escalar la penalización por calor a la
+      // intensidad real de la sesión; se estima del histórico (p98 de 12 meses).
+      return text(shapeFull(a, args.include, { hrMax: estimateHrMax(all) }));
     },
   },
   {
@@ -128,16 +131,40 @@ const TOOLS = [
   },
   {
     name: 'list_running_dynamics',
-    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC por carrera. Medias sobre todo el rango + runs paginados. Lee la MISMA clave que el bloque `garmin` de get_activity: si aquí sale count 0, allí también saldrá garmin:null.',
+    description: 'Running dynamics de Garmin (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y origen de FC por carrera. Medias sobre el rango + runs paginados. Por defecto EXCLUYE los runs de menos de 3 km (calentamientos y vueltas a la calma sueltos, que distorsionan las medias); ajusta con `min_distance_km` (0 = incluir todo) y mira `excluded_short_runs`. Lee la MISMA clave que el bloque `garmin` de get_activity: si aquí sale count 0, allí también saldrá garmin:null.',
     inputSchema: {
       type: 'object',
       properties: {
         from: dateArg, to: dateArg,
+        min_distance_km: { type: 'number', description: 'Distancia mínima para entrar en las medias (por defecto 3; 0 = sin filtro)' },
         limit: { type: 'number', description: 'Máx. runs devueltos (por defecto 50, tope 200)' },
         offset: { type: 'number', description: 'Desplazamiento para paginar' },
       },
     },
     run: (userId, args) => listRunningDynamics(userId, args).then(text),
+  },
+  {
+    name: 'compare_similar_sessions',
+    description: 'Compara sesiones EQUIVALENTES entre sí ("todas mis salidas llanas de 10 km con FC media entre 142 y 152"). Define el grupo con distance_km + tolerancia y banda de FC media, o pasa `reference_id` y toma los criterios de esa actividad. Devuelve cada sesión con ritmo, GAP, FC, WBGT y el índice de eficiencia (metros por latido), más agregados y `trend` (mediana de eficiencia de la mitad reciente vs la antigua). La eficiencia es lo que hay que mirar: el ritmo solo no distingue mejorar de haber ido más enchufado ese día.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reference_id: { type: ['string', 'number'], description: 'ID Strava de la sesión de referencia: distancia y banda de FC salen de ella' },
+        distance_km: { type: 'number', description: 'Distancia objetivo del grupo (obligatoria si no hay reference_id)' },
+        distance_tolerance_pct: { type: 'number', description: 'Tolerancia de distancia en % (por defecto 10)' },
+        avg_hr_min: { type: 'number', description: 'FC MEDIA mínima de la sesión (bpm)' },
+        avg_hr_max: { type: 'number', description: 'FC MEDIA máxima de la sesión (bpm)' },
+        hr_tolerance_bpm: { type: 'number', description: 'Ancho de la banda de FC alrededor de la referencia (por defecto ±5)' },
+        flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
+        sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
+        from: dateArg, to: dateArg,
+        limit: { type: 'number', description: 'Máx. sesiones devueltas (por defecto 25, tope 100)' },
+      },
+    },
+    run: async (userId, args) => {
+      const res = await compareSimilarSessions(userId, args);
+      return res?.error ? toolError(res.error) : text(res);
+    },
   },
   {
     name: 'get_personal_bests',
@@ -428,6 +455,7 @@ const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 const TITLES = {
   list_activities: 'Listar actividades', get_activity: 'Detalle de actividad',
   activity_stats: 'Agregados de actividad', list_running_dynamics: 'Running dynamics',
+  compare_similar_sessions: 'Comparar sesiones equivalentes',
   get_personal_bests: 'Mejores marcas', personal_records: 'Récords por distancia',
   best_efforts_progression: 'Progresión por distancia', list_hrv_resting: 'VFC y FC en reposo',
   list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición',
@@ -517,6 +545,14 @@ const INSTRUCTIONS = [
   'GAP: si `gap.caveat` viene informado, el recorrido es ondulado y el ajuste queda corto (cota inferior).',
   'FC origen: `hr_source` nunca es null; `unknown` significa "no se sabe", no "sin banda".',
   '`hr_source_origin` = sensors (leído de Garmin) | cutoff (inferido de `hr_strap_since`) | missing.',
+  'Calor: usa `heat_penalty_session_pct` (ya escalada a la intensidad de esa sesión).',
+  '`heat_penalty_pct` es la referencia de tabla a ritmo de COMPETICIÓN y sobreestima un rodaje suave.',
+  'Tiempos: `moving_time_min` es tiempo en movimiento y `elapsed_time_min` el total puerta a puerta;',
+  'en tiradas largas difieren varios minutos. Si `data_consistency.consistent` es false, la suma de',
+  'los laps no cuadra con la cabecera: no mezcles ritmos derivados de una y otra fuente.',
+  'Distancias: usa `distance_m` (entero) para recalcular ritmos; `distance_km` va redondeado.',
+  'Dinámica: list_running_dynamics excluye por defecto los runs < 3 km (calentamientos sueltos que',
+  'sesgan las medias); `min_distance_km: 0` los incluye.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
 ].join(' ');
 

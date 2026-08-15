@@ -189,6 +189,10 @@ export function normalizeGarminActivity(a) {
       max_cadence_spm: g1(a.maxRunningCadenceInStepsPerMinute),
       ground_contact_ms: g1(a.avgGroundContactTime),
       gct_balance_pct: g1(a.avgGroundContactBalance),
+      // El origen se marca SIEMPRE que haya valor: antes solo se rellenaba en la
+      // reconstrucción desde laps, así que el campo salía null justo en el caso normal
+      // (agregado de Garmin) y parecía roto.
+      gct_balance_source: g1(a.avgGroundContactBalance) != null ? 'activity' : null,
       stride_length_cm: g1(a.avgStrideLength),
       vertical_oscillation_cm: g1(a.avgVerticalOscillation),
       vertical_ratio_pct: g1(a.avgVerticalRatio),
@@ -234,6 +238,50 @@ export function deriveDataQuality(metadataDTO, summaryDTO) {
 // por encima de 45 la tratamos como Fahrenheit (poco realista en °C para correr).
 const toCelsius = (t) => (t == null ? null : t > 45 ? (t - 32) * 5 / 9 : t);
 
+// Penalización de ritmo por calor, interpolada por tramos sobre la tabla de consenso
+// (Ely et al. / tablas de ajuste por WBGT). El modelo anterior era lineal a 0,65 %/°C
+// sobre 12 °C y sobreestimaba ~×2: daba 7,3 % a WBGT 23,2 donde las tablas dan 3-4 %.
+//
+// IMPORTANTE: estos valores son el coste a intensidad de COMPETICIÓN (~90 % FCmax),
+// que es como están medidas las tablas. Para una sesión concreta hay que escalarlos
+// con heatIntensityFactor(); ver heatPenaltyAtIntensity().
+const HEAT_TABLE = [[12, 0], [18, 1], [20, 2], [23, 4], [26, 6], [29, 9], [32, 13]];
+
+/** % de pérdida de ritmo a intensidad de competición para un WBGT dado. */
+export function heatPenaltyPct(wbgt) {
+  if (wbgt == null || !Number.isFinite(wbgt)) return null;
+  if (wbgt <= HEAT_TABLE[0][0]) return 0;
+  for (let i = 1; i < HEAT_TABLE.length; i++) {
+    const [x0, y0] = HEAT_TABLE[i - 1];
+    const [x1, y1] = HEAT_TABLE[i];
+    if (wbgt <= x1) return y0 + ((wbgt - x0) / (x1 - x0)) * (y1 - y0);
+  }
+  // Por encima de la tabla se extrapola con la última pendiente, con tope duro.
+  const [xn, yn] = HEAT_TABLE[HEAT_TABLE.length - 1];
+  const [xp, yp] = HEAT_TABLE[HEAT_TABLE.length - 2];
+  return Math.min(20, yn + (wbgt - xn) * ((yn - yp) / (xn - xp)));
+}
+
+/**
+ * Factor de intensidad: el mismo WBGT no cuesta lo mismo a 141 ppm que a 177. El calor
+ * metabólico crece con la intensidad y el margen para disiparlo se estrecha, así que en
+ * aeróbico bajo el coste real es una fracción del valor de tabla. Anclado a 1,0 en
+ * ~90 % FCmax (intensidad a la que están medidas las tablas) y ~0,4 en ~76 %.
+ */
+export function heatIntensityFactor(pctHrMax) {
+  if (pctHrMax == null || !Number.isFinite(pctHrMax)) return null;
+  return Math.min(1, Math.max(0.15, (pctHrMax - 67) / 23));
+}
+
+/** Penalización ya escalada a la intensidad real de la sesión (avg_hr sobre FCmax). */
+export function heatPenaltyAtIntensity(wbgt, avgHr, hrMax) {
+  const base = heatPenaltyPct(wbgt);
+  if (base == null) return null;
+  if (!avgHr || !hrMax) return null;
+  const factor = heatIntensityFactor((avgHr / hrMax) * 100);
+  return factor == null ? null : base * factor;
+}
+
 /** WBGT (aprox. sombra, fórmula BoM) y penalización de ritmo estimada por calor. */
 export function computeWbgt(weather) {
   if (!weather || weather.temp == null || weather.relativeHumidity == null) return null;
@@ -242,14 +290,13 @@ export function computeWbgt(weather) {
   if (ta == null) return null;
   const e = (rh / 100) * 6.105 * Math.exp((17.27 * ta) / (237.7 + ta)); // presión de vapor (hPa)
   const wbgt = 0.567 * ta + 0.393 * e + 3.94;
-  // Modelo lineal simple (estimación): sin coste por debajo de ~12 °C WBGT.
-  const penalty = wbgt <= 12 ? 0 : Math.min(12, (wbgt - 12) * 0.65);
   return {
     temp_c: g1(ta),
     dew_point_c: g1(toCelsius(weather.dewPoint)),
     humidity_pct: rh,
     wbgt_c: g1(wbgt),
-    heat_penalty_pct: g1(penalty),
+    heat_penalty_pct: g1(heatPenaltyPct(wbgt)),
+    heat_penalty_basis: 'intensidad de competición (~90 % FCmax)',
     condition: weather.weatherTypeDTO?.desc ?? null,
   };
 }
@@ -294,7 +341,11 @@ function backfillDynamicsFromSummary(base, summaryDTO) {
     if (base.dynamics[field] != null) continue;
     for (const k of keys) {
       const v = g1(summaryDTO[k]);
-      if (v != null) { base.dynamics[field] = v; break; }
+      if (v != null) {
+        base.dynamics[field] = v;
+        if (field === 'gct_balance_pct') base.dynamics.gct_balance_source = 'summary';
+        break;
+      }
     }
   }
 }

@@ -7,6 +7,7 @@
 // y ChatGPT reciban exactamente los datos que la app ya expone.
 // ============================================================================
 import { createClient } from '@supabase/supabase-js';
+import { heatPenaltyPct, heatIntensityFactor } from './garmin-helpers.js';
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -121,7 +122,14 @@ export function shapeSummary(a) {
     date: a.start_date,
     type: a.type,
     distance_km: round(a.distance / 1000),
+    distance_m: a.distance != null ? Math.round(a.distance) : null,
     moving_time_min: round(a.moving_time / 60),
+    // Tiempo total de la sesión (puerta a puerta), no solo el que el reloj cuenta como
+    // movimiento: en tiradas largas la diferencia llega a 5 min y es una métrica de
+    // entrenamiento real (paradas en semáforos, avituallamiento) para maratón.
+    elapsed_time_min: round(a.elapsed_time / 60),
+    stopped_time_s: a.elapsed_time && a.moving_time
+      ? Math.round(a.elapsed_time - a.moving_time) : null,
     ...(running
       ? { pace_per_km: calcPace(a.average_speed) }
       : { speed_kmh: round((a.average_speed || 0) * 3.6, 1) }),
@@ -140,7 +148,11 @@ export function shapeSummary(a) {
 const shapeGarminLap = (l) => ({
   lap_index: l.lap_index,
   intensity_type: l.intensity_type,          // INTERVAL / REST / RECOVERY / ACTIVE …
-  distance_km: round(l.distance_m / 1000),
+  // distance_km redondeado a 2 decimales implica ±5 m, o sea ±1,7 s/km al derivar el
+  // ritmo de un lap corto. El metro entero es el dato bueno para recalcular.
+  distance_m: l.distance_m != null ? Math.round(l.distance_m) : null,
+  distance_km: round(l.distance_m / 1000, 3),
+  duration_s: l.duration_s != null ? round(l.duration_s, 1) : null,
   duration_min: round(l.duration_s / 60),
   pace_per_km: calcPace(l.avg_speed_ms),
   gap_pace_per_km: l.gap_speed_ms ? calcPace(l.gap_speed_ms) : null,
@@ -170,6 +182,67 @@ function shapeGarminLaps(laps) {
   return laps.map((l) => ({ ...shapeGarminLap(l), is_autolap: autolap }));
 }
 
+// ── Calor: penalización recalculada en lectura ──────────────────────────────
+// La penalización por WBGT se recalcula aquí en vez de servir la del cache por dos
+// razones: (1) el cache guarda valores del modelo lineal viejo, que sobreestimaba el
+// doble, y rehacer el sync de todo el histórico para corregirlo no compensa; (2) el
+// ajuste por intensidad depende de la FC media de la sesión y de la FCmax del atleta,
+// que no están disponibles en el momento del sync de Garmin.
+//
+// Se devuelven las DOS cifras: la de tabla (referencia a intensidad de competición) y
+// la de esta sesión. Mezclarlas es justo el error que hacía inservible el número.
+function shapeWeather(w, avgHr, hrMax) {
+  if (!w) return null;
+  const wbgt = w.wbgt_c;
+  const race = heatPenaltyPct(wbgt);
+  const pctHrMax = avgHr && hrMax ? (avgHr / hrMax) * 100 : null;
+  const factor = heatIntensityFactor(pctHrMax);
+  return {
+    ...w,
+    heat_penalty_pct: race == null ? null : round(race, 1),
+    heat_penalty_basis: 'intensidad de competición (~90 % FCmax)',
+    heat_penalty_session_pct: race != null && factor != null ? round(race * factor, 1) : null,
+    intensity_factor: factor != null ? round(factor, 2) : null,
+    pct_hr_max: pctHrMax != null ? round(pctHrMax, 1) : null,
+    heat_note: factor == null
+      ? 'Sin FC media o sin FCmax: solo se puede dar la penalización de tabla, que asume ritmo de competición y sobreestima un rodaje suave.'
+      : 'heat_penalty_session_pct es la cifra aplicable a ESTA sesión; heat_penalty_pct es la referencia de tabla a ritmo de competición.',
+  };
+}
+
+// ── Coherencia cabecera vs laps ─────────────────────────────────────────────
+// La cabecera de Strava y la suma de los laps no siempre cuadran (pausas contadas de
+// forma distinta, laps recortados): 11,31 km / 59,70 min de cabecera frente a 11,28 km
+// / 60,46 min sumando laps son 5 s/km de diferencia, suficiente para invalidar una
+// comparación de ritmos. Se avisa cuando la desviación pasa del 1 %.
+const CONSISTENCY_TOL_PCT = 1;
+function lapConsistency(a) {
+  const laps = Array.isArray(a.laps) ? a.laps : [];
+  if (!laps.length || !a.distance || !a.moving_time) return null;
+  let dist = 0, time = 0;
+  for (const l of laps) { dist += l.distance || 0; time += l.moving_time || 0; }
+  if (!dist || !time) return null;
+  const dPct = ((dist - a.distance) / a.distance) * 100;
+  const tPct = ((time - a.moving_time) / a.moving_time) * 100;
+  const off = Math.abs(dPct) > CONSISTENCY_TOL_PCT || Math.abs(tPct) > CONSISTENCY_TOL_PCT;
+  const paceOf = (d, t) => (d && t ? calcPace(d / t) : null);
+  return {
+    consistent: !off,
+    header: { distance_m: Math.round(a.distance), moving_time_s: a.moving_time, pace_per_km: paceOf(a.distance, a.moving_time) },
+    laps_sum: { distance_m: Math.round(dist), moving_time_s: Math.round(time), pace_per_km: paceOf(dist, time), lap_count: laps.length },
+    delta: {
+      distance_m: Math.round(dist - a.distance),
+      moving_time_s: Math.round(time - a.moving_time),
+      distance_pct: round(dPct, 2),
+      moving_time_pct: round(tPct, 2),
+    },
+    warning: off
+      ? `La suma de los ${laps.length} laps no cuadra con la cabecera (>${CONSISTENCY_TOL_PCT} % de desviación). `
+        + 'Los ritmos derivados de una y otra fuente NO son comparables entre sí; elige una y mantenla.'
+      : null,
+  };
+}
+
 // Secciones opcionales de get_activity. Por defecto van todas; con `include` el
 // cliente pide solo las que necesita (una actividad completa ~10-12k tokens: la
 // polyline y los laps triplicados —garmin.laps/laps/splits_metric— son el grueso).
@@ -179,7 +252,7 @@ const FULL_SECTIONS = ['garmin', 'laps', 'splits', 'best_efforts', 'flat_efforts
  * Detalle completo. `include` (array) limita las secciones devueltas; el resumen base
  * (id, nombre, distancia, ritmo, FC…) va siempre. Sin `include` se devuelve todo.
  */
-export function shapeFull(a, include = null) {
+export function shapeFull(a, include = null, { hrMax = null } = {}) {
   const running = isRunning(a);
   const want = Array.isArray(include) && include.length
     ? new Set(include.map((s) => (s === 'splits_metric' ? 'splits' : s === 'polyline' ? 'map' : s)))
@@ -195,7 +268,10 @@ export function shapeFull(a, include = null) {
       dynamics: a._garmin.dynamics,      // cadencia, GCT, oscilación vertical, zancada…
       power: a._garmin.power,            // vatios de carrera
       training: a._garmin.training,      // training effect, carga, VO2max
-      weather: a._garmin.weather ?? null, // temp, humedad, WBGT y penalización por calor
+      // temp, humedad, WBGT y penalización por calor, recalculada al vuelo: el valor
+      // cacheado se generó con el modelo lineal antiguo (sobreestimaba ~×2) y el ajuste
+      // por intensidad necesita la FC de la sesión, que aquí sí tenemos.
+      weather: shapeWeather(a._garmin.weather, a.average_heartrate, hrMax),
       // Los laps reales del reloj pesan mucho (~3k tokens): solo si se piden con
       // include:["laps"]; así "garmin" trae dynamics/power/weather sin arrastrarlos.
       ...(want.has('laps') ? { laps: shapeGarminLaps(a._garmin.laps || []) } : {}),
@@ -209,7 +285,10 @@ export function shapeFull(a, include = null) {
   if (want.has('laps')) {
     out.laps = (a.laps || []).map((l) => ({
       lap_index: l.lap_index,
-      distance_km: round(l.distance / 1000),
+      distance_m: l.distance != null ? Math.round(l.distance) : null,
+      distance_km: round(l.distance / 1000, 3),
+      moving_time_s: l.moving_time ?? null,
+      elapsed_time_s: l.elapsed_time ?? null,
       moving_time_min: round(l.moving_time / 60),
       ...(running ? { pace_per_km: calcPace(l.average_speed) } : { speed_kmh: round((l.average_speed || 0) * 3.6, 1) }),
       avg_hr: l.average_heartrate ?? null,
@@ -226,7 +305,9 @@ export function shapeFull(a, include = null) {
   if (want.has('splits')) {
     out.splits_metric = (a.splits_metric || []).map((s) => ({
       split: s.split,
-      distance_km: round(s.distance / 1000),
+      distance_m: s.distance != null ? Math.round(s.distance) : null,
+      distance_km: round(s.distance / 1000, 3),
+      moving_time_s: s.moving_time ?? null,
       moving_time_min: round(s.moving_time / 60),
       pace_per_km: running ? calcPace(s.average_speed) : undefined,
       elevation_difference_m: s.elevation_difference ?? null, // desnivel NETO del split (puede ser −)
@@ -244,6 +325,10 @@ export function shapeFull(a, include = null) {
   if (want.has('flat_efforts')) out.flat_efforts = a.flat_efforts ?? null; // { '1k': {time,distance,elevation}, '2k': {...} }
   if (want.has('decoupling')) out.decoupling = computeDecoupling(a); // deriva cardíaca (durabilidad)
   if (want.has('gap')) out.gap = computeGap(a);                      // ritmo ajustado por desnivel
+  // Va siempre (es diminuto y su ausencia se leería como "todo cuadra"), aunque no se
+  // hayan pedido los laps: precisamente ahí es donde más falta hace el aviso.
+  const consistency = lapConsistency(a);
+  if (consistency) out.data_consistency = consistency;
   return out;
 }
 
@@ -480,12 +565,19 @@ const DYNAMICS_METRICS = ['cadence_spm', 'ground_contact_ms', 'gct_balance_pct',
   'vertical_oscillation_cm', 'vertical_ratio_pct', 'avg_power_w', 'aerobic_te', 'anaerobic_te',
   'training_load', 'vo2max'];
 
+// Los calentamientos y vueltas a la calma que el reloj graba sueltos (1-2 km trotando)
+// entran en la media con el mismo peso que una tirada de 20 km y la ensucian: cadencia
+// baja, GCT alto, zancada corta. Se excluyen por defecto; `min_distance_km: 0` los
+// recupera. Los runs excluidos siguen contándose en `_diagnostics`.
+const DYNAMICS_MIN_KM = 3;
+
 /**
  * Running dynamics leyendo de `garmin_activities` directamente (la dinámica vive
  * ahí), con Strava como enriquecimiento opcional por hora de inicio. Incluye un
  * bloque `_diagnostics` que localiza en qué capa se rompe si salen cero filas.
  */
-export async function listRunningDynamics(userId, { from, to, limit = 50, offset = 0 } = {}) {
+export async function listRunningDynamics(userId,
+  { from, to, limit = 50, offset = 0, min_distance_km = DYNAMICS_MIN_KM } = {}) {
   const garmin = await getGarminActivitiesRaw(userId);
   const stravaRaw = await readKey(userId, 'stravaData');
   const stravaList = Array.isArray(stravaRaw) ? stravaRaw : (stravaRaw?.activities || []);
@@ -497,10 +589,12 @@ export async function listRunningDynamics(userId, { from, to, limit = 50, offset
   }
   const runs = garmin.filter((g) => (g.type || '').includes('run'));
 
-  let correlated = 0;
+  const minKm = Math.max(0, min_distance_km ?? 0);
+  let correlated = 0, tooShort = 0;
   const rows = [];
   for (const g of runs) {
     if (g.start_time && !inRange(g.start_time, from, to)) continue;
+    if (minKm && (g.distance_m ?? 0) / 1000 < minKm) { tooShort++; continue; }
     let strava = null;
     const t = Date.parse(g.start_time);
     if (!Number.isNaN(t)) {
@@ -521,13 +615,18 @@ export async function listRunningDynamics(userId, { from, to, limit = 50, offset
   const off = Math.max(0, offset);
   const lim = Math.min(200, Math.max(1, limit));
   return {
-    count: rows.length,                                  // total en el rango
+    count: rows.length,                                  // total en el rango (ya filtrado)
     offset: off, limit: lim,
-    averages: Object.fromEntries(DYNAMICS_METRICS.map((m) => [m, avg(m)])), // medias sobre TODO el rango
+    // Las medias se calculan SOLO sobre los runs que pasan min_distance_km, para que un
+    // calentamiento suelto de 1,6 km a 7:06 no arrastre la cadencia media hacia abajo.
+    min_distance_km: minKm,
+    excluded_short_runs: tooShort,
+    averages: Object.fromEntries(DYNAMICS_METRICS.map((m) => [m, avg(m)])), // medias sobre el rango filtrado
     runs: rows.slice(off, off + lim),                    // página, para no saturar el contexto
     _diagnostics: {
       garmin_activities_loaded: garmin.length,
       garmin_runs: runs.length,
+      runs_excluded_by_min_distance: tooShort,
       runs_with_dynamics: rows.length,
       strava_activities_loaded: stravaList.length,
       strava_correlated: correlated,
@@ -651,6 +750,130 @@ export async function activityStats(userId, args = {}) {
     return { source: 'strava', granularity: 'weekly', weeks: weekly, garmin_only, combined };
   }
   return { source: 'strava', ...base, garmin_only, combined };
+}
+
+// ── Comparador de sesiones equivalentes ──────────────────────────────────────
+// "Todas mis salidas llanas de 10 km con FC entre 142 y 152". La gracia no es filtrar
+// (eso ya lo hace list_activities) sino poner las sesiones comparables una al lado de
+// otra con la métrica que decide si hay progreso: el índice de eficiencia (metros
+// recorridos por latido). El ritmo solo no vale, porque un día vas a 150 ppm y otro a
+// 145; m/latido normaliza el coste cardíaco y hace la serie comparable.
+const efficiencyIndex = (distanceM, timeS, avgHr) =>
+  distanceM && timeS && avgHr ? (distanceM / timeS) / (avgHr / 60) : null;
+
+const median = (arr) => {
+  if (!arr.length) return null;
+  const s = [...arr].sort((x, y) => x - y);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Sesiones equivalentes a una referencia (o a unos criterios sueltos), con eficiencia
+ * y tendencia. `reference_id` toma distancia y FC de esa actividad y busca sus pares.
+ */
+export async function compareSimilarSessions(userId, {
+  reference_id, distance_km, distance_tolerance_pct = 10,
+  avg_hr_min, avg_hr_max, hr_tolerance_bpm = 5,
+  flat_only, from, to, sport, limit = 25,
+} = {}) {
+  const all = await getActivities(userId);
+  const hrMax = estimateHrMax(all);
+
+  let reference = null;
+  if (reference_id != null) {
+    reference = all.find((x) => String(x.id) === String(reference_id));
+    if (!reference) return { error: `Actividad de referencia ${reference_id} no encontrada.` };
+    // De la referencia salen la distancia y la banda de FC; lo que venga explícito manda.
+    distance_km = distance_km ?? (reference.distance || 0) / 1000;
+    if (reference.average_heartrate) {
+      avg_hr_min = avg_hr_min ?? reference.average_heartrate - hr_tolerance_bpm;
+      avg_hr_max = avg_hr_max ?? reference.average_heartrate + hr_tolerance_bpm;
+    }
+  }
+  if (!distance_km) {
+    return { error: 'Hace falta distance_km o reference_id para definir qué sesiones son equivalentes.' };
+  }
+
+  const tol = Math.max(0, distance_tolerance_pct) / 100;
+  const matched = filterActivities(all, {
+    from, to, sport, only_running: !sport, flat_only,
+    min_distance_km: distance_km * (1 - tol),
+    max_distance_km: distance_km * (1 + tol),
+    avg_hr_min, avg_hr_max,
+  });
+
+  const sessions = matched
+    .map((a) => {
+      const eff = efficiencyIndex(a.distance, a.moving_time, a.average_heartrate);
+      const gap = computeGap(a);
+      const weather = shapeWeather(a._garmin?.weather, a.average_heartrate, hrMax);
+      return {
+        id: a.id,
+        date: a.start_date,
+        name: a.name,
+        distance_m: Math.round(a.distance || 0),
+        moving_time_s: a.moving_time ?? null,
+        elapsed_time_s: a.elapsed_time ?? null,
+        pace_per_km: calcPace(a.average_speed),
+        gap_pace_per_km: gap?.gap_pace ?? null,
+        avg_hr: a.average_heartrate ?? null,
+        hr_source: a._garmin?.hr_source ?? 'unknown',
+        elevation_gain_m: a.total_elevation_gain ?? null,
+        // m/latido: sube cuando corres más rápido al mismo pulso, o igual de rápido con
+        // menos pulso. Es la cifra que hay que mirar para juzgar la serie.
+        efficiency_m_per_beat: eff != null ? round(eff, 3) : null,
+        wbgt_c: weather?.wbgt_c ?? null,
+        heat_penalty_session_pct: weather?.heat_penalty_session_pct ?? null,
+      };
+    })
+    .sort((x, y) => new Date(y.date) - new Date(x.date));
+
+  const effs = sessions.map((s) => s.efficiency_m_per_beat).filter((v) => typeof v === 'number');
+  const speeds = sessions
+    .filter((s) => s.distance_m && s.moving_time_s)
+    .map((s) => s.distance_m / s.moving_time_s);
+
+  // Tendencia: mitad reciente vs mitad antigua. Con menos de 4 sesiones no se informa;
+  // dos puntos no son una tendencia y darla invitaría a leer ruido como progreso.
+  let trend = null;
+  if (effs.length >= 4) {
+    const chrono = [...sessions].reverse().filter((s) => s.efficiency_m_per_beat != null);
+    const half = Math.floor(chrono.length / 2);
+    const older = median(chrono.slice(0, half).map((s) => s.efficiency_m_per_beat));
+    const recent = median(chrono.slice(chrono.length - half).map((s) => s.efficiency_m_per_beat));
+    if (older && recent) {
+      trend = {
+        older_median_m_per_beat: round(older, 3),
+        recent_median_m_per_beat: round(recent, 3),
+        change_pct: round((recent / older - 1) * 100, 1),
+        window: `${half} sesiones más antiguas vs ${half} más recientes`,
+      };
+    }
+  }
+
+  return {
+    criteria: {
+      distance_km: round(distance_km, 2),
+      distance_range_km: [round(distance_km * (1 - tol), 2), round(distance_km * (1 + tol), 2)],
+      avg_hr_min: avg_hr_min ?? null, avg_hr_max: avg_hr_max ?? null,
+      flat_only: !!flat_only, from: from ?? null, to: to ?? null,
+      reference_id: reference ? reference.id : null,
+    },
+    count: sessions.length,
+    aggregates: {
+      median_pace_per_km: speeds.length ? calcPace(median(speeds)) : null,
+      fastest_pace_per_km: speeds.length ? calcPace(Math.max(...speeds)) : null,
+      slowest_pace_per_km: speeds.length ? calcPace(Math.min(...speeds)) : null,
+      median_efficiency_m_per_beat: effs.length ? round(median(effs), 3) : null,
+      best_efficiency_m_per_beat: effs.length ? round(Math.max(...effs), 3) : null,
+    },
+    trend,
+    sessions: sessions.slice(0, Math.min(100, Math.max(1, limit))),
+    note: sessions.length < 3
+      ? 'Muy pocas sesiones equivalentes: sube distance_tolerance_pct o amplía la banda de FC.'
+      : null,
+  };
 }
 
 // ── Personal Bests (espejo exacto de src/components/PersonalBests.jsx) ────────
@@ -1234,7 +1457,7 @@ export function detectThresholdEffort(a, hrMax) {
 // (p.ej. 214 con una máxima real de 194), y eso sube el umbral del 88% hasta hacer
 // que no se detecte ningún test. Tomamos el percentil 98 de las FCmax por carrera de
 // los últimos 12 meses (descarta spikes aislados) en un rango fisiológico plausible.
-function estimateHrMax(activities) {
+export function estimateHrMax(activities) {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - 12);
   const pick = (arr) => arr

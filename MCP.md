@@ -12,9 +12,10 @@ despliega con la app: no hay servicio aparte que mantener.
 | Tool | Descripción |
 |------|-------------|
 | `list_activities` | Lista de actividades Strava (resumen) con filtros `from/to/sport/only_running/min_distance_km/max_distance_km/hr_min/hr_max/flat_only/hr_source` y paginación. |
-| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`), polyline, **desacoplamiento** (deriva cardíaca) y **GAP**; si la carrera está correlacionada con Garmin: **origen de FC** (banda/muñeca), **laps reales** con tipo INTERVAL/REST, potencia y balance por lap, **WBGT** y running dynamics. |
+| `get_activity` | Detalle completo: parciales, splits por km, best efforts, tramos llanos (`flat_efforts`), polyline, **desacoplamiento** (deriva cardíaca), **GAP** y `data_consistency` (avisa si la suma de laps no cuadra con la cabecera); si la carrera está correlacionada con Garmin: **origen de FC** (banda/muñeca), **laps reales** con tipo INTERVAL/REST, potencia y balance por lap, **WBGT con penalización ajustada a la intensidad** y running dynamics. |
 | `activity_stats` | Agregados de un rango: total km, tiempo, desnivel y desglose por tipo. |
-| `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y **origen de FC**, fusionadas con Strava, **con medias del periodo** para agregar. |
+| `compare_similar_sessions` | **Compara sesiones equivalentes** ("10 km llanos con FC media 142-152", o los pares de una `reference_id`): ritmo, GAP, FC, WBGT e **índice de eficiencia** (m/latido) por sesión, más agregados y tendencia reciente vs antigua. |
+| `list_running_dynamics` | Running dynamics de Garmin por carrera (cadencia, GCT, oscilación/ratio vertical, zancada, potencia, carga, training effect, VO2max) y **origen de FC**, fusionadas con Strava, **con medias del periodo** para agregar. Excluye por defecto los runs < 3 km (`min_distance_km`). |
 | `list_hrv_resting` | VFC nocturna + FC reposo por día (Garmin), con Body Battery si existe. |
 | `list_sleep` | Sueño semanal (Garmin): duración, fases y score. |
 | `list_sleep_daily` | Sueño **noche a noche** (en vivo): fases, score, estrés nocturno, respiración, HRV y FC reposo. |
@@ -52,6 +53,19 @@ Además, al sincronizar se **enriquecen las carreras más recientes** con su det
 de FC** (`hr_source`: banda/muñeca), los **laps reales** con su tipo (INTERVAL/REST…),
 la potencia y el balance L/D por lap, y el **WBGT** con la penalización por calor. Estos
 campos solo aparecen tras **re-sincronizar Garmin** (los caches antiguos no los tienen).
+
+### Penalización por calor
+
+`garmin.weather` da **dos** cifras y no son intercambiables:
+
+- `heat_penalty_pct` — valor de tabla (interpolación por tramos sobre WBGT), medido a
+  **intensidad de competición** (~90 % FCmax). Es la referencia, no el coste de la sesión.
+- `heat_penalty_session_pct` — el anterior escalado por `intensity_factor`, derivado del
+  `pct_hr_max` real de esa carrera. **Esta es la cifra aplicable.**
+
+El mismo WBGT no cuesta lo mismo a 141 ppm que a 177: en aeróbico bajo el coste real
+ronda el 40 % del valor de tabla. La penalización se **recalcula en lectura** a partir de
+`wbgt_c`, así que corrige también el histórico ya cacheado sin re-sincronizar.
 
 ## Puesta en marcha
 
