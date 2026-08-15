@@ -47,7 +47,11 @@ const STRAVA_TTL_MS = 3 * 60 * 1000;         // cada cuánto se sondea Strava en
 const FULL_DELTA_MS = 60 * 60 * 1000;
 const PROBE_PER_PAGE = 5;                    // el sondeo solo necesita saber si hay algo
 const GARMIN_TTL_MS = 6 * 60 * 60 * 1000;    // Garmin en el cron
-const GARMIN_HARD_TTL_MS = 24 * 60 * 60 * 1000; // en request, solo si lleva un día sin tocarse
+// Garmin en el carril de request. Es el respaldo para cuando NO hay cron: cada 4 h,
+// la primera tool que llegue dispara un sync ligero de Garmin. Login + enriquecido
+// tardan más que el techo de espera, así que esa consulta responde con el cache y el
+// sync termina por detrás: el dato entra para la siguiente.
+const GARMIN_HARD_TTL_MS = 4 * 60 * 60 * 1000;
 const ERROR_BACKOFF_MS = 15 * 60 * 1000;     // tras un fallo, no reintentar en cada tool
 const LOCK_MS = 3 * 60 * 1000;               // vida del lock entre instancias
 const REQUEST_BUDGET_MS = 8000;              // lo máximo que una tool espera al sync
@@ -499,12 +503,17 @@ export async function ensureFresh(userId) {
             await writeState(userId, { strava: { ...lane, at: now(), ok: false, error: e.message } });
           }
         }
-        // Garmin en el carril de request SOLO si lleva un día entero sin tocarse (el
-        // cron no está corriendo o falla). Login + enriquecido son decenas de
-        // segundos: con presupuesto mínimo para no colgar la tool.
+        // Garmin en el carril de request: el respaldo para cuando no hay cron. Con
+        // presupuesto MÍNIMO (login + 30 actividades + 5 enriquecidas) porque cuelga
+        // de una tool. La salud va detrás y reaprovecha la sesión ya logueada: sin
+        // ella, HRV y sueño no se refrescarían nunca por esta vía.
         if (stale(state.garmin, GARMIN_HARD_TTL_MS)) {
           try {
             out.garmin = await syncGarminActivities(userId, { limit: 30, enrichRuns: 5 });
+            // Best-effort e independiente: si la salud falla, las actividades que ya
+            // se guardaron arriba no se pierden.
+            try { out.garmin_health = await syncGarminHealth(userId); }
+            catch (e) { out.garmin_health = { error: e.message }; }
             await writeState(userId, { garmin: mark(true, { added: out.garmin.added ?? 0 }) });
           } catch (e) {
             out.garmin = { error: e.message };
