@@ -24,6 +24,7 @@ despliega con la app: no hay servicio aparte que mantener.
 | `get_training_load_model` | Modelo de Banister: serie diaria CTL/ATL/TSB con rampa semanal (desde `training_load` de Garmin). |
 | `get_health_alerts` | Alertas de patrón (firma de infección/sobrecarga): Body Battery bajo o VFC↓ con FC reposo↑. |
 | `detect_threshold_efforts` | Detecta tests de umbral (bloque ≥88% FCmax) → LTHR y ritmo umbral, con bandera de estabilización de FC. |
+| `list_target_races` / `get_target_race` / `upsert_target_race` / `delete_target_race` | **Carreras objetivo y plan de entrenamiento**: leer, crear, editar y borrar los eventos meta del usuario (nombre, fecha, distancia, tiempo objetivo) junto a su **plan en texto libre** (cualquier formato: tabla semanal, markdown, notas). Se guarda en Supabase (`target_races`) y es el mismo dato que edita la pantalla *Carreras Objetivo* de la app. |
 | `search` / `fetch` | Contrato de conectores de ChatGPT (buscar actividades → recuperar documento). |
 
 **Las credenciales nunca salen hacia el cliente/LLM.** Las tools de solo lectura

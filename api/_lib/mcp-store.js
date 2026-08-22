@@ -1705,3 +1705,150 @@ export async function getSleep(userId, { from, to } = {}) {
     : null;
   return { count: weeks.length, weeks, ...(note ? { note } : {}) };
 }
+
+// ── Carreras objetivo + plan de entrenamiento ───────────────────────────────
+// Misma clave que usa el front (`target_races` en cloudStorage): una lista JSON
+// de { id, name, date, distance, goalTimeMin, plan }. `plan` es texto libre en
+// CUALQUIER formato (tabla semanal, markdown, notas sueltas): no se parsea, se
+// guarda tal cual para que el modelo lo lea y lo reescriba.
+const TARGET_RACES_KEY = 'target_races';
+const RACE_DISTANCES = ['5k', '10k', '21k', '42k'];
+
+/** "3:30:00" / "45:00" / "22" -> minutos (float). null si no es válido. */
+export function parseTimeToMinutes(str) {
+  if (str == null) return null;
+  const s = String(str).trim();
+  if (!s) return null;
+  if (s.includes(':')) {
+    const parts = s.split(':').map(Number);
+    if (parts.some(Number.isNaN)) return null;
+    if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
+    if (parts.length === 2) return parts[0] + parts[1] / 60;
+    return null;
+  }
+  const n = Number(s);
+  return Number.isNaN(n) ? null : n;
+}
+
+/** minutos (float) -> "H:MM:SS" o "MM:SS". */
+function formatMinutes(min) {
+  if (min == null || Number.isNaN(min)) return null;
+  const totalSec = Math.round(min * 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.round((d.getTime() - utcToday) / 86400000);
+}
+
+async function readTargetRaces(userId) {
+  const list = await readKeyFresh(userId, TARGET_RACES_KEY);
+  return Array.isArray(list) ? list : [];
+}
+
+function shapeRace(r, { include_plan = true } = {}) {
+  const days = daysUntil(r.date);
+  const plan = typeof r.plan === 'string' ? r.plan : null;
+  return {
+    id: r.id,
+    name: r.name ?? null,
+    date: r.date || null,
+    distance: r.distance ?? null,
+    goal_time: formatMinutes(r.goalTimeMin),
+    goal_time_min: r.goalTimeMin ?? null,
+    days_until: days,
+    is_past: days == null ? null : days < 0,
+    has_plan: !!(plan && plan.trim()),
+    ...(include_plan ? { plan } : { plan_chars: plan ? plan.length : 0 }),
+  };
+}
+
+/**
+ * Lista las carreras objetivo del usuario. `include_plan: false` devuelve solo
+ * los metadatos (los planes pueden ser largos y saturar el contexto).
+ */
+export async function listTargetRaces(userId, { include_past = false, include_plan = true } = {}) {
+  const list = await readTargetRaces(userId);
+  const races = list
+    .filter((r) => include_past || (daysUntil(r.date) ?? 0) >= 0)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+    .map((r) => shapeRace(r, { include_plan }));
+  return { count: races.length, races };
+}
+
+/** Una carrera concreta por id (con su plan completo). */
+export async function getTargetRace(userId, raceId) {
+  const race = (await readTargetRaces(userId)).find((r) => String(r.id) === String(raceId));
+  if (!race) return { error: `No existe la carrera objetivo "${raceId}"` };
+  return shapeRace(race);
+}
+
+/**
+ * Crea o actualiza una carrera objetivo. Sin `race_id` crea una nueva; con él
+ * hace MERGE parcial (solo se tocan los campos enviados), de modo que se puede
+ * escribir el plan sin reenviar nombre/fecha/objetivo.
+ */
+export async function upsertTargetRace(userId, {
+  race_id, name, date, distance, goal_time, plan, append_plan,
+} = {}) {
+  const list = await readTargetRaces(userId);
+  const idx = race_id ? list.findIndex((r) => String(r.id) === String(race_id)) : -1;
+  if (race_id && idx < 0) return { error: `No existe la carrera objetivo "${race_id}"` };
+  if (!race_id && !name) return { error: 'Falta `name` para crear una carrera objetivo' };
+  if (distance && !RACE_DISTANCES.includes(distance)) {
+    return { error: `distance debe ser una de: ${RACE_DISTANCES.join(', ')}` };
+  }
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { error: 'date debe tener formato YYYY-MM-DD' };
+  }
+  let goalTimeMin;
+  if (goal_time != null) {
+    goalTimeMin = parseTimeToMinutes(goal_time);
+    if (goal_time !== '' && goalTimeMin == null) {
+      return { error: 'goal_time no válido. Usa h:mm:ss, mm:ss o minutos' };
+    }
+  }
+
+  const prev = idx >= 0 ? list[idx] : {};
+  const prevPlan = typeof prev.plan === 'string' ? prev.plan : '';
+  const nextPlan = append_plan
+    ? (prevPlan ? `${prevPlan}\n${append_plan}` : append_plan)
+    : (plan !== undefined ? plan : prev.plan);
+
+  const race = {
+    ...prev,
+    id: prev.id || (globalThis.crypto?.randomUUID?.() ?? String(Date.now())),
+    ...(name !== undefined ? { name } : {}),
+    ...(date !== undefined ? { date } : {}),
+    ...(distance !== undefined ? { distance } : {}),
+    ...(goalTimeMin !== undefined ? { goalTimeMin } : {}),
+    ...(nextPlan !== undefined ? { plan: nextPlan } : {}),
+  };
+  if (!race.distance) race.distance = '21k';
+
+  if (idx >= 0) list[idx] = race;
+  else list.push(race);
+  list.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  await writeKey(userId, TARGET_RACES_KEY, list);
+  return { ok: true, created: idx < 0, race: shapeRace(race) };
+}
+
+/** Borra una carrera objetivo (y su plan) por id. */
+export async function deleteTargetRace(userId, raceId) {
+  const list = await readTargetRaces(userId);
+  const next = list.filter((r) => String(r.id) !== String(raceId));
+  if (next.length === list.length) return { error: `No existe la carrera objetivo "${raceId}"` };
+  await writeKey(userId, TARGET_RACES_KEY, next);
+  return { ok: true, deleted: String(raceId), remaining: next.length };
+}

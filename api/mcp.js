@@ -17,6 +17,7 @@ import {
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
+  listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace,
 } from './_lib/mcp-store.js';
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
@@ -391,6 +392,56 @@ const TOOLS = [
     },
     run: (userId, args) => scheduleWorkout(userId, args.workout_id, args.date).then(text),
   },
+  // ── Carreras objetivo y plan de entrenamiento (Supabase, mismo dato que la app) ──
+  {
+    name: 'list_target_races',
+    description: 'Lista las carreras objetivo del usuario (nombre, fecha, distancia, tiempo meta, días restantes) y su plan de entrenamiento en texto libre. Usa include_plan:false si solo necesitas los metadatos.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        include_past: { type: 'boolean', description: 'Incluir carreras ya celebradas (por defecto false)' },
+        include_plan: { type: 'boolean', description: 'Incluir el texto completo del plan (por defecto true)' },
+      },
+    },
+    run: (userId, args) => listTargetRaces(userId, args).then(text),
+  },
+  {
+    name: 'get_target_race',
+    description: 'Lee una carrera objetivo concreta con su plan de entrenamiento completo. Úsalo antes de upsert_target_race para editar el plan sin reescribirlo a ciegas.',
+    inputSchema: {
+      type: 'object',
+      properties: { race_id: { type: 'string' } },
+      required: ['race_id'],
+    },
+    run: (userId, args) => getTargetRace(userId, args.race_id).then(text),
+  },
+  {
+    name: 'upsert_target_race',
+    description: 'Crea (sin race_id) o edita (con race_id) una carrera objetivo y su plan de entrenamiento. El plan es TEXTO LIBRE en cualquier formato (markdown, tabla semanal, notas): se guarda tal cual. La edición es parcial: solo se tocan los campos enviados, así que puedes escribir `plan` sin reenviar nombre/fecha. Se guarda en la base de datos y aparece en la app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        race_id: { type: 'string', description: 'Id de la carrera a editar; omítelo para crear una nueva' },
+        name: { type: 'string', description: 'Nombre del evento (obligatorio al crear)' },
+        date: { ...dateArg, description: 'Fecha YYYY-MM-DD de la carrera' },
+        distance: { type: 'string', enum: ['5k', '10k', '21k', '42k'] },
+        goal_time: { type: 'string', description: 'Tiempo objetivo: h:mm:ss, mm:ss o minutos' },
+        plan: { type: 'string', description: 'Plan de entrenamiento en texto libre. REEMPLAZA el plan anterior; cadena vacía para borrarlo' },
+        append_plan: { type: 'string', description: 'Texto a AÑADIR al final del plan existente (en vez de reemplazarlo)' },
+      },
+    },
+    run: (userId, args) => upsertTargetRace(userId, args).then(text),
+  },
+  {
+    name: 'delete_target_race',
+    description: 'Borra una carrera objetivo y su plan de entrenamiento por race_id (usa list_target_races para obtenerlo).',
+    inputSchema: {
+      type: 'object',
+      properties: { race_id: { type: 'string' } },
+      required: ['race_id'],
+    },
+    run: (userId, args) => deleteTargetRace(userId, args.race_id).then(text),
+  },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
   {
     name: 'search',
@@ -465,7 +516,10 @@ const TITLES = {
   detect_threshold_efforts: 'Detectar tests de umbral', list_garmin_workouts: 'Listar entrenos Garmin',
   get_garmin_workout: 'Leer entreno Garmin', create_garmin_workout: 'Crear entreno Garmin',
   update_garmin_workout: 'Modificar entreno Garmin', delete_garmin_workout: 'Borrar entreno Garmin',
-  schedule_garmin_workout: 'Agendar entreno Garmin', search: 'Buscar actividades', fetch: 'Recuperar actividad',
+  schedule_garmin_workout: 'Agendar entreno Garmin',
+  list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
+  upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
+  search: 'Buscar actividades', fetch: 'Recuperar actividad',
 };
 
 // Excepciones al comportamiento por defecto (READ_CACHED). Las de lectura EN VIVO salen
@@ -477,6 +531,9 @@ const ANNOTATIONS = {
   list_planned_workouts: READ_LIVE, list_garmin_workouts: READ_LIVE, get_garmin_workout: READ_LIVE,
   create_garmin_workout: WRITE_CREATE, schedule_garmin_workout: WRITE_CREATE,
   update_garmin_workout: WRITE_UPDATE, delete_garmin_workout: WRITE_UPDATE,
+  // Carreras objetivo: escriben en Supabase (nuestra propia BD), no en un sistema externo.
+  upsert_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  delete_target_race: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
 };
 
 const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({

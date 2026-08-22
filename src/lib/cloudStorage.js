@@ -38,6 +38,7 @@ const MIGRATED_KEYS = [
   'runqa_model',
   'racepredictor_model',
   'planner_model',
+  'target_races',     // carreras objetivo + plan de entrenamiento (las lee y escribe el MCP)
 ];
 
 // Claves de dispositivo: se mantienen en localStorage real (síncrono y disponible

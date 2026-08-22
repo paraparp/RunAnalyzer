@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectItem } from "@tremor/react";
-import { FlagIcon, PencilSquareIcon, TrashIcon, CalendarDaysIcon, ClockIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import { FlagIcon, PencilSquareIcon, TrashIcon, CalendarDaysIcon, ClockIcon, MapPinIcon, DocumentTextIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import {
     getTargetRaces, saveTargetRace, deleteTargetRace,
     parseTimeToMinutes, formatMinutes, daysUntil, TARGET_RACES_EVENT,
 } from '../lib/targetRaces';
 
-const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '' };
+const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '', plan: '' };
 
 const TargetRaces = () => {
     const { t } = useTranslation();
@@ -15,6 +15,8 @@ const TargetRaces = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [editingId, setEditingId] = useState(null);
     const [error, setError] = useState('');
+    // Ids de las carreras cuyo plan está desplegado en la lista (el texto puede ser largo).
+    const [openPlans, setOpenPlans] = useState(() => new Set());
 
     useEffect(() => {
         const reload = () => setRaces(getTargetRaces());
@@ -35,6 +37,7 @@ const TargetRaces = () => {
             date: form.date,
             distance: form.distance,
             goalTimeMin: min,
+            plan: form.plan,
         });
         setRaces(getTargetRaces());
         resetForm();
@@ -47,9 +50,16 @@ const TargetRaces = () => {
             date: r.date || '',
             distance: r.distance,
             time: r.goalTimeMin != null ? formatMinutes(r.goalTimeMin) : '',
+            plan: r.plan || '',
         });
         setError('');
     };
+
+    const togglePlan = (id) => setOpenPlans(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
 
     const handleDelete = (id) => {
         setRaces(deleteTargetRace(id));
@@ -115,6 +125,18 @@ const TargetRaces = () => {
                                 className={inputClass}
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.plan')}</label>
+                        <textarea
+                            value={form.plan}
+                            onChange={(e) => setForm(f => ({ ...f, plan: e.target.value }))}
+                            placeholder={t('targets.plan_ph')}
+                            rows={8}
+                            className={`${inputClass} font-mono text-xs leading-relaxed resize-y`}
+                        />
+                        <p className="mt-2 text-xs font-medium text-slate-400">{t('targets.plan_hint')}</p>
                     </div>
 
                     {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
@@ -186,6 +208,16 @@ const TargetRaces = () => {
                                                     {formatMinutes(r.goalTimeMin)}
                                                 </span>
                                             )}
+                                            {r.plan?.trim() && (
+                                                <button
+                                                    onClick={() => togglePlan(r.id)}
+                                                    className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-700 transition-colors"
+                                                >
+                                                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                                                    {t('targets.plan')}
+                                                    <ChevronDownIcon className={`w-3 h-3 transition-transform ${openPlans.has(r.id) ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
@@ -205,6 +237,11 @@ const TargetRaces = () => {
                                         </button>
                                     </div>
                                 </div>
+                                {r.plan?.trim() && openPlans.has(r.id) && (
+                                    <pre className="mt-4 p-4 bg-slate-50 border border-slate-100 rounded-xl text-[11px] leading-relaxed text-slate-600 font-mono whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
+                                        {r.plan}
+                                    </pre>
+                                )}
                             </div>
                         );
                     })}
