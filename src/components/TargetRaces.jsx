@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectItem } from "@tremor/react";
 import {
-    FlagIcon, PencilSquareIcon, TrashIcon, CalendarDaysIcon, ClockIcon,
+    FlagIcon, PencilSquareIcon, TrashIcon,
     DocumentTextIcon, ChevronDownIcon, PlusIcon, XMarkIcon,
-    ArrowsPointingOutIcon, ClipboardDocumentIcon, CheckIcon, ListBulletIcon, StarIcon,
+    ArrowsPointingOutIcon, ArrowsPointingInIcon, ClipboardDocumentIcon, CheckIcon, ListBulletIcon, StarIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
 import {
@@ -98,55 +98,69 @@ const CopyButton = ({ text, t }) => {
     );
 };
 
-/** Lectura del plan a pantalla completa (planes largos). Cierra con Esc o clic fuera. */
+/**
+ * Lectura del plan ocupando TODA la ventana: un plan es un documento para leer
+ * a gusto, no un diálogo. Se cierra con Esc. El botón de pantalla completa va un
+ * paso más allá y usa la API del navegador, que además esconde su interfaz.
+ */
 const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
+    const shellRef = useRef(null);
+    const [isFs, setIsFs] = useState(false);
+
     useEffect(() => {
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        const onKey = (e) => { if (e.key === 'Escape' && !document.fullscreenElement) onClose(); };
+        const onFsChange = () => setIsFs(!!document.fullscreenElement);
         window.addEventListener('keydown', onKey);
+        document.addEventListener('fullscreenchange', onFsChange);
         document.body.style.overflow = 'hidden';
         return () => {
             window.removeEventListener('keydown', onKey);
+            document.removeEventListener('fullscreenchange', onFsChange);
             document.body.style.overflow = '';
+            if (document.fullscreenElement) document.exitFullscreen?.().catch(() => { /* ignore */ });
         };
     }, [onClose]);
 
+    const toggleFullscreen = () => {
+        if (document.fullscreenElement) document.exitFullscreen?.().catch(() => { /* ignore */ });
+        else shellRef.current?.requestFullscreen?.().catch(() => { /* el navegador puede negarlo */ });
+    };
+
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 bg-slate-900/50 backdrop-blur-sm fade-in"
-            onClick={onClose}
-        >
-            <div
-                className="bg-white w-full max-w-4xl max-h-[88vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-100">
-                    <div className="min-w-0">
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight truncate">{race.name}</h3>
-                        <div className="flex items-center gap-2 mt-1.5">
-                            <Chip className="bg-slate-50 text-slate-500 ring-slate-100">{t(`targets.fmt_${format}`)}</Chip>
-                            {race.date && (
-                                <span className="text-xs font-bold text-slate-400">
-                                    {new Date(race.date + 'T00:00:00').toLocaleDateString()}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {isRenderable(format) && <ViewToggle raw={raw} onChange={onRaw} t={t} />}
-                        <CopyButton text={race.plan} t={t} />
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                            title={t('targets.close')}
-                        >
-                            <XMarkIcon className="w-5 h-5" />
-                        </button>
-                    </div>
+        <div ref={shellRef} className="fixed inset-0 z-50 bg-white flex flex-col fade-in">
+            <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-slate-100 shrink-0">
+                <div className="min-w-0 flex items-center gap-3">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight truncate">{race.name}</h3>
+                    <Chip className="bg-slate-50 text-slate-500 ring-slate-100 hidden sm:inline-block">{t(`targets.fmt_${format}`)}</Chip>
+                    {race.date && (
+                        <span className="text-xs font-bold text-slate-400 hidden md:inline shrink-0">
+                            {new Date(race.date + 'T00:00:00').toLocaleDateString()}
+                        </span>
+                    )}
                 </div>
-                <div className="px-6 py-5 overflow-y-auto flex-1">
-                    <PlanBody plan={race.plan} format={format} raw={raw} frameHeight="calc(88vh - 9.5rem)" autoHeight={false} />
+                <div className="flex items-center gap-2 shrink-0">
+                    {isRenderable(format) && <ViewToggle raw={raw} onChange={onRaw} t={t} />}
+                    <CopyButton text={race.plan} t={t} />
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        title={isFs ? t('targets.exit_fullscreen') : t('targets.fullscreen')}
+                    >
+                        {isFs ? <ArrowsPointingInIcon className="w-5 h-5" /> : <ArrowsPointingOutIcon className="w-5 h-5" />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        title={t('targets.close')}
+                    >
+                        <XMarkIcon className="w-5 h-5" />
+                    </button>
                 </div>
+            </div>
+            <div className={`flex-1 min-h-0 ${format === 'html' && !raw ? '' : 'overflow-y-auto px-4 sm:px-8 py-6 max-w-4xl w-full mx-auto'}`}>
+                <PlanBody plan={race.plan} format={format} raw={raw} frameHeight="100%" autoHeight={false} />
             </div>
         </div>
     );
@@ -154,70 +168,106 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
 
 // ── Tarjeta de carrera ──────────────────────────────────────────────────────
 
-const RaceCard = ({ race, isPrimary, open, raw, onToggle, onRaw, onExpand, onEdit, onDelete, onPrimary, t }) => {
+/** Dato suelto de la tarjeta: etiqueta pequeña arriba, valor grande abajo. */
+const Stat = ({ label, value, sub, tone = 'text-slate-900' }) => (
+    <div className="min-w-0">
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
+        <p className={`text-sm font-black tabular-nums truncate ${tone}`}>
+            {value}
+            {sub && <span className="ml-1 text-[11px] font-bold text-slate-400">{sub}</span>}
+        </p>
+    </div>
+);
+
+const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onExpand, onEdit, onDelete, onPrimary, t }) => {
     const days = daysUntil(race.date);
     const isPast = days != null && days < 0;
     const hasPlan = !!race.plan?.trim();
     const format = useMemo(() => detectPlanFormat(race.plan), [race.plan]);
     const showRaw = raw || !isRenderable(format);
+    const km = DISTANCES[race.distance];
+    const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
+    const date = race.date ? new Date(race.date + 'T00:00:00') : null;
+
+    // Carril izquierdo: la cuenta atrás es el dato que de verdad se mira.
+    const rail = isPrimary
+        ? 'bg-amber-50 text-amber-600 border-amber-100'
+        : isPast
+            ? 'bg-slate-50 text-slate-400 border-slate-100'
+            : 'bg-blue-50 text-blue-600 border-blue-100';
 
     return (
-        <div className={`bg-white rounded-2xl border shadow-sm transition-all ${isPrimary ? 'border-amber-200 ring-1 ring-amber-100' : open ? 'border-blue-200 shadow-md' : 'border-slate-100 hover:shadow-md hover:border-slate-200'} ${isPast ? 'opacity-70' : ''}`}>
-            <div className="p-5 sm:p-6">
-                <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                            {isPrimary && (
-                                <Chip className="bg-amber-50 text-amber-600 ring-amber-200">
-                                    <span className="inline-flex items-center gap-1">
-                                        <StarSolidIcon className="w-3 h-3" />
-                                        {t('targets.primary')}
-                                    </span>
-                                </Chip>
-                            )}
-                            <Chip className={DISTANCE_STYLE[race.distance] || 'bg-slate-50 text-slate-500 ring-slate-100'}>
-                                {t(`planner.distances.${race.distance}`)}
-                            </Chip>
-                            {days != null && !isPast && (
-                                <Chip className="bg-emerald-50 text-emerald-600 ring-emerald-100">
-                                    {days === 0 ? t('targets.today') : t('targets.days_left', { count: days })}
-                                </Chip>
-                            )}
-                            {isPast && <Chip className="bg-slate-100 text-slate-400 ring-slate-200">{t('targets.past')}</Chip>}
-                            {hasPlan && (
-                                <Chip className="bg-blue-50 text-blue-600 ring-blue-100">
-                                    {t(`targets.fmt_${format}`)}
-                                </Chip>
-                            )}
-                        </div>
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight truncate">{race.name}</h3>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs font-bold text-slate-500">
-                            {race.date && (
-                                <span className="inline-flex items-center gap-1.5">
-                                    <CalendarDaysIcon className="w-3.5 h-3.5 text-slate-400" />
-                                    {new Date(race.date + 'T00:00:00').toLocaleDateString()}
-                                </span>
-                            )}
-                            {race.goalTimeMin != null && (
-                                <span className="inline-flex items-center gap-1.5">
-                                    <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
-                                    {formatMinutes(race.goalTimeMin)}
-                                    {DISTANCES[race.distance] && (
-                                        <span className="text-slate-400 font-semibold">
-                                            · {formatMinutes(race.goalTimeMin / DISTANCES[race.distance])}/km
+        <div
+            id={`race-${race.id}`}
+            className={`bg-white rounded-2xl border shadow-sm transition-all scroll-mt-24 ${isSelected ? 'border-blue-300 ring-2 ring-blue-100 shadow-md' : isPrimary ? 'border-amber-200 ring-1 ring-amber-100' : open ? 'border-blue-200 shadow-md' : 'border-slate-100 hover:shadow-md hover:border-slate-200'} ${isPast ? 'opacity-70' : ''}`}
+        >
+            <div className="flex flex-col sm:flex-row">
+                {/* Cuenta atrás */}
+                <div className={`sm:w-32 shrink-0 flex sm:flex-col items-center justify-center gap-2 sm:gap-0 px-5 py-3 sm:py-6 border-b sm:border-b-0 sm:border-r rounded-t-2xl sm:rounded-t-none sm:rounded-l-2xl ${rail}`}>
+                    {date ? (
+                        <>
+                            <span className="text-3xl sm:text-4xl font-black leading-none tabular-nums">
+                                {days === 0 ? '¡' : Math.abs(days)}
+                            </span>
+                            <span className="text-[9px] font-black uppercase tracking-widest opacity-70 sm:mt-1.5 text-center">
+                                {days === 0 ? t('targets.today') : isPast ? t('targets.past') : t('targets.days_unit')}
+                            </span>
+                            <span className="text-[10px] font-black tabular-nums opacity-60 sm:mt-2">
+                                {date.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}
+                            </span>
+                        </>
+                    ) : (
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('targets.no_date')}</span>
+                    )}
+                </div>
+
+                <div className="min-w-0 flex-1 p-5 sm:p-6">
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                {isPrimary && (
+                                    <Chip className="bg-amber-50 text-amber-600 ring-amber-200">
+                                        <span className="inline-flex items-center gap-1">
+                                            <StarSolidIcon className="w-3 h-3" />
+                                            {t('targets.primary')}
                                         </span>
-                                    )}
-                                </span>
-                            )}
-                            {!hasPlan && (
-                                <span className="inline-flex items-center gap-1.5 text-slate-300">
-                                    <DocumentTextIcon className="w-3.5 h-3.5" />
-                                    {t('targets.no_plan')}
-                                </span>
-                            )}
+                                    </Chip>
+                                )}
+                                <Chip className={DISTANCE_STYLE[race.distance] || 'bg-slate-50 text-slate-500 ring-slate-100'}>
+                                    {t(`planner.distances.${race.distance}`)}
+                                </Chip>
+                                {hasPlan && (
+                                    <Chip className="bg-blue-50 text-blue-600 ring-blue-100">
+                                        {t(`targets.fmt_${format}`)}
+                                    </Chip>
+                                )}
+                            </div>
+                            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">{race.name}</h3>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100">
+                                <Stat
+                                    label={t('targets.date')}
+                                    value={date ? date.toLocaleDateString(locale) : '—'}
+                                />
+                                <Stat
+                                    label={t('targets.distance')}
+                                    value={km ? `${km % 1 === 0 ? km : km.toFixed(3)}` : '—'}
+                                    sub={km ? 'km' : ''}
+                                />
+                                <Stat
+                                    label={t('targets.goal_time')}
+                                    value={race.goalTimeMin != null ? formatMinutes(race.goalTimeMin) : '—'}
+                                    tone={race.goalTimeMin != null ? 'text-slate-900' : 'text-slate-300'}
+                                />
+                                <Stat
+                                    label={t('targets.goal_pace')}
+                                    value={race.goalTimeMin != null && km ? formatMinutes(race.goalTimeMin / km) : '—'}
+                                    sub={race.goalTimeMin != null && km ? '/km' : ''}
+                                    tone={race.goalTimeMin != null && km ? 'text-slate-900' : 'text-slate-300'}
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                         <button
                             onClick={() => onPrimary(isPrimary ? null : race.id)}
                             className={`p-2 rounded-lg transition-colors ${isPrimary ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}
@@ -239,6 +289,7 @@ const RaceCard = ({ race, isPrimary, open, raw, onToggle, onRaw, onExpand, onEdi
                         >
                             <TrashIcon className="w-4 h-4" />
                         </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -294,7 +345,6 @@ const TargetRaces = () => {
     const [rawPlans, setRawPlans] = useState(() => new Set());     // vistos en crudo
     const [expandedId, setExpandedId] = useState(null);            // plan a pantalla completa
     const [showPast, setShowPast] = useState(false);
-    const [listMode, setListMode] = useState('list');   // 'list' | 'calendar'
     const [selectedId, setSelectedId] = useState(null); // carrera elegida en el calendario
     const [previewForm, setPreviewForm] = useState(false);
 
@@ -359,7 +409,14 @@ const TargetRaces = () => {
 
     const startNew = () => { resetForm(); setTab('form'); };
 
-    const selectFromCalendar = (id) => setSelectedId((prev) => (prev === id ? null : id));
+    const selectFromCalendar = (id) => {
+        setSelectedId(id);
+        // Si estaba plegada entre las pasadas, se despliega para poder llegar a ella.
+        if ((daysUntil(races.find((r) => r.id === id)?.date) ?? 0) < 0) setShowPast(true);
+        requestAnimationFrame(() => {
+            document.getElementById(`race-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    };
 
     const handlePrimary = (id) => setRaces(setPrimaryTargetRace(id));
 
@@ -391,7 +448,6 @@ const TargetRaces = () => {
     }, [races, primaryId]);
 
     const expandedRace = expandedId ? races.find((r) => r.id === expandedId) : null;
-    const selectedRace = selectedId ? races.find((r) => r.id === selectedId) : null;
     const expandedFormat = expandedRace ? detectPlanFormat(expandedRace.plan) : 'empty';
     const formFormat = useMemo(() => detectPlanFormat(form.plan), [form.plan]);
     const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
@@ -401,6 +457,7 @@ const TargetRaces = () => {
             key={r.id}
             race={r}
             isPrimary={r.id === primaryId}
+            isSelected={r.id === selectedId}
             open={openPlans.has(r.id)}
             raw={rawPlans.has(r.id)}
             onToggle={togglePlan}
@@ -585,37 +642,14 @@ const TargetRaces = () => {
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        <div className="flex justify-end">
-                            <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
-                                {['list', 'calendar'].map((mode) => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => setListMode(mode)}
-                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${listMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <span className="inline-flex items-center gap-1.5">
-                                            {mode === 'list'
-                                                ? <ListBulletIcon className="w-3.5 h-3.5" />
-                                                : <CalendarDaysIcon className="w-3.5 h-3.5" />}
-                                            {t(mode === 'list' ? 'targets.view_list' : 'targets.view_calendar')}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <RaceCalendar
+                            races={races}
+                            primaryId={primaryId}
+                            selectedId={selectedId}
+                            onSelect={selectFromCalendar}
+                            t={t}
+                        />
 
-                        {listMode === 'calendar' ? (
-                            <div className="space-y-4">
-                                <RaceCalendar
-                                    races={races}
-                                    primaryId={primaryId}
-                                    selectedId={selectedId}
-                                    onSelect={selectFromCalendar}
-                                    t={t}
-                                />
-                                {selectedRace && renderCard(selectedRace)}
-                            </div>
-                        ) : (
                         <div className="space-y-8">
                         {upcoming.length > 0 && (
                             <section className="space-y-3">
@@ -642,7 +676,6 @@ const TargetRaces = () => {
                             </section>
                         )}
                         </div>
-                        )}
                     </div>
                 )
             )}

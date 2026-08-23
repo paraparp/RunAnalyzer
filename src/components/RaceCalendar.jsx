@@ -14,8 +14,6 @@ import { daysUntil } from '../lib/targetRaces';
 // usuario sin pasar por el i18n.
 // ============================================================================
 
-const DAY_MS = 86400000;
-
 const parseDate = (s) => {
     if (!s) return null;
     const d = new Date(`${s}T00:00:00`);
@@ -128,7 +126,7 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
                                         <button
                                             key={r.id}
                                             onClick={() => onSelect(r.id)}
-                                            className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full ring-1 transition-colors ${r.id === selectedId ? 'bg-slate-100 ring-slate-300' : 'ring-slate-150 bg-white hover:bg-slate-50 ring-slate-200'}`}
+                                            className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full ring-1 transition-colors ${r.id === selectedId ? 'bg-slate-100 ring-slate-300' : 'bg-white ring-slate-200 hover:bg-slate-50'}`}
                                         >
                                             <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
                                             {r.id === primaryId && <StarSolidIcon className="w-3 h-3 text-amber-500" />}
