@@ -12,7 +12,8 @@ import {
     parseTimeToMinutes, formatMinutes, daysUntil, TARGET_RACES_EVENT,
 } from '../lib/targetRaces';
 import { detectPlanFormat, isRenderable } from '../lib/planFormat';
-import MarkdownText, { HtmlText } from './MarkdownText';
+import MarkdownText from './MarkdownText';
+import HtmlDocument from './HtmlDocument';
 
 const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '', plan: '' };
 
@@ -48,13 +49,15 @@ const ViewToggle = ({ raw, onChange, t }) => (
 );
 
 /** Cuerpo del plan: renderizado según el formato detectado, o en crudo. */
-const PlanBody = ({ plan, format, raw }) => {
+const PlanBody = ({ plan, format, raw, frameHeight = '26rem' }) => {
     if (raw) {
         return (
             <pre className="text-[11px] leading-relaxed text-slate-600 font-mono whitespace-pre-wrap break-words">{plan}</pre>
         );
     }
-    return format === 'html' ? <HtmlText html={plan} /> : <MarkdownText content={plan} />;
+    return format === 'html'
+        ? <HtmlDocument html={plan} height={frameHeight} />
+        : <MarkdownText content={plan} />;
 };
 
 const CopyButton = ({ text, t }) => {
@@ -123,8 +126,8 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                         </button>
                     </div>
                 </div>
-                <div className="px-6 py-5 overflow-y-auto">
-                    <PlanBody plan={race.plan} format={format} raw={raw} />
+                <div className="px-6 py-5 overflow-y-auto flex-1">
+                    <PlanBody plan={race.plan} format={format} raw={raw} frameHeight="calc(88vh - 9rem)" />
                 </div>
             </div>
         </div>
@@ -244,7 +247,7 @@ const RaceCard = ({ race, isPrimary, open, raw, onToggle, onRaw, onExpand, onEdi
                     </div>
                     {open && (
                         <div className="px-5 sm:px-6 pb-5">
-                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl max-h-[28rem] overflow-y-auto">
+                            <div className={`bg-slate-50 border border-slate-100 rounded-xl ${format === 'html' && !showRaw ? 'p-2' : 'p-4 max-h-[28rem] overflow-y-auto'}`}>
                                 <PlanBody plan={race.plan} format={format} raw={showRaw} />
                             </div>
                         </div>
@@ -475,7 +478,7 @@ const TargetRaces = () => {
                                 </div>
                             </div>
                             {previewForm && isRenderable(formFormat) ? (
-                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg max-h-[28rem] overflow-y-auto">
+                                <div className={`bg-slate-50 border border-slate-200 rounded-lg ${formFormat === 'html' ? 'p-2' : 'p-4 max-h-[28rem] overflow-y-auto'}`}>
                                     <PlanBody plan={form.plan} format={formFormat} raw={false} />
                                 </div>
                             ) : (

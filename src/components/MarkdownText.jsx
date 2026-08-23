@@ -11,8 +11,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 // dependencia de markdown. Los saltos de línea se respetan (un párrafo por
 // línea), porque en un plan de entrenamiento cada línea es una sesión.
 //
-// HtmlText renderiza HTML pegado por el usuario, SANEADO con DOMPurify (carga
-// bajo demanda): el texto puede venir del MCP, así que nunca se inyecta crudo.
+// El HTML pegado por el usuario NO lo pinta este módulo: va aislado en un iframe
+// (ver HtmlDocument.jsx), para no mezclar sus estilos con los de la app.
 // ============================================================================
 
 // Renderiza diagramas mermaid con carga bajo demanda; si falla (o el código
@@ -353,34 +353,6 @@ export const MarkdownText = ({ content }) => {
     }, [content]);
 
     return <div className="space-y-0.5">{parsedContent}</div>;
-};
-
-// Renderiza HTML del usuario saneado con DOMPurify (import dinámico: solo se
-// descarga si alguien pega HTML de verdad). Mientras carga, muestra el fuente.
-export const HtmlText = ({ html }) => {
-    const [clean, setClean] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        import('dompurify')
-            .then(({ default: DOMPurify }) => {
-                if (!cancelled) setClean(DOMPurify.sanitize(html || '', { USE_PROFILES: { html: true } }));
-            })
-            .catch(() => { if (!cancelled) setClean(null); });
-        return () => { cancelled = true; };
-    }, [html]);
-
-    if (clean == null) {
-        return (
-            <pre className="text-[11px] leading-relaxed text-slate-500 font-mono whitespace-pre-wrap break-words">{html}</pre>
-        );
-    }
-    return (
-        <div
-            className="text-sm text-slate-700 leading-relaxed [&_h1]:text-lg [&_h1]:font-black [&_h2]:text-base [&_h2]:font-black [&_h3]:font-bold [&_h1]:mt-5 [&_h2]:mt-4 [&_h3]:mt-3 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-1.5 [&_p]:my-1.5 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-5 [&_ol]:ml-5 [&_li]:my-1 [&_hr]:my-4 [&_blockquote]:border-l-[3px] [&_blockquote]:border-blue-200 [&_blockquote]:pl-3 [&_blockquote]:italic [&_table]:min-w-full [&_table]:text-xs [&_table]:border [&_table]:border-slate-200 [&_table]:rounded-xl [&_th]:px-3 [&_th]:py-2 [&_th]:bg-slate-50 [&_th]:text-left [&_th]:font-black [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-[10px] [&_th]:text-slate-500 [&_td]:px-3 [&_td]:py-2 [&_td]:border-b [&_td]:border-slate-100 [&_a]:text-blue-600 [&_a]:underline [&_strong]:font-semibold [&_code]:font-mono [&_code]:text-xs [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_pre]:bg-slate-50 [&_pre]:p-3 [&_pre]:rounded-xl [&_pre]:overflow-x-auto [&_img]:max-w-full [&_img]:rounded-lg overflow-x-auto"
-            dangerouslySetInnerHTML={{ __html: clean }}
-        />
-    );
 };
 
 export default MarkdownText;
