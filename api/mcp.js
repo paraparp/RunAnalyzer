@@ -428,7 +428,7 @@ const TOOLS = [
         goal_time: { type: 'string', description: 'Tiempo objetivo: h:mm:ss, mm:ss o minutos' },
         plan: { type: 'string', description: 'Plan de entrenamiento en texto libre. REEMPLAZA el plan anterior; cadena vacía para borrarlo' },
         append_plan: { type: 'string', description: 'Texto a AÑADIR al final del plan existente (en vez de reemplazarlo)' },
-        set_primary: { type: 'boolean', description: 'true la convierte en el OBJETIVO PRINCIPAL (desmarca las demás); false quita la marca' },
+        set_primary: { type: 'boolean', description: 'true la convierte en el OBJETIVO PRINCIPAL (desmarca las demás); false quita la marca. Si se omite, crear una carrera NO le quita el puesto a la principal actual (solo pasa a serlo si no había ninguna)' },
       },
     },
     run: (userId, args) => upsertTargetRace(userId, args).then(text),

@@ -1770,6 +1770,19 @@ function primaryRaceId(list) {
   return next ? next.id : null;
 }
 
+/**
+ * Espejo de ensurePrimary del front: crear una carrera NO le quita el puesto a la
+ * que ya mandaba. Sin marca explícita la principal es la próxima futura, así que
+ * se fija esa antes de que una carrera más cercana se la robe en silencio; si no
+ * había ninguna candidata, la principal pasa a ser la recién creada.
+ */
+function ensurePrimary(list, prevList, fallbackId) {
+  if (list.some((r) => r.primary)) return;
+  const keepId = primaryRaceId(prevList) ?? fallbackId;
+  if (!keepId) return;
+  for (const r of list) if (r.id === keepId) r.primary = true;
+}
+
 // Heurística de formato del plan (espejo de src/lib/planFormat.js): el modelo
 // necesita saber en qué está escrito para editarlo sin cambiarle el formato.
 const HTML_TAG = /<\/?(p|div|table|tbody|thead|tr|td|th|ul|ol|li|h[1-6]|br|hr|span|strong|em|b|i|u|a|code|pre|blockquote|section|article|img|font)\b[^>]*>/i;
@@ -1860,6 +1873,7 @@ export async function upsertTargetRace(userId, {
   race_id, name, date, distance, goal_time, plan, append_plan, set_primary,
 } = {}) {
   const list = await readTargetRaces(userId);
+  const prevList = list.map((r) => ({ ...r }));
   const idx = race_id ? list.findIndex((r) => String(r.id) === String(race_id)) : -1;
   if (race_id && idx < 0) return { error: `No existe la carrera objetivo "${race_id}"` };
   if (!race_id && !name) return { error: 'Falta `name` para crear una carrera objetivo' };
@@ -1901,6 +1915,8 @@ export async function upsertTargetRace(userId, {
   // Objetivo principal: excluyente, así que marcar una desmarca las demás.
   if (set_primary != null) {
     for (const r of list) r.primary = set_primary ? r.id === race.id : false;
+  } else {
+    ensurePrimary(list, prevList, race.id);
   }
 
   await writeKey(userId, TARGET_RACES_KEY, list);

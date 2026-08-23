@@ -43,23 +43,39 @@ function persist(list) {
   try { window.dispatchEvent(new Event(TARGET_RACES_EVENT)); } catch { /* ignore */ }
 }
 
+/**
+ * Fija explícitamente la principal si no había ninguna marcada, para que guardar
+ * una carrera no le cambie el puesto a la que YA mandaba: sin marca explícita la
+ * principal es la próxima futura, así que añadir una carrera más cercana se la
+ * robaría en silencio. Si no había ninguna candidata (lista vacía), la principal
+ * pasa a ser la recién creada.
+ */
+function ensurePrimary(list, prevList, fallbackId) {
+  if (list.some(r => r.primary)) return list;   // ya hay una marcada: se respeta
+  const keepId = nextUpcomingOf(prevList)?.id ?? fallbackId;
+  if (!keepId) return list;
+  return list.map(r => (r.id === keepId ? { ...r, primary: true } : r));
+}
+
 /** Crea (si no trae id) o actualiza una carrera. Devuelve la lista resultante. */
 export function saveTargetRace(race) {
   const list = getTargetRaces();
+  const prevList = list.map(r => ({ ...r }));
+  let newId = null;
   if (race.id) {
     const idx = list.findIndex(r => r.id === race.id);
     if (idx >= 0) list[idx] = { ...list[idx], ...race };
     else list.push(race);
   } else {
-    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : String(Date.now());
-    list.push({ ...race, id });
+    list.push({ ...race, id: newId });
   }
   // Orden cronológico: las próximas primero.
   list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  persist(list);
-  return list;
+  persist(ensurePrimary(list, prevList, newId));
+  return getTargetRaces();
 }
 
 /**
@@ -107,11 +123,16 @@ export function formatMinutes(min) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-/** La próxima carrera objetivo (hoy o futura, la más cercana). null si no hay. */
-export function getNextTargetRace() {
-  return getTargetRaces()
+/** La más próxima (hoy o futura) de una lista dada. null si no hay ninguna. */
+function nextUpcomingOf(list) {
+  return list
     .filter(r => { const d = daysUntil(r.date); return d != null && d >= 0; })
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0] || null;
+}
+
+/** La próxima carrera objetivo (hoy o futura, la más cercana). null si no hay. */
+export function getNextTargetRace() {
+  return nextUpcomingOf(getTargetRaces());
 }
 
 /**
