@@ -10,7 +10,7 @@ import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import AIToolHeader from './AIToolHeader';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
-import { getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // Prompt del plan — vive en código y siempre en español (antes estaba duplicado
 // en i18n en dos idiomas que podían divergir y mezclaba idioma con el
@@ -50,12 +50,13 @@ const TrainingPlanner = ({ activities }) => {
     // sección "Carreras Objetivo"). Distancia, tiempo meta y duración del plan se
     // derivan de ella; aquí solo se eligen los días de entrenamiento.
     const [targetRaces, setTargetRaces] = useState(getTargetRaces);
-    const [selectedRaceId, setSelectedRaceId] = useState(() => getTargetRaces()[0]?.id || '');
+    const [selectedRaceId, setSelectedRaceId] = useState(() => getPrimaryTargetRace()?.id || '');
     useEffect(() => {
         const reload = () => {
             const list = getTargetRaces();
             setTargetRaces(list);
-            setSelectedRaceId(prev => (list.some(r => r.id === prev) ? prev : (list[0]?.id || '')));
+            // Si la seleccionada desaparece, se vuelve a la principal.
+            setSelectedRaceId(prev => (list.some(r => r.id === prev) ? prev : (getPrimaryTargetRace()?.id || '')));
         };
         window.addEventListener(TARGET_RACES_EVENT, reload);
         return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
@@ -218,7 +219,7 @@ const TrainingPlanner = ({ activities }) => {
                                 <Select value={selectedRaceId} onValueChange={setSelectedRaceId} enableClear={false}>
                                     {targetRaces.map(r => (
                                         <SelectItem key={r.id} value={r.id}>
-                                            {r.name}{r.date ? ` · ${new Date(r.date + 'T00:00:00').toLocaleDateString()}` : ''}
+                                            {r.primary ? '★ ' : ''}{r.name}{r.date ? ` · ${new Date(r.date + 'T00:00:00').toLocaleDateString()}` : ''}
                                         </SelectItem>
                                     ))}
                                 </Select>

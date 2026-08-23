@@ -5,7 +5,7 @@ import {
   parseModelValue, normalizeModelValue, FALLBACK_GEMINI,
 } from '../services/ai';
 import { buildPrompt } from '../lib/athleteContext';
-import { getNextTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { getPrimaryTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { paceStr, coachObjectToBlocks, coachCoherenceWarnings } from '../lib/aiInsights';
 
 // Máquina de estados del análisis IA: caché con validación, backup/restore,
@@ -38,9 +38,9 @@ export default function useAIInsights(activities) {
   );
 
   // El objetivo de carrera se deriva de la próxima "carrera objetivo" guardada.
-  const [nextRace, setNextRace] = useState(getNextTargetRace);
+  const [nextRace, setNextRace] = useState(getPrimaryTargetRace);
   useEffect(() => {
-    const reload = () => setNextRace(getNextTargetRace());
+    const reload = () => setNextRace(getPrimaryTargetRace());
     window.addEventListener(TARGET_RACES_EVENT, reload);
     return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
   }, []);

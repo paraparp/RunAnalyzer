@@ -25,8 +25,8 @@ import RouteGallery from './components/RouteGallery';
 import TrainingZones from './components/TrainingZones';
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import GearTracker from './components/GearTracker';
-import RaceDetector from './components/RaceDetector';
 import AIInsights from './components/AIInsights';
+import RaceDetector from './components/RaceDetector';
 import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
@@ -77,6 +77,7 @@ const NAV_ITEMS = [
   { id: 'consistency', icon: CalendarDaysIcon },
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
+  { id: 'racehistory', icon: TrophyIcon },
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'qa', icon: ChatBubbleLeftRightIcon },
@@ -89,7 +90,7 @@ const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'fitness', 'health'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'racehistory', 'fitness', 'health'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -1410,12 +1411,8 @@ const Dashboard = ({ user, handleLogout }) => {
                 gallery:     <RouteGallery activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
-                targets: (
-                  <div className="space-y-6">
-                    <TargetRaces />
-                    <RaceDetector activities={runningActivities} />
-                  </div>
-                ),
+                targets:     <TargetRaces />,
+                racehistory: <RaceDetector activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 qa:          <RunQA activities={runningActivities} />,

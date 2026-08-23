@@ -17,7 +17,7 @@ import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import AIToolHeader from './AIToolHeader';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import NextRaceBanner from './NextRaceBanner';
-import { getNextTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // Distancias oficiales por etiqueta canónica.
 const RACE_KM = { '5K': 5, '10K': 10, 'Media Maratón': 21.0975, 'Maratón': 42.195 };
@@ -108,9 +108,9 @@ const RacePredictor = ({ activities }) => {
 
     // Próxima carrera objetivo (gestionada en la sección "Carreras objetivo").
     // Si existe, se inyecta en el prompt para evaluar la viabilidad del objetivo.
-    const [nextRace, setNextRace] = useState(getNextTargetRace);
+    const [nextRace, setNextRace] = useState(getPrimaryTargetRace);
     useEffect(() => {
-        const reload = () => setNextRace(getNextTargetRace());
+        const reload = () => setNextRace(getPrimaryTargetRace());
         window.addEventListener(TARGET_RACES_EVENT, reload);
         return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
     }, []);

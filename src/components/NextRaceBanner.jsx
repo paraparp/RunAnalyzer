@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlagIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { getNextTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 
 // Banner compacto con la próxima carrera objetivo y su cuenta atrás.
 // Sólo se renderiza si hay alguna carrera futura. `onManage` navega a la sección.
 const NextRaceBanner = ({ onManage }) => {
     const { t } = useTranslation();
-    const [race, setRace] = useState(getNextTargetRace);
+    const [race, setRace] = useState(getPrimaryTargetRace);
 
     useEffect(() => {
-        const reload = () => setRace(getNextTargetRace());
+        const reload = () => setRace(getPrimaryTargetRace());
         window.addEventListener(TARGET_RACES_EVENT, reload);
         return () => window.removeEventListener(TARGET_RACES_EVENT, reload);
     }, []);

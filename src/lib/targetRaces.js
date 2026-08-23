@@ -6,7 +6,13 @@ import cloudStorage from './cloudStorage';
 // Se guarda como un blob JSON en cloudStorage (clave 'target_races'), igual que
 // el resto de datos de la app, así que se sincroniza con Supabase por usuario.
 // Cada carrera:
-//   { id, name, date: 'YYYY-MM-DD', distance: '5k'|'10k'|'21k'|'42k', goalTimeMin }
+//   { id, name, date: 'YYYY-MM-DD', distance: '5k'|'10k'|'21k'|'42k', goalTimeMin,
+//     plan?: string, primary?: true }
+//
+// Una sola carrera puede ser la PRINCIPAL (`primary: true`): es el objetivo en
+// el que se basa todo lo demás (banner, planificador, predictor, insights). Las
+// demás quedan como informativas. Si nadie la ha marcado, la principal es por
+// defecto la próxima carrera futura, para no romper el comportamiento anterior.
 // Al cambiar la lista se emite un evento 'target_races_changed' para que otras
 // vistas (p.ej. el planificador) refresquen su selector.
 // ============================================================================
@@ -56,6 +62,18 @@ export function saveTargetRace(race) {
   return list;
 }
 
+/**
+ * Marca una carrera como principal (y desmarca el resto). Con `id` null se
+ * quita la marca y se vuelve al comportamiento por defecto (la más próxima).
+ */
+export function setPrimaryTargetRace(id) {
+  const list = getTargetRaces().map(r => (
+    r.id === id ? { ...r, primary: true } : (r.primary ? { ...r, primary: false } : r)
+  ));
+  persist(list);
+  return list;
+}
+
 export function deleteTargetRace(id) {
   const list = getTargetRaces().filter(r => r.id !== id);
   persist(list);
@@ -94,6 +112,21 @@ export function getNextTargetRace() {
   return getTargetRaces()
     .filter(r => { const d = daysUntil(r.date); return d != null && d >= 0; })
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0] || null;
+}
+
+/**
+ * La carrera OBJETIVO PRINCIPAL: la marcada por el usuario y, si no hay ninguna
+ * marcada, la próxima futura. Es la que deben usar el planificador, el predictor
+ * y los insights; el resto de carreras son informativas.
+ */
+export function getPrimaryTargetRace() {
+  return getTargetRaces().find(r => r.primary) || getNextTargetRace();
+}
+
+/** ¿Es esta la carrera principal efectiva (marcada o por defecto)? */
+export function isPrimaryTargetRace(race) {
+  if (!race) return false;
+  return getPrimaryTargetRace()?.id === race.id;
 }
 
 /** Días hasta la fecha (negativo si ya pasó). null si no hay fecha válida. */

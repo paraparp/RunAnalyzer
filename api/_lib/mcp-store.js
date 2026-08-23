@@ -1756,7 +1756,36 @@ async function readTargetRaces(userId) {
   return Array.isArray(list) ? list : [];
 }
 
-function shapeRace(r, { include_plan = true } = {}) {
+/**
+ * Id de la carrera OBJETIVO PRINCIPAL (espejo de getPrimaryTargetRace del front):
+ * la marcada con `primary` y, si no hay ninguna, la próxima futura. Es la carrera
+ * sobre la que se basan planes, predicciones y análisis; las demás son informativas.
+ */
+function primaryRaceId(list) {
+  const marked = list.find((r) => r.primary);
+  if (marked) return marked.id;
+  const next = list
+    .filter((r) => (daysUntil(r.date) ?? -1) >= 0)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))[0];
+  return next ? next.id : null;
+}
+
+// Heurística de formato del plan (espejo de src/lib/planFormat.js): el modelo
+// necesita saber en qué está escrito para editarlo sin cambiarle el formato.
+const HTML_TAG = /<\/?(p|div|table|tbody|thead|tr|td|th|ul|ol|li|h[1-6]|br|hr|span|strong|em|b|i|u|a|code|pre|blockquote|section|article|img|font)\b[^>]*>/i;
+const MD_PATTERNS = [
+  /^\s{0,3}#{1,6}\s+\S/m, /^\s{0,3}\|.*\|\s*$/m, /```/,
+  /^\s{0,3}[-*+]\s+\S/m, /^\s{0,3}\d+\.\s+\S/m, /^\s{0,3}>\s+\S/m,
+  /\*\*[^*\n]+\*\*/, /\[[^\]\n]+\]\([^)\s]+\)/, /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/m,
+];
+export function detectPlanFormat(text) {
+  const str = String(text ?? '');
+  if (!str.trim()) return 'empty';
+  if (HTML_TAG.test(str)) return 'html';
+  return MD_PATTERNS.some((re) => re.test(str)) ? 'markdown' : 'text';
+}
+
+function shapeRace(r, { include_plan = true, primary_id = undefined } = {}) {
   const days = daysUntil(r.date);
   const plan = typeof r.plan === 'string' ? r.plan : null;
   return {
@@ -1768,7 +1797,10 @@ function shapeRace(r, { include_plan = true } = {}) {
     goal_time_min: r.goalTimeMin ?? null,
     days_until: days,
     is_past: days == null ? null : days < 0,
+    // Principal EFECTIVA: la marcada o, en su defecto, la próxima futura.
+    is_primary: primary_id === undefined ? !!r.primary : r.id === primary_id,
     has_plan: !!(plan && plan.trim()),
+    plan_format: detectPlanFormat(plan),
     ...(include_plan ? { plan } : { plan_chars: plan ? plan.length : 0 }),
   };
 }
@@ -1779,18 +1811,44 @@ function shapeRace(r, { include_plan = true } = {}) {
  */
 export async function listTargetRaces(userId, { include_past = false, include_plan = true } = {}) {
   const list = await readTargetRaces(userId);
+  const primary_id = primaryRaceId(list);
   const races = list
     .filter((r) => include_past || (daysUntil(r.date) ?? 0) >= 0)
     .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
-    .map((r) => shapeRace(r, { include_plan }));
-  return { count: races.length, races };
+    .map((r) => shapeRace(r, { include_plan, primary_id }));
+  return {
+    count: races.length,
+    primary_race_id: primary_id,
+    note: 'La carrera con is_primary=true es el OBJETIVO PRINCIPAL: úsala como referencia '
+      + 'para planes, predicciones y análisis. Las demás son informativas.',
+    races,
+  };
 }
 
 /** Una carrera concreta por id (con su plan completo). */
 export async function getTargetRace(userId, raceId) {
-  const race = (await readTargetRaces(userId)).find((r) => String(r.id) === String(raceId));
+  const list = await readTargetRaces(userId);
+  const race = list.find((r) => String(r.id) === String(raceId));
   if (!race) return { error: `No existe la carrera objetivo "${raceId}"` };
-  return shapeRace(race);
+  return shapeRace(race, { primary_id: primaryRaceId(list) });
+}
+
+/**
+ * Marca una carrera como objetivo principal y desmarca el resto. Con `raceId`
+ * null se quita la marca (vuelve a mandar la próxima futura por defecto).
+ */
+export async function setPrimaryTargetRace(userId, raceId) {
+  const list = await readTargetRaces(userId);
+  if (raceId != null && !list.some((r) => String(r.id) === String(raceId))) {
+    return { error: `No existe la carrera objetivo "${raceId}"` };
+  }
+  const next = list.map((r) => (
+    String(r.id) === String(raceId) ? { ...r, primary: true } : { ...r, primary: false }
+  ));
+  await writeKey(userId, TARGET_RACES_KEY, next);
+  const primary_id = primaryRaceId(next);
+  const race = next.find((r) => r.id === primary_id);
+  return { ok: true, primary_race_id: primary_id, race: race ? shapeRace(race, { primary_id }) : null };
 }
 
 /**
@@ -1799,7 +1857,7 @@ export async function getTargetRace(userId, raceId) {
  * escribir el plan sin reenviar nombre/fecha/objetivo.
  */
 export async function upsertTargetRace(userId, {
-  race_id, name, date, distance, goal_time, plan, append_plan,
+  race_id, name, date, distance, goal_time, plan, append_plan, set_primary,
 } = {}) {
   const list = await readTargetRaces(userId);
   const idx = race_id ? list.findIndex((r) => String(r.id) === String(race_id)) : -1;
@@ -1840,8 +1898,14 @@ export async function upsertTargetRace(userId, {
   else list.push(race);
   list.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 
+  // Objetivo principal: excluyente, así que marcar una desmarca las demás.
+  if (set_primary != null) {
+    for (const r of list) r.primary = set_primary ? r.id === race.id : false;
+  }
+
   await writeKey(userId, TARGET_RACES_KEY, list);
-  return { ok: true, created: idx < 0, race: shapeRace(race) };
+  const primary_id = primaryRaceId(list);
+  return { ok: true, created: idx < 0, primary_race_id: primary_id, race: shapeRace(race, { primary_id }) };
 }
 
 /** Borra una carrera objetivo (y su plan) por id. */

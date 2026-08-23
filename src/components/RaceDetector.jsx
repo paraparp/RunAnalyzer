@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { TrophyIcon } from '@heroicons/react/24/outline';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell
@@ -203,17 +204,35 @@ export default function RaceDetector({ activities }) {
   const totalPages = Math.ceil(filteredRaces.length / PAGE_SIZE);
   const pagedRaces = filteredRaces.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const header = (
+    <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+      <div className="flex items-center gap-4">
+        <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+          <TrophyIcon className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('races.title')}</h2>
+          <p className="text-slate-500 text-sm font-medium">{t('races.subtitle')}</p>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!races.length) {
     return (
-      <div className="text-center py-12 text-slate-400">
-        <p className="text-sm">{t('races.no_data')}</p>
-        <p className="text-xs mt-2">{t('races.no_data_hint')}</p>
+      <div className="space-y-6 max-w-6xl mx-auto fade-in">
+        {header}
+        <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center text-slate-400">
+          <p className="text-sm">{t('races.no_data')}</p>
+          <p className="text-xs mt-2">{t('races.no_data_hint')}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto fade-in">
+      {header}
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">

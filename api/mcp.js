@@ -17,7 +17,7 @@ import {
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
-  listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace,
+  listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace, setPrimaryTargetRace,
 } from './_lib/mcp-store.js';
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
@@ -395,7 +395,7 @@ const TOOLS = [
   // ── Carreras objetivo y plan de entrenamiento (Supabase, mismo dato que la app) ──
   {
     name: 'list_target_races',
-    description: 'Lista las carreras objetivo del usuario (nombre, fecha, distancia, tiempo meta, días restantes) y su plan de entrenamiento en texto libre. Usa include_plan:false si solo necesitas los metadatos.',
+    description: 'Lista las carreras objetivo del usuario (nombre, fecha, distancia, tiempo meta, días restantes) y su plan de entrenamiento en texto libre. La que trae is_primary=true es el OBJETIVO PRINCIPAL: úsala como referencia para planes, predicciones y análisis; las demás son informativas. Usa include_plan:false si solo necesitas los metadatos.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -417,7 +417,7 @@ const TOOLS = [
   },
   {
     name: 'upsert_target_race',
-    description: 'Crea (sin race_id) o edita (con race_id) una carrera objetivo y su plan de entrenamiento. El plan es TEXTO LIBRE en cualquier formato (markdown, tabla semanal, notas): se guarda tal cual. La edición es parcial: solo se tocan los campos enviados, así que puedes escribir `plan` sin reenviar nombre/fecha. Se guarda en la base de datos y aparece en la app.',
+    description: 'Crea (sin race_id) o edita (con race_id) una carrera objetivo y su plan de entrenamiento. El plan es TEXTO LIBRE en cualquier formato (markdown, HTML o texto plano): se guarda tal cual. Respeta el `plan_format` que devuelven list/get_target_race al reescribirlo (si el plan es markdown, edítalo en markdown). La edición es parcial: solo se tocan los campos enviados, así que puedes escribir `plan` sin reenviar nombre/fecha. Se guarda en la base de datos y aparece en la app.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -428,9 +428,20 @@ const TOOLS = [
         goal_time: { type: 'string', description: 'Tiempo objetivo: h:mm:ss, mm:ss o minutos' },
         plan: { type: 'string', description: 'Plan de entrenamiento en texto libre. REEMPLAZA el plan anterior; cadena vacía para borrarlo' },
         append_plan: { type: 'string', description: 'Texto a AÑADIR al final del plan existente (en vez de reemplazarlo)' },
+        set_primary: { type: 'boolean', description: 'true la convierte en el OBJETIVO PRINCIPAL (desmarca las demás); false quita la marca' },
       },
     },
     run: (userId, args) => upsertTargetRace(userId, args).then(text),
+  },
+  {
+    name: 'set_primary_target_race',
+    description: 'Fija cuál de las carreras objetivo es el OBJETIVO PRINCIPAL: el que manda en el planificador, el predictor y los análisis de la app. Es excluyente (marcar una desmarca el resto). Con race_id null se quita la marca y vuelve a mandar por defecto la carrera futura más próxima.',
+    inputSchema: {
+      type: 'object',
+      properties: { race_id: { type: ['string', 'null'], description: 'Id de la carrera; null para quitar la marca' } },
+      required: ['race_id'],
+    },
+    run: (userId, args) => setPrimaryTargetRace(userId, args.race_id).then(text),
   },
   {
     name: 'delete_target_race',
@@ -519,6 +530,7 @@ const TITLES = {
   schedule_garmin_workout: 'Agendar entreno Garmin',
   list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
   upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
+  set_primary_target_race: 'Fijar objetivo principal',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
 };
 
@@ -533,6 +545,7 @@ const ANNOTATIONS = {
   update_garmin_workout: WRITE_UPDATE, delete_garmin_workout: WRITE_UPDATE,
   // Carreras objetivo: escriben en Supabase (nuestra propia BD), no en un sistema externo.
   upsert_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  set_primary_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   delete_target_race: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
 };
 
@@ -610,6 +623,8 @@ const INSTRUCTIONS = [
   'Distancias: usa `distance_m` (entero) para recalcular ritmos; `distance_km` va redondeado.',
   'Dinámica: list_running_dynamics excluye por defecto los runs < 3 km (calentamientos sueltos que',
   'sesgan las medias); `min_distance_km: 0` los incluye.',
+  'Objetivo: la carrera con `is_primary` es el OBJETIVO PRINCIPAL del atleta; basa planes,',
+  'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
 ].join(' ');
 
