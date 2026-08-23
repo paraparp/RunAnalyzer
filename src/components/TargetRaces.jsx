@@ -9,13 +9,31 @@ import {
 import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
 import {
     getTargetRaces, saveTargetRace, deleteTargetRace, setPrimaryTargetRace, getPrimaryTargetRace,
-    parseTimeToMinutes, formatMinutes, daysUntil, TARGET_RACES_EVENT,
+    parseTimeToMinutes, formatMinutes, daysUntil, DISTANCES, TARGET_RACES_EVENT,
 } from '../lib/targetRaces';
 import { detectPlanFormat, isRenderable } from '../lib/planFormat';
 import MarkdownText from './MarkdownText';
 import HtmlDocument from './HtmlDocument';
+import RaceCalendar from './RaceCalendar';
 
-const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '', plan: '' };
+const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '', pace: '', plan: '' };
+
+// Tiempo total y ritmo medio son la misma información vista de dos maneras: se
+// rellena uno y se deriva el otro con la distancia oficial de la prueba, para no
+// obligar a hacer la cuenta a mano ("¿a cuánto tengo que ir para bajar de 1h40?").
+const paceFromTime = (time, distance) => {
+    const min = parseTimeToMinutes(time);
+    const km = DISTANCES[distance];
+    if (min == null || !km) return '';
+    return formatMinutes(min / km);
+};
+
+const timeFromPace = (pace, distance) => {
+    const min = parseTimeToMinutes(pace);
+    const km = DISTANCES[distance];
+    if (min == null || !km) return '';
+    return formatMinutes(min * km);
+};
 
 const DISTANCE_STYLE = {
     '5k': 'bg-sky-50 text-sky-600 ring-sky-100',
@@ -49,14 +67,14 @@ const ViewToggle = ({ raw, onChange, t }) => (
 );
 
 /** Cuerpo del plan: renderizado según el formato detectado, o en crudo. */
-const PlanBody = ({ plan, format, raw, frameHeight = '26rem' }) => {
+const PlanBody = ({ plan, format, raw, frameHeight = '26rem', autoHeight = true }) => {
     if (raw) {
         return (
             <pre className="text-[11px] leading-relaxed text-slate-600 font-mono whitespace-pre-wrap break-words">{plan}</pre>
         );
     }
     return format === 'html'
-        ? <HtmlDocument html={plan} height={frameHeight} />
+        ? <HtmlDocument html={plan} height={frameHeight} autoHeight={autoHeight} />
         : <MarkdownText content={plan} />;
 };
 
@@ -127,7 +145,7 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                     </div>
                 </div>
                 <div className="px-6 py-5 overflow-y-auto flex-1">
-                    <PlanBody plan={race.plan} format={format} raw={raw} frameHeight="calc(88vh - 9rem)" />
+                    <PlanBody plan={race.plan} format={format} raw={raw} frameHeight="calc(88vh - 9.5rem)" autoHeight={false} />
                 </div>
             </div>
         </div>
@@ -184,6 +202,11 @@ const RaceCard = ({ race, isPrimary, open, raw, onToggle, onRaw, onExpand, onEdi
                                 <span className="inline-flex items-center gap-1.5">
                                     <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
                                     {formatMinutes(race.goalTimeMin)}
+                                    {DISTANCES[race.distance] && (
+                                        <span className="text-slate-400 font-semibold">
+                                            · {formatMinutes(race.goalTimeMin / DISTANCES[race.distance])}/km
+                                        </span>
+                                    )}
                                 </span>
                             )}
                             {!hasPlan && (
@@ -271,6 +294,8 @@ const TargetRaces = () => {
     const [rawPlans, setRawPlans] = useState(() => new Set());     // vistos en crudo
     const [expandedId, setExpandedId] = useState(null);            // plan a pantalla completa
     const [showPast, setShowPast] = useState(false);
+    const [listMode, setListMode] = useState('list');   // 'list' | 'calendar'
+    const [selectedId, setSelectedId] = useState(null); // carrera elegida en el calendario
     const [previewForm, setPreviewForm] = useState(false);
 
     useEffect(() => {
@@ -280,6 +305,18 @@ const TargetRaces = () => {
     }, []);
 
     const resetForm = () => { setForm(EMPTY_FORM); setEditingId(null); setError(''); setPreviewForm(false); };
+
+    const changeTime = (time) => setForm(f => ({ ...f, time, pace: paceFromTime(time, f.distance) }));
+    const changePace = (pace) => setForm(f => ({ ...f, pace, time: timeFromPace(pace, f.distance) }));
+    // Al cambiar de prueba manda el tiempo objetivo: el ritmo se recalcula sobre
+    // la nueva distancia (y si solo había ritmo, se recalcula el tiempo).
+    const changeDistance = (distance) => setForm(f => ({
+        ...f,
+        distance,
+        ...(f.time
+            ? { pace: paceFromTime(f.time, distance) }
+            : { time: timeFromPace(f.pace, distance) }),
+    }));
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -306,6 +343,7 @@ const TargetRaces = () => {
             date: r.date || '',
             distance: r.distance,
             time: r.goalTimeMin != null ? formatMinutes(r.goalTimeMin) : '',
+            pace: r.goalTimeMin != null ? paceFromTime(formatMinutes(r.goalTimeMin), r.distance) : '',
             plan: r.plan || '',
         });
         setError('');
@@ -320,6 +358,8 @@ const TargetRaces = () => {
     };
 
     const startNew = () => { resetForm(); setTab('form'); };
+
+    const selectFromCalendar = (id) => setSelectedId((prev) => (prev === id ? null : id));
 
     const handlePrimary = (id) => setRaces(setPrimaryTargetRace(id));
 
@@ -351,6 +391,7 @@ const TargetRaces = () => {
     }, [races, primaryId]);
 
     const expandedRace = expandedId ? races.find((r) => r.id === expandedId) : null;
+    const selectedRace = selectedId ? races.find((r) => r.id === selectedId) : null;
     const expandedFormat = expandedRace ? detectPlanFormat(expandedRace.plan) : 'empty';
     const formFormat = useMemo(() => detectPlanFormat(form.plan), [form.plan]);
     const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
@@ -442,7 +483,7 @@ const TargetRaces = () => {
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.distance')}</label>
-                                <Select value={form.distance} onValueChange={(v) => setForm(f => ({ ...f, distance: v }))} enableClear={false}>
+                                <Select value={form.distance} onValueChange={changeDistance} enableClear={false}>
                                     <SelectItem value="5k">{t('planner.distances.5k')}</SelectItem>
                                     <SelectItem value="10k">{t('planner.distances.10k')}</SelectItem>
                                     <SelectItem value="21k">{t('planner.distances.21k')}</SelectItem>
@@ -454,10 +495,21 @@ const TargetRaces = () => {
                                 <input
                                     type="text"
                                     value={form.time}
-                                    onChange={(e) => setForm(f => ({ ...f, time: e.target.value }))}
+                                    onChange={(e) => changeTime(e.target.value)}
                                     placeholder={t('targets.goal_time_ph')}
                                     className={inputClass}
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.goal_pace')}</label>
+                                <input
+                                    type="text"
+                                    value={form.pace}
+                                    onChange={(e) => changePace(e.target.value)}
+                                    placeholder={t('targets.goal_pace_ph')}
+                                    className={inputClass}
+                                />
+                                <p className="mt-2 text-[11px] font-medium text-slate-400">{t('targets.pace_hint')}</p>
                             </div>
                         </div>
 
@@ -532,7 +584,39 @@ const TargetRaces = () => {
                         </button>
                     </div>
                 ) : (
-                    <div className="space-y-8">
+                    <div className="space-y-6">
+                        <div className="flex justify-end">
+                            <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+                                {['list', 'calendar'].map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setListMode(mode)}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${listMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <span className="inline-flex items-center gap-1.5">
+                                            {mode === 'list'
+                                                ? <ListBulletIcon className="w-3.5 h-3.5" />
+                                                : <CalendarDaysIcon className="w-3.5 h-3.5" />}
+                                            {t(mode === 'list' ? 'targets.view_list' : 'targets.view_calendar')}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {listMode === 'calendar' ? (
+                            <div className="space-y-4">
+                                <RaceCalendar
+                                    races={races}
+                                    primaryId={primaryId}
+                                    selectedId={selectedId}
+                                    onSelect={selectFromCalendar}
+                                    t={t}
+                                />
+                                {selectedRace && renderCard(selectedRace)}
+                            </div>
+                        ) : (
+                        <div className="space-y-8">
                         {upcoming.length > 0 && (
                             <section className="space-y-3">
                                 <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
@@ -556,6 +640,8 @@ const TargetRaces = () => {
                                 </button>
                                 {showPast && <div className="space-y-4">{past.map(renderCard)}</div>}
                             </section>
+                        )}
+                        </div>
                         )}
                     </div>
                 )

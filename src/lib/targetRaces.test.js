@@ -12,6 +12,7 @@ vi.mock('./cloudStorage', () => ({
 
 const {
   saveTargetRace, setPrimaryTargetRace, getPrimaryTargetRace, getTargetRaces,
+  parseTimeToMinutes, formatMinutes, DISTANCES,
 } = await import('./targetRaces');
 
 const day = (offset) => {
@@ -72,5 +73,24 @@ describe('carrera objetivo principal', () => {
     saveTargetRace({ ...diez, goalTimeMin: 40 });
 
     expect(getPrimaryTargetRace().name).toBe('Maratón');
+  });
+});
+
+describe('tiempo objetivo y ritmo medio', () => {
+  it('el ritmo sale del tiempo con la distancia oficial de la prueba', () => {
+    // Media maratón (21.0975 km) en 1:38:00 → 4:38.7 → 4:39/km
+    expect(formatMinutes(parseTimeToMinutes('1:38:00') / DISTANCES['21k'])).toBe('4:39');
+    // Maratón (42.195 km) en 3:30:00 → 4:59/km
+    expect(formatMinutes(parseTimeToMinutes('3:30:00') / DISTANCES['42k'])).toBe('4:59');
+  });
+
+  it('el tiempo sale del ritmo', () => {
+    expect(formatMinutes(parseTimeToMinutes('4:00') * DISTANCES['10k'])).toBe('40:00');
+    expect(formatMinutes(parseTimeToMinutes('3:57') * DISTANCES['5k'])).toBe('19:45');
+  });
+
+  it('ida y vuelta no desvía el tiempo original', () => {
+    const pace = parseTimeToMinutes('1:38:00') / DISTANCES['21k'];
+    expect(formatMinutes(pace * DISTANCES['21k'])).toBe('1:38:00');
   });
 });

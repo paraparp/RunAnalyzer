@@ -42,17 +42,55 @@ const BASE_CSS = `
 export const isFullDocument = (html) => /<html[\s>]/i.test(html || '');
 
 /**
+ * ¿El documento SE DIBUJA con JavaScript? Un plan exportado como mini-app (perfil
+ * de sesiones, barras de volumen, cuenta atrás) es HTML vacío sin sus scripts, así
+ * que no puede pasar por el saneado: se le deja el código y se confía en el
+ * aislamiento del sandbox (origen opaco, sin acceso a la app).
+ */
+export const isInteractive = (html) => /<script[\s>]/i.test(html || '');
+
+/**
  * Monta el documento que se pasará a `srcdoc`. Con un fragmento se envuelve en un
  * documento mínimo con la hoja base; con un documento completo se respeta el suyo
  * y solo se le inyecta `<base target="_blank">` para que sus enlaces abran fuera
  * del marco (dentro del sandbox no pueden navegar).
  */
-export function buildHtmlDocument(cleanHtml, { fullDocument = false } = {}) {
+export function buildHtmlDocument(cleanHtml, { fullDocument = false, frameId = null } = {}) {
   const base = '<base target="_blank" rel="noopener noreferrer">';
+  const reporter = frameId ? heightReporter(frameId) : '';
   if (fullDocument) {
-    if (/<head[^>]*>/i.test(cleanHtml)) return cleanHtml.replace(/<head[^>]*>/i, (m) => m + base);
-    if (/<html[^>]*>/i.test(cleanHtml)) return cleanHtml.replace(/<html[^>]*>/i, (m) => `${m}<head>${base}</head>`);
-    return base + cleanHtml;
+    const withBase = /<head[^>]*>/i.test(cleanHtml)
+      ? cleanHtml.replace(/<head[^>]*>/i, (m) => m + base)
+      : /<html[^>]*>/i.test(cleanHtml)
+        ? cleanHtml.replace(/<html[^>]*>/i, (m) => `${m}<head>${base}</head>`)
+        : base + cleanHtml;
+    if (!reporter) return withBase;
+    return /<\/body>/i.test(withBase)
+      ? withBase.replace(/<\/body>/i, `${reporter}</body>`)
+      : withBase + reporter;
   }
-  return `<!doctype html><html><head><meta charset="utf-8">${base}<style>${BASE_CSS}</style></head><body>${cleanHtml}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8">${base}<style>${BASE_CSS}</style></head>`
+    + `<body>${cleanHtml}${reporter}</body></html>`;
+}
+
+/**
+ * Medidor de alto que se inyecta SIEMPRE al final del documento (después del
+ * saneado, para que no lo borre). Dentro del sandbox no hay `allow-same-origin`,
+ * así que el marco no puede tocar la app: solo publica su alto por postMessage y
+ * el contenedor lo aplica. Es lo que permite que el documento se estire en vez de
+ * quedarse con una altura fija y scroll propio.
+ */
+function heightReporter(frameId) {
+  return `<script>(function(){
+    var id=${JSON.stringify(frameId)};
+    function send(){
+      var d=document.documentElement,b=document.body;
+      var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0,b?b.offsetHeight:0);
+      try{parent.postMessage({__planFrame:id,height:h},'*')}catch(e){}
+    }
+    window.addEventListener('load',send);
+    document.addEventListener('DOMContentLoaded',send);
+    [60,300,1200].forEach(function(ms){setTimeout(send,ms)});
+    if(window.ResizeObserver){try{new ResizeObserver(send).observe(document.documentElement)}catch(e){}}
+  })();</script>`;
 }
