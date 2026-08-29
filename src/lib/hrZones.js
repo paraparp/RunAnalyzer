@@ -151,3 +151,13 @@ export const karvonenBounds = ({ hrmax, hrrest }) => {
     { lo: b(0.90), hi: 999          },
   ];
 };
+
+// Classify an HR reading against a bounds array (as returned by the *Bounds
+// functions). Returns the zone INDEX (0-based, ascending) or -1 when there is no
+// HR to classify. Shared so the zones tab, the splits table and the AI prompt
+// can never drift into disagreeing about which zone a given bpm falls in.
+export function classifyHR(hr, bounds) {
+  if (!hr || !bounds?.length) return -1;
+  for (let i = bounds.length - 1; i >= 0; i--) if (hr >= bounds[i].lo) return i;
+  return 0;
+}

@@ -1,5 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
-import cloudStorage from '../lib/cloudStorage';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -7,8 +6,8 @@ import {
 } from 'recharts';
 import { Card, Title, Text, Badge, Callout } from '@tremor/react';
 import {
-  seilerBounds, karvonenBounds, estimateLTHR,
-  detectMaxHR, detectRestHR, detectLTHR, SEILER_TARGETS, HR_LIMITS,
+  seilerBounds, karvonenBounds, estimateLTHR, classifyHR,
+  SEILER_TARGETS, HR_LIMITS,
 } from '../lib/hrZones';
 
 // ─── Scientific References ────────────────────────────────────────────────────
@@ -82,86 +81,21 @@ const MODELS = {
   },
 };
 
-// ── Manual override persistence + validation ─────────────────────────────────
-const OVERRIDES_KEY = 'hr_zone_overrides';
-
-const loadOverrides = () => {
-  try { return JSON.parse(cloudStorage.getItem(OVERRIDES_KEY)) ?? {}; } catch { return {}; }
-};
-
-// Parse a manual override. Returns the integer if it's inside [lo, hi],
-// null if empty, NaN if present but out of range (→ ignored, flagged in UI).
-const parseOverride = (raw, lo, hi) => {
-  if (raw === '' || raw == null) return null;
-  const v = Math.round(+raw);
-  return Number.isFinite(v) && v >= lo && v <= hi ? v : NaN;
-};
-
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function TrainingZones({ activities }) {
+export default function TrainingZones({ activities, hrParams }) {
   const { t, i18n } = useTranslation();
   const [modelKey,  setModelKey]  = useState('seiler');
   const [groupBy,   setGroupBy]   = useState('month');
   const [evoMode,   setEvoMode]   = useState('hours');
-  const [userMax,   setUserMax]   = useState(() => loadOverrides().max  ?? '');
-  const [userRest,  setUserRest]  = useState(() => loadOverrides().rest ?? '');
-  const [userLTHR,  setUserLTHR]  = useState(() => loadOverrides().lthr ?? '');
 
-  // Persist manual calibration so it survives reloads
-  useEffect(() => {
-    const o = {};
-    if (userMax)  o.max  = userMax;
-    if (userRest) o.rest = userRest;
-    if (userLTHR) o.lthr = userLTHR;
-    if (Object.keys(o).length) cloudStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
-    else cloudStorage.removeItem(OVERRIDES_KEY);
-  }, [userMax, userRest, userLTHR]);
-
-  // ── Fetch Garmin Data ──
-  const [garmin, setGarmin] = useState(undefined);
-  useEffect(() => {
-    const loadGarminData = () => {
-      try {
-        const s = cloudStorage.getItem('garmin_cardiac_data');
-        if (s) { setGarmin(JSON.parse(s)); return; }
-      } catch { /* corrupt cache — fall through to fetch */ }
-      fetch('/garmin_data.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(j => setGarmin(j?.data ?? null))
-        .catch(() => setGarmin(null));
-    };
-    loadGarminData();
-    window.addEventListener('garmin_sync_complete', loadGarminData);
-    return () => window.removeEventListener('garmin_sync_complete', loadGarminData);
-  }, []);
-
-  // ── Filter to Last 2 Months ──
-  const recentActivities = useMemo(() => {
-    if (!activities?.length) return [];
-    const now = new Date();
-    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-    return activities.filter(a => new Date(a.start_date) >= twoMonthsAgo);
-  }, [activities]);
-
-  // ── Auto-detected parameters (heuristics live in lib/hrZones — shared with the AI coach) ──
-  const autoMax  = useMemo(() => detectMaxHR(activities), [activities]);
-  const autoRest = useMemo(() => detectRestHR(garmin), [garmin]);
-  const lthrResult = useMemo(() => detectLTHR(recentActivities ?? [], autoMax.value), [recentActivities, autoMax]);
-
-  // ── Effective parameters: valid manual overrides win, out-of-range input is
-  //    ignored (falls back to auto) and flagged in the UI. Ordering is enforced
-  //    (hrrest < hrmax, hrrest < lthr ≤ hrmax) so no model can produce inverted zones. ──
-  const maxOv  = parseOverride(userMax, HR_LIMITS.maxLo, HR_LIMITS.maxHi);
-  const hrmax  = maxOv || autoMax.value;
-  const restOv = parseOverride(userRest, HR_LIMITS.restLo, Math.min(HR_LIMITS.restHi, hrmax - 20));
-  const hrrest = restOv || Math.min(autoRest.value, hrmax - 20);
-  const lthrOv = parseOverride(userLTHR, hrrest + 10, hrmax);
-  const lthr   = lthrOv || Math.min(lthrResult.lthr ?? estimateLTHR(hrmax), hrmax);
-  const hrr    = hrmax - hrrest;
-
-  const invalidMax  = userMax  !== '' && !maxOv;
-  const invalidRest = userRest !== '' && !restOv;
-  const invalidLTHR = userLTHR !== '' && !lthrOv;
+  // ── Calibration (FCmax / FCreposo / LTHR) comes from useHrParams, shared with
+  //    the splits table so no view can drift into its own idea of the zones. ──
+  const {
+    hrmax, hrrest, lthr, hrr,
+    autoMax, autoRest, lthrResult, recentActivities,
+    userMax, setUserMax, userRest, setUserRest, userLTHR, setUserLTHR,
+    maxOv, restOv, lthrOv, invalidMax, invalidRest, invalidLTHR,
+  } = hrParams;
 
   const translatedModels = useMemo(() => ({
     seiler: {
@@ -188,14 +122,6 @@ export default function TrainingZones({ activities }) {
 
   const model  = translatedModels[modelKey];
   const bounds = useMemo(() => model.getBounds({ lthr, hrmax, hrrest }), [model, lthr, hrmax, hrrest]);
-
-  // ── Classify HR → zone index (inline, no closure dependency issue) ──
-  const classifyHR = (hr, bds) => {
-    if (!hr) return -1;
-    for (let i = bds.length - 1; i >= 0; i--)
-      if (hr >= bds[i].lo) return i;
-    return 0;
-  };
 
   // ── Time-in-zones distribution ──
   const zoneStats = useMemo(() => {

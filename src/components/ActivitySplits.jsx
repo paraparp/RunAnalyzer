@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
+import { karvonenBounds, classifyHR } from '../lib/hrZones';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -35,31 +35,13 @@ const ZONES = {
     5: { label: 'Z5', color: '#f87171', bg: 'rgba(248,113,113,0.12)', text: '#dc2626' },
 };
 
-const getZone = (hr, maxHR, restingHR) => {
-    if (!hr || !maxHR) return 1;
-
-    // Model Karvonen (HRR - Heart Rate Reserve)
-    // Formula moderna contrastada (Swain & Leutholtz, 1997)
-    // Más precisa que %FCmax porque tiene en cuenta tu pulso basal.
-    if (restingHR && restingHR > 35 && restingHR < 100) {
-        const hrr = maxHR - restingHR;
-        const p = (hr - restingHR) / hrr;
-        // Umbrales pro para entrenamiento de resistencia (5 zonas segun Seiler/Friel)
-        if (p >= 0.90) return 5; // Anaeróbico / Pico
-        if (p >= 0.82) return 4; // Umbral de lactato / Tempo rápido
-        if (p >= 0.72) return 3; // Aeróbico Intenso / Ritmo carrera
-        if (p >= 0.60) return 2; // Aeróbico Base / Quema grasas
-        return 1;              // Recuperación / Regenerativo
-    }
-
-    // Fallback: Modelo %FCmax Pro (American College of Sports Medicine - ACSM)
-    const p = hr / maxHR;
-    if (p >= 0.92) return 5;
-    if (p >= 0.85) return 4;
-    if (p >= 0.78) return 3;
-    if (p >= 0.65) return 2;
-    return 1;
-};
+// Zone for a lap, on the SAME calibrated Karvonen bounds the zones tab uses
+// (useHrParams → manual override → auto-detection). Returns a 1-based zone id to
+// index ZONES; 0 when there is no HR to classify.
+//
+// Caveat: this classifies the lap AVERAGE. A kilometre with surges averages out,
+// so this is a per-km summary, not true time-in-zone.
+const getZone = (hr, bounds) => classifyHR(hr, bounds) + 1;
 
 // ─── SVG overview chart ───────────────────────────────────────────────────────
 
@@ -285,8 +267,10 @@ const BestEffortsSection = ({ efforts }) => {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, splitsMetric }) => {
+const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, splitsMetric }) => {
     const { t } = useTranslation();
+
+    const { hrmax, hrrest } = hrParams ?? {};
 
     const { rows, avgPaceS, maxHR } = useMemo(() => {
         if (!splits || splits.length === 0) return { rows: [], avgPaceS: 0, maxHR: 0 };
@@ -294,11 +278,9 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
         const ref = full.length ? full : splits.filter(s => s.average_speed > 0);
         const avgSpeed = ref.reduce((s, a) => s + a.average_speed, 0) / ref.length;
         const avgPaceS = avgSpeed > 0 ? 1000 / avgSpeed : 300;
-        const sessionMaxHR = Math.max(...splits.map(s => s.average_heartrate || 0));
-        const maxHR = globalMaxHR > sessionMaxHR ? globalMaxHR : sessionMaxHR;
+        const maxHR = hrmax || 0;
+        const bounds = hrmax && hrrest ? karvonenBounds({ hrmax, hrrest }) : null;
         const fastestSpeed = Math.max(...splits.filter(s => s.average_speed > 0).map(s => s.average_speed));
-
-        const restingHR = parseInt(cloudStorage.getItem('garminRestHR')) || null;
 
         // Build a map of Strava's official GAP speed by split index
         const stravaGapMap = splitsMetric?.length
@@ -311,7 +293,7 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
             const elevation = typeof split.elevation_difference === 'number' ? split.elevation_difference : (split.total_elevation_gain || 0);
             const isPartial = split.distance < 950;
             const isBest = fastestSpeed > 0 && split.average_speed === fastestSpeed;
-            const hrZone = getZone(split.average_heartrate, maxHR, restingHR);
+            const hrZone = bounds ? getZone(split.average_heartrate, bounds) : 0;
             const isFaster = deviationPct < 0;
 
             // Use Strava's official GAP if available, otherwise fall back to local calculation
@@ -331,7 +313,7 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
         });
 
         return { rows, avgPaceS, maxHR };
-    }, [splits, globalMaxHR, splitsMetric]);
+    }, [splits, hrmax, hrrest, splitsMetric]);
 
     if (!splits || splits.length === 0) {
         return <p className="py-4 text-center text-sm italic text-slate-400">{t('splits.no_splits', 'No hay parciales.')}</p>;
@@ -354,7 +336,7 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
 
             <div className="flex flex-col">
                 {rows.map((row) => {
-                    const zone = ZONES[row.hrZone];
+                    const zone = ZONES[row.hrZone] ?? ZONES[1];
                     const rowBg = row.isPartial ? 'transparent' : row.isFaster ? 'rgba(52,211,153,0.04)' : 'rgba(248,113,113,0.04)';
                     const borderColor = row.isFaster ? '#34d399' : '#f87171';
 
@@ -382,7 +364,7 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
                                             className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
                                             style={{
                                                 // Escala relativa: el 0% de la barra es el 50% de la FC máx
-                                                width: `${Math.max(((row.average_heartrate - maxHR * 0.5) / (maxHR * 0.5)) * 100, 5)}%`,
+                                                width: `${maxHR ? Math.max(((row.average_heartrate - maxHR * 0.5) / (maxHR * 0.5)) * 100, 5) : 5}%`,
                                                 background: zone.color,
                                                 opacity: 0.9
                                             }}
@@ -394,8 +376,10 @@ const ActivitySplits = ({ splits, globalMaxHR, bestEfforts, similarActivities, s
                             <div className="flex items-center justify-end gap-1.5 pr-1">
                                 {row.average_heartrate ? (
                                     <>
-                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: zone.bg, color: zone.text, border: `1px solid ${zone.color}40` }}>{zone.label}</span>
-                                        <span className="text-[12px] tabular-nums font-mono font-bold" style={{ color: zone.text }}>{Math.round(row.average_heartrate)}</span>
+                                        {row.hrZone > 0 && (
+                                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: zone.bg, color: zone.text, border: `1px solid ${zone.color}40` }}>{zone.label}</span>
+                                        )}
+                                        <span className="text-[12px] tabular-nums font-mono font-bold" style={{ color: row.hrZone > 0 ? zone.text : '#64748b' }}>{Math.round(row.average_heartrate)}</span>
                                     </>
                                 ) : <span className="text-slate-300 text-xs">—</span>}
                             </div>

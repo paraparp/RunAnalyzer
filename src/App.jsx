@@ -23,6 +23,9 @@ import TechniqueAnalysis from './components/TechniqueAnalysis';
 import GlobalHeatmap from './components/GlobalHeatmap';
 import RouteGallery from './components/RouteGallery';
 import TrainingZones from './components/TrainingZones';
+import useHrParams from './hooks/useHrParams';
+
+const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import GearTracker from './components/GearTracker';
 import AIInsights from './components/AIInsights';
@@ -522,11 +525,15 @@ const Dashboard = ({ user, handleLogout }) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
+  // Memoized: useHrParams runs the HRmax/LTHR detectors over this list, so a new
+  // array identity every render would re-scan the whole history on every keystroke.
+  const runningActivities = useMemo(() => stravaData?.activities
+    ? stravaData.activities.filter(activity => RUNNING_TYPES.includes(activity.type) || RUNNING_TYPES.includes(activity.sport_type))
+    : [], [stravaData]);
 
-  const runningActivities = stravaData?.activities ?
-    stravaData.activities.filter(activity => RUNNING_TYPES.includes(activity.type) || RUNNING_TYPES.includes(activity.sport_type))
-    : [];
+  // Calibrated FCmax / FCreposo / LTHR, resolved once and shared by the zones tab
+  // and the per-lap zone badges so both classify a given bpm identically.
+  const hrParams = useHrParams(runningActivities);
 
   const [selectedYear, setSelectedYear] = useState('All');
 
@@ -1346,7 +1353,7 @@ const Dashboard = ({ user, handleLogout }) => {
                                         <div className="bg-slate-50/70 border-y border-slate-100 px-4 py-3">
                                           <ActivitySplits
                                             splits={activity.laps}
-                                            globalMaxHR={Math.max(...runningActivities.map(a => a.max_heartrate || 0).filter(Boolean))}
+                                            hrParams={hrParams}
                                             bestEfforts={activity.best_efforts}
                                             similarActivities={activity.similar_activities}
                                             splitsMetric={activity.splits_metric}
@@ -1411,7 +1418,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 status:      <StatusSnapshot activities={allActivities} />,
                 hranalysis:  <HRAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
                 technique:   <TechniqueAnalysis activities={runningActivities} />,
-                zones:       <TrainingZones activities={runningActivities} />,
+                zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} />,
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,
                 gallery:     <RouteGallery activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
