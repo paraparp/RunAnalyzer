@@ -7,7 +7,12 @@
 // y ChatGPT reciban exactamente los datos que la app ya expone.
 // ============================================================================
 import { createClient } from '@supabase/supabase-js';
-import { heatPenaltyPct, heatIntensityFactor } from './garmin-helpers.js';
+import {
+  heatPenaltyPct,
+  heatIntensityFactor,
+  normalizeWeatherTemps,
+  wbgtFromCelsius,
+} from './garmin-helpers.js';
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -193,12 +198,22 @@ function shapeGarminLaps(laps) {
 // la de esta sesión. Mezclarlas es justo el error que hacía inservible el número.
 function shapeWeather(w, avgHr, hrMax) {
   if (!w) return null;
-  const wbgt = w.wbgt_c;
+  // Las filas del cache se guardaron con la conversión de unidad antigua, que dejaba sin
+  // convertir cualquier lectura de 45 °F o menos y podía mezclar unidades entre la
+  // temperatura y el rocío de la MISMA actividad. Se renormaliza aquí, por el mismo
+  // motivo que la penalización: rehacer el sync de todo el histórico no compensa. La
+  // normalización es idempotente, así que las filas ya correctas quedan intactas.
+  const { temp_c, dew_point_c } = normalizeWeatherTemps(w.temp_c, w.dew_point_c, w.humidity_pct);
+  const recomputed = wbgtFromCelsius(temp_c, w.humidity_pct);
+  const wbgt = recomputed != null ? round(recomputed, 1) : w.wbgt_c;
   const race = heatPenaltyPct(wbgt);
   const pctHrMax = avgHr && hrMax ? (avgHr / hrMax) * 100 : null;
   const factor = heatIntensityFactor(pctHrMax);
   return {
     ...w,
+    temp_c: round(temp_c, 1),
+    dew_point_c: round(dew_point_c, 1),
+    wbgt_c: wbgt,
     heat_penalty_pct: race == null ? null : round(race, 1),
     heat_penalty_basis: 'intensidad de competición (~90 % FCmax)',
     heat_penalty_session_pct: race != null && factor != null ? round(race * factor, 1) : null,

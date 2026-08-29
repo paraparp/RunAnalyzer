@@ -234,9 +234,72 @@ export function deriveDataQuality(metadataDTO, summaryDTO) {
   };
 }
 
-// Temperatura de Garmin: puede venir en °F (según ajustes de la cuenta). Heurística:
-// por encima de 45 la tratamos como Fahrenheit (poco realista en °C para correr).
-const toCelsius = (t) => (t == null ? null : t > 45 ? (t - 32) * 5 / 9 : t);
+// ── Unidades de la meteorología de Garmin ────────────────────────────────────
+// El endpoint /weather no declara la unidad: devuelve los valores en la unidad de la
+// cuenta en el momento de la subida (en esta cuenta, °F). La heurística anterior era
+// un umbral por campo —"por encima de 45 es Fahrenheit"— y fallaba de dos maneras:
+//   1. Cualquier lectura de 45 °F o menos (≤ 7,2 °C) se colaba sin convertir. Vigbay
+//      (abril, 45 °F / 36 °F) se servía como 45 °C con rocío 36 °C: WBGT 55,7 y una
+//      penalización por calor del 19,6 % en una media maratón a 7 °C.
+//   2. Al decidirse campo a campo, la misma actividad podía quedar con la temperatura
+//      convertida y el rocío sin convertir (C21K: 10 °C con punto de rocío de 40).
+// El punto de rocío es función determinista de temperatura y humedad, así que sirve de
+// árbitro: se prueban las combinaciones (temperatura y rocío, cada uno tal cual o
+// convertido desde °F), se descartan las físicamente imposibles (rocío por encima de la
+// temperatura del aire) y gana la que reproduce la relación de Magnus. La hipótesis
+// correcta encaja con un error de décimas; la incorrecta se desvía grados.
+const F_TO_C = (t) => ((t - 32) * 5) / 9;
+const MAGNUS_B = 17.27;
+const MAGNUS_C = 237.7;
+
+/** Punto de rocío (°C) a partir de temperatura (°C) y humedad relativa (%). */
+export function dewPointC(ta, rh) {
+  if (!Number.isFinite(ta) || !Number.isFinite(rh) || rh <= 0) return null;
+  const g = Math.log(rh / 100) + (MAGNUS_B * ta) / (MAGNUS_C + ta);
+  return (MAGNUS_C * g) / (MAGNUS_B - g);
+}
+
+/** WBGT aproximado a la sombra (fórmula BoM) desde temperatura (°C) y humedad (%). */
+export function wbgtFromCelsius(ta, rh) {
+  if (!Number.isFinite(ta) || !Number.isFinite(rh)) return null;
+  const e = (rh / 100) * 6.105 * Math.exp((MAGNUS_B * ta) / (MAGNUS_C + ta));
+  return 0.567 * ta + 0.393 * e + 3.94;
+}
+
+/**
+ * Temperatura y punto de rocío en °C a partir de valores de unidad desconocida.
+ * Es idempotente: si ya vienen en °C los deja igual, así que vale tanto para la
+ * respuesta cruda de Garmin como para filas del cache guardadas con la heurística vieja.
+ */
+export function normalizeWeatherTemps(temp, dew, rh) {
+  const t = gnum(temp);
+  const d = gnum(dew);
+  const h = gnum(rh);
+  if (t == null) return { temp_c: null, dew_point_c: null };
+
+  if (d != null && h != null && h > 0) {
+    let best = null;
+    for (const ta of [t, F_TO_C(t)]) {
+      const pred = dewPointC(ta, h);
+      if (pred == null) continue;
+      for (const td of [d, F_TO_C(d)]) {
+        if (td > ta + 0.5) continue; // el rocío no puede superar la temperatura del aire
+        const err = Math.abs(pred - td);
+        if (!best || err < best.err) best = { ta, td, err };
+      }
+    }
+    if (best) return { temp_c: best.ta, dew_point_c: best.td };
+  }
+
+  // Sin humedad o sin rocío no hay árbitro. Queda el umbral de respaldo, pero decidido
+  // UNA vez y aplicado a los dos campos, para no volver a mezclar unidades dentro de la
+  // misma actividad. Sigue sin poder distinguir 45 °F de 45 °C: es el límite del dato.
+  const isF = t > 45;
+  return {
+    temp_c: isF ? F_TO_C(t) : t,
+    dew_point_c: d == null ? null : isF ? F_TO_C(d) : d,
+  };
+}
 
 // Penalización de ritmo por calor, interpolada por tramos sobre la tabla de consenso
 // (Ely et al. / tablas de ajuste por WBGT). El modelo anterior era lineal a 0,65 %/°C
@@ -285,14 +348,13 @@ export function heatPenaltyAtIntensity(wbgt, avgHr, hrMax) {
 /** WBGT (aprox. sombra, fórmula BoM) y penalización de ritmo estimada por calor. */
 export function computeWbgt(weather) {
   if (!weather || weather.temp == null || weather.relativeHumidity == null) return null;
-  const ta = toCelsius(weather.temp);
   const rh = weather.relativeHumidity;
+  const { temp_c: ta, dew_point_c: td } = normalizeWeatherTemps(weather.temp, weather.dewPoint, rh);
   if (ta == null) return null;
-  const e = (rh / 100) * 6.105 * Math.exp((17.27 * ta) / (237.7 + ta)); // presión de vapor (hPa)
-  const wbgt = 0.567 * ta + 0.393 * e + 3.94;
+  const wbgt = wbgtFromCelsius(ta, rh);
   return {
     temp_c: g1(ta),
-    dew_point_c: g1(toCelsius(weather.dewPoint)),
+    dew_point_c: g1(td),
     humidity_pct: rh,
     wbgt_c: g1(wbgt),
     heat_penalty_pct: g1(heatPenaltyPct(wbgt)),
