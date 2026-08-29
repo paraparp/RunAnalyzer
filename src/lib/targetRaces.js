@@ -57,6 +57,33 @@ function ensurePrimary(list, prevList, fallbackId) {
   return list.map(r => (r.id === keepId ? { ...r, primary: true } : r));
 }
 
+/**
+ * Hora de salida oficial ("07:30"): normaliza a HH:MM 24h, '' si se borra y
+ * null si no es una hora válida. El plan cuelga de ella el desayuno, la salida
+ * de casa y el calentamiento, así que conviene guardarla junto a la fecha.
+ */
+export function normalizeStartTime(str) {
+  if (str == null) return '';
+  const s = String(str).trim();
+  if (!s) return '';
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+/**
+ * Sella `planUpdatedAt` sólo cuando el TEXTO del plan cambia: editar el nombre o
+ * el objetivo no debe hacer parecer que el plan es más reciente de lo que es.
+ */
+export function stampPlan(next, prev) {
+  const before = typeof prev?.plan === 'string' ? prev.plan : '';
+  const after = typeof next.plan === 'string' ? next.plan : '';
+  if (after === before) return next;
+  return { ...next, planUpdatedAt: after.trim() ? new Date().toISOString() : undefined };
+}
+
 /** Crea (si no trae id) o actualiza una carrera. Devuelve la lista resultante. */
 export function saveTargetRace(race) {
   const list = getTargetRaces();
@@ -64,13 +91,13 @@ export function saveTargetRace(race) {
   let newId = null;
   if (race.id) {
     const idx = list.findIndex(r => r.id === race.id);
-    if (idx >= 0) list[idx] = { ...list[idx], ...race };
-    else list.push(race);
+    if (idx >= 0) list[idx] = stampPlan({ ...list[idx], ...race }, list[idx]);
+    else list.push(stampPlan(race, null));
   } else {
     newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : String(Date.now());
-    list.push({ ...race, id: newId });
+    list.push(stampPlan({ ...race, id: newId }, null));
   }
   // Orden cronológico: las próximas primero.
   list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));

@@ -1,22 +1,25 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Select, SelectItem } from "@tremor/react";
 import {
     FlagIcon, PencilSquareIcon, TrashIcon,
     DocumentTextIcon, ChevronDownIcon, PlusIcon, XMarkIcon,
-    ArrowsPointingOutIcon, ArrowsPointingInIcon, ClipboardDocumentIcon, CheckIcon, ListBulletIcon, StarIcon,
+    ArrowsPointingOutIcon, ArrowsPointingInIcon, ClipboardDocumentIcon, CheckIcon, ListBulletIcon, StarIcon, TrophyIcon,
+    LinkIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
 import {
     getTargetRaces, saveTargetRace, deleteTargetRace, setPrimaryTargetRace, getPrimaryTargetRace,
-    parseTimeToMinutes, formatMinutes, daysUntil, DISTANCES, TARGET_RACES_EVENT,
+    parseTimeToMinutes, formatMinutes, daysUntil, DISTANCES, TARGET_RACES_EVENT, normalizeStartTime,
 } from '../lib/targetRaces';
 import { detectPlanFormat, isRenderable } from '../lib/planFormat';
+import { raceResult } from '../lib/raceResults';
 import MarkdownText from './MarkdownText';
 import HtmlDocument from './HtmlDocument';
 import RaceCalendar from './RaceCalendar';
 
-const EMPTY_FORM = { name: '', date: '', distance: '21k', time: '', pace: '', plan: '' };
+const EMPTY_FORM = { name: '', date: '', startTime: '', distance: '21k', time: '', pace: '', plan: '' };
 
 // Tiempo total y ritmo medio son la misma información vista de dos maneras: se
 // rellena uno y se deriva el otro con la distancia oficial de la prueba, para no
@@ -78,7 +81,14 @@ const PlanBody = ({ plan, format, raw, frameHeight = '26rem', autoHeight = true 
         : <MarkdownText content={plan} />;
 };
 
-const CopyButton = ({ text, t }) => {
+/** "Actualizado <fecha>" del plan, o null si nunca se ha sellado (planes antiguos). */
+const planUpdatedLabel = (race, t) => {
+    const d = race.planUpdatedAt ? new Date(race.planUpdatedAt) : null;
+    if (!d || Number.isNaN(d.getTime())) return null;
+    return t('targets.plan_updated', { when: d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
+};
+
+const CopyButton = ({ text, t, label, doneLabel, idleIcon }) => {
     const [copied, setCopied] = useState(false);
     const copy = () => {
         navigator.clipboard?.writeText(text).then(() => {
@@ -92,8 +102,8 @@ const CopyButton = ({ text, t }) => {
             onClick={copy}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
         >
-            {copied ? <CheckIcon className="w-3 h-3" /> : <ClipboardDocumentIcon className="w-3 h-3" />}
-            {copied ? t('targets.copied') : t('targets.copy')}
+            {copied ? <CheckIcon className="w-3 h-3" /> : (idleIcon || <ClipboardDocumentIcon className="w-3 h-3" />)}
+            {copied ? (doneLabel || t('targets.copied')) : (label || t('targets.copy'))}
         </button>
     );
 };
@@ -135,11 +145,24 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                     {race.date && (
                         <span className="text-xs font-bold text-slate-400 hidden md:inline shrink-0">
                             {new Date(race.date + 'T00:00:00').toLocaleDateString()}
+                            {race.startTime ? ` · ${race.startTime}` : ''}
+                        </span>
+                    )}
+                    {planUpdatedLabel(race, t) && (
+                        <span className="text-[11px] font-bold text-slate-400 hidden lg:inline shrink-0">
+                            · {planUpdatedLabel(race, t)}
                         </span>
                     )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     {isRenderable(format) && <ViewToggle raw={raw} onChange={onRaw} t={t} />}
+                    <CopyButton
+                        text={typeof window !== 'undefined' ? window.location.href : ''}
+                        t={t}
+                        idleIcon={<LinkIcon className="w-3 h-3" />}
+                        label={t('targets.copy_link')}
+                        doneLabel={t('targets.link_copied')}
+                    />
                     <CopyButton text={race.plan} t={t} />
                     <button
                         type="button"
@@ -179,21 +202,30 @@ const Stat = ({ label, value, sub, tone = 'text-slate-900' }) => (
     </div>
 );
 
-const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onExpand, onEdit, onDelete, onPrimary, t }) => {
+const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle, onRaw, onExpand, onEdit, onDelete, onPrimary, t }) => {
     const days = daysUntil(race.date);
     const isPast = days != null && days < 0;
     const hasPlan = !!race.plan?.trim();
     const format = useMemo(() => detectPlanFormat(race.plan), [race.plan]);
     const showRaw = raw || !isRenderable(format);
     const km = DISTANCES[race.distance];
+    // Resultado real: solo tiene sentido buscarlo una vez pasada la carrera.
+    const result = useMemo(
+        () => (isPast ? raceResult(race, activities) : null),
+        [isPast, race, activities],
+    );
     const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
     const date = race.date ? new Date(race.date + 'T00:00:00') : null;
 
     // Carril izquierdo: la cuenta atrás es el dato que de verdad se mira.
-    const rail = isPrimary
-        ? 'bg-amber-50 text-amber-600 border-amber-100'
-        : isPast
-            ? 'bg-slate-50 text-slate-400 border-slate-100'
+    const rail = isPast
+        ? (result?.achieved === true
+            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+            : result?.achieved === false
+                ? 'bg-rose-50 text-rose-500 border-rose-100'
+                : 'bg-slate-50 text-slate-400 border-slate-100')
+        : isPrimary
+            ? 'bg-amber-50 text-amber-600 border-amber-100'
             : 'bg-blue-50 text-blue-600 border-blue-100';
 
     return (
@@ -215,6 +247,9 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onE
                             <span className="text-[10px] font-black tabular-nums opacity-60 sm:mt-2">
                                 {date.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}
                             </span>
+                            {race.startTime && (
+                                <span className="text-[10px] font-black tabular-nums opacity-60">{race.startTime}</span>
+                            )}
                         </>
                     ) : (
                         <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('targets.no_date')}</span>
@@ -248,6 +283,7 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onE
                                 <Stat
                                     label={t('targets.date')}
                                     value={date ? date.toLocaleDateString(locale) : '—'}
+                                    sub={race.startTime || ''}
                                 />
                                 <Stat
                                     label={t('targets.distance')}
@@ -255,17 +291,50 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onE
                                     sub={km ? 'km' : ''}
                                 />
                                 <Stat
-                                    label={t('targets.goal_time')}
-                                    value={race.goalTimeMin != null ? formatMinutes(race.goalTimeMin) : '—'}
-                                    tone={race.goalTimeMin != null ? 'text-slate-900' : 'text-slate-300'}
+                                    label={result ? t('targets.result_time') : t('targets.goal_time')}
+                                    value={result
+                                        ? formatMinutes(result.time_min)
+                                        : race.goalTimeMin != null ? formatMinutes(race.goalTimeMin) : '—'}
+                                    tone={result
+                                        ? (result.achieved === false ? 'text-rose-600' : 'text-emerald-600')
+                                        : race.goalTimeMin != null ? 'text-slate-900' : 'text-slate-300'}
                                 />
                                 <Stat
-                                    label={t('targets.goal_pace')}
-                                    value={race.goalTimeMin != null && km ? formatMinutes(race.goalTimeMin / km) : '—'}
-                                    sub={race.goalTimeMin != null && km ? '/km' : ''}
-                                    tone={race.goalTimeMin != null && km ? 'text-slate-900' : 'text-slate-300'}
+                                    label={result ? t('targets.result_pace') : t('targets.goal_pace')}
+                                    value={result
+                                        ? (result.pace_min_km != null ? formatMinutes(result.pace_min_km) : '—')
+                                        : race.goalTimeMin != null && km ? formatMinutes(race.goalTimeMin / km) : '—'}
+                                    sub="/km"
+                                    tone={result || (race.goalTimeMin != null && km) ? 'text-slate-900' : 'text-slate-300'}
                                 />
                             </div>
+
+                            {result && (
+                                <div className={`mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2 rounded-xl text-xs font-bold ${result.achieved === false ? 'bg-rose-50 text-rose-600' : result.achieved ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-500'}`}>
+                                    {result.delta_min != null && (
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <TrophyIcon className="w-3.5 h-3.5" />
+                                            {result.achieved ? t('targets.goal_met') : t('targets.goal_missed')}
+                                            <span className="tabular-nums">
+                                                {result.delta_min < 0 ? '−' : '+'}{formatMinutes(Math.abs(result.delta_min))}
+                                            </span>
+                                            <span className="opacity-60 font-semibold">
+                                                {t('targets.vs_goal', { goal: formatMinutes(result.goal_time_min) })}
+                                            </span>
+                                        </span>
+                                    )}
+                                    <span className="opacity-70 font-semibold tabular-nums">
+                                        {(result.distance_m / 1000).toFixed(2)} km
+                                        {result.distance_delta_m > 30 && ` (+${result.distance_delta_m} m)`}
+                                    </span>
+                                    {result.avg_hr && (
+                                        <span className="opacity-70 font-semibold tabular-nums">{Math.round(result.avg_hr)} ppm</span>
+                                    )}
+                                    {result.activity_name && (
+                                        <span className="opacity-50 font-semibold truncate">· {result.activity_name}</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                         <button
@@ -305,6 +374,9 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onE
                             {open ? t('targets.hide_plan') : t('targets.view_plan')}
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
                         </button>
+                        {!open && planUpdatedLabel(race, t) && (
+                            <span className="text-[10px] font-bold text-slate-400 truncate">{planUpdatedLabel(race, t)}</span>
+                        )}
                         {open && (
                             <div className="flex items-center gap-2">
                                 {isRenderable(format) && <ViewToggle raw={showRaw} onChange={(v) => onRaw(race.id, v)} t={t} />}
@@ -334,8 +406,9 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, onToggle, onRaw, onE
 
 // ── Pantalla ────────────────────────────────────────────────────────────────
 
-const TargetRaces = () => {
+const TargetRaces = ({ activities = [], planRaceId = null }) => {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [races, setRaces] = useState(getTargetRaces);
     const [tab, setTab] = useState('list');          // 'list' | 'form'
     const [form, setForm] = useState(EMPTY_FORM);
@@ -343,10 +416,15 @@ const TargetRaces = () => {
     const [error, setError] = useState('');
     const [openPlans, setOpenPlans] = useState(() => new Set());   // planes desplegados
     const [rawPlans, setRawPlans] = useState(() => new Set());     // vistos en crudo
-    const [expandedId, setExpandedId] = useState(null);            // plan a pantalla completa
     const [showPast, setShowPast] = useState(false);
     const [selectedId, setSelectedId] = useState(null); // carrera elegida en el calendario
     const [previewForm, setPreviewForm] = useState(false);
+
+    // El plan abierto a pantalla completa vive en la URL (/targets/<id>): así el
+    // enlace se puede guardar, compartir o abrir desde el banner del dashboard.
+    const expandedId = planRaceId || null;
+    const openPlan = useCallback((id) => navigate(`/targets/${id}`), [navigate]);
+    const closePlan = useCallback(() => navigate('/targets'), [navigate]);
 
     useEffect(() => {
         const reload = () => setRaces(getTargetRaces());
@@ -373,10 +451,13 @@ const TargetRaces = () => {
         if (!form.name.trim()) { setError(t('targets.err_name')); return; }
         const min = parseTimeToMinutes(form.time);
         if (form.time && min == null) { setError(t('targets.err_time')); return; }
+        const startTime = normalizeStartTime(form.startTime);
+        if (startTime == null) { setError(t('targets.err_start_time')); return; }
         saveTargetRace({
             id: editingId || undefined,
             name: form.name.trim(),
             date: form.date,
+            startTime,
             distance: form.distance,
             goalTimeMin: min,
             plan: form.plan,
@@ -391,6 +472,7 @@ const TargetRaces = () => {
         setForm({
             name: r.name,
             date: r.date || '',
+            startTime: r.startTime || '',
             distance: r.distance,
             time: r.goalTimeMin != null ? formatMinutes(r.goalTimeMin) : '',
             pace: r.goalTimeMin != null ? paceFromTime(formatMinutes(r.goalTimeMin), r.distance) : '',
@@ -404,7 +486,7 @@ const TargetRaces = () => {
     const handleDelete = (id) => {
         setRaces(deleteTargetRace(id));
         if (editingId === id) { resetForm(); setTab('list'); }
-        if (expandedId === id) setExpandedId(null);
+        if (expandedId === id) closePlan();
     };
 
     const startNew = () => { resetForm(); setTab('form'); };
@@ -458,11 +540,12 @@ const TargetRaces = () => {
             race={r}
             isPrimary={r.id === primaryId}
             isSelected={r.id === selectedId}
+            activities={activities}
             open={openPlans.has(r.id)}
             raw={rawPlans.has(r.id)}
             onToggle={togglePlan}
             onRaw={setRaw}
-            onExpand={setExpandedId}
+            onExpand={openPlan}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onPrimary={handlePrimary}
@@ -537,6 +620,16 @@ const TargetRaces = () => {
                                     onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))}
                                     className={inputClass}
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.start_time')}</label>
+                                <input
+                                    type="time"
+                                    value={form.startTime}
+                                    onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
+                                    className={inputClass}
+                                />
+                                <p className="mt-1.5 text-[10px] font-medium text-slate-400 leading-snug">{t('targets.start_time_hint')}</p>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.distance')}</label>
@@ -686,7 +779,7 @@ const TargetRaces = () => {
                     format={expandedFormat}
                     raw={rawPlans.has(expandedRace.id) || !isRenderable(expandedFormat)}
                     onRaw={(v) => setRaw(expandedRace.id, v)}
-                    onClose={() => setExpandedId(null)}
+                    onClose={closePlan}
                     t={t}
                 />
             )}

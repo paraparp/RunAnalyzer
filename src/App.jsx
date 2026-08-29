@@ -27,6 +27,7 @@ import ConsistencyHeatmap from './components/ConsistencyHeatmap';
 import GearTracker from './components/GearTracker';
 import AIInsights from './components/AIInsights';
 import RaceDetector from './components/RaceDetector';
+import CriticalSpeed from './components/CriticalSpeed';
 import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
@@ -78,6 +79,7 @@ const NAV_ITEMS = [
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
   { id: 'racehistory', icon: TrophyIcon },
+  { id: 'criticalspeed', icon: BoltIcon },
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'qa', icon: ChatBubbleLeftRightIcon },
@@ -90,7 +92,7 @@ const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
   { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'racehistory', 'fitness', 'health'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'racehistory', 'criticalspeed', 'fitness', 'health'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
 
@@ -166,7 +168,7 @@ const Dashboard = ({ user, handleLogout }) => {
   const [activitiesPage, setActivitiesPage] = useState(1);
   const ACTIVITIES_PAGE_SIZE = 10;
   // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
-  const { view: viewParam } = useParams();
+  const { view: viewParam, raceId } = useParams();
   const navigate = useNavigate();
   const currentView = NAV_ITEMS.some(i => i.id === viewParam) ? viewParam : 'dashboard';
   const setCurrentView = useCallback(
@@ -903,7 +905,10 @@ const Dashboard = ({ user, handleLogout }) => {
               <div className="fade-in space-y-6">
 
                 {/* Next target race countdown */}
-                <NextRaceBanner onManage={() => setCurrentView('targets')} />
+                <NextRaceBanner
+                  onManage={() => setCurrentView('targets')}
+                  onOpenPlan={(id) => navigate(`/targets/${id}`)}
+                />
 
                 {/* Mobile year filter */}
                 <div className="sm:hidden flex items-center gap-2 px-1">
@@ -1411,8 +1416,9 @@ const Dashboard = ({ user, handleLogout }) => {
                 gallery:     <RouteGallery activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
-                targets:     <TargetRaces />,
+                targets:     <TargetRaces activities={runningActivities} planRaceId={raceId} />,
                 racehistory: <RaceDetector activities={runningActivities} />,
+                criticalspeed: <CriticalSpeed activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 qa:          <RunQA activities={runningActivities} />,
@@ -1530,7 +1536,7 @@ function App() {
         <Route path="/strava-callback" element={
           <StravaCallback onConnect={handleStravaConnected} />
         } />
-        <Route path="/:view?" element={
+        <Route path="/:view?/:raceId?" element={
           !user ? (
             <LandingPage />
           ) : !storageReady ? (

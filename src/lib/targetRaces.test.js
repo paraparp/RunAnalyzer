@@ -12,7 +12,7 @@ vi.mock('./cloudStorage', () => ({
 
 const {
   saveTargetRace, setPrimaryTargetRace, getPrimaryTargetRace, getTargetRaces,
-  parseTimeToMinutes, formatMinutes, DISTANCES,
+  parseTimeToMinutes, formatMinutes, DISTANCES, normalizeStartTime, stampPlan,
 } = await import('./targetRaces');
 
 const day = (offset) => {
@@ -92,5 +92,43 @@ describe('tiempo objetivo y ritmo medio', () => {
   it('ida y vuelta no desvía el tiempo original', () => {
     const pace = parseTimeToMinutes('1:38:00') / DISTANCES['21k'];
     expect(formatMinutes(pace * DISTANCES['21k'])).toBe('1:38:00');
+  });
+});
+
+describe('hora de salida', () => {
+  it('normaliza a HH:MM y acepta el hueco vacío', () => {
+    expect(normalizeStartTime('7:30')).toBe('07:30');
+    expect(normalizeStartTime(' 09:05 ')).toBe('09:05');
+    expect(normalizeStartTime('')).toBe('');
+    expect(normalizeStartTime(undefined)).toBe('');
+  });
+
+  it('rechaza horas imposibles o mal escritas', () => {
+    expect(normalizeStartTime('24:00')).toBeNull();
+    expect(normalizeStartTime('08:60')).toBeNull();
+    expect(normalizeStartTime('mañana')).toBeNull();
+  });
+
+  it('viaja con la carrera', () => {
+    store.clear();
+    saveTargetRace({ name: 'Media', date: day(30), distance: '21k', startTime: '09:00' });
+    expect(getTargetRaces()[0].startTime).toBe('09:00');
+  });
+});
+
+describe('fecha de actualización del plan', () => {
+  it('se sella al cambiar el texto del plan', () => {
+    const stamped = stampPlan({ plan: 'semana 1' }, { plan: '' });
+    expect(stamped.planUpdatedAt).toBeTruthy();
+  });
+
+  it('no se toca si el plan no cambia', () => {
+    const prev = { plan: 'igual', planUpdatedAt: '2026-01-01T00:00:00.000Z' };
+    expect(stampPlan({ ...prev, name: 'otro nombre' }, prev).planUpdatedAt).toBe(prev.planUpdatedAt);
+  });
+
+  it('borrar el plan quita el sello', () => {
+    const prev = { plan: 'algo', planUpdatedAt: '2026-01-01T00:00:00.000Z' };
+    expect(stampPlan({ ...prev, plan: '' }, prev).planUpdatedAt).toBeUndefined();
   });
 });

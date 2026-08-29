@@ -1761,6 +1761,52 @@ async function readTargetRaces(userId) {
  * la marcada con `primary` y, si no hay ninguna, la próxima futura. Es la carrera
  * sobre la que se basan planes, predicciones y análisis; las demás son informativas.
  */
+// ── Resultado real de una carrera objetivo ──────────────────────────────────
+// Espejo de src/lib/raceResults.js: se empareja por FECHA (el nombre de la
+// actividad casi nunca coincide con el del evento) y, si ese día hay varias, se
+// elige la más cercana a la distancia oficial. Cierra el ciclo: el modelo puede
+// contrastar lo que se planeó con lo que de verdad pasó.
+const RACE_DISTANCE_M = { '5k': 5000, '10k': 10000, '21k': 21098, '42k': 42195 };
+
+function findRaceActivity(race, activities) {
+  if (!race?.date) return null;
+  const target = RACE_DISTANCE_M[race.distance] || null;
+  const sameDay = activities.filter((a) => isRunning(a)
+    && String(a.start_date_local || a.start_date || '').slice(0, 10) === race.date
+    && a.distance > 0);
+  if (!sameDay.length) return null;
+  const candidates = target ? sameDay.filter((a) => a.distance >= target * 0.8) : sameDay;
+  const pool = candidates.length ? candidates : sameDay;
+  if (!target) return pool.reduce((best, a) => (a.distance > best.distance ? a : best), pool[0]);
+  return pool.reduce((best, a) => (
+    Math.abs(a.distance - target) < Math.abs(best.distance - target) ? a : best
+  ), pool[0]);
+}
+
+function shapeRaceResult(race, activity) {
+  if (!activity) return null;
+  const timeMin = (activity.moving_time || 0) / 60;
+  if (!timeMin) return null;
+  const distanceM = Math.round(activity.distance);
+  const officialM = RACE_DISTANCE_M[race.distance] || null;
+  const goal = race.goalTimeMin ?? null;
+  return {
+    activity_id: activity.id,
+    activity_name: activity.name || null,
+    time_min: round(timeMin),
+    pace_min_km: distanceM > 0 ? round(timeMin / (distanceM / 1000)) : null,
+    distance_m: distanceM,
+    // > 0 significa que se corrió MÁS que la distancia oficial: el tiempo es una
+    // cota superior del tiempo a esa distancia. Nunca se reescala.
+    distance_delta_m: officialM != null ? distanceM - officialM : null,
+    avg_hr: activity.average_heartrate || null,
+    elevation_gain: activity.total_elevation_gain ?? null,
+    goal_time_min: goal,
+    delta_min: goal != null ? round(timeMin - goal) : null,   // negativo = cumplido
+    achieved: goal != null ? timeMin <= goal : null,
+  };
+}
+
 function primaryRaceId(list) {
   const marked = list.find((r) => r.primary);
   if (marked) return marked.id;
@@ -1798,13 +1844,16 @@ export function detectPlanFormat(text) {
   return MD_PATTERNS.some((re) => re.test(str)) ? 'markdown' : 'text';
 }
 
-function shapeRace(r, { include_plan = true, primary_id = undefined } = {}) {
+function shapeRace(r, { include_plan = true, primary_id = undefined, activities = null } = {}) {
   const days = daysUntil(r.date);
   const plan = typeof r.plan === 'string' ? r.plan : null;
   return {
     id: r.id,
     name: r.name ?? null,
     date: r.date || null,
+    // Hora del disparo (HH:MM local del evento): el plan cuelga de ella el
+    // desayuno, la salida de casa y el calentamiento.
+    start_time: r.startTime || null,
     distance: r.distance ?? null,
     goal_time: formatMinutes(r.goalTimeMin),
     goal_time_min: r.goalTimeMin ?? null,
@@ -1812,8 +1861,13 @@ function shapeRace(r, { include_plan = true, primary_id = undefined } = {}) {
     is_past: days == null ? null : days < 0,
     // Principal EFECTIVA: la marcada o, en su defecto, la próxima futura.
     is_primary: primary_id === undefined ? !!r.primary : r.id === primary_id,
+    // Resultado real, solo si la carrera ya se corrió y se encuentra la actividad.
+    ...(activities && (days ?? 0) < 0
+      ? { result: shapeRaceResult(r, findRaceActivity(r, activities)) }
+      : {}),
     has_plan: !!(plan && plan.trim()),
     plan_format: detectPlanFormat(plan),
+    plan_updated_at: r.planUpdatedAt ?? null,
     ...(include_plan ? { plan } : { plan_chars: plan ? plan.length : 0 }),
   };
 }
@@ -1825,10 +1879,14 @@ function shapeRace(r, { include_plan = true, primary_id = undefined } = {}) {
 export async function listTargetRaces(userId, { include_past = false, include_plan = true } = {}) {
   const list = await readTargetRaces(userId);
   const primary_id = primaryRaceId(list);
-  const races = list
+  const kept = list
     .filter((r) => include_past || (daysUntil(r.date) ?? 0) >= 0)
-    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
-    .map((r) => shapeRace(r, { include_plan, primary_id }));
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  // El histórico solo se carga si hay alguna carrera ya corrida que emparejar.
+  const activities = kept.some((r) => (daysUntil(r.date) ?? 0) < 0)
+    ? await getActivities(userId)
+    : null;
+  const races = kept.map((r) => shapeRace(r, { include_plan, primary_id, activities }));
   return {
     count: races.length,
     primary_race_id: primary_id,
@@ -1843,7 +1901,8 @@ export async function getTargetRace(userId, raceId) {
   const list = await readTargetRaces(userId);
   const race = list.find((r) => String(r.id) === String(raceId));
   if (!race) return { error: `No existe la carrera objetivo "${raceId}"` };
-  return shapeRace(race, { primary_id: primaryRaceId(list) });
+  const activities = (daysUntil(race.date) ?? 0) < 0 ? await getActivities(userId) : null;
+  return shapeRace(race, { primary_id: primaryRaceId(list), activities });
 }
 
 /**
@@ -1870,7 +1929,7 @@ export async function setPrimaryTargetRace(userId, raceId) {
  * escribir el plan sin reenviar nombre/fecha/objetivo.
  */
 export async function upsertTargetRace(userId, {
-  race_id, name, date, distance, goal_time, plan, append_plan, set_primary,
+  race_id, name, date, start_time, distance, goal_time, plan, append_plan, set_primary,
 } = {}) {
   const list = await readTargetRaces(userId);
   const prevList = list.map((r) => ({ ...r }));
@@ -1882,6 +1941,13 @@ export async function upsertTargetRace(userId, {
   }
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { error: 'date debe tener formato YYYY-MM-DD' };
+  }
+  let startTime;
+  if (start_time !== undefined) {
+    startTime = String(start_time ?? '').trim();
+    if (startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
+      return { error: 'start_time debe tener formato HH:MM (24h)' };
+    }
   }
   let goalTimeMin;
   if (goal_time != null) {
@@ -1902,9 +1968,14 @@ export async function upsertTargetRace(userId, {
     id: prev.id || (globalThis.crypto?.randomUUID?.() ?? String(Date.now())),
     ...(name !== undefined ? { name } : {}),
     ...(date !== undefined ? { date } : {}),
+    ...(startTime !== undefined ? { startTime } : {}),
     ...(distance !== undefined ? { distance } : {}),
     ...(goalTimeMin !== undefined ? { goalTimeMin } : {}),
     ...(nextPlan !== undefined ? { plan: nextPlan } : {}),
+    // Sello sólo si cambia el texto del plan: tocar nombre o fecha no lo "actualiza".
+    ...(nextPlan !== undefined && nextPlan !== prevPlan
+      ? { planUpdatedAt: String(nextPlan || '').trim() ? new Date().toISOString() : undefined }
+      : {}),
   };
   if (!race.distance) race.distance = '21k';
 
@@ -1931,4 +2002,146 @@ export async function deleteTargetRace(userId, raceId) {
   if (next.length === list.length) return { error: `No existe la carrera objetivo "${raceId}"` };
   await writeKey(userId, TARGET_RACES_KEY, next);
   return { ok: true, deleted: String(raceId), remaining: next.length };
+}
+
+// ── Velocidad crítica ───────────────────────────────────────────────────────
+// Espejo de src/lib/criticalSpeed.js. Modelo de dos parámetros: d = CS·t + D′.
+//   CS  velocidad crítica (m/s): mayor intensidad sostenible en estado estable;
+//       es el umbral MEDIDO del atleta, no una estimación de tablas.
+//   D′  reserva anaeróbica (m): metros disponibles por encima de CS.
+// Solo es válido de ~2 a ~30 min: por debajo manda la potencia anaeróbica y por
+// encima aparece una fatiga que el modelo ignora, así que en media y maratón
+// predice tiempos DEMASIADO BUENOS. Las predicciones fuera de rango se marcan.
+const CS_FIT_MIN_S = 120;
+const CS_FIT_MAX_S = 1800;
+
+function csCurve(activities, { from = null, to = null } = {}) {
+  const best = new Map();
+  const consider = (id, distance, timeS, a, source) => {
+    if (!id || !(timeS > 0) || !(distance > 0)) return;
+    const prev = best.get(id);
+    if (prev && prev.time_s <= timeS) return;
+    best.set(id, {
+      id,
+      distance_m: Math.round(distance),
+      time_s: Math.round(timeS),
+      time: fmtTime(timeS),
+      pace_min_km: round((timeS / 60) / (distance / 1000)),
+      date: String(a.start_date_local || a.start_date || '').slice(0, 10),
+      activity_id: a.id,
+      activity_name: a.name || null,
+      source,
+    });
+  };
+  for (const a of activities) {
+    if (!isRunning(a)) continue;
+    const day = String(a.start_date_local || a.start_date || '').slice(0, 10);
+    if (from && day < from) continue;
+    if (to && day > to) continue;
+    for (const e of a.best_efforts || []) {
+      consider(canonEffortByMeters(e.distance), e.distance, e.moving_time || e.elapsed_time, a, 'best_effort');
+    }
+    // Carreras previas al ingest de efforts: su tiempo total ES el mejor esfuerzo.
+    consider(raceDistanceId(a.distance), a.distance, a.moving_time || a.elapsed_time, a, 'total_distance');
+  }
+  return [...best.values()].sort((x, y) => x.distance_m - y.distance_m);
+}
+
+function csFit(points) {
+  const used = points.filter((p) => p.time_s >= CS_FIT_MIN_S && p.time_s <= CS_FIT_MAX_S);
+  if (used.length < 3) return null;
+  const n = used.length;
+  const sumT = used.reduce((s, p) => s + p.time_s, 0);
+  const sumD = used.reduce((s, p) => s + p.distance_m, 0);
+  const sumTT = used.reduce((s, p) => s + p.time_s ** 2, 0);
+  const sumTD = used.reduce((s, p) => s + p.time_s * p.distance_m, 0);
+  const denom = n * sumTT - sumT * sumT;
+  if (denom === 0) return null;
+  const cs = (n * sumTD - sumT * sumD) / denom;
+  const dPrime = (sumD - cs * sumT) / n;
+  if (!(cs > 0) || !(dPrime > 0)) return null;
+  const meanD = sumD / n;
+  const ssTot = used.reduce((s, p) => s + (p.distance_m - meanD) ** 2, 0);
+  const ssRes = used.reduce((s, p) => s + (p.distance_m - (cs * p.time_s + dPrime)) ** 2, 0);
+  return {
+    cs_m_s: round(cs, 3),
+    cs_pace_min_km: round((1000 / cs) / 60),
+    cs_pace: fmtTime((1000 / cs)),
+    d_prime_m: Math.round(dPrime),
+    r2: round(ssTot > 0 ? 1 - ssRes / ssTot : 1, 4),
+    n,
+    used_efforts: used.map((p) => p.id),
+    valid_window: '2-30 min',
+    _cs: cs,
+    _d: dPrime,
+  };
+}
+
+/**
+ * Curva de mejores esfuerzos + ajuste de velocidad crítica + predicciones.
+ * `compare_previous` añade la curva del periodo anterior de igual duración para
+ * ver hacia dónde se ha movido (si mejoran los cortos o la resistencia).
+ */
+export async function getCriticalSpeed(userId, { from = null, to = null, compare_previous = false } = {}) {
+  const activities = await getActivities(userId);
+  const curve = csCurve(activities, { from, to });
+  const fit = csFit(curve);
+
+  if (!fit) {
+    return {
+      error: 'No hay suficientes esfuerzos a tope de entre 2 y 30 min para ajustar el modelo (hacen falta 3).',
+      efforts_found: curve.length,
+      curve,
+    };
+  }
+
+  const predictions = [
+    { id: '5k', m: 5000 }, { id: '10k', m: 10000 },
+    { id: 'half-marathon', m: 21097 }, { id: 'marathon', m: 42195 },
+  ].map(({ id, m }) => {
+    const t = (m - fit._d) / fit._cs;
+    const real = curve.find((p) => p.id === id);
+    return {
+      distance: id,
+      distance_m: m,
+      model_time: fmtTime(t),
+      model_time_s: Math.round(t),
+      model_pace_min_km: round((t / 60) / (m / 1000)),
+      // Fuera de la ventana el modelo ignora la fatiga: es COTA INFERIOR de tiempo.
+      optimistic: t > CS_FIT_MAX_S,
+      best_time: real ? real.time : null,
+      best_time_s: real ? real.time_s : null,
+      delta_s: real ? Math.round(real.time_s - t) : null,
+    };
+  });
+
+  let previous = null;
+  if (compare_previous && from) {
+    const span = Date.parse(to || new Date().toISOString().slice(0, 10)) - Date.parse(from);
+    if (span > 0) {
+      const prevFrom = new Date(Date.parse(from) - span).toISOString().slice(0, 10);
+      const prevCurve = csCurve(activities, { from: prevFrom, to: from });
+      const prevFit = csFit(prevCurve);
+      previous = prevFit
+        ? {
+          from: prevFrom, to: from,
+          cs_pace: prevFit.cs_pace, cs_m_s: prevFit.cs_m_s, d_prime_m: prevFit.d_prime_m, r2: prevFit.r2, n: prevFit.n,
+          cs_change_m_s: round(fit.cs_m_s - prevFit.cs_m_s, 3),
+          d_prime_change_m: Math.round(fit.d_prime_m - prevFit.d_prime_m),
+        }
+        : { from: prevFrom, to: from, error: 'Sin ajuste en el periodo anterior' };
+    }
+  }
+
+  delete fit._cs; delete fit._d;
+  return {
+    range: { from, to },
+    fit,
+    predictions,
+    curve,
+    previous,
+    note: 'CS es el umbral medido del atleta y D′ su reserva anaeróbica. El ajuste solo usa '
+      + 'esfuerzos de 2-30 min; las predicciones con optimistic=true ignoran la fatiga de las '
+      + 'pruebas largas y son una cota inferior del tiempo, no un pronóstico.',
+  };
 }

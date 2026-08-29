@@ -18,6 +18,7 @@ import {
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
   listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace, setPrimaryTargetRace,
+  getCriticalSpeed,
 } from './_lib/mcp-store.js';
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
@@ -392,10 +393,23 @@ const TOOLS = [
     },
     run: (userId, args) => scheduleWorkout(userId, args.workout_id, args.date).then(text),
   },
+  {
+    name: 'critical_speed',
+    description: 'Ajusta el modelo de VELOCIDAD CRÍTICA (d = CS·t + D′) sobre los mejores esfuerzos del histórico: CS es el umbral MEDIDO del atleta (m/s y ritmo) y D′ su reserva anaeróbica en metros. Devuelve además la curva de mejores marcas por distancia y las predicciones de 5K/10K/21K/42K. El ajuste solo usa esfuerzos de 2-30 min; las predicciones con optimistic=true son cota inferior, no pronóstico. Con compare_previous compara con el periodo anterior de igual duración para ver si mejora la velocidad o la resistencia.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: dateArg,
+        to: dateArg,
+        compare_previous: { type: 'boolean', description: 'Añadir el ajuste del periodo anterior de igual duración (requiere `from`)' },
+      },
+    },
+    run: (userId, args) => getCriticalSpeed(userId, args).then(text),
+  },
   // ── Carreras objetivo y plan de entrenamiento (Supabase, mismo dato que la app) ──
   {
     name: 'list_target_races',
-    description: 'Lista las carreras objetivo del usuario (nombre, fecha, distancia, tiempo meta, días restantes) y su plan de entrenamiento en texto libre. La que trae is_primary=true es el OBJETIVO PRINCIPAL: úsala como referencia para planes, predicciones y análisis; las demás son informativas. Usa include_plan:false si solo necesitas los metadatos.',
+    description: 'Lista las carreras objetivo del usuario (nombre, fecha, distancia, tiempo meta, días restantes) y su plan de entrenamiento en texto libre. La que trae is_primary=true es el OBJETIVO PRINCIPAL: úsala como referencia para planes, predicciones y análisis; las demás son informativas. Las ya corridas (include_past:true) traen `result` con el tiempo REAL, el ritmo y `delta_min` frente al objetivo (negativo = cumplido): sirve para contrastar lo planeado con lo que pasó. Usa include_plan:false si solo necesitas los metadatos.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -424,6 +438,7 @@ const TOOLS = [
         race_id: { type: 'string', description: 'Id de la carrera a editar; omítelo para crear una nueva' },
         name: { type: 'string', description: 'Nombre del evento (obligatorio al crear)' },
         date: { ...dateArg, description: 'Fecha YYYY-MM-DD de la carrera' },
+        start_time: { type: 'string', description: 'Hora de salida HH:MM (24h, hora local del evento); cadena vacía para borrarla. Úsala para cuadrar en el plan el desayuno, la salida de casa y el calentamiento' },
         distance: { type: 'string', enum: ['5k', '10k', '21k', '42k'] },
         goal_time: { type: 'string', description: 'Tiempo objetivo: h:mm:ss, mm:ss o minutos' },
         plan: { type: 'string', description: 'Plan de entrenamiento en texto libre. REEMPLAZA el plan anterior; cadena vacía para borrarlo' },
@@ -528,6 +543,7 @@ const TITLES = {
   get_garmin_workout: 'Leer entreno Garmin', create_garmin_workout: 'Crear entreno Garmin',
   update_garmin_workout: 'Modificar entreno Garmin', delete_garmin_workout: 'Borrar entreno Garmin',
   schedule_garmin_workout: 'Agendar entreno Garmin',
+  critical_speed: 'Velocidad crítica',
   list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
   upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
   set_primary_target_race: 'Fijar objetivo principal',
@@ -624,6 +640,7 @@ const INSTRUCTIONS = [
   'Dinámica: list_running_dynamics excluye por defecto los runs < 3 km (calentamientos sueltos que',
   'sesgan las medias); `min_distance_km: 0` los incluye.',
   'Objetivo: la carrera con `is_primary` es el OBJETIVO PRINCIPAL del atleta; basa planes,',
+  'predicciones y consejos en ella. Las carreras pasadas traen `result` (tiempo real vs objetivo).',
   'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
 ].join(' ');
