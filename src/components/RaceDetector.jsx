@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { TrophyIcon } from '@heroicons/react/24/outline';
+import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell
@@ -54,21 +55,6 @@ function categorizeDistanceDef(meters) {
     if (cat.id !== 'other' && meters >= cat.min && meters <= cat.max) return cat;
   }
   return DISTANCE_CATEGORY_DEFS[DISTANCE_CATEGORY_DEFS.length - 1];
-}
-
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.round(seconds % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function formatPace(minPerKm) {
-  if (!minPerKm || minPerKm <= 0 || minPerKm > 15) return '--:--';
-  const mins = Math.floor(minPerKm);
-  const secs = Math.round((minPerKm - mins) * 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
 // Nº mínimo de esfuerzos en una distancia para que el percentil sea significativo.
@@ -145,9 +131,9 @@ export default function RaceDetector({ activities }) {
           distance: a.distance,
           km: (a.distance / 1000).toFixed(2),
           time: a.moving_time,
-          timeLabel: formatTime(a.moving_time),
+          timeLabel: formatDuration(a.moving_time),
           pace,
-          paceLabel: formatPace(pace),
+          paceLabel: formatPaceFromMinPerKm(pace),
           category: { ...catDef, label: catLabel },
           categoryId: catDef.id,
           hr: a.average_heartrate || 0,
@@ -274,11 +260,11 @@ export default function RaceDetector({ activities }) {
                   <YAxis
                     reversed
                     tick={{ fontSize: 10, fill: '#94a3b8' }}
-                    tickFormatter={v => formatPace(v)}
+                    tickFormatter={v => formatPaceFromMinPerKm(v)}
                     domain={['auto', 'auto']}
                   />
                   <RechartsTooltip
-                    formatter={(val) => [formatPace(val), t('races.pace_label')]}
+                    formatter={(val) => [formatPaceFromMinPerKm(val), t('races.pace_label')]}
                     labelFormatter={(label) => label}
                     contentStyle={{ fontSize: 12 }}
                   />

@@ -307,7 +307,7 @@ export function normalizeWeatherTemps(temp, dew, rh) {
 //
 // IMPORTANTE: estos valores son el coste a intensidad de COMPETICIÓN (~90 % FCmax),
 // que es como están medidas las tablas. Para una sesión concreta hay que escalarlos
-// con heatIntensityFactor(); ver heatPenaltyAtIntensity().
+// con heatIntensityFactor(); ver shapeWeather() en mcp-store.js.
 const HEAT_TABLE = [[12, 0], [18, 1], [20, 2], [23, 4], [26, 6], [29, 9], [32, 13]];
 
 /** % de pérdida de ritmo a intensidad de competición para un WBGT dado. */
@@ -334,15 +334,6 @@ export function heatPenaltyPct(wbgt) {
 export function heatIntensityFactor(pctHrMax) {
   if (pctHrMax == null || !Number.isFinite(pctHrMax)) return null;
   return Math.min(1, Math.max(0.15, (pctHrMax - 67) / 23));
-}
-
-/** Penalización ya escalada a la intensidad real de la sesión (avg_hr sobre FCmax). */
-export function heatPenaltyAtIntensity(wbgt, avgHr, hrMax) {
-  const base = heatPenaltyPct(wbgt);
-  if (base == null) return null;
-  if (!avgHr || !hrMax) return null;
-  const factor = heatIntensityFactor((avgHr / hrMax) * 100);
-  return factor == null ? null : base * factor;
 }
 
 /** WBGT (aprox. sombra, fórmula BoM) y penalización de ritmo estimada por calor. */

@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Logo from './Logo';
 import { useTranslation } from 'react-i18next';
+import { formatPaceFromSecPerKm } from '../lib/timeFormat';
 
 const tx = (lang, en, es) => (lang.startsWith('es') ? es : en);
 
@@ -751,8 +752,6 @@ const LT_DATA = [
     { m: 'Feb', v: 258 }, // 4:18  ← best
 ];
 
-const fmtPace = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-
 const LTChart = () => {
     const W = 420, H = 220, PL = 48, PR = 16, PT = 20, PB = 36;
     const cW = W - PL - PR, cH = H - PT - PB;
@@ -786,11 +785,11 @@ const LTChart = () => {
                     </p>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-black text-indigo-600 tabular-nums">
-                            {fmtPace(vals[vals.length - 1])}
+                            {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
                         <span className="text-slate-400 text-sm">/km</span>
                         <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100">
-                            ↑ {fmtPace(vals[0])} → {fmtPace(vals[vals.length - 1])}
+                            ↑ {formatPaceFromSecPerKm(vals[0])} → {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
                     </div>
                 </div>
@@ -819,7 +818,7 @@ const LTChart = () => {
                                 stroke="#f1f5f9" strokeWidth="1" />
                             <text x={PL - 6} y={gy + 4} textAnchor="end"
                                 fill="#94a3b8" fontSize="8" fontWeight="600">
-                                {fmtPace(paceVal)}
+                                {formatPaceFromSecPerKm(paceVal)}
                             </text>
                         </g>
                     );
@@ -855,7 +854,7 @@ const LTChart = () => {
                         width="48" height="18" rx="5" fill="#6366f1" />
                     <text x={x(bestIdx)} y={y(vals[bestIdx]) - 13}
                         textAnchor="middle" fill="white" fontSize="9" fontWeight="800">
-                        🏆 {fmtPace(vals[bestIdx])}
+                        🏆 {formatPaceFromSecPerKm(vals[bestIdx])}
                     </text>
                 </motion.g>
 

@@ -226,11 +226,6 @@ export async function fetchModelLists(signal) {
   }
 }
 
-/** Lista de modelos Gemini disponibles (proxy de ListModels). */
-export async function fetchGeminiModels(signal) {
-  return (await fetchModelLists(signal)).gemini;
-}
-
 /** Grupos "empresa → modelos" listos para el selector (incluye reserva Gemini). */
 export async function fetchModelGroups(signal) {
   return buildModelGroups(await fetchModelLists(signal));

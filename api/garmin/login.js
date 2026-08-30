@@ -1,6 +1,7 @@
 import { createClient } from '../_lib/garmin-helpers.js';
 
-export default async function handler(req, res) {
+/** Ver la nota de inyección de cliente en `health/stream.js`. */
+export default async function handler(req, res, { getClient = createClient, onError } = {}) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { username, password } = req.body ?? {};
@@ -9,9 +10,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    await createClient(username, password);
+    await getClient(username, password);
     res.json({ ok: true });
   } catch (e) {
+    onError?.(e);
     res.status(401).json({ error: 'Login fallido: ' + e.message });
   }
 }

@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
+import useGarminWearableData from '../hooks/useGarminWearableData';
 import { streamAI, buildProviderChain, parseModelValue } from '../services/ai';
 import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import MarkdownText from './MarkdownText';
 import { paceStr } from '../lib/aiInsights';
+import { formatDuration } from '../lib/timeFormat';
 
 // Typing indicator component
 const TypingIndicator = () => (
@@ -47,7 +49,7 @@ const RunQA = ({ activities }) => {
     const [numRaces, setNumRaces] = useState('10');
     const [filterMode, setFilterMode] = useState('count'); // 'count' | 'period'
     const [selectedPeriod, setSelectedPeriod] = useState('30d');
-    const [garmin, setGarmin] = useState(null);
+    const { garmin } = useGarminWearableData();
     const [garminPeriod, setGarminPeriod] = useState('none'); // 'none' | '30d' | '90d'
     const [loading, setLoading] = useState(false);
     const [conversation, setConversation] = useState([]);
@@ -104,16 +106,6 @@ const RunQA = ({ activities }) => {
         } catch {}
     }, []);
 
-    useEffect(() => {
-        try {
-            const s = cloudStorage.getItem('garmin_cardiac_data');
-            if (s) { setGarmin(JSON.parse(s)); return; }
-        } catch {}
-        fetch('/garmin_data.json')
-            .then(r => r.ok ? r.json() : null)
-            .then(j => setGarmin(j?.data ?? null))
-            .catch(() => setGarmin(null));
-    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -140,8 +132,6 @@ const RunQA = ({ activities }) => {
     const formatActivitiesForPrompt = (acts) => {
         return acts.map((a, idx) => {
             const distKm = (a.distance / 1000).toFixed(2);
-            const timeMin = Math.floor(a.moving_time / 60);
-            const timeSec = a.moving_time % 60;
             // Ritmo en M:SS (el decimal "5.32 min/km" se presta a leerse como 5:32)
             // y con guard: una actividad manual sin distancia no debe meter Infinity.
             const pace = a.distance > 0 && a.moving_time > 0
@@ -156,7 +146,7 @@ const RunQA = ({ activities }) => {
             if (a.max_speed) extras.push(`Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h`);
             if (a.average_cadence) extras.push(`Cadencia: ${Math.round(a.average_cadence * 2)} spm`);
             return `${idx + 1}. "${a.name}" - ${date}
-   • Distancia: ${distKm} km | Tiempo: ${timeMin}:${timeSec.toString().padStart(2, '0')} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
+   • Distancia: ${distKm} km | Tiempo: ${formatDuration(a.moving_time)} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
         }).join('\n\n');
     };
 

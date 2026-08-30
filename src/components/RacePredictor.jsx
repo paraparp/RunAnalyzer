@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
+import useGarminWearableData from '../hooks/useGarminWearableData';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import {
     Card,
@@ -18,10 +19,12 @@ import AIToolHeader from './AIToolHeader';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import NextRaceBanner from './NextRaceBanner';
 import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { KM_BY_LABEL, LABEL_BY_KEY } from '../lib/raceDistances';
+import { formatDuration, formatPaceFromSecPerKm } from '../lib/timeFormat';
 
-// Distancias oficiales por etiqueta canónica.
-const RACE_KM = { '5K': 5, '10K': 10, 'Media Maratón': 21.0975, 'Maratón': 42.195 };
-const GOAL_KEY_TO_LABEL = { '5k': '5K', '10k': '10K', '21k': 'Media Maratón', '42k': 'Maratón' };
+// Distancias oficiales por etiqueta canónica (lib/raceDistances es la tabla única).
+const RACE_KM = KM_BY_LABEL;
+const GOAL_KEY_TO_LABEL = LABEL_BY_KEY;
 const CONFIDENCE_COLOR = { Alta: 'emerald', Media: 'amber', Baja: 'rose' };
 
 // El esquema del servidor es permisivo (label es string libre, no enum), así que
@@ -41,23 +44,6 @@ const normalizeConfidence = (raw) => {
     if (s.startsWith('alt') || s.startsWith('hig')) return 'Alta';
     if (s.startsWith('med')) return 'Media';
     return 'Baja';
-};
-
-const fmtTime = (totalSec) => {
-    const s = Math.round(totalSec);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return h > 0
-        ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
-        : `${m}:${String(sec).padStart(2, '0')}`;
-};
-
-const fmtPace = (secPerKm) => {
-    let m = Math.floor(secPerKm / 60);
-    let s = Math.round(secPerKm % 60);
-    if (s === 60) { m += 1; s = 0; }
-    return `${m}:${String(s).padStart(2, '0')}`;
 };
 
 // Valida y deriva las predicciones del modelo: el ritmo se calcula SIEMPRE en
@@ -116,21 +102,7 @@ const RacePredictor = ({ activities }) => {
     }, []);
 
     // Wearable context (HRV / sleep), same sources as the AI suggestion panel.
-    const [garmin, setGarmin] = useState(null);
-    const [sleep, setSleep] = useState(null);
-    useEffect(() => {
-        const load = () => {
-            try {
-                const s = cloudStorage.getItem('garmin_cardiac_data');
-                if (s) setGarmin(JSON.parse(s));
-                else fetch('/garmin_data.json').then(r => r.ok ? r.json() : null).then(j => setGarmin(j?.data ?? null)).catch(() => setGarmin(null));
-            } catch { setGarmin(null); }
-            try { const sl = cloudStorage.getItem('garmin_sleep_data'); setSleep(sl ? JSON.parse(sl) : null); } catch { setSleep(null); }
-        };
-        load();
-        window.addEventListener('garmin_sync_complete', load);
-        return () => window.removeEventListener('garmin_sync_complete', load);
-    }, []);
+    const { garmin, sleep } = useGarminWearableData();
 
     // Rich athlete context (PMC, ACWR, HR zones, reference paces, PBs, polarized
     // distribution, wearable) — same science as the AI suggestion. No race goal
@@ -322,8 +294,8 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                                         <Text className="font-semibold text-slate-700 dark:text-slate-200">{pred.label}</Text>
                                         <Badge color={CONFIDENCE_COLOR[pred.confidence]} size="xs">{pred.confidence}</Badge>
                                     </Flex>
-                                    <Metric className="mt-2 text-slate-900 dark:text-slate-50">{fmtTime(pred.timeSeconds)}</Metric>
-                                    <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{fmtPace(pred.paceSec)} /km</Text>
+                                    <Metric className="mt-2 text-slate-900 dark:text-slate-50">{formatDuration(pred.timeSeconds)}</Metric>
+                                    <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
                                     {pred.rationale && (
                                         <Text className="text-xs text-slate-400 dark:text-slate-500 mt-2 leading-snug">{pred.rationale}</Text>
                                     )}
@@ -333,8 +305,8 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                                             : 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400'}`}>
                                             <FlagIcon className="w-3.5 h-3.5 shrink-0" />
                                             {goal.delta <= 0
-                                                ? `${fmtTime(Math.abs(goal.delta))} por debajo de tu objetivo (${fmtTime(goal.goalSec)})`
-                                                : `A ${fmtTime(goal.delta)} de tu objetivo (${fmtTime(goal.goalSec)})`}
+                                                ? `${formatDuration(Math.abs(goal.delta))} por debajo de tu objetivo (${formatDuration(goal.goalSec)})`
+                                                : `A ${formatDuration(goal.delta)} de tu objetivo (${formatDuration(goal.goalSec)})`}
                                         </div>
                                     )}
                                 </Card>
@@ -354,7 +326,7 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                                             style={{ width: `${(p.paceSec / maxPace) * 100}%` }}
                                         />
                                     </div>
-                                    <span className="w-16 shrink-0 text-right font-mono text-sm text-slate-700 dark:text-slate-200">{fmtPace(p.paceSec)}</span>
+                                    <span className="w-16 shrink-0 text-right font-mono text-sm text-slate-700 dark:text-slate-200">{formatPaceFromSecPerKm(p.paceSec)}</span>
                                 </div>
                             ))}
                         </div>

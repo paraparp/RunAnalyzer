@@ -4,7 +4,7 @@
 // Pure functions, no UI / no I/O.
 //
 // PRIMARY — Critical Speed (CS): fit distance = CS·t + D' over best efforts
-//   (~3–40 min). CS (slope) ≈ MLSS / LT2, validated against MLSS; performance-
+//   (~2–30 min). CS (slope) ≈ MLSS / LT2, validated against MLSS; performance-
 //   anchored so it does NOT assume a fixed %HRmax.
 //   Refs: Monod & Scherrer (1965); Jones et al. (2010) MSSE 42(10);
 //         Galán-Rioja et al. (2020) Sports Med.
@@ -15,9 +15,15 @@
 //   / trend tracker (it ASSUMES the threshold sits at that anchor), never the
 //   source of truth. %HRmax at LT2 varies ~80–92% between individuals
 //   (Faude et al. 2009), which is exactly why %HRR is preferred.
-// FCmax — robust high percentile of observed max HR (drops sensor spikes).
+// FCmax — delegated to hrZones.detectMaxHR (median of the top 5% of observed
+//   max HRs), so this model shares ONE HRmax with the zones UI and the AI prompt.
 
-import { LTHR_FROM_HRMAX } from './hrZones';
+import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER } from './hrZones';
+import { formatPaceFromMinPerKm, paceMinPerKm } from './timeFormat';
+import {
+  buildMeanMaxCurve, fitCriticalSpeed, hasNonMaximalPoints, monthsAgoISO,
+  FIT_MIN_S, FIT_MAX_S,
+} from './criticalSpeed';
 
 // ── Threshold HR anchors ─────────────────────────────────────────────────────
 // PRIMARY: %HRR (Karvonen). LT2/anaerobic ≈ 85% HRR, LT1/aerobic ≈ 65% HRR.
@@ -36,16 +42,7 @@ export const MIN_DURATION_S = 20 * 60;
 export const MIN_LAP_TIME_S = 4 * 60;
 export const MIN_LAP_DIST_M = 400;
 
-// Critical Speed fit window: maximal efforts roughly 3–40 min (valid CS domain).
-export const CS_BANDS = [
-  [180, 360],   // 3–6 min
-  [360, 600],   // 6–10 min
-  [600, 900],   // 10–15 min
-  [900, 1500],  // 15–25 min
-  [1500, 2400], // 25–40 min
-];
-
-export const paceFromSpeed = (mps) => 1000 / (mps * 60); // m/s → min/km
+export const paceFromSpeed = paceMinPerKm; // m/s → min/km (definición única en timeFormat)
 
 /**
  * Resolve absolute LT1/LT2 target heart rates. Prefers Karvonen %HRR when a
@@ -99,86 +96,68 @@ function weightedMedian(pairs) {
 }
 
 /**
- * Robust HRmax. HRmax is a ceiling, not a central tendency, so we work only
- * with the upper tail: drop the top ~1% of readings (sensor spikes / cadence-
- * lock artifacts), then AVERAGE the next few highest genuine readings.
+ * Robust HRmax, delegated to `detectMaxHR` (hrZones) so the lactate model, the
+ * training zones and the AI prompt all anchor on ONE number. This used to run
+ * its own upper-tail average over a wider 120–230 filter, which produced a
+ * second, slightly different HRmax and therefore a second set of zones.
+ *
+ * Wraps the shared detector with the presentation metadata the UI needs:
+ *   hrmax   — the shared estimate
+ *   raw     — highest single reading accepted by the detector's filter
+ *   trimmed — whether the estimate discarded a materially higher spike (≥3 bpm)
+ *   nAvg    — how many peaks the detector sampled
+ * Returns null when there is no usable HR history (never the 185 default), so
+ * callers can tell "unknown" from "measured".
  */
 export function robustHRmax(activities) {
-  const maxes = activities
-    .filter(a => a.max_heartrate > 120 && a.max_heartrate < 230)
-    .map(a => a.max_heartrate)
-    .sort((a, b) => b - a);
-  if (maxes.length === 0) return null;
-  const raw = maxes[0];
-  if (maxes.length < 8) return { hrmax: raw, raw, trimmed: false, nAvg: 1 };
-  const drop = Math.min(3, Math.max(1, Math.round(maxes.length * 0.01)));
-  const cluster = maxes.slice(drop, drop + 3); // average the next 3 highest
-  const hrmax = Math.round(cluster.reduce((s, v) => s + v, 0) / cluster.length);
-  return { hrmax, raw, trimmed: raw - hrmax >= 3, nAvg: cluster.length };
+  const { value, n } = detectMaxHR(activities ?? []);
+  if (!n) return null;
+  const raw = (activities ?? [])
+    .filter(a => a.max_heartrate > HRMAX_FILTER.lo && a.max_heartrate < HRMAX_FILTER.hi)
+    .reduce((m, a) => Math.max(m, a.max_heartrate), 0);
+  return { hrmax: value, raw, trimmed: raw - value >= 3, nAvg: n };
 }
 
 /**
  * Critical Speed via the 2-parameter linear model d = CS·t + D'.
- * Builds the performance envelope: the single fastest (flat) run in each
- * duration band, then linear-regresses distance on time.
+ *
+ * DELEGATED WHOLESALE to `criticalSpeed.js` — same mean-max curve, same fit
+ * window, same plausibility band — so the Critical Speed tab and the threshold
+ * model report ONE number. This used to run its own fit: fastest whole run per
+ * duration band over 3–40 min, which answered a different question (the best
+ * *average* of a complete run, easy runs included) and therefore produced a
+ * second, always-slower CS in a second tab.
+ *
+ * All this wrapper does now is translate the shared fit into the shape the
+ * threshold model and its UI consume.
  */
 export function computeCriticalSpeed(activities, months) {
-  const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
-  const runs = activities.filter(a =>
-    (a.type === 'Run' || a.sport_type === 'Run') &&
-    a.moving_time > 0 && a.distance > 0 &&
-    new Date(a.start_date).getTime() >= cutoff
-  );
+  const curve = buildMeanMaxCurve(activities ?? [], { from: monthsAgoISO(months) });
+  const fit = fitCriticalSpeed(curve);
+  const nonMaximal = hasNonMaximalPoints(curve);
 
-  const best = CS_BANDS.map(([lo, hi]) => {
-    let pick = null;
-    for (const a of runs) {
-      const t = a.moving_time, d = a.distance;
-      if (t < lo || t >= hi) continue;
-      const elevPerKm = d > 0 ? ((a.total_elevation_gain || 0) / d) * 1000 : 0;
-      if (elevPerKm > 15) continue; // gradient makes pace non-comparable
-      const speed = d / t;
-      if (!pick || speed > pick.speed) pick = { t, d, speed, band: [lo, hi], date: a.start_date };
-    }
-    return pick;
-  }).filter(Boolean);
+  // Solo los puntos que entran en el ajuste: son los que pinta la gráfica CS.
+  const efforts = curve
+    .filter(p => p.time_s >= FIT_MIN_S && p.time_s <= FIT_MAX_S)
+    .map(p => ({
+      id: p.id, t: p.time_s, d: p.distance_m, speed: p.speed_m_s, date: p.date,
+      durMin: p.time_s / 60, pace: p.pace_min_km,
+    }));
 
-  // Monotonic envelope: a maximal power-duration curve must have speed strictly
-  // DECREASING with duration. Drop any shorter effort a longer one beats.
-  const ordered = [...best].sort((a, b) => a.t - b.t);
-  const envelope = [];
-  for (const e of ordered) {
-    while (envelope.length && e.speed >= envelope[envelope.length - 1].speed) envelope.pop();
-    envelope.push(e);
+  if (!fit) {
+    return { valid: false, nEfforts: efforts.length, totalEfforts: curve.length, nonMaximal, efforts };
   }
-
-  const totalEfforts = best.length;
-  if (envelope.length < 3) {
-    return { valid: false, nEfforts: envelope.length, totalEfforts, nonMaximal: totalEfforts >= 3, efforts: envelope.map(e => ({ ...e, durMin: e.t / 60, pace: paceFromSpeed(e.speed) })) };
-  }
-
-  const n = envelope.length;
-  const sx = envelope.reduce((s, e) => s + e.t, 0);
-  const sy = envelope.reduce((s, e) => s + e.d, 0);
-  const sxx = envelope.reduce((s, e) => s + e.t * e.t, 0);
-  const sxy = envelope.reduce((s, e) => s + e.t * e.d, 0);
-  const denom = n * sxx - sx * sx;
-  if (denom === 0) return { valid: false, nEfforts: n, totalEfforts, efforts: envelope };
-
-  const cs = (n * sxy - sx * sy) / denom;       // m/s
-  const dPrime = (sy - cs * sx) / n;             // m
-  const meanY = sy / n;
-  let ssTot = 0, ssRes = 0;
-  for (const e of envelope) {
-    const pred = cs * e.t + dPrime;
-    ssRes += (e.d - pred) ** 2;
-    ssTot += (e.d - meanY) ** 2;
-  }
-  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
-  const valid = cs > 1.4 && cs < 6.5 && dPrime > 0;
-
-  const efforts = envelope.map(e => ({ ...e, durMin: e.t / 60, pace: paceFromSpeed(e.speed) }));
-  return { valid, cs, dPrime: Math.max(0, dPrime), r2, csPace: paceFromSpeed(cs), nEfforts: n, totalEfforts, efforts };
+  return {
+    valid: true,
+    cs: fit.cs_m_s,
+    dPrime: fit.d_prime_m,
+    r2: fit.r2,
+    csPace: fit.cs_pace_min_km,
+    nEfforts: fit.n,
+    totalEfforts: curve.length,
+    nonMaximal,
+    efforts,
+  };
 }
 
 /**
@@ -454,9 +433,4 @@ export function computeLactateModel(activities, months = 12, opts = {}) {
   };
 }
 
-export function formatPace(minPerKm) {
-  if (!minPerKm || minPerKm <= 0 || minPerKm > 20) return '--:--';
-  const mins = Math.floor(minPerKm);
-  const secs = Math.round((minPerKm - mins) * 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
+export const formatPace = formatPaceFromMinPerKm;

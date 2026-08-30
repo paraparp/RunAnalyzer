@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
+import useGarminWearableData from './useGarminWearableData';
 import {
   generateAIObject, fetchModelGroups, buildModelGroups, buildProviderChain,
   parseModelValue, normalizeModelValue, FALLBACK_GEMINI,
@@ -19,8 +20,7 @@ export default function useAIInsights(activities) {
   const [meta, setMeta] = useState(null);
   const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [garmin, setGarmin] = useState(undefined);
-  const [sleep, setSleep] = useState(undefined);
+  const { garmin, sleep } = useGarminWearableData();
   const [stravaFetch, setStravaFetch] = useState(null);
   const [sci, setSci] = useState(null);
   // Último prompt construido para la IA (para inspección/copia desde la UI)
@@ -95,42 +95,24 @@ export default function useAIInsights(activities) {
 
   // Ref to abort ongoing stream on unmount or new run
   const abortRef = useRef(null);
-  // Timer del aviso de restauración + flag de montaje (evitan setState tras unmount)
+  // Timer del aviso de restauración (evita setState tras unmount)
   const warnTimerRef = useRef(null);
-  const aliveRef = useRef(true);
   useEffect(() => () => {
-    aliveRef.current = false;
     abortRef.current?.abort();
     clearTimeout(warnTimerRef.current);
   }, []);
 
-  // Load Garmin cardiac (HRV/RHR/Body Battery) + weekly sleep data
+  // Date of the last Strava fetch, refreshed alongside the wearable caches.
   useEffect(() => {
-    const loadGarminData = () => {
-      try {
-        const s = cloudStorage.getItem('garmin_cardiac_data');
-        if (s) { setGarmin(JSON.parse(s)); }
-        else {
-          fetch('/garmin_data.json')
-            .then(r => r.ok ? r.json() : null)
-            .then(j => { if (aliveRef.current) setGarmin(j?.data ?? null); })
-            .catch(() => { if (aliveRef.current) setGarmin(null); });
-        }
-      } catch { setGarmin(null); }
-
-      try {
-        const sl = cloudStorage.getItem('garmin_sleep_data');
-        setSleep(sl ? JSON.parse(sl) : null);
-      } catch { setSleep(null); }
-
+    const loadStravaFetch = () => {
       try {
         const sd = cloudStorage.getItem('stravaData');
         setStravaFetch(sd ? (JSON.parse(sd).lastFetchDate ?? null) : null);
       } catch { setStravaFetch(null); }
     };
-    loadGarminData();
-    window.addEventListener('garmin_sync_complete', loadGarminData);
-    return () => window.removeEventListener('garmin_sync_complete', loadGarminData);
+    loadStravaFetch();
+    window.addEventListener('garmin_sync_complete', loadStravaFetch);
+    return () => window.removeEventListener('garmin_sync_complete', loadStravaFetch);
   }, []);
 
   const run = useCallback(async (force = false) => {

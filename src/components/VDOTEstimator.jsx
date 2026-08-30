@@ -1,36 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Badge, Callout, Select, SelectItem } from '@tremor/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import { oxygenCostDaniels, sustainableFraction, velocityFromVO2 } from '../lib/physiology';
+import { RACE_DISTANCES } from '../lib/raceDistances';
+import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 
 // ============================================================
 // Daniels-Gilbert Formula (1979)
 // "Oxygen Power: Performance Tables for Distance Runners"
 // by Jack Daniels & Jimmy Gilbert
 //
-// This is the mathematical foundation of the VDOT system.
-// It uses two regression equations:
-// 1. Oxygen cost as a function of running velocity
-// 2. Sustainable fraction of VO2max as a function of race duration
+// This is the mathematical foundation of the VDOT system: oxygen cost as a
+// function of velocity, and the sustainable fraction of VO2max as a function of
+// race duration. Both equations live in lib/physiology, shared with the VO2max
+// tracker and the vitals summary.
 // ============================================================
-
-/**
- * Oxygen cost of running at velocity v (ml/kg/min)
- * @param {number} v - velocity in meters per minute
- */
-function oxygenCost(v) {
-  return -4.60 + 0.182258 * v + 0.000104 * v * v;
-}
-
-/**
- * Fraction of VO2max sustainable for a given race duration
- * Approaches ~0.8 for very long efforts, >1.0 for very short efforts
- * @param {number} t - time in minutes
- */
-function sustainableFraction(t) {
-  return 0.8
-    + 0.1894393 * Math.exp(-0.012778 * t)
-    + 0.2989558 * Math.exp(-0.1932605 * t);
-}
 
 /**
  * Calculate VDOT from a race performance using the Daniels-Gilbert formula.
@@ -42,24 +26,11 @@ function sustainableFraction(t) {
 function calculateVDOT(distanceMeters, timeSeconds) {
   const t = timeSeconds / 60;
   const v = distanceMeters / t;
-  const vo2 = oxygenCost(v);
+  const vo2 = oxygenCostDaniels(v);
   const fraction = sustainableFraction(t);
   if (fraction <= 0) return null;
   const vdot = vo2 / fraction;
   return vdot > 0 ? vdot : null;
-}
-
-/**
- * Inverse of oxygenCost: get velocity (m/min) from VO2 (ml/kg/min)
- * Solves: 0.000104*v² + 0.182258*v + (-4.60 - vo2) = 0
- */
-function velocityFromVO2(vo2) {
-  const a = 0.000104;
-  const b = 0.182258;
-  const c = -4.60 - vo2;
-  const disc = b * b - 4 * a * c;
-  if (disc < 0) return 0;
-  return (-b + Math.sqrt(disc)) / (2 * a);
 }
 
 /**
@@ -120,30 +91,22 @@ function getTrainingPaces(vdot) {
 // Standard race distances for detection & prediction
 // ============================================================
 
-const DISTANCE_RANGES = [
-  { name: '5K', minKm: 4.9, maxKm: 5.2, distM: 5000, color: '#ef4444' },
-  { name: '10K', minKm: 9.9, maxKm: 10.5, distM: 10000, color: '#f59e0b' },
-  { name: 'Media Maratón', minKm: 21.0, maxKm: 21.5, distM: 21097.5, color: '#10b981' },
-  { name: 'Maratón', minKm: 42.0, maxKm: 43.0, distM: 42195, color: '#2563eb' },
-];
+// Ventana de detección y color por distancia; `name`/`distM` salen de la tabla
+// única (lib/raceDistances), que es la que usan también predictor y planificador.
+const DETECTION = {
+  '5k':  { minKm: 4.9,  maxKm: 5.2,  color: '#ef4444' },
+  '10k': { minKm: 9.9,  maxKm: 10.5, color: '#f59e0b' },
+  '21k': { minKm: 21.0, maxKm: 21.5, color: '#10b981' },
+  '42k': { minKm: 42.0, maxKm: 43.0, color: '#2563eb' },
+};
+
+const DISTANCE_RANGES = RACE_DISTANCES.map(({ key, m, label }) => ({
+  name: label, distM: m, ...DETECTION[key],
+}));
 
 // ============================================================
 // Helpers
 // ============================================================
-
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.round(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function formatPace(minPerKm) {
-  const m = Math.floor(minPerKm);
-  const s = Math.round((minPerKm - m) * 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
 
 // ============================================================
 // Component
@@ -352,7 +315,7 @@ export default function VDOTEstimator({ activities }) {
                     {est ? (
                       <>
                         <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{est.vdot}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{formatTime(est.normalizedTime)}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{formatDuration(est.normalizedTime)}</p>
                         <p className="text-[10px] text-slate-400">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                       </>
                     ) : (
@@ -466,7 +429,7 @@ export default function VDOTEstimator({ activities }) {
                   <p className="text-[10px] text-emerald-600">60–68% VO₂max · Carrera continua</p>
                 </div>
                 <p className="text-lg font-bold text-emerald-700 tabular-nums">
-                  {formatPace(trainingPaces.easy.min)} - {formatPace(trainingPaces.easy.max)} <span className="text-xs font-medium">/km</span>
+                  {formatPaceFromMinPerKm(trainingPaces.easy.min)} - {formatPaceFromMinPerKm(trainingPaces.easy.max)} <span className="text-xs font-medium">/km</span>
                 </p>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-sky-50 border border-sky-100">
@@ -475,7 +438,7 @@ export default function VDOTEstimator({ activities }) {
                   <p className="text-[10px] text-sky-600">74% VO₂max · Ritmo específico maratón</p>
                 </div>
                 <p className="text-lg font-bold text-sky-700 tabular-nums">
-                  {formatPace(trainingPaces.marathon.pace)} <span className="text-xs font-medium">/km</span>
+                  {formatPaceFromMinPerKm(trainingPaces.marathon.pace)} <span className="text-xs font-medium">/km</span>
                 </p>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
@@ -484,7 +447,7 @@ export default function VDOTEstimator({ activities }) {
                   <p className="text-[10px] text-amber-600">80% VO₂max · Ritmo sostenido 20–40 min</p>
                 </div>
                 <p className="text-lg font-bold text-amber-700 tabular-nums">
-                  {formatPace(trainingPaces.tempo.pace)} <span className="text-xs font-medium">/km</span>
+                  {formatPaceFromMinPerKm(trainingPaces.tempo.pace)} <span className="text-xs font-medium">/km</span>
                 </p>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
@@ -493,7 +456,7 @@ export default function VDOTEstimator({ activities }) {
                   <p className="text-[10px] text-orange-600">97% VO₂max · Repeticiones 3–5 min</p>
                 </div>
                 <p className="text-lg font-bold text-orange-700 tabular-nums">
-                  {formatPace(trainingPaces.interval.pace)} <span className="text-xs font-medium">/km</span>
+                  {formatPaceFromMinPerKm(trainingPaces.interval.pace)} <span className="text-xs font-medium">/km</span>
                 </p>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-100">
@@ -502,7 +465,7 @@ export default function VDOTEstimator({ activities }) {
                   <p className="text-[10px] text-rose-600">110% VO₂max · Repeticiones 200–400m</p>
                 </div>
                 <p className="text-lg font-bold text-rose-700 tabular-nums">
-                  {formatPace(trainingPaces.repetition.pace)} <span className="text-xs font-medium">/km</span>
+                  {formatPaceFromMinPerKm(trainingPaces.repetition.pace)} <span className="text-xs font-medium">/km</span>
                 </p>
               </div>
             </div>
@@ -519,13 +482,13 @@ export default function VDOTEstimator({ activities }) {
                   <div key={p.distance} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div>
                       <p className="text-sm font-bold text-slate-800">{p.distance}</p>
-                      <p className="text-[10px] text-slate-400 tabular-nums">{formatPace(p.pace / 60)} /km</p>
+                      <p className="text-[10px] text-slate-400 tabular-nums">{formatPaceFromMinPerKm(p.pace / 60)} /km</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-black text-blue-600 tabular-nums">{formatTime(p.time)}</p>
+                      <p className="text-lg font-black text-blue-600 tabular-nums">{formatDuration(p.time)}</p>
                       {actual && (
                         <p className="text-[10px] text-slate-400">
-                          Actual: {formatTime(actual.normalizedTime)}
+                          Actual: {formatDuration(actual.normalizedTime)}
                           {actual.normalizedTime < p.time && <Badge size="xs" color="emerald" className="ml-1">Mejor</Badge>}
                         </p>
                       )}

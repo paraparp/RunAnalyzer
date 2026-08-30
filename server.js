@@ -1,19 +1,16 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { streamText, generateObject } from 'ai';
-import { resolveModel, SCHEMAS, listGeminiModels, listOpenRouterModels, pipeStream, validateAIRequest } from './api/_lib/ai.js';
-import { getUserFromReq } from './api/_lib/auth.js';
+import { stravaToken } from './api/_lib/strava-oauth.js';
+import { toDateStr } from './api/_lib/garmin-helpers.js';
+import aiStream from './api/ai/stream.js';
+import aiObject from './api/ai/object.js';
+import aiModels from './api/ai/models.js';
+import garminLogin from './api/garmin/login.js';
+import garminHealthStream from './api/garmin/health/stream.js';
+import garminHealthRecent from './api/garmin/health/recent.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
-
-// Exige sesión de Supabase válida (protege los endpoints que usan API keys).
-async function requireUser(req, res, next) {
-  const user = await getUserFromReq(req);
-  if (!user) return res.status(401).json({ error: 'No autorizado: inicia sesión.' });
-  req.user = user;
-  next();
-}
 
 const app = express();
 app.use(cors());
@@ -21,25 +18,16 @@ app.use(express.json({ limit: '20mb' }));
 
 // La persistencia de datos vive ahora en Supabase (por usuario, con RLS), del
 // lado del cliente. Este servidor es solo un proxy de Garmin/Strava, sin estado.
-
-/** Merge newRows into existing data, dedup by date, sort asc (en memoria) */
-function mergeData(existing, newRows) {
-  const byDate = {};
-  [...existing, ...newRows].forEach(r => {
-    byDate[r.date] = { ...byDate[r.date], ...r };
-  });
-  return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/** Merge sleep weekly rows, dedup by weekStart (en memoria) */
-function mergeSleepData(existing = [], newRows = []) {
-  const byWeek = {};
-  [...existing, ...newRows].forEach(r => { byWeek[r.weekStart] = r; });
-  return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-}
+//
+// Los endpoints son los MISMOS handlers que despliega Vercel bajo `api/`: aquí
+// solo se montan en Express, que extiende la API req/res de Node que esperan.
+// Lo único propio del entorno de desarrollo es la sesión de Garmin cacheada de
+// abajo, que se inyecta en los handlers de Garmin.
 
 // ---------------------------------------------------------------------------
-// Garmin session
+// Garmin session — única parte dev-only: cachea el login 55 min en vez de
+// autenticar en cada request (los handlers de `api/` usan `createClient`, que
+// hace login siempre porque cada invocación serverless arranca en frío).
 // ---------------------------------------------------------------------------
 let gc = null;
 let lastLogin = null;
@@ -54,238 +42,16 @@ async function getClient(username, password) {
   return gc;
 }
 
-function toDateStr(date) {
-  return date.toISOString().split('T')[0];
-}
+/** Invalida la sesión cacheada: el siguiente request vuelve a hacer login. */
+const dropSession = () => { gc = null; };
 
-// Split a range of N days into 3-month chunks, oldest first
-function threeMonthChunks(totalDays) {
-  const chunks = [];
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(today.getDate() - totalDays + 1);
-
-  let cursor = new Date(start);
-  while (cursor <= today) {
-    const chunkEnd = new Date(cursor);
-    chunkEnd.setMonth(chunkEnd.getMonth() + 3);
-    if (chunkEnd > today) chunkEnd.setTime(today.getTime());
-
-    const dates = [];
-    const d = new Date(cursor);
-    while (d <= chunkEnd) {
-      dates.push(toDateStr(d));
-      d.setDate(d.getDate() + 1);
-    }
-    if (dates.length) chunks.push(dates);
-    cursor = new Date(chunkEnd);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return chunks;
-}
-
-async function fetchHrvBulk(client, startDate, endDate) {
-  const map = new Map();
-  const CHUNK_DAYS = 90;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  
-  let cursor = new Date(start);
-  while (cursor <= end) {
-    const chunkEnd = new Date(cursor);
-    chunkEnd.setDate(chunkEnd.getDate() + CHUNK_DAYS - 1);
-    if (chunkEnd > end) chunkEnd.setTime(end.getTime());
-
-    try {
-      const body = await client.client.get(
-        `https://connectapi.garmin.com/hrv-service/hrv/daily/${toDateStr(cursor)}/${toDateStr(chunkEnd)}`
-      );
-      for (const s of body?.hrvSummaries ?? []) {
-        if (s.lastNightAvg > 0) {
-          map.set(s.calendarDate, {
-            hrv: s.lastNightAvg,
-            hrvStatus: s.status ?? null,
-            baseline: s.baseline ?? null,
-          });
-        }
-      }
-    } catch (e) {
-      console.warn(`HRV bulk chunk ${toDateStr(cursor)}→${toDateStr(chunkEnd)} failed:`, e.message);
-    }
-    
-    cursor.setDate(cursor.getDate() + CHUNK_DAYS);
-  }
-  
-  console.log(`HRV bulk: ${map.size} records (${startDate} → ${endDate})`);
-  return map;
-}
-
-/** Fetch Body Battery daily range in 28-day chunks (API limit).
- *  Returns a Map<dateStr, { bbLow, bbHigh }> */
-async function fetchBodyBatteryBulk(client, startDate, endDate) {
-  const map = new Map();
-  const CHUNK_DAYS = 28;
-  const start = new Date(startDate);
-  const end   = new Date(endDate);
-
-  let cursor = new Date(start);
-  while (cursor <= end) {
-    const chunkEnd = new Date(cursor);
-    chunkEnd.setDate(chunkEnd.getDate() + CHUNK_DAYS - 1);
-    if (chunkEnd > end) chunkEnd.setTime(end.getTime());
-
-    try {
-      const body = await client.client.get(
-        `https://connectapi.garmin.com/usersummary-service/stats/bodybattery/daily/${toDateStr(cursor)}/${toDateStr(chunkEnd)}`
-      );
-      for (const d of body ?? []) {
-        if (d.calendarDate && d.values) {
-          map.set(d.calendarDate, {
-            bbLow:  d.values.lowBodyBattery  ?? null,
-            bbHigh: d.values.highBodyBattery ?? null,
-          });
-        }
-      }
-    } catch (e) {
-      console.warn(`Body Battery chunk ${toDateStr(cursor)}→${toDateStr(chunkEnd)} failed:`, e.message);
-    }
-
-    cursor.setDate(cursor.getDate() + CHUNK_DAYS);
-  }
-  console.log(`Body Battery bulk: ${map.size} records (${startDate} → ${endDate})`);
-  return map;
-}
-
-async function fetchSleepBulk(client, numWeeks) {
-  const allRows = [];
-  const CHUNK_WEEKS = 52;
-  
-  // Anclar al lunes de la semana actual y retroceder N-1 semanas,
-  // así el rango cubre hasta la semana en curso (incluida).
-  const monday = new Date();
-  const d = monday.getDay() || 7;
-  monday.setDate(monday.getDate() - d + 1);
-  const start = new Date(monday);
-  start.setDate(start.getDate() - (numWeeks - 1) * 7);
-
-  let weeksRemaining = numWeeks;
-  let currentStart = new Date(start);
-
-  while (weeksRemaining > 0) {
-    const fetchWeeks = Math.min(weeksRemaining, CHUNK_WEEKS);
-    try {
-      const body = await client.client.get(
-        `https://connectapi.garmin.com/sleep-service/stats/sleep/weekly/${toDateStr(currentStart)}/${fetchWeeks}`
-      );
-      const rows = (body?.individualStats ?? []).map(s => ({
-        weekStart:    s.weekStartDate,
-        weekEnd:      s.weekEndDate,
-        score:        s.values.averageSleepScore ?? null,
-        quality:      s.values.sleepScoreQuality ?? null,
-        durationMin:  s.values.averageSleepSeconds != null ? Math.round(s.values.averageSleepSeconds / 60) : null,
-        remMin:       s.values.remTime   != null ? Math.round(s.values.remTime   / 60) : null,
-        deepMin:      s.values.deepTime  != null ? Math.round(s.values.deepTime  / 60) : null,
-        lightMin:     s.values.lightTime != null ? Math.round(s.values.lightTime / 60) : null,
-        awakeMin:     s.values.awakeTime != null ? Math.round(s.values.awakeTime / 60) : null,
-        needMin:      s.values.averageSleepNeed ?? null,
-        daysCount:    s.values.sleepDataDaysCount ?? null,
-      }));
-      allRows.push(...rows);
-    } catch (e) {
-      console.warn(`Sleep bulk fetch failed for ${toDateStr(currentStart)} (${fetchWeeks} weeks):`, e.message);
-    }
-    
-    // Advance currentStart by fetchWeeks
-    currentStart.setDate(currentStart.getDate() + fetchWeeks * 7);
-    weeksRemaining -= fetchWeeks;
-  }
-  
-  console.log(`Sleep bulk: ${allRows.length} weeks total`);
-  return allRows;
-}
-
-async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null) {
-  const row = { date: dateStr };
-  const date = new Date(dateStr);
-
-  // ── FC reposo: getHeartRate() → restingHeartRate ──────────────────────────
-  try {
-    const hr = await client.getHeartRate(date);
-    if (hr?.restingHeartRate && hr.restingHeartRate > 20) {
-      row.restingHR = hr.restingHeartRate;
-    }
-  } catch { /* day unavailable */ }
-
-  // ── VFC nocturna: bulk map first (fast), then per-day fallbacks ───────────
-  const bulkHrv = hrvMap?.get(dateStr);
-  if (bulkHrv) {
-    row.hrv = bulkHrv.hrv;
-    if (bulkHrv.hrvStatus) row.hrvStatus = bulkHrv.hrvStatus;
-    if (bulkHrv.baseline)  row.baseline  = bulkHrv.baseline;
-  }
-
-  // Estrategia 1: getSleepData() — also grabs restingHR if missing
-  if (!row.hrv) {
-    try {
-      const sleep = await client.getSleepData(date);
-      if (sleep?.avgOvernightHrv > 0) {
-        row.hrv = sleep.avgOvernightHrv;
-        if (sleep.hrvStatus) row.hrvStatus = sleep.hrvStatus;
-      }
-      if (!row.restingHR && sleep?.restingHeartRate > 20) {
-        row.restingHR = sleep.restingHeartRate;
-      }
-    } catch { /* no sleep data this day */ }
-  }
-
-  // Estrategia 2: /hrv-service/hrv/{date} directo (último recurso)
-  if (!row.hrv) {
-    try {
-      const body = await client.client.get(
-        `https://connectapi.garmin.com/hrv-service/hrv/${dateStr}`
-      );
-      const lastNight = body?.hrvSummary?.lastNight ?? body?.lastNight ?? null;
-      if (lastNight > 0) {
-        row.hrv = lastNight;
-        const status = body?.hrvSummary?.status ?? body?.status ?? null;
-        if (status) row.hrvStatus = status;
-      }
-    } catch { /* hrv-service unavailable */ }
-  }
-
-  // ── Body Battery ──────────────────────────────────────────────────────────
-  const bb = bbMap?.get(dateStr);
-  if (bb) {
-    if (bb.bbLow  != null) row.bbLow  = bb.bbLow;
-    if (bb.bbHigh != null) row.bbHigh = bb.bbHigh;
-  }
-
-  return (row.restingHR || row.hrv || row.bbHigh) ? row : null;
-}
+/** Monta un handler de `api/` inyectándole la sesión cacheada de desarrollo. */
+const withCachedSession = (handler) =>
+  (req, res) => handler(req, res, { getClient, onError: dropSession });
 
 // ---------------------------------------------------------------------------
-// Strava token proxy — el client_secret vive solo aquí (dev). En producción
-// lo hacen las funciones serverless de /api/strava/*.
+// Strava token proxy — el client_secret vive solo en el servidor.
 // ---------------------------------------------------------------------------
-async function stravaToken(body, res) {
-  const clientId = process.env.STRAVA_CLIENT_ID || process.env.VITE_STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    return res.status(500).json({ error: 'Faltan STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET en el servidor' });
-  }
-  try {
-    const r = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, ...body }),
-    });
-    const data = await r.json();
-    res.status(r.ok ? 200 : r.status).json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-}
-
 app.post('/api/strava/token', (req, res) => {
   const { code } = req.body ?? {};
   if (!code) return res.status(400).json({ error: 'code requerido' });
@@ -301,45 +67,19 @@ app.post('/api/strava/refresh', (req, res) => {
 // ---------------------------------------------------------------------------
 // IA — proxy con las API keys del lado servidor (no en el bundle).
 // ---------------------------------------------------------------------------
-app.post('/api/ai/stream', requireUser, async (req, res) => {
-  const { provider = 'gemini', model, messages, temperature = 0.7 } = req.body ?? {};
-  if (!model || !Array.isArray(messages)) return res.status(400).json({ error: 'model y messages son requeridos' });
-  const invalidStream = validateAIRequest({ provider, model, messages });
-  if (invalidStream) return res.status(400).json({ error: invalidStream });
-  try {
-    const result = streamText({ model: resolveModel(provider, model), messages, temperature, maxRetries: 0 });
-    await pipeStream(result, res);
-  } catch (e) {
-    if (res.headersSent) { res.end(); return; }
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/api/ai/object', requireUser, async (req, res) => {
-  const { provider = 'gemini', model, prompt, temperature = 0.5, schema } = req.body ?? {};
-  const zodSchema = SCHEMAS[schema];
-  if (!zodSchema) return res.status(400).json({ error: `schema desconocido: ${schema}` });
-  if (!model || !prompt) return res.status(400).json({ error: 'model y prompt son requeridos' });
-  const invalidObject = validateAIRequest({ provider, model, prompt });
-  if (invalidObject) return res.status(400).json({ error: invalidObject });
-  try {
-    const { object } = await generateObject({ model: resolveModel(provider, model), schema: zodSchema, prompt, temperature });
-    res.json({ object });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get('/api/ai/models', requireUser, async (_req, res) => {
-  try {
-    const [models, openrouter] = await Promise.all([listGeminiModels(), listOpenRouterModels()]);
-    res.json({ models, openrouter });
-  } catch { res.json({ models: [], openrouter: [] }); }
-});
+app.post('/api/ai/stream', aiStream);
+app.post('/api/ai/object', aiObject);
+app.get('/api/ai/models', aiModels);
 
 // ---------------------------------------------------------------------------
-// POST /api/garmin/debug  — inspect raw Garmin response for one date
+// Garmin
 // ---------------------------------------------------------------------------
+app.post('/api/garmin/login', withCachedSession(garminLogin));
+app.post('/api/garmin/health/stream', withCachedSession(garminHealthStream));
+app.post('/api/garmin/health/recent', withCachedSession(garminHealthRecent));
+
+// POST /api/garmin/debug — inspecciona la respuesta cruda de Garmin para una
+// fecha. Solo desarrollo: no existe como función serverless.
 app.post('/api/garmin/debug', async (req, res) => {
   const { username, password, date } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
@@ -357,125 +97,7 @@ app.post('/api/garmin/debug', async (req, res) => {
 
     res.json(out);
   } catch (e) {
-    gc = null;
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/garmin/login
-// ---------------------------------------------------------------------------
-app.post('/api/garmin/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
-  try {
-    await getClient(username, password);
-    res.json({ ok: true });
-  } catch (e) {
-    gc = null;
-    res.status(401).json({ error: 'Login fallido: ' + e.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/garmin/health/stream  — streaming NDJSON for long periods
-// ---------------------------------------------------------------------------
-app.post('/api/garmin/health/stream', async (req, res) => {
-  const { username, password, days = 365 } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
-
-  res.setHeader('Content-Type', 'application/x-ndjson');
-  res.setHeader('Transfer-Encoding', 'chunked');
-  res.setHeader('Cache-Control', 'no-cache');
-
-  const send = (obj) => res.write(JSON.stringify(obj) + '\n');
-
-  const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const fmt = (d) => { const dt = new Date(d); return `${MONTHS_ES[dt.getMonth()]} ${dt.getFullYear()}`; };
-
-  try {
-    const client = await getClient(username, password);
-    const cappedDays = Math.min(days, 1825);
-    const chunks = threeMonthChunks(cappedDays);
-    const totalChunks = chunks.length;
-    let accumulated = [];
-
-    // Bulk calls before the day-by-day loop
-    const today = new Date();
-    const rangeStart = new Date(today);
-    rangeStart.setDate(today.getDate() - cappedDays + 1);
-    const numWeeks = Math.ceil(cappedDays / 7);
-    const [hrvMap, bbMap, sleepRows] = await Promise.all([
-      fetchHrvBulk(client, toDateStr(rangeStart), toDateStr(today)),
-      fetchBodyBatteryBulk(client, toDateStr(rangeStart), toDateStr(today)),
-      fetchSleepBulk(client, numWeeks),
-    ]);
-
-    for (let ci = 0; ci < chunks.length; ci++) {
-      const dates = chunks[ci];
-      const chunkData = [];
-
-      for (const dateStr of dates) {
-        const row = await fetchDayData(client, dateStr, hrvMap, bbMap);
-        if (row) chunkData.push(row);
-        await new Promise(r => setTimeout(r, 120));
-      }
-
-      accumulated = mergeData(accumulated, chunkData);
-
-      send({
-        type: 'chunk',
-        period: `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}`,
-        data: chunkData,
-        progress: (ci + 1) / totalChunks,
-        chunkIndex: ci,
-        totalChunks,
-      });
-    }
-
-    send({ type: 'done', total: accumulated.length, sleepData: mergeSleepData([], sleepRows) });
-    res.end();
-  } catch (e) {
-    gc = null;
-    send({ type: 'error', error: e.message });
-    res.end();
-  }
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/garmin/health/recent  — últimos N días sin streaming (máx 90)
-// ---------------------------------------------------------------------------
-app.post('/api/garmin/health/recent', async (req, res) => {
-  const { username, password, days = 30 } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
-
-  try {
-    const client = await getClient(username, password);
-    const totalDays = Math.min(days, 90);
-    const today = new Date();
-
-    // Bulk calls before the day-by-day loop
-    const rangeStart = new Date(today);
-    rangeStart.setDate(today.getDate() - totalDays + 1);
-    const numWeeks = Math.ceil(totalDays / 7);
-    const [hrvMap, bbMap, sleepRows] = await Promise.all([
-      fetchHrvBulk(client, toDateStr(rangeStart), toDateStr(today)),
-      fetchBodyBatteryBulk(client, toDateStr(rangeStart), toDateStr(today)),
-      fetchSleepBulk(client, numWeeks),
-    ]);
-
-    const results = [];
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const row = await fetchDayData(client, toDateStr(d), hrvMap, bbMap);
-      if (row) results.push(row);
-      await new Promise(r => setTimeout(r, 120));
-    }
-
-    res.json({ data: results, sleepData: mergeSleepData([], sleepRows), total: results.length });
-  } catch (e) {
-    gc = null;
+    dropSession();
     res.status(500).json({ error: e.message });
   }
 });

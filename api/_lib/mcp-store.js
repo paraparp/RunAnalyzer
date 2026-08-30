@@ -7,6 +7,14 @@
 // y ChatGPT reciban exactamente los datos que la app ya expone.
 // ============================================================================
 import { createClient } from '@supabase/supabase-js';
+import { detectMaxHR } from '../../src/lib/hrZones.js';
+import { parseTimeToMinutes, formatMinutes, daysUntil } from '../../src/lib/timeFormat.js';
+import { detectPlanFormat } from '../../src/lib/planFormat.js';
+import { DISTANCE_M, RACE_KEYS, RACE_DISTANCES } from '../../src/lib/raceDistances.js';
+import { buildMeanMaxCurve, fitCriticalSpeed, predictTime } from '../../src/lib/criticalSpeed.js';
+import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
+import { gapFactor } from '../../src/lib/gap.js';
+import { computePMC } from '../../src/lib/trainingLoad.js';
 import {
   heatPenaltyPct,
   heatIntensityFactor,
@@ -337,7 +345,15 @@ export function shapeFull(a, include = null, { hrMax = null } = {}) {
       moving_time_s: b.moving_time,
     }));
   }
-  if (want.has('flat_efforts')) out.flat_efforts = a.flat_efforts ?? null; // { '1k': {time,distance,elevation}, '2k': {...} }
+  if (want.has('flat_efforts')) {
+    // Se quitan las claves internas del cache (`_v` = versión del algoritmo,
+    // `_grade_source` = de dónde salió la pendiente): el consumidor solo debe ver
+    // { '1k': {time,distance,elevation,gain,loss}, '2k': {...} }.
+    const flat = Object.fromEntries(
+      Object.entries(a.flat_efforts ?? {}).filter(([k]) => !k.startsWith('_')),
+    );
+    out.flat_efforts = a.flat_efforts ? flat : null;
+  }
   if (want.has('decoupling')) out.decoupling = computeDecoupling(a); // deriva cardíaca (durabilidad)
   if (want.has('gap')) out.gap = computeGap(a);                      // ritmo ajustado por desnivel
   // Va siempre (es diminuto y su ausencia se leería como "todo cuadra"), aunque no se
@@ -348,63 +364,36 @@ export function shapeFull(a, include = null, { hrMax = null } = {}) {
 }
 
 // ── Desacoplamiento / durabilidad (mejor predictor de maratón) ───────────────
-// Compara el ratio FC/velocidad de la parte inicial (km 5–10) con el del último
-// 25%. Para sesiones ≥45 min con FC por split. Devuelve un motivo cuando no calcula
-// (en vez de un null mudo, que no distingue "roto" de "no aplica").
+// El cálculo vive en src/lib/decoupling.js, compartido con la UI: eran dos
+// definiciones distintas —y con el ratio invertido en el front— así que la misma
+// sesión daba dos cifras. Aquí se elige la ventana 'durability' (km 5–10 vs
+// último 25%, que descarta el calentamiento) y se traduce a la forma MCP: un
+// motivo cuando no calcula, en vez de un null mudo que no distingue "roto" de
+// "no aplica".
 const decoupNull = (reason) => ({ decoupling_pct: null, reason });
+const DECOUP_REASONS = {
+  no_splits: 'Sin splits por km',
+  few_splits: 'Menos de 10 km/splits',
+  no_hr_in_windows: 'Sin FC por split en las ventanas comparadas',
+};
 export function computeDecoupling(a) {
-  const splits = a.splits_metric;
-  const totalTime = a.moving_time || 0;
-  if (!Array.isArray(splits) || !splits.length) return decoupNull('Sin splits por km');
-  if (totalTime < 2700) return decoupNull('Sesión < 45 min (deriva poco informativa)');
-  if (splits.length < 10) return decoupNull('Menos de 10 km/splits');
-  const ratioOf = (arr) => {
-    let hrSum = 0, hrTime = 0, dist = 0, time = 0;
-    for (const s of arr) {
-      const t = s.moving_time || 0;
-      if (s.average_heartrate && t) { hrSum += s.average_heartrate * t; hrTime += t; }
-      dist += s.distance || 0; time += t;
-    }
-    if (!hrTime || !time || !dist) return null;
-    const hr = hrSum / hrTime;
-    const speed = dist / time;                       // m/s
-    if (!speed) return null;
-    return { hr, speed, ratio: hr / speed };
-  };
-  const initial = ratioOf(splits.filter((s) => s.split >= 5 && s.split <= 10));
-  const n = splits.length;
-  const finalCount = Math.max(1, Math.ceil(n * 0.25));
-  const final = ratioOf(splits.slice(n - finalCount));
-  if (!initial || !final) return decoupNull('Sin FC por split en las ventanas comparadas');
+  if (!Array.isArray(a.splits_metric) || !a.splits_metric.length) return decoupNull(DECOUP_REASONS.no_splits);
+  // La deriva necesita tiempo para desarrollarse: por debajo de 45 min es ruido.
+  if ((a.moving_time || 0) < 2700) return decoupNull('Sesión < 45 min (deriva poco informativa)');
+
+  const d = computeSplitDecoupling(a.splits_metric, { window: 'durability' });
+  if (d.pct == null) return decoupNull(DECOUP_REASONS[d.reason] ?? d.reason);
   return {
-    decoupling_pct: round((final.ratio / initial.ratio - 1) * 100, 1),
-    initial: { window: 'km 5–10', avg_hr: round(initial.hr, 0), avg_speed_ms: round(initial.speed, 3) },
-    final: { window: `último 25% (${finalCount} km)`, avg_hr: round(final.hr, 0), avg_speed_ms: round(final.speed, 3) },
+    decoupling_pct: round(d.pct, 1),
+    initial: { window: d.initial.window, avg_hr: round(d.initial.avg_hr, 0), avg_speed_ms: round(d.initial.avg_speed_ms, 3) },
+    final: { window: d.final.window, avg_hr: round(d.final.avg_hr, 0), avg_speed_ms: round(d.final.avg_speed_ms, 3) },
   };
 }
 
-// ── GAP: coste metabólico relativo por pendiente (Minetti) ───────────────────
-const minettiCost = (i) => // i = pendiente en fracción (+ subida)
-  155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
-// Usar el ratio de coste como ratio de velocidad sobre-reacciona: la derivada de
-// Minetti en cero es 19,5/3,6 = 5,4% de velocidad por cada 1% de pendiente, cuando
-// lo aceptado empíricamente es ~2-3%. Amortiguamos la desviación relativa con K_*
-// (calibración empírica, NO Minetti puro) y con asimetría: el crédito por bajar es
-// menor que la penalización por subir, porque la bajada no se convierte entera en
-// velocidad (frenada, coste excéntrico).
-const K_UP = 0.5, K_DOWN = 0.35;
-// Tope inferior = el factor a −10%. El polinomio de Minetti tiene su mínimo de coste
-// mucho más abajo (≈ −18% en esta regresión), pero por debajo de −10% el coste real
-// deja de bajar: la frenada y el trabajo excéntrico se comen el ahorro. Cortar ahí es
-// el comportamiento correcto; el 0.88 anterior recortaba ya en −8% y aplanaba de más.
-const GAP_FLOOR = 0.86, GAP_CEIL = 1.35;
-const gapFactor = (grade) => {
-  const c = minettiCost(grade);
-  if (!(c > 0)) return 1;
-  const rel = c / 3.6 - 1;
-  const f = 1 + rel * (grade >= 0 ? K_UP : K_DOWN);
-  return Math.min(GAP_CEIL, Math.max(GAP_FLOOR, f));
-};
+// ── GAP ──────────────────────────────────────────────────────────────────────
+// El modelo (Minetti amortiguado con K_UP/K_DOWN y topes) vive en src/lib/gap.js,
+// que es también el que usan la tabla del dashboard y los parciales: así la tool
+// MCP y la UI no pueden volver a divergir. Esta era la copia canónica.
 
 /** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
 export function computeGap(a) {
@@ -895,15 +884,20 @@ export async function compareSimilarSessions(userId, {
 // `std` = distancia estándar de referencia (m) para normalizar tiempos: un candidato
 // puede venir de un best_effort exacto (5000 m) o de la distancia total (5097 m), y
 // compararlos por tiempo bruto mezcla peras y manzanas. Ordenamos por ritmo.
+// `std` = distancia estándar, `max` = tope de sobre-distancia aceptado por el
+// fallback (distancia total / ventana de parciales). El suelo es `std`, no un
+// `min` por debajo: como el orden es por TIEMPO REAL sin reescalar, admitir un
+// 4900 m o un parcial de 930 m fabricaba un PR que nadie ha corrido. Por arriba
+// sí se admite: ahí el tiempo es una cota superior honesta (`distance_delta_m`).
 const PB_RANGES = [
-  { id: '5k', name: '5K', std: 5000, min: 4900, max: 5200, effortNames: ['5k'] },
-  { id: '10k', name: '10K', std: 10000, min: 9900, max: 10500, effortNames: ['10k'] },
-  { id: 'hm', name: 'Half Marathon', std: 21097, min: 21000, max: 21500, effortNames: ['half-marathon'] },
-  { id: 'fm', name: 'Marathon', std: 42195, min: 42000, max: 43000, effortNames: ['marathon'] },
+  { id: '5k', name: '5K', std: 5000, max: 5200, effortNames: ['5k'] },
+  { id: '10k', name: '10K', std: 10000, max: 10500, effortNames: ['10k'] },
+  { id: 'hm', name: 'Half Marathon', std: 21097, max: 21500, effortNames: ['half-marathon'] },
+  { id: 'fm', name: 'Marathon', std: 42195, max: 43000, effortNames: ['marathon'] },
 ];
 const PB_FLAT_RANGES = [
-  { id: 'flat1k', name: 'Flat 1K', effortKey: '1k', std: 1000, splits: 1, min: 950, max: 1050, maxElev: 5 },
-  { id: 'flat2k', name: 'Flat 2K', effortKey: '2k', std: 2000, splits: 2, min: 1900, max: 2100, maxElev: 10 },
+  { id: 'flat1k', name: 'Flat 1K', effortKey: '1k', std: 1000, splits: 1, max: 1050, maxElev: 5 },
+  { id: 'flat2k', name: 'Flat 2K', effortKey: '2k', std: 2000, splits: 2, max: 2100, maxElev: 10 },
 ];
 
 const fmtTime = (s) => {
@@ -924,7 +918,7 @@ function pbCandidate(a, range) {
     return { id: a.id, name: a.name, start_date: a.start_date, time: effort.moving_time || effort.elapsed_time, distance: effort.distance, isEffort: a.distance > range.max, isFlat: false, source: 'best_effort' };
   }
   const time = a.moving_time || a.elapsed_time;
-  if (a.distance >= range.min && a.distance <= range.max && time > 0) {
+  if (a.distance >= range.std && a.distance <= range.max && time > 0) {
     return { id: a.id, name: a.name, start_date: a.start_date, time, distance: a.distance, isEffort: false, isFlat: false, source: 'total_distance' };
   }
   return null;
@@ -942,7 +936,7 @@ function pbFlatFromSplits(a, range) {
     const distance = win.reduce((s, sp) => s + sp.distance, 0);
     const elevation = win.reduce((s, sp) => s + sp.elevation_difference, 0);
     const time = win.reduce((s, sp) => s + (sp.moving_time || sp.elapsed_time || 0), 0);
-    if (Math.abs(elevation) > range.maxElev || distance < range.min || distance > range.max || time <= 0) continue;
+    if (Math.abs(elevation) > range.maxElev || distance < range.std || distance > range.max || time <= 0) continue;
     if (!best || time / distance < best.time / best.distance) best = { time, distance, elevation };
   }
   return best;
@@ -1309,51 +1303,57 @@ function toWeekly(series) {
 }
 
 /**
- * Serie de carga crónica (CTL, 42 d), aguda (ATL, 7 d) y forma (TSB) por medias
- * móviles exponenciales sobre el training_load de Garmin. Sin ingesta.
+ * Serie de carga crónica (CTL, 42 d), aguda (ATL, 7 d) y forma (TSB) con el PMC de
+ * Banister/Coggan de `src/lib/trainingLoad.js` — el MISMO módulo y la misma
+ * calibración que pinta la pestaña *Estado* del front, así que la tool y la app ya
+ * no devuelven dos CTL distintos para el mismo atleta.
+ *
+ * Antes esto mantenía aquí su propio EWMA sobre `_garmin.training.training_load`
+ * (con `moving_time / 60` como proxy cuando faltaba) y agrupaba por día UTC. Tres
+ * cambios respecto a aquello:
+ *   · La carga es TSS (100 = 1 h a umbral, TRIMP de Banister sobre HRR), no los
+ *     puntos de carga de Garmin: es la escala para la que están calibrados los
+ *     umbrales que ya lee la UI (TSB > +15, rampa CTL ≤ +5/sem…).
+ *   · El día es el LOCAL del atleta (`start_date_local`), no el UTC: un entreno de
+ *     tarde-noche caía en el día siguiente y desplazaba la serie.
+ *   · La serie llega hasta HOY, no hasta el último entreno. Sin ese relleno, CTL/ATL
+ *     se leían congelados en la fecha de la última sesión en vez de decaer.
+ *
  * - `tsb`: forma con la convención TrainingPeaks (CTL−ATL del día ANTERIOR).
  * - `tsb_today`: CTL−ATL del propio día (evita el desfase al leerlo junto a CTL/ATL).
  * - `granularity: 'weekly'` colapsa a semana; `summary_only` devuelve solo `current`.
  */
 export async function getTrainingLoadModel(userId, { from, to, granularity = 'daily', summary_only = false } = {}) {
   const acts = await getActivities(userId);
-  const byDay = new Map();
-  for (const a of acts) {
-    const day = (a.start_date || '').slice(0, 10);
-    if (!day) continue;
-    let load = a._garmin?.training?.training_load;
-    if (load == null && a.moving_time) load = a.moving_time / 60; // proxy si no hay load Garmin
-    if (load == null) continue;
-    byDay.set(day, (byDay.get(day) || 0) + load);
-  }
-  if (!byDay.size) return { current: null, series: [], note: 'Sin datos de carga' };
-  const days = [...byDay.keys()].sort();
-  const first = new Date(days[0] + 'T00:00:00');
-  const last = new Date(days[days.length - 1] + 'T00:00:00');
-  const kCtl = 1 - Math.exp(-1 / 42);
-  const kAtl = 1 - Math.exp(-1 / 7);
-  let ctl = 0, atl = 0;
-  const series = [];
-  for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
-    const iso = toISODate(d);
-    const load = byDay.get(iso) || 0;
-    const tsb = ctl - atl;                             // forma = CTL previo − ATL previo
-    ctl += (load - ctl) * kCtl;
-    atl += (load - atl) * kAtl;
-    series.push({
-      date: iso, load: round(load, 0),
-      ctl: round(ctl, 1), atl: round(atl, 1),
-      tsb: round(tsb, 1), tsb_today: round(ctl - atl, 1),
-    });
-  }
+  // Sin opts, exactamente como `computePMC(activities)` en StatusSnapshot y
+  // FitnessFatigue: la calibración (FCmax/FCreposo/LTHR) sale de hrZones sobre este
+  // mismo historial. Pasar aquí otros parámetros volvería a abrir la brecha.
+  const pmc = computePMC(acts);
+  if (!pmc) return { current: null, series: [], note: 'Sin datos de carga' };
+
+  // Cada fila de trainingLoad trae el TSB de su propio día, así que la forma "de la
+  // víspera" que espera el consumidor es sencillamente la fila anterior.
+  const series = pmc.series.map((s, i) => ({
+    date: s.date,
+    load: round(s.load, 0),
+    ctl: s.ctl,
+    atl: s.atl,
+    tsb: i > 0 ? pmc.series[i - 1].tsb : 0,
+    tsb_today: s.tsb,
+  }));
+
   const ranged = series.filter((s) => inRange(s.date, from, to));
   const daily = ranged.length ? ranged : series;
   const lastRow = daily[daily.length - 1] || null;
   const weekly_ramp = daily.length > 7 ? round(daily[daily.length - 1].ctl - daily[daily.length - 8].ctl, 1) : null;
   const current = lastRow ? { ...lastRow, weekly_ramp } : null;
-  if (summary_only) return { current, granularity: 'summary' };
+  // La escala hay que decirla: un CTL de 45 en TSS no es un CTL de 45 en puntos
+  // Garmin, y el consumidor es un LLM que si no la ve la da por supuesta.
+  const { hrmax, hrrest, lthr } = pmc.params;
+  const model = { scale: 'TSS (100 = 1 h a umbral)', hrmax, hrrest, lthr };
+  if (summary_only) return { current, model, granularity: 'summary' };
   const out = granularity === 'weekly' ? toWeekly(daily) : daily;
-  return { current, granularity, count: out.length, series: out };
+  return { current, model, granularity, count: out.length, series: out };
 }
 
 // ── Alertas de patrón (firma de infección / sobrecarga) ──────────────────────
@@ -1470,23 +1470,19 @@ export function detectThresholdEffort(a, hrMax) {
 
 // FCmax robusta: el máximo absoluto lo dispara cualquier spike de la banda/muñeca
 // (p.ej. 214 con una máxima real de 194), y eso sube el umbral del 88% hasta hacer
-// que no se detecte ningún test. Tomamos el percentil 98 de las FCmax por carrera de
-// los últimos 12 meses (descarta spikes aislados) en un rango fisiológico plausible.
+// que no se detecte ningún test.
+//
+// Delega en `detectMaxHR` (src/lib/hrZones.js), la MISMA función que usan las zonas
+// del front y el prompt del coach: antes esto calculaba su propio percentil 98 sobre
+// otro rango (120–225), así que el servidor MCP y la app respondían con dos FCmax
+// distintas —y por tanto dos juegos de zonas— para el mismo atleta.
+//
+// Se conserva la semántica de null: `detectMaxHR` devuelve 185 por defecto cuando no
+// hay picos utilizables, y aquí eso debe seguir siendo "no se sabe" (n === 0), no un
+// número inventado que los callers tomarían por medido.
 export function estimateHrMax(activities) {
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - 12);
-  const pick = (arr) => arr
-    .map((a) => a.max_heartrate)
-    .filter((v) => typeof v === 'number' && v > 120 && v < 225)
-    .sort((x, y) => x - y);
-  let vals = pick(activities.filter((a) => new Date(a.start_date) >= cutoff));
-  if (vals.length < 8) vals = pick(activities);   // histórico si el último año es escaso
-  if (!vals.length) return null;
-  // Percentil 98 por rango-más-cercano: el índice se escala sobre (n−1), no sobre n.
-  // Con n≤50, Math.floor(n*0.98) === n−1 y devolvía SIEMPRE el máximo (el spike que
-  // esto debía descartar); escalar sobre (n−1) sí recorta la cola alta.
-  const idx = Math.floor((vals.length - 1) * 0.98);
-  return vals[idx];
+  const { value, n } = detectMaxHR(activities ?? []);
+  return n > 0 ? value : null;
 }
 
 /**
@@ -1727,44 +1723,12 @@ export async function getSleep(userId, { from, to } = {}) {
 // CUALQUIER formato (tabla semanal, markdown, notas sueltas): no se parsea, se
 // guarda tal cual para que el modelo lo lea y lo reescriba.
 const TARGET_RACES_KEY = 'target_races';
-const RACE_DISTANCES = ['5k', '10k', '21k', '42k'];
 
-/** "3:30:00" / "45:00" / "22" -> minutos (float). null si no es válido. */
-export function parseTimeToMinutes(str) {
-  if (str == null) return null;
-  const s = String(str).trim();
-  if (!s) return null;
-  if (s.includes(':')) {
-    const parts = s.split(':').map(Number);
-    if (parts.some(Number.isNaN)) return null;
-    if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
-    if (parts.length === 2) return parts[0] + parts[1] / 60;
-    return null;
-  }
-  const n = Number(s);
-  return Number.isNaN(n) ? null : n;
-}
-
-/** minutos (float) -> "H:MM:SS" o "MM:SS". */
-function formatMinutes(min) {
-  if (min == null || Number.isNaN(min)) return null;
-  const totalSec = Math.round(min * 60);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  const today = new Date();
-  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return Math.round((d.getTime() - utcToday) / 86400000);
-}
+// parseTimeToMinutes / formatMinutes / daysUntil vienen de src/lib/timeFormat:
+// eran una copia del front y ya habían divergido (formatMinutes devolvía '' allí
+// y null aquí). Se re-exporta parseTimeToMinutes porque forma parte de la API
+// pública de este módulo.
+export { parseTimeToMinutes };
 
 async function readTargetRaces(userId) {
   const list = await readKeyFresh(userId, TARGET_RACES_KEY);
@@ -1781,11 +1745,13 @@ async function readTargetRaces(userId) {
 // actividad casi nunca coincide con el del evento) y, si ese día hay varias, se
 // elige la más cercana a la distancia oficial. Cierra el ciclo: el modelo puede
 // contrastar lo que se planeó con lo que de verdad pasó.
-const RACE_DISTANCE_M = { '5k': 5000, '10k': 10000, '21k': 21098, '42k': 42195 };
+// Las distancias oficiales salen de la tabla única (src/lib/raceDistances). Aquí
+// la media estaba en 21098 m, medio metro por encima de la que usa el front, así
+// que `distance_delta_m` no cuadraba con lo que enseña la UI.
 
 function findRaceActivity(race, activities) {
   if (!race?.date) return null;
-  const target = RACE_DISTANCE_M[race.distance] || null;
+  const target = DISTANCE_M[race.distance] || null;
   const sameDay = activities.filter((a) => isRunning(a)
     && String(a.start_date_local || a.start_date || '').slice(0, 10) === race.date
     && a.distance > 0);
@@ -1803,7 +1769,7 @@ function shapeRaceResult(race, activity) {
   const timeMin = (activity.moving_time || 0) / 60;
   if (!timeMin) return null;
   const distanceM = Math.round(activity.distance);
-  const officialM = RACE_DISTANCE_M[race.distance] || null;
+  const officialM = DISTANCE_M[race.distance] || null;
   const goal = race.goalTimeMin ?? null;
   return {
     activity_id: activity.id,
@@ -1813,7 +1779,7 @@ function shapeRaceResult(race, activity) {
     distance_m: distanceM,
     // > 0 significa que se corrió MÁS que la distancia oficial: el tiempo es una
     // cota superior del tiempo a esa distancia. Nunca se reescala.
-    distance_delta_m: officialM != null ? distanceM - officialM : null,
+    distance_delta_m: officialM != null ? Math.round(distanceM - officialM) : null,
     avg_hr: activity.average_heartrate || null,
     elevation_gain: activity.total_elevation_gain ?? null,
     goal_time_min: goal,
@@ -1844,20 +1810,10 @@ function ensurePrimary(list, prevList, fallbackId) {
   for (const r of list) if (r.id === keepId) r.primary = true;
 }
 
-// Heurística de formato del plan (espejo de src/lib/planFormat.js): el modelo
-// necesita saber en qué está escrito para editarlo sin cambiarle el formato.
-const HTML_TAG = /<\/?(p|div|table|tbody|thead|tr|td|th|ul|ol|li|h[1-6]|br|hr|span|strong|em|b|i|u|a|code|pre|blockquote|section|article|img|font)\b[^>]*>/i;
-const MD_PATTERNS = [
-  /^\s{0,3}#{1,6}\s+\S/m, /^\s{0,3}\|.*\|\s*$/m, /```/,
-  /^\s{0,3}[-*+]\s+\S/m, /^\s{0,3}\d+\.\s+\S/m, /^\s{0,3}>\s+\S/m,
-  /\*\*[^*\n]+\*\*/, /\[[^\]\n]+\]\([^)\s]+\)/, /^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/m,
-];
-export function detectPlanFormat(text) {
-  const str = String(text ?? '');
-  if (!str.trim()) return 'empty';
-  if (HTML_TAG.test(str)) return 'html';
-  return MD_PATTERNS.some((re) => re.test(str)) ? 'markdown' : 'text';
-}
+// La heurística de formato del plan (detectPlanFormat) es la de
+// src/lib/planFormat: el modelo necesita saber en qué está escrito para editarlo
+// sin cambiarle el formato. Los 9 regex de markdown estaban duplicados aquí.
+export { detectPlanFormat };
 
 function shapeRace(r, { include_plan = true, primary_id = undefined, activities = null } = {}) {
   const days = daysUntil(r.date);
@@ -1870,7 +1826,7 @@ function shapeRace(r, { include_plan = true, primary_id = undefined, activities 
     // desayuno, la salida de casa y el calentamiento.
     start_time: r.startTime || null,
     distance: r.distance ?? null,
-    goal_time: formatMinutes(r.goalTimeMin),
+    goal_time: formatMinutes(r.goalTimeMin) || null,
     goal_time_min: r.goalTimeMin ?? null,
     days_until: days,
     is_past: days == null ? null : days < 0,
@@ -1951,8 +1907,8 @@ export async function upsertTargetRace(userId, {
   const idx = race_id ? list.findIndex((r) => String(r.id) === String(race_id)) : -1;
   if (race_id && idx < 0) return { error: `No existe la carrera objetivo "${race_id}"` };
   if (!race_id && !name) return { error: 'Falta `name` para crear una carrera objetivo' };
-  if (distance && !RACE_DISTANCES.includes(distance)) {
-    return { error: `distance debe ser una de: ${RACE_DISTANCES.join(', ')}` };
+  if (distance && !RACE_KEYS.includes(distance)) {
+    return { error: `distance debe ser una de: ${RACE_KEYS.join(', ')}` };
   }
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { error: 'date debe tener formato YYYY-MM-DD' };
@@ -2020,77 +1976,41 @@ export async function deleteTargetRace(userId, raceId) {
 }
 
 // ── Velocidad crítica ───────────────────────────────────────────────────────
-// Espejo de src/lib/criticalSpeed.js. Modelo de dos parámetros: d = CS·t + D′.
+// El modelo vive ENTERO en src/lib/criticalSpeed.js (curva mean-max + ajuste de
+// dos parámetros d = CS·t + D′), compartido con la UI para que la tool y la
+// pestaña no den dos velocidades críticas distintas. Aquí solo se presenta:
+// redondeos y tiempos formateados para la respuesta MCP.
 //   CS  velocidad crítica (m/s): mayor intensidad sostenible en estado estable;
 //       es el umbral MEDIDO del atleta, no una estimación de tablas.
 //   D′  reserva anaeróbica (m): metros disponibles por encima de CS.
 // Solo es válido de ~2 a ~30 min: por debajo manda la potencia anaeróbica y por
 // encima aparece una fatiga que el modelo ignora, así que en media y maratón
 // predice tiempos DEMASIADO BUENOS. Las predicciones fuera de rango se marcan.
-const CS_FIT_MIN_S = 120;
-const CS_FIT_MAX_S = 1800;
 
-function csCurve(activities, { from = null, to = null } = {}) {
-  const best = new Map();
-  const consider = (id, distance, timeS, a, source) => {
-    if (!id || !(timeS > 0) || !(distance > 0)) return;
-    const prev = best.get(id);
-    if (prev && prev.time_s <= timeS) return;
-    best.set(id, {
-      id,
-      distance_m: Math.round(distance),
-      time_s: Math.round(timeS),
-      time: fmtTime(timeS),
-      pace_min_km: round((timeS / 60) / (distance / 1000)),
-      date: String(a.start_date_local || a.start_date || '').slice(0, 10),
-      activity_id: a.id,
-      activity_name: a.name || null,
-      source,
-    });
-  };
-  for (const a of activities) {
-    if (!isRunning(a)) continue;
-    const day = String(a.start_date_local || a.start_date || '').slice(0, 10);
-    if (from && day < from) continue;
-    if (to && day > to) continue;
-    for (const e of a.best_efforts || []) {
-      consider(canonEffortByMeters(e.distance), e.distance, e.moving_time || e.elapsed_time, a, 'best_effort');
-    }
-    // Carreras previas al ingest de efforts: su tiempo total ES el mejor esfuerzo.
-    consider(raceDistanceId(a.distance), a.distance, a.moving_time || a.elapsed_time, a, 'total_distance');
-  }
-  return [...best.values()].sort((x, y) => x.distance_m - y.distance_m);
-}
+/** Punto de la curva compartida → forma de la respuesta MCP. */
+const csPoint = (p) => ({
+  id: p.id,
+  distance_m: p.distance_m,
+  time_s: p.time_s,
+  time: fmtTime(p.time_s),
+  pace_min_km: round(p.pace_min_km),
+  date: p.date,
+  activity_id: p.activity_id,
+  activity_name: p.activity_name,
+  source: p.source,
+});
 
-function csFit(points) {
-  const used = points.filter((p) => p.time_s >= CS_FIT_MIN_S && p.time_s <= CS_FIT_MAX_S);
-  if (used.length < 3) return null;
-  const n = used.length;
-  const sumT = used.reduce((s, p) => s + p.time_s, 0);
-  const sumD = used.reduce((s, p) => s + p.distance_m, 0);
-  const sumTT = used.reduce((s, p) => s + p.time_s ** 2, 0);
-  const sumTD = used.reduce((s, p) => s + p.time_s * p.distance_m, 0);
-  const denom = n * sumTT - sumT * sumT;
-  if (denom === 0) return null;
-  const cs = (n * sumTD - sumT * sumD) / denom;
-  const dPrime = (sumD - cs * sumT) / n;
-  if (!(cs > 0) || !(dPrime > 0)) return null;
-  const meanD = sumD / n;
-  const ssTot = used.reduce((s, p) => s + (p.distance_m - meanD) ** 2, 0);
-  const ssRes = used.reduce((s, p) => s + (p.distance_m - (cs * p.time_s + dPrime)) ** 2, 0);
-  return {
-    cs_m_s: round(cs, 3),
-    cs_pace_min_km: round((1000 / cs) / 60),
-    cs_pace: fmtTime((1000 / cs)),
-    d_prime_m: Math.round(dPrime),
-    r2: round(ssTot > 0 ? 1 - ssRes / ssTot : 1, 4),
-    n,
-    used_efforts: used.map((p) => p.id),
-    valid_window: '2-30 min',
-    _cs: cs,
-    _d: dPrime,
-  };
-}
+/** Ajuste compartido → forma de la respuesta MCP (null si no hay ajuste). */
+const csFitOut = (fit) => (fit && {
+  cs_m_s: round(fit.cs_m_s, 3),
+  cs_pace_min_km: round(fit.cs_pace_min_km),
+  cs_pace: fmtTime(1000 / fit.cs_m_s),
+  d_prime_m: Math.round(fit.d_prime_m),
+  r2: round(fit.r2, 4),
+  n: fit.n,
+  used_efforts: fit.used_ids,
+  valid_window: '2-30 min',
+});
 
 /**
  * Curva de mejores esfuerzos + ajuste de velocidad crítica + predicciones.
@@ -2099,8 +2019,10 @@ function csFit(points) {
  */
 export async function getCriticalSpeed(userId, { from = null, to = null, compare_previous = false } = {}) {
   const activities = await getActivities(userId);
-  const curve = csCurve(activities, { from, to });
-  const fit = csFit(curve);
+  const rawCurve = buildMeanMaxCurve(activities, { from, to });
+  const fit = fitCriticalSpeed(rawCurve);
+  const fitOut = csFitOut(fit);
+  const curve = rawCurve.map(csPoint);
 
   if (!fit) {
     return {
@@ -2110,23 +2032,20 @@ export async function getCriticalSpeed(userId, { from = null, to = null, compare
     };
   }
 
-  const predictions = [
-    { id: '5k', m: 5000 }, { id: '10k', m: 10000 },
-    { id: 'half-marathon', m: 21097 }, { id: 'marathon', m: 42195 },
-  ].map(({ id, m }) => {
-    const t = (m - fit._d) / fit._cs;
-    const real = curve.find((p) => p.id === id);
+  const predictions = RACE_DISTANCES.map(({ id, m }) => {
+    const p = predictTime(fit, m);
+    const real = curve.find((c) => c.id === id);
     return {
       distance: id,
       distance_m: m,
-      model_time: fmtTime(t),
-      model_time_s: Math.round(t),
-      model_pace_min_km: round((t / 60) / (m / 1000)),
+      model_time: fmtTime(p.time_s),
+      model_time_s: Math.round(p.time_s),
+      model_pace_min_km: round(p.pace_min_km),
       // Fuera de la ventana el modelo ignora la fatiga: es COTA INFERIOR de tiempo.
-      optimistic: t > CS_FIT_MAX_S,
+      optimistic: p.optimistic,
       best_time: real ? real.time : null,
       best_time_s: real ? real.time_s : null,
-      delta_s: real ? Math.round(real.time_s - t) : null,
+      delta_s: real ? Math.round(real.time_s - p.time_s) : null,
     };
   });
 
@@ -2135,23 +2054,21 @@ export async function getCriticalSpeed(userId, { from = null, to = null, compare
     const span = Date.parse(to || new Date().toISOString().slice(0, 10)) - Date.parse(from);
     if (span > 0) {
       const prevFrom = new Date(Date.parse(from) - span).toISOString().slice(0, 10);
-      const prevCurve = csCurve(activities, { from: prevFrom, to: from });
-      const prevFit = csFit(prevCurve);
-      previous = prevFit
+      const prev = csFitOut(fitCriticalSpeed(buildMeanMaxCurve(activities, { from: prevFrom, to: from })));
+      previous = prev
         ? {
           from: prevFrom, to: from,
-          cs_pace: prevFit.cs_pace, cs_m_s: prevFit.cs_m_s, d_prime_m: prevFit.d_prime_m, r2: prevFit.r2, n: prevFit.n,
-          cs_change_m_s: round(fit.cs_m_s - prevFit.cs_m_s, 3),
-          d_prime_change_m: Math.round(fit.d_prime_m - prevFit.d_prime_m),
+          cs_pace: prev.cs_pace, cs_m_s: prev.cs_m_s, d_prime_m: prev.d_prime_m, r2: prev.r2, n: prev.n,
+          cs_change_m_s: round(fitOut.cs_m_s - prev.cs_m_s, 3),
+          d_prime_change_m: fitOut.d_prime_m - prev.d_prime_m,
         }
         : { from: prevFrom, to: from, error: 'Sin ajuste en el periodo anterior' };
     }
   }
 
-  delete fit._cs; delete fit._d;
   return {
     range: { from, to },
-    fit,
+    fit: fitOut,
     predictions,
     curve,
     previous,

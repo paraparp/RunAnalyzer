@@ -4,6 +4,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { Card, Title, Text, Button, Select, SelectItem, Grid, NumberInput, DatePicker, ProgressBar } from "@tremor/react";
 import { ClipboardDocumentListIcon, CheckIcon, ArrowPathIcon, ArrowDownTrayIcon, TableCellsIcon, CodeBracketIcon, ChevronDownIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 import { es } from 'date-fns/locale';
+import { formatPaceFromSpeed } from '../lib/timeFormat';
 
 const ALL_FIELDS = [
     { key: 'date',           label: 'Fecha' },
@@ -32,14 +33,6 @@ const GARMIN_FIELDS = [
 ];
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
-
-const calculatePace = (speed) => {
-    if (!speed || speed === 0) return '0:00';
-    const pace    = 16.6667 / speed;
-    const minutes = Math.floor(pace);
-    const seconds = Math.floor((pace - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
 
 const isRunning = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);
 
@@ -154,7 +147,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
         if (selectedFields.has('time_min'))       obj.time_min       = parseFloat((a.moving_time / 60).toFixed(2));
         // pace only makes sense for running; other types get speed in km/h instead
         if (selectedFields.has('pace')) {
-            if (isRunning(a)) obj.pace = calculatePace(a.average_speed);
+            if (isRunning(a)) obj.pace = formatPaceFromSpeed(a.average_speed);
             else              obj.speed_kmh = parseFloat(((a.average_speed || 0) * 3.6).toFixed(1));
         }
         if (selectedFields.has('avg_hr'))         obj.avg_hr         = a.average_heartrate;
@@ -166,7 +159,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
             lap_index:       l.lap_index,
             distance_km:     parseFloat((l.distance / 1000).toFixed(2)),
             moving_time_min: parseFloat((l.moving_time / 60).toFixed(2)),
-            pace:            isRunning(a) ? calculatePace(l.average_speed) : undefined,
+            pace:            isRunning(a) ? formatPaceFromSpeed(l.average_speed) : undefined,
             speed_kmh:       isRunning(a) ? undefined : parseFloat(((l.average_speed || 0) * 3.6).toFixed(1)),
             avg_hr:          l.average_heartrate,
             max_hr:          l.max_heartrate,
@@ -281,7 +274,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         md += `| Parcial | Distancia | Tiempo | Ritmo | FC Media |\n`;
                         md += `| --- | --- | --- | --- | --- |\n`;
                         a.laps.forEach(l => {
-                            md += `| ${l.lap_index} | ${(l.distance / 1000).toFixed(2)}km | ${Math.round(l.moving_time / 60)}min | ${calculatePace(l.average_speed)}/km | ${l.average_heartrate ? Math.round(l.average_heartrate) : 'N/A'} |\n`;
+                            md += `| ${l.lap_index} | ${(l.distance / 1000).toFixed(2)}km | ${Math.round(l.moving_time / 60)}min | ${formatPaceFromSpeed(l.average_speed)}/km | ${l.average_heartrate ? Math.round(l.average_heartrate) : 'N/A'} |\n`;
                         });
                     });
                 }

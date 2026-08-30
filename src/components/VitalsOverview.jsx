@@ -8,6 +8,10 @@ import { motion } from "framer-motion";
 import {
   HeartIcon, BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, ExclamationTriangleIcon, FireIcon,
 } from "@heroicons/react/24/outline";
+import { computePMC } from '../lib/trainingLoad';
+import { vo2FromRun } from '../lib/physiology';
+import { gapFactor, gapFactorFromGain } from '../lib/gap';
+import { decouplingPct } from '../lib/decoupling';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,92 +119,20 @@ function buildBands(data, threshold) {
   return bands;
 }
 
-// Aerobic decoupling (Pa:HR drift) within a run: 2nd-half vs 1st-half HR/pace ratio.
-// <5% = buena resistencia aeróbica (TrainingPeaks / Jones 2023). Necesita parciales (splits_metric).
-function calcDecoupling(splits) {
-  if (!splits || splits.length < 4) return null;
-  const valid = splits.filter((s) => s.average_speed > 0 && s.average_heartrate > 0 && s.distance > 500);
-  if (valid.length < 4) return null;
-  const mid = Math.floor(valid.length / 2);
-  const ratio = (arr) =>
-    arr.reduce((s, sp) => s + sp.average_heartrate / (1000 / (sp.average_speed * 60)), 0) / arr.length;
-  const r1 = ratio(valid.slice(0, mid));
-  const r2 = ratio(valid.slice(mid));
-  return r1 === 0 ? null : ((r2 - r1) / r1) * 100;
-}
-
-// Minetti (2002) energy cost of running vs gradient → flat-equivalent speed factor.
-// i = gradient as fraction (gain/distance). factor = C(i)/C(0); >1 uphill (would run faster on flat).
-function minettiFactor(i) {
-  const g = Math.max(-0.30, Math.min(i, 0.30)); // pendiente con signo (parciales); cap ±30%
-  const C0 = 3.6;
-  const C = 155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6;
-  return C / C0;
-}
-
-// Lightweight per-run VO2max estimate (HRR + %HRmax, same formulas as VO2max Tracker)
-function oxygenCostLeger(vKmh) {
-  return 2.209 + 3.163 * vKmh + 0.000525542 * vKmh * vKmh * vKmh;
-}
-function vo2FromRun(speedMs, hr, hrRest, hrMax) {
-  if (!speedMs || !hr || hr < 90) return null;
-  const vo2Running = oxygenCostLeger(speedMs * 3.6); // m/s → km/h
-  // HRR (Swain-Leutholtz) when rest HR known, else %HRmax fallback
-  if (hrRest && hrMax > hrRest) {
-    const pctHRR = (hr - hrRest) / (hrMax - hrRest);
-    if (pctHRR >= 0.35 && pctHRR <= 0.95) {
-      const v = 3.5 + (vo2Running - 3.5) / pctHRR;
-      if (v > 15 && v < 90) return v;
-    }
-  }
-  if (hrMax) {
-    const pctHRmax = hr / hrMax;
-    if (pctHRmax >= 0.55 && pctHRmax <= 0.98) {
-      const pctVO2 = 1.5286 * pctHRmax - 0.5286;
-      if (pctVO2 > 0.2) {
-        const v = vo2Running / pctVO2;
-        if (v > 15 && v < 90) return v;
-      }
-    }
-  }
-  return null;
-}
-
-// Per-activity training load (same model as FitnessFatigue PMC)
-function estimateLoad(a) {
-  const mins = (a.moving_time || 0) / 60;
-  if (a.average_heartrate) return mins * (a.average_heartrate / 180) * 1.92;
-  if (a.distance) return (a.distance / 1000) * 0.8;
-  return mins * 0.4;
-}
-
-// Daily CTL (chronic / accumulated training load) via 42-day EWMA over full history
+/**
+ * Serie diaria de CTL. La carga por sesión y el EWMA viven en lib/trainingLoad
+ * (fuente única compartida con StatusSnapshot, FitnessFatigue, InjuryRisk y el
+ * coach IA). Aquí solo se reindexa a milisegundos de medianoche local, que es la
+ * base temporal que usan el resto de series de esta vista.
+ */
 function computeCTLSeries(activities) {
-  if (!activities?.length) return [];
-  // Bucket por día LOCAL (start_date_local si existe) para que cuadre con el resto de series
-  const dailySS = {};
-  let minMs = Infinity;
-  activities.forEach((a) => {
-    const dateStr = (a.start_date_local || a.start_date)?.split("T")[0];
-    if (!dateStr) return;
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const ms = new Date(y, m - 1, d).getTime(); // medianoche local
-    if (ms < minMs) minMs = ms;
-    dailySS[ms] = (dailySS[ms] || 0) + (a.suffer_score || estimateLoad(a));
-  });
-  if (minMs === Infinity) return [];
-
-  const kCTL = Math.exp(-1 / 42);
-  let ctl = 0;
-  const out = [];
-  const d = new Date(minMs);
-  const todayMs = dayMs(Date.now());
-  for (let cur = minMs; cur <= todayMs; d.setDate(d.getDate() + 1), cur = dayMs(d.getTime())) {
-    const tss = dailySS[cur] || 0;
-    ctl = ctl * kCTL + tss * (1 - kCTL);
-    out.push({ ms: cur, ctl: +ctl.toFixed(1), load: tss });
-  }
-  return out;
+  const pmc = computePMC(activities);
+  if (!pmc) return [];
+  return pmc.series.map((p) => ({
+    ms: new Date(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))).getTime(),
+    ctl: p.ctl,
+    load: p.load,
+  }));
 }
 
 const PERIODS = [
@@ -503,7 +435,7 @@ export default function VitalsOverview({ activities = [] }) {
         if (!s.average_speed || s.average_speed < 1.5 || (s.distance || 0) < 900) continue;
         const grade = (s.elevation_difference || 0) / s.distance; // con signo (subida/bajada)
         if (Math.abs(grade) * 100 >= gradCap) continue;
-        const speed = gapAdjust ? s.average_speed * minettiFactor(grade) : s.average_speed;
+        const speed = gapAdjust ? s.average_speed * gapFactor(grade) : s.average_speed;
         const t = s.moving_time || 1;
         wSum += ((speed * 60) / s.average_heartrate) * t; // m/latido ponderado por tiempo
         tSum += t;
@@ -520,7 +452,7 @@ export default function VitalsOverview({ activities = [] }) {
       if (dur < 1200 || dur > 4500) return null;
       const gradeFrac = (a.total_elevation_gain || 0) / a.distance;
       if (Math.abs(gradeFrac) * 100 >= gradCap) return null;
-      const speed = gapAdjust ? a.average_speed * minettiFactor(gradeFrac) : a.average_speed;
+      const speed = gapAdjust ? a.average_speed * gapFactorFromGain(a.distance, a.total_elevation_gain || 0) : a.average_speed;
       // m/latido = velocidad(m/s) · 60 / FC(ppm)
       return (speed * 60) / a.average_heartrate;
     };
@@ -552,7 +484,7 @@ export default function VitalsOverview({ activities = [] }) {
         return true;
       })
       .map((a) => {
-        const dc = calcDecoupling(a.splits_metric);
+        const dc = decouplingPct(a.splits_metric);
         return dc == null ? null : { ms: new Date(a.start_date).getTime(), v: +dc.toFixed(2) };
       })
       .filter(Boolean)

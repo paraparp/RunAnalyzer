@@ -14,6 +14,7 @@ import {
   CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import { formatPaceFromSpeed } from '../lib/timeFormat';
 
 export default function GearTracker({ activities, stravaData, setStravaData }) {
   const { t, i18n } = useTranslation();
@@ -116,13 +117,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         const distKm = gear.distance / 1000;
         const avgSpeed = gear.moving_time > 0 ? (gear.distance / gear.moving_time) : 0;
         
-        const formatPace = (speedMps) => {
-            if (!speedMps) return '-';
-            const pace = 16.6667 / speedMps;
-            const m = Math.floor(pace);
-            const s = Math.round((pace - m) * 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        };
+        const formatPace = (speedMps) => formatPaceFromSpeed(speedMps, '-');
 
         const today = new Date();
         const diffTime = Math.abs(today - gear.lastUsed);

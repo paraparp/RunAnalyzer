@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { weekStartDate } from '../lib/isoWeek';
 
 const GRID_LINES = 4;
 
@@ -36,10 +37,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
     if (groupBy === 'week') {
       // Agrupar por semana (lunes como inicio)
       const grouped = activities.reduce((acc, activity) => {
-        const date = new Date(activity.start_date);
-        const monday = new Date(date);
-        monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-        monday.setHours(0, 0, 0, 0);
+        const monday = weekStartDate(activity.start_date);
         const key = monday.getTime();
         if (!acc[key]) acc[key] = { date: monday, distance: 0, time: 0, elevation: 0, load: 0 };
         acc[key].distance  += activity.distance || 0;

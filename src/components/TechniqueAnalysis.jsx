@@ -7,6 +7,7 @@ import {
   AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { useMemo, useState, useEffect } from 'react';
+import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 
 export default function TechniqueAnalysis({ activities }) {
   const [flatOnly, setFlatOnly] = useState(false);
@@ -67,9 +68,7 @@ export default function TechniqueAnalysis({ activities }) {
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
-      const m = Math.floor(data.ritmoVal);
-      const s = Math.round((data.ritmoVal - m) * 60);
-      const paceFmt = `${m}:${s.toString().padStart(2, '0')} /km`;
+      const paceFmt = `${formatPaceFromMinPerKm(data.ritmoVal)} /km`;
       return (
         <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl z-50">
           <p className="font-bold text-slate-800 text-sm mb-1">{data.name}</p>
@@ -98,13 +97,10 @@ export default function TechniqueAnalysis({ activities }) {
     const avgStride = chartData.reduce((acc, curr) => acc + curr.Zancada, 0) / chartData.length;
     const bestPace = Math.min(...chartData.map(d => d.ritmoVal));
     
-    const m = Math.floor(bestPace);
-    const s = Math.round((bestPace - m) * 60);
-
     return {
       cadence: Math.round(avgCadence),
       stride: avgStride.toFixed(2),
-      bestPace: `${m}:${s.toString().padStart(2, '0')}`
+      bestPace: formatPaceFromMinPerKm(bestPace)
     };
   }, [chartData]);
 
@@ -198,11 +194,7 @@ export default function TechniqueAnalysis({ activities }) {
                  dataKey="ritmoVal" 
                  name="Ritmo" 
                  domain={['dataMin', 'dataMax']}
-                 tickFormatter={(val) => {
-                   const m = Math.floor(val);
-                   const s = Math.round((val - m) * 60);
-                   return `${m}:${s.toString().padStart(2, '0')}`;
-                 }}
+                 tickFormatter={(val) => formatPaceFromMinPerKm(val)}
                  reversed={true}
                  tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
                  axisLine={{ stroke: '#f1f5f9' }}

@@ -47,13 +47,7 @@ const DEVICE_KEYS = new Set(['app_language']);
 
 const cache = new Map();
 let currentUserId = null;
-let hydrated = false;
 let degraded = false; // true cuando Supabase no responde y trabajamos con el espejo local
-
-/** ¿Está la caché lista para lecturas síncronas? */
-export function isHydrated() {
-  return hydrated;
-}
 
 /**
  * ¿Estamos en modo degradado (Supabase inalcanzable, p.ej. HTTP 522)? La app
@@ -179,7 +173,6 @@ async function removeRemote(key) {
 export async function hydrate(userId) {
   currentUserId = userId;
   cache.clear();
-  hydrated = false;
   setDegraded(false);
 
   const { data, error } = await withRetry(() =>
@@ -195,7 +188,6 @@ export async function hydrate(userId) {
       const local = readLocal(key);
       if (local != null) cache.set(key, local);
     }
-    hydrated = true;
     return;
   }
 
@@ -226,8 +218,6 @@ export async function hydrate(userId) {
       console.log(`cloudStorage: migradas ${toMigrate.length} claves desde localStorage`);
     }
   }
-
-  hydrated = true;
 }
 
 /** Vacía la caché en memoria (al cerrar sesión). No borra datos en la nube. */
@@ -237,7 +227,6 @@ export function reset() {
   lastPersisted.clear();
   cache.clear();
   currentUserId = null;
-  hydrated = false;
   setDegraded(false);
 }
 

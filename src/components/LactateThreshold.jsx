@@ -84,7 +84,9 @@ export default function LactateThreshold({ activities }) {
   const csChartData = (() => {
     if (!csValid) return [];
     const curve = [];
-    for (let m = 3; m <= 50; m += 1) {
+    // La curva se dibuja solo dentro de la ventana de validez del modelo (2–30
+    // min); fuera de ella ignora la fatiga y trazaría ritmos que nadie sostiene.
+    for (let m = 2; m <= 30; m += 1) {
       const tt = m * 60;
       const sp = cs.cs + cs.dPrime / tt;
       curve.push({ durMin: m, modelPace: paceFromSpeed(sp) });

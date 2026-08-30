@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildMeanMaxCurve, fitCriticalSpeed, predictTime, speedForDuration,
-  canonByMeters, raceDistanceId,
+  canonByMeters, raceDistanceId, hasNonMaximalPoints, monthsAgoISO,
 } from './criticalSpeed';
 
 // Distancia por defecto NO canónica (12,4 km): así la actividad solo aporta los
@@ -113,5 +113,43 @@ describe('predicciones', () => {
   it('la velocidad sostenible tiende a CS al alargar el esfuerzo', () => {
     expect(speedForDuration(fit, 300)).toBeGreaterThan(fit.cs_m_s);
     expect(speedForDuration(fit, 36000)).toBeCloseTo(fit.cs_m_s, 1);
+  });
+});
+
+describe('banda de plausibilidad', () => {
+  it('descarta una pendiente que no es de un corredor', () => {
+    // d = 12·t + 100 → CS de 12 m/s (1:23/km): matemáticamente perfecto, humanamente falso.
+    const irreal = [180, 600, 1200].map((t) => ({ id: `t${t}`, time_s: t, distance_m: 12 * t + 100 }));
+    expect(fitCriticalSpeed(irreal)).toBe(null);
+  });
+});
+
+describe('hasNonMaximalPoints', () => {
+  const pt = (t, speed) => ({ id: `t${t}`, time_s: t, speed_m_s: speed });
+
+  it('una curva que decrece con la duración es coherente', () => {
+    expect(hasNonMaximalPoints([pt(180, 5), pt(600, 4.5), pt(1200, 4.2)])).toBe(false);
+  });
+
+  it('detecta que un esfuerzo más largo salió más rápido que uno más corto', () => {
+    expect(hasNonMaximalPoints([pt(180, 4.2), pt(600, 4.5)])).toBe(true);
+  });
+
+  it('ignora lo que cae fuera de la ventana de ajuste', () => {
+    // El sprint de 60 s es más lento que el de 600 s, pero no entra en el ajuste.
+    expect(hasNonMaximalPoints([pt(60, 4), pt(600, 4.5), pt(1200, 4.2)])).toBe(false);
+  });
+});
+
+describe('monthsAgoISO', () => {
+  it('sin meses no pone límite inferior', () => {
+    expect(monthsAgoISO(null)).toBe(null);
+  });
+
+  it('devuelve una fecha ISO anterior a hoy', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const hace6 = monthsAgoISO(6);
+    expect(hace6).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(hace6 < hoy).toBe(true);
   });
 });

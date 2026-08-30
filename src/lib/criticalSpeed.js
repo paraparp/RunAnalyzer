@@ -19,6 +19,11 @@
 // optimistas: es una cota, no un pronóstico.
 // ============================================================================
 
+// Las extensiones .js son obligatorias: este módulo también se importa desde
+// `api/` (Node ESM), donde la resolución sin extensión no existe.
+import { DISTANCE_M } from './raceDistances.js';
+import { formatDuration, formatPaceFromMinPerKm } from './timeFormat.js';
+
 // Distancias canónicas de los best_efforts de Strava. Se casan por METROS y no
 // por nombre: Strava los localiza según el idioma de la cuenta ("10 km",
 // "1 milla"), así que comparar textos falla en silencio.
@@ -28,14 +33,15 @@ export const CANON_EFFORTS = [
   { id: '1k', m: 1000, label: '1K' },
   { id: '1 mile', m: 1609, label: '1 milla' },
   { id: '2 mile', m: 3219, label: '2 millas' },
-  { id: '5k', m: 5000, label: '5K' },
-  { id: '10k', m: 10000, label: '10K' },
+  { id: '5k', m: DISTANCE_M['5k'], label: '5K' },
+  { id: '10k', m: DISTANCE_M['10k'], label: '10K' },
   { id: '15k', m: 15000, label: '15K' },
   { id: '10 mile', m: 16093, label: '10 millas' },
   { id: '20k', m: 20000, label: '20K' },
-  { id: 'half-marathon', m: 21097, label: 'Media' },
+  { id: 'half-marathon', m: DISTANCE_M['21k'], label: 'Media' },
   { id: '30k', m: 30000, label: '30K' },
-  { id: 'marathon', m: 42195, label: 'Maratón' },
+  { id: 'marathon', m: DISTANCE_M['42k'], label: 'Maratón' },
+  { id: '50k', m: 50000, label: '50K' },
 ];
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
@@ -114,10 +120,44 @@ export function buildMeanMaxCurve(activities = [], { from = null, to = null } = 
 export const FIT_MIN_S = 120;
 export const FIT_MAX_S = 1800;
 
+// Banda de plausibilidad fisiológica de CS en carrera a pie (m/s): 1.4 ≈ 11:54/km
+// y 6.5 ≈ 2:34/km. Una pendiente fuera de aquí no describe a un corredor, sino a
+// una regresión sobre datos incoherentes.
+export const CS_MIN_M_S = 1.4;
+export const CS_MAX_M_S = 6.5;
+
+/** Fecha ISO (YYYY-MM-DD) de hace N meses; `null` = sin límite inferior. Única
+ *  definición de la ventana temporal, para que todas las vistas ajusten el
+ *  modelo sobre exactamente el mismo histórico. */
+export function monthsAgoISO(months) {
+  if (months == null) return null;
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * ¿La curva contradice la definición de esfuerzo máximo? En una curva real la
+ * velocidad DECRECE con la duración; si un esfuerzo más largo sale más rápido
+ * que uno más corto, esos puntos no se corrieron a tope y el ajuste —salga o
+ * no— no describe un umbral. Diagnóstico, no filtro: informa, no descarta.
+ */
+export function hasNonMaximalPoints(points = [], { minTime = FIT_MIN_S, maxTime = FIT_MAX_S } = {}) {
+  const used = points
+    .filter((p) => p.time_s >= minTime && p.time_s <= maxTime)
+    .sort((a, b) => a.time_s - b.time_s);
+  for (let i = 1; i < used.length; i++) {
+    if (used[i].speed_m_s >= used[i - 1].speed_m_s) return true;
+  }
+  return false;
+}
+
 /**
  * Ajusta d = CS·t + D′ por mínimos cuadrados sobre los puntos de la ventana.
- * Devuelve null si no hay al menos 3 puntos utilizables o si el ajuste sale sin
- * sentido físico (CS o D′ negativos), que es lo que pasa con datos escasos.
+ * Devuelve null si no hay al menos 3 puntos utilizables, si D′ sale negativo o
+ * si CS cae fuera de la banda plausible: con datos escasos o incoherentes la
+ * regresión da una pendiente cualquiera, y más vale no ajuste que un umbral
+ * inventado.
  */
 export function fitCriticalSpeed(points = [], { minTime = FIT_MIN_S, maxTime = FIT_MAX_S } = {}) {
   const used = points.filter((p) => p.time_s >= minTime && p.time_s <= maxTime);
@@ -134,7 +174,7 @@ export function fitCriticalSpeed(points = [], { minTime = FIT_MIN_S, maxTime = F
 
   const cs = (n * sumTD - sumT * sumD) / denom;          // pendiente = CS (m/s)
   const dPrime = (sumD - cs * sumT) / n;                 // ordenada = D′ (m)
-  if (!(cs > 0) || !(dPrime > 0)) return null;
+  if (!(dPrime > 0) || !(cs >= CS_MIN_M_S && cs <= CS_MAX_M_S)) return null;
 
   const meanD = sumD / n;
   const ssTot = used.reduce((s, p) => s + (p.distance_m - meanD) ** 2, 0);
@@ -174,21 +214,10 @@ export function speedForDuration(fit, seconds) {
   return fit.cs_m_s + fit.d_prime_m / seconds;
 }
 
+// Se mantienen los nombres cortos por compatibilidad con quien ya los importa,
+// pero el formateo vive en timeFormat: aquí solo se fija el marcador '—'.
 /** "mm:ss" o "h:mm:ss" a partir de segundos. */
-export function fmtTime(seconds) {
-  if (seconds == null || !Number.isFinite(seconds)) return '—';
-  const t = Math.round(seconds);
-  const h = Math.floor(t / 3600);
-  const m = Math.floor((t % 3600) / 60);
-  const s = t % 60;
-  return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    : `${m}:${String(s).padStart(2, '0')}`;
-}
+export const fmtTime = (seconds) => formatDuration(seconds, '—');
 
 /** Ritmo en min/km a "m:ss". */
-export function fmtPace(paceMin) {
-  if (paceMin == null || !Number.isFinite(paceMin)) return '—';
-  const total = Math.round(paceMin * 60);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
+export const fmtPace = (paceMin) => formatPaceFromMinPerKm(paceMin, '—');

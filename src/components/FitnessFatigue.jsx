@@ -10,31 +10,16 @@ import {
   ArrowTrendingUpIcon, FireIcon, SparklesIcon, BoltIcon,
   AdjustmentsHorizontalIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import { computePMC, dayKey, activityDayKey } from '../lib/trainingLoad';
+import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function estimateLoad(a) {
-  const mins = (a.moving_time || 0) / 60;
-  if (a.average_heartrate) return mins * (a.average_heartrate / 180) * 1.92;
-  if (a.distance) return (a.distance / 1000) * 0.8;
-  return mins * 0.4;
-}
-
-function fmtDur(secs) {
-  if (!secs) return null;
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function fmtPace(speed) {
-  if (!speed || speed <= 0) return null;
-  const p = 16.6667 / speed;
-  const m = Math.floor(p);
-  const s = Math.round((p - m) * 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+// Devuelven null (no un marcador) a propósito: aquí la tarjeta omite la línea
+// entera cuando no hay dato, en vez de pintar un hueco.
+const fmtDur = (secs) => formatDurationHm(secs, null);
+const fmtPace = (speed) => formatPaceFromSpeed(speed, null);
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function FitnessFatigue({ activities }) {
@@ -47,81 +32,45 @@ export default function FitnessFatigue({ activities }) {
   const { chartData, maxLoad, current, weeklyLoad, rampRate, topEfforts } = useMemo(() => {
     if (!activities?.length) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
-    const dailySS   = {};
-    const dailyActs = {};
-    let minDate = Infinity;
+    // El modelo de carga y el PMC viven en lib/trainingLoad (fuente única
+    // compartida con StatusSnapshot, InjuryRisk, VitalsOverview y el coach IA).
+    const pmc = computePMC(activities);
+    if (!pmc) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
-    activities.forEach(a => {
-      const dateStr = a.start_date?.split('T')[0];
-      if (!dateStr) return;
-      const ts = new Date(dateStr).getTime();
-      if (ts < minDate) minDate = ts;
+    const weeklyBuckets = {};
+    const data = pmc.series.map((p) => {
+      // Cubo semanal con el lunes como inicio.
+      const d = new Date(p.date.slice(0, 4), +p.date.slice(5, 7) - 1, +p.date.slice(8, 10));
+      const mon = new Date(d);
+      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const weekKey = dayKey(mon);
+      if (!weeklyBuckets[weekKey]) weeklyBuckets[weekKey] = { key: weekKey, load: 0, count: 0, sort: mon.getTime() };
+      weeklyBuckets[weekKey].load += p.load;
+      if (p.load > 0) weeklyBuckets[weekKey].count++;
 
-      const ss = a.suffer_score || estimateLoad(a);
-      dailySS[dateStr] = (dailySS[dateStr] || 0) + ss;
-
-      if (!dailyActs[dateStr]) dailyActs[dateStr] = [];
-      dailyActs[dateStr].push({
-        id: a.id,
-        name: a.name,
-        distance: a.distance,
-        moving_time: a.moving_time,
-        average_speed: a.average_speed,
-        average_heartrate: a.average_heartrate,
-        suffer_score: a.suffer_score,
-      });
+      return {
+        date:    p.date,
+        Fitness: p.ctl,
+        Fatiga:  p.atl,
+        Forma:   p.tsb,
+        load:    p.load,
+        acts:    p.activities.map((a) => ({
+          id: a.id,
+          name: a.name,
+          distance: a.distance,
+          moving_time: a.moving_time,
+          average_speed: a.average_speed,
+          average_heartrate: a.average_heartrate,
+          suffer_score: a.suffer_score,
+        })),
+      };
     });
 
-    if (minDate === Infinity) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
-
-    // ── 2. PMC day loop ─────────────────────────────────────────────────────────
-    const kCTL = Math.exp(-1 / 42);
-    const kATL = Math.exp(-1 / 7);
-    let ctl = 0, atl = 0;
-    let peakCTL = 0, peakCTLDate = '';
-    let lowestTSB = Infinity;
-    let globalMaxLoad = 0;
-    const weeklyBuckets = {};
-    const data = [];
-
-    for (let ts = minDate; ts <= Date.now(); ts += 86400000) {
-      const d       = new Date(ts);
-      const dateStr = d.toISOString().split('T')[0];
-      const tss     = dailySS[dateStr] || 0;
-
-      ctl = ctl * kCTL + tss * (1 - kCTL);
-      atl = atl * kATL + tss * (1 - kATL);
-      const tsb = ctl - atl;
-
-      if (ctl > peakCTL)      { peakCTL = ctl; peakCTLDate = dateStr; }
-      if (tsb < lowestTSB)    lowestTSB = tsb;
-      if (tss > globalMaxLoad) globalMaxLoad = tss;
-
-      data.push({
-        date:    dateStr,
-        Fitness: Math.round(ctl  * 10) / 10,
-        Fatiga:  Math.round(atl  * 10) / 10,
-        Forma:   Math.round(tsb  * 10) / 10,
-        load:    tss,
-        acts:    dailyActs[dateStr] || [],
-      });
-
-      // Weekly buckets
-      const dow    = d.getDay();
-      const mon    = new Date(d);
-      mon.setDate(d.getDate() - ((dow + 6) % 7));
-      const weekKey = mon.toISOString().split('T')[0];
-      if (!weeklyBuckets[weekKey]) weeklyBuckets[weekKey] = { key: weekKey, load: 0, count: 0, sort: mon.getTime() };
-      weeklyBuckets[weekKey].load += tss;
-      if (tss > 0) weeklyBuckets[weekKey].count++;
-    }
+    const { ctl, atl, peak: peakCTL, peakDate: peakCTLDate, lowestTsb: lowestTSB,
+            maxDayLoad: globalMaxLoad, ramp: rampPerWeek,
+            ctlTrend7, ctlTrend28, pctPeak } = pmc.current;
 
     // ── 3. Derived stats ────────────────────────────────────────────────────────
-    const ctlNow   = ctl;
-    const ctl7ago  = data.length > 7  ? data[data.length - 8].Fitness  : 0;
-    const ctl28ago = data.length > 28 ? data[data.length - 29].Fitness : 0;
-    const rampPerWeek = data.length > 28 ? (ctlNow - ctl28ago) / 4 : (ctlNow - ctl7ago);
-
     const wl = Object.values(weeklyBuckets)
       .sort((a, b) => a.sort - b.sort)
       .slice(-16)
@@ -134,7 +83,9 @@ export default function FitnessFatigue({ activities }) {
     const efforts = [];
     activities.forEach(a => {
       if (a.distance >= 3000 && a.average_speed > 0) {
-        const dateStr = a.start_date?.split('T')[0];
+        // La serie va indexada por día LOCAL: buscar por el UTC desalinearía
+        // las actividades nocturnas.
+        const dateStr = activityDayKey(a);
         const stat    = data.find(d => d.date === dateStr);
         if (!stat) return;
         const p        = 16.6667 / a.average_speed;
@@ -157,13 +108,14 @@ export default function FitnessFatigue({ activities }) {
         fitness:        Math.round(ctl),
         fatigue:        Math.round(atl),
         form:           Math.round(ctl - atl),
-        acwr:           ctl > 0 ? Math.round((atl / ctl) * 100) / 100 : 0,
+        // ACWR por EWMA 7:28 (Williams 2017), no ATL/CTL(42).
+        acwr:           pmc.current.acwr != null ? Math.round(pmc.current.acwr * 100) / 100 : 0,
         peakFitness:    Math.round(peakCTL),
         peakFitnessDate: peakCTLDate,
         lowestTSB:      Math.round(lowestTSB),
-        ctlTrend7:      Math.round(ctlNow - ctl7ago),
-        ctlTrend28:     Math.round(ctlNow - ctl28ago),
-        fitnessPercent: peakCTL > 0 ? Math.round((ctl / peakCTL) * 100) : 0,
+        ctlTrend7:      Math.round(ctlTrend7),
+        ctlTrend28:     Math.round(ctlTrend28),
+        fitnessPercent: pctPeak,
       },
       weeklyLoad: wl,
       rampRate:   Math.round(rampPerWeek * 10) / 10,
@@ -291,7 +243,7 @@ export default function FitnessFatigue({ activities }) {
   const ScatterTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
-    const m = Math.floor(d.pace), s = Math.round((d.pace - m) * 60);
+    const paceFmt = formatPaceFromMinPerKm(d.pace);
     return (
       <div className="bg-white/95 p-4 border border-slate-200 shadow-xl rounded-xl min-w-[200px]">
         <p className="font-bold text-slate-800 text-sm mb-2">{d.name}</p>
@@ -299,7 +251,7 @@ export default function FitnessFatigue({ activities }) {
           <p className="text-xs text-slate-500">{es ? 'Fecha' : 'Date'}: <span className="font-bold text-slate-900">{d.dateStrFmt}</span></p>
           <p className="text-xs text-slate-500">CTL: <span className="font-bold text-slate-900">{d.Fitness}</span></p>
           <p className="text-xs text-slate-500">TSB: <span className={`font-bold ${d.Forma > 5 ? 'text-emerald-600' : d.Forma < -10 ? 'text-rose-600' : 'text-slate-900'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
-          <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{m}:{s.toString().padStart(2,'0')} /km</span></p>
+          <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
           <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
         </div>
         <p className="text-[10px] text-slate-400 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
@@ -566,7 +518,7 @@ export default function FitnessFatigue({ activities }) {
                   label={{ value: 'Fitness (CTL)', position: 'insideBottom', offset: -10, fill: '#64748b', fontSize: 12 }}
                   tick={{ fill: '#64748b', fontSize: 12 }} />
                 <YAxis type="number" dataKey="pace" name={es ? 'Ritmo' : 'Pace'} domain={['auto', 'auto']} reversed
-                  tickFormatter={v => { const m = Math.floor(v); const s = Math.round((v - m) * 60); return `${m}:${s.toString().padStart(2, '0')}`; }}
+                  tickFormatter={v => formatPaceFromMinPerKm(v)}
                   label={{ value: es ? 'Ritmo (min/km)' : 'Pace (min/km)', angle: -90, position: 'insideLeft', offset: -5, fill: '#64748b', fontSize: 12 }}
                   tick={{ fill: '#64748b', fontSize: 12 }} />
                 <ZAxis type="number" dataKey="distance" range={[40, 400]} />

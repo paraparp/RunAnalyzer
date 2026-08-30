@@ -10,6 +10,7 @@
 // scan the full activity history, so re-running them per rendered row is wasteful.
 import { useMemo, useState, useEffect } from 'react';
 import cloudStorage from '../lib/cloudStorage';
+import useGarminWearableData from './useGarminWearableData';
 import {
   detectMaxHR, detectRestHR, detectLTHR, estimateLTHR, HR_LIMITS,
 } from '../lib/hrZones';
@@ -44,22 +45,7 @@ export default function useHrParams(activities) {
   }, [userMax, userRest, userLTHR]);
 
   // ── Garmin cardiac data (resting HR source) ──
-  const [garmin, setGarmin] = useState(undefined);
-  useEffect(() => {
-    const loadGarminData = () => {
-      try {
-        const s = cloudStorage.getItem('garmin_cardiac_data');
-        if (s) { setGarmin(JSON.parse(s)); return; }
-      } catch { /* corrupt cache — fall through to fetch */ }
-      fetch('/garmin_data.json')
-        .then(r => r.ok ? r.json() : null)
-        .then(j => setGarmin(j?.data ?? null))
-        .catch(() => setGarmin(null));
-    };
-    loadGarminData();
-    window.addEventListener('garmin_sync_complete', loadGarminData);
-    return () => window.removeEventListener('garmin_sync_complete', loadGarminData);
-  }, []);
+  const { garmin } = useGarminWearableData();
 
   // ── Calibration window: LTHR drifts with fitness, so it is read from the last
   //    two months. HRmax is a stable trait → detected over the full history. ──

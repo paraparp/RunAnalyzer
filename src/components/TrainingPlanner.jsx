@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
+import useGarminWearableData from '../hooks/useGarminWearableData';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -9,8 +10,10 @@ import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipI
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import AIToolHeader from './AIToolHeader';
+import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
+import { DISTANCE_KM } from '../lib/raceDistances';
 
 // Prompt del plan — vive en código y siempre en español (antes estaba duplicado
 // en i18n en dos idiomas que podían divergir y mezclaba idioma con el
@@ -84,32 +87,18 @@ const TrainingPlanner = ({ activities }) => {
     const [error, setError] = useState('');
 
     // Wearable context (HRV / sleep), same sources as the AI suggestion panel.
-    const [garmin, setGarmin] = useState(null);
-    const [sleep, setSleep] = useState(null);
-    useEffect(() => {
-        const load = () => {
-            try {
-                const s = cloudStorage.getItem('garmin_cardiac_data');
-                if (s) setGarmin(JSON.parse(s));
-                else fetch('/garmin_data.json').then(r => r.ok ? r.json() : null).then(j => setGarmin(j?.data ?? null)).catch(() => setGarmin(null));
-            } catch { setGarmin(null); }
-            try { const sl = cloudStorage.getItem('garmin_sleep_data'); setSleep(sl ? JSON.parse(sl) : null); } catch { setSleep(null); }
-        };
-        load();
-        window.addEventListener('garmin_sync_complete', load);
-        return () => window.removeEventListener('garmin_sync_complete', load);
-    }, []);
+    const { garmin, sleep } = useGarminWearableData();
 
     // Rich athlete context (PMC/CTL-ATL-TSB, ACWR, HR zones, reference paces, PBs,
     // polarized distribution, wearable) — reuses the AI suggestion builder so the
     // plan is grounded in the same science. Falls back to a plain run list.
     const buildPlanContext = (daysCount) => {
         try {
-            const km = (goalTime && Number(goalTime) > 0 && { '5k': 5, '10k': 10, '21k': 21.0975, '42k': 42.195 }[goalDist]) || 0;
+            const km = (goalTime && Number(goalTime) > 0 && DISTANCE_KM[goalDist]) || 0;
             let pace;
             if (km > 0) {
                 const p = Number(goalTime) / km;
-                pace = `${Math.floor(p)}:${String(Math.round((p % 1) * 60)).padStart(2, '0')}`;
+                pace = formatPaceFromMinPerKm(p, null);
             }
             const { athleteContext } = buildPrompt(
                 activities, garmin, sleep, daysCount,

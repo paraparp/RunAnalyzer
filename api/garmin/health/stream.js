@@ -8,7 +8,12 @@ export const config = { maxDuration: 300 };
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fmt = (d) => { const dt = new Date(d); return `${MONTHS_ES[dt.getMonth()]} ${dt.getFullYear()}`; };
 
-export default async function handler(req, res) {
+/**
+ * En producción (Vercel) se invoca como handler(req, res) y hace login en cada
+ * llamada. El proxy de desarrollo (`server.js`) lo monta pasando un tercer
+ * argumento para reutilizar su sesión de Garmin cacheada e invalidarla si falla.
+ */
+export default async function handler(req, res, { getClient = createClient, onError } = {}) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { username, password, days = 365 } = req.body ?? {};
@@ -22,7 +27,7 @@ export default async function handler(req, res) {
   const send = (obj) => res.write(JSON.stringify(obj) + '\n');
 
   try {
-    const client = await createClient(username, password);
+    const client = await getClient(username, password);
     const cappedDays = Math.min(days, 1825);
     const chunks = threeMonthChunks(cappedDays);
     const totalChunks = chunks.length;
@@ -61,10 +66,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const mergedSleep = mergeSleepData([], sleepRows);
-    send({ type: 'done', total: accumulated.length, sleepData: mergedSleep });
+    send({ type: 'done', total: accumulated.length, sleepData: mergeSleepData([], sleepRows) });
     res.end();
   } catch (e) {
+    onError?.(e);
     send({ type: 'error', error: e.message });
     res.end();
   }

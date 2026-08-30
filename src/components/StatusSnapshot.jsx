@@ -16,42 +16,20 @@ import {
   CalendarDaysIcon, ArrowUpIcon, ArrowDownIcon,
   XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
+import { computePMC } from '../lib/trainingLoad';
+import { weekStartKey } from '../lib/isoWeek';
+import { formatPaceFromSpeed, formatDurationHm } from '../lib/timeFormat';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
-const kCTL = Math.exp(-1 / 42);
-const kATL = Math.exp(-1 / 7);
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const isRun = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);
 
-const paceStr = (speedMs) => {
-  if (!speedMs || speedMs <= 0) return '—';
-  const paceMinKm = 16.6667 / speedMs;
-  if (paceMinKm < 2 || paceMinKm > 20) return '—';
-  const m = Math.floor(paceMinKm);
-  const s = Math.floor((paceMinKm - m) * 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-};
-
-const timeStr = (seconds) => {
-  if (!seconds) return '—';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-};
+const paceStr = (speedMs) => formatPaceFromSpeed(speedMs, '—');
+const timeStr = (seconds) => formatDurationHm(seconds, '—');
 
 const fmt1 = (n) => (n == null ? '—' : Number(n).toFixed(1));
-const fmtKm = (m) => (m == null ? '—' : (m / 1000).toFixed(1));
-
-const weekStart = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - ((day + 6) % 7));
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
-};
 
 // ─── main computation ─────────────────────────────────────────────────────────
 function computeStats(activities) {
@@ -62,72 +40,50 @@ function computeStats(activities) {
   const todayStr = now.toISOString().split('T')[0];
   const thisYear = now.getFullYear();
 
-  // ── daily stress scores & activities ──
-  const dailyActivities = {};
-  activities.forEach((a) => {
-    const d = a.start_date.split('T')[0];
-    const ss = a.suffer_score || (a.moving_time / 60) * 0.5;
-    if (!dailyActivities[d]) dailyActivities[d] = { ss: 0, list: [] };
-    dailyActivities[d].ss += ss;
-    dailyActivities[d].list.push({ 
-      id: a.id,
-      name: a.name, 
-      distance: a.distance, 
-      type: a.type,
-      sport_type: a.sport_type,
-      moving_time: a.moving_time,
-      average_speed: a.average_speed,
-      average_heartrate: a.average_heartrate,
-      suffer_score: ss
-    });
+  // ── PMC: modelo de carga y series CTL/ATL/TSB desde lib/trainingLoad ──
+  // (fuente única compartida con FitnessFatigue, InjuryRisk, VitalsOverview y
+  // el coach IA; antes esta vista usaba su propia carga `(min/60)*0.5`).
+  const pmc = computePMC(activities);
+  if (!pmc) return null;
+
+  let peakCTL = 0, peakCTLDate = '', peakCTLYear = 0;
+  const weeklyLoadMap = {};
+  const ctlSeries = pmc.series.map((p) => {
+    if (p.ctl > peakCTL) { peakCTL = p.ctl; peakCTLDate = p.date; }
+    if (Number(p.date.slice(0, 4)) === thisYear && p.ctl > peakCTLYear) peakCTLYear = p.ctl;
+
+    const wk = weekStartKey(new Date(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))));
+    if (!weeklyLoadMap[wk]) weeklyLoadMap[wk] = { load: 0 };
+    weeklyLoadMap[wk].load += p.load;
+
+    return {
+      date: p.date,
+      ctl: p.ctl,
+      atl: p.atl,
+      tsb: p.tsb,
+      load: p.load,
+      activities: p.activities.map((a) => ({
+        id: a.id,
+        name: a.name,
+        distance: a.distance,
+        type: a.type,
+        sport_type: a.sport_type,
+        moving_time: a.moving_time,
+        average_speed: a.average_speed,
+        average_heartrate: a.average_heartrate,
+        suffer_score: a.suffer_score,
+      })),
+    };
   });
 
-  const minDate = activities.reduce((min, a) => {
-    const t = new Date(a.start_date).getTime();
-    return t < min ? t : min;
-  }, Infinity);
+  const currentCTL = pmc.current.ctl;
+  const currentATL = pmc.current.atl;
+  const currentTSB = pmc.current.tsb;
+  // ACWR por EWMA 7:28 (Williams 2017), no ATL/CTL(42).
+  const currentACWR = pmc.current.acwr ?? 0;
 
-  // ── CTL/ATL rolling ──
-  let ctl = 0, atl = 0;
-  let peakCTL = 0, peakCTLDate = '';
-  let peakCTLYear = 0;
-  const ctlSeries = [];
-  const weeklyLoadMap = {};
-
-  for (let t = minDate; t <= nowMs; t += 86400000) {
-    const d = new Date(t);
-    const dateStr = d.toISOString().split('T')[0];
-    const dayData = dailyActivities[dateStr] || { ss: 0, list: [] };
-    const tss = dayData.ss;
-    ctl = ctl * kCTL + tss * (1 - kCTL);
-    atl = atl * kATL + tss * (1 - kATL);
-    const tsb = ctl - atl;
-
-    if (ctl > peakCTL) { peakCTL = ctl; peakCTLDate = dateStr; }
-    if (d.getFullYear() === thisYear && ctl > peakCTLYear) peakCTLYear = ctl;
-
-    // weekly load bucket
-    const wk = weekStart(d);
-    if (!weeklyLoadMap[wk]) weeklyLoadMap[wk] = { load: 0 };
-    weeklyLoadMap[wk].load += tss;
-
-    ctlSeries.push({ 
-      date: dateStr, 
-      ctl: Math.round(ctl * 10) / 10, 
-      atl: Math.round(atl * 10) / 10, 
-      tsb: Math.round(tsb * 10) / 10, 
-      load: tss,
-      activities: dayData.list
-    });
-  }
-
-  const currentCTL = ctl;
-  const currentATL = atl;
-  const currentTSB = ctl - atl;
-  const currentACWR = ctl > 0 ? atl / ctl : 0;
-
-  const ctl7ago = ctlSeries.length > 7 ? ctlSeries[ctlSeries.length - 8].ctl : 0;
-  const ctl28ago = ctlSeries.length > 28 ? ctlSeries[ctlSeries.length - 29].ctl : 0;
+  const ctl7ago = currentCTL - pmc.current.ctlTrend7;
+  const ctl28ago = currentCTL - pmc.current.ctlTrend28;
 
   // full history available for chart
   const chartDataFull = ctlSeries;
@@ -136,7 +92,7 @@ function computeStats(activities) {
   const runActivities = activities.filter(isRun);
   const weeklyKm = {};
   runActivities.forEach((a) => {
-    const wk = weekStart(new Date(a.start_date));
+    const wk = weekStartKey(new Date(a.start_date));
     weeklyKm[wk] = (weeklyKm[wk] || 0) + a.distance / 1000;
   });
 
@@ -618,11 +574,16 @@ export default function StatusSnapshot({ activities }) {
   const ctlSparkData  = sparkData.map((d) => ({ v: d.ctl }));
   const atlSparkData  = sparkData.map((d) => ({ v: d.atl }));
   const volSparkData  = (() => {
-    // sample weekly km from chartDataFull last 8 weeks
+    // Km reales por semana (8 últimas). Antes se pintaba Sum(TSS)/1000 como "proxy
+    // de km": con 300-700 TSS por semana salia 0-1 y el sparkline era una linea de
+    // ceros. La serie del PMC ya trae las actividades originales de cada dia.
     const weeksData = [];
     for (let i = 7; i >= 0; i--) {
       const slice = chartDataFull.slice(-(i + 1) * 7, i > 0 ? -i * 7 : undefined);
-      const km = slice.reduce((s, d) => s + d.load, 0) * (1 / 0.5) / 1000 * 0.5; // rough km proxy
+      const km = slice.reduce(
+        (s, d) => s + (d.activities ?? []).filter(isRun).reduce((a, act) => a + (act.distance ?? 0), 0),
+        0,
+      ) / 1000;
       weeksData.push({ v: Math.round(km) });
     }
     return weeksData;

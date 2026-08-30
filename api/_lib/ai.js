@@ -13,10 +13,6 @@ const KEYS = {
   zai: () => process.env.ZAI_API_KEY || process.env.VITE_ZAI_API_KEY,
 };
 
-export function geminiKey() {
-  return KEYS.gemini();
-}
-
 /** Crea el modelo del SDK para el proveedor pedido, con la key del servidor. */
 export function resolveModel(provider = 'gemini', model) {
   const key = KEYS[provider]?.();

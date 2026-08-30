@@ -1,4 +1,10 @@
 import cloudStorage from './cloudStorage';
+import { DISTANCE_KM } from './raceDistances';
+import { parseTimeToMinutes, formatMinutes, daysUntil } from './timeFormat';
+
+// Se re-exportan para no cambiar el punto de importación de las vistas, que
+// piden estos helpers junto con el resto de la API de carreras objetivo.
+export { parseTimeToMinutes, formatMinutes, daysUntil };
 
 // ============================================================================
 // targetRaces — lista de carreras/eventos objetivo del usuario.
@@ -20,13 +26,9 @@ import cloudStorage from './cloudStorage';
 const KEY = 'target_races';
 export const TARGET_RACES_EVENT = 'target_races_changed';
 
-// Distancias soportadas (km), alineadas con el selector del planificador.
-export const DISTANCES = {
-  '5k': 5,
-  '10k': 10,
-  '21k': 21.0975,
-  '42k': 42.195,
-};
+// Distancias soportadas (km). La tabla oficial vive en lib/raceDistances, que
+// es la misma que usan el predictor, el planificador y la curva de esfuerzos.
+export const DISTANCES = DISTANCE_KM;
 
 export function getTargetRaces() {
   try {
@@ -123,33 +125,6 @@ export function deleteTargetRace(id) {
   return list;
 }
 
-/** "3:30:00" / "45:00" / "22" -> minutos (float). null si no es válido. */
-export function parseTimeToMinutes(str) {
-  if (str == null) return null;
-  const s = String(str).trim();
-  if (!s) return null;
-  if (s.includes(':')) {
-    const parts = s.split(':').map(p => Number(p));
-    if (parts.some(n => Number.isNaN(n))) return null;
-    if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
-    if (parts.length === 2) return parts[0] + parts[1] / 60;
-    return null;
-  }
-  const n = Number(s);
-  return Number.isNaN(n) ? null : n;
-}
-
-/** minutos (float) -> "H:MM:SS" o "MM:SS". */
-export function formatMinutes(min) {
-  if (min == null || Number.isNaN(min)) return '';
-  const totalSec = Math.round(min * 60);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const sec = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  return `${m}:${String(sec).padStart(2, '0')}`;
-}
-
 /** La más próxima (hoy o futura) de una lista dada. null si no hay ninguna. */
 function nextUpcomingOf(list) {
   return list
@@ -169,20 +144,4 @@ export function getNextTargetRace() {
  */
 export function getPrimaryTargetRace() {
   return getTargetRaces().find(r => r.primary) || getNextTargetRace();
-}
-
-/** ¿Es esta la carrera principal efectiva (marcada o por defecto)? */
-export function isPrimaryTargetRace(race) {
-  if (!race) return false;
-  return getPrimaryTargetRace()?.id === race.id;
-}
-
-/** Días hasta la fecha (negativo si ya pasó). null si no hay fecha válida. */
-export function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
-  if (Number.isNaN(d.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((d - today) / (1000 * 60 * 60 * 24));
 }

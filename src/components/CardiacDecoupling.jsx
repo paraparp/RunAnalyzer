@@ -1,42 +1,12 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { decouplingPct } from '../lib/decoupling';
 import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
 } from 'recharts';
-
-function formatPace(minPerKm) {
-  if (!minPerKm || minPerKm <= 0 || minPerKm > 15) return '--:--';
-  const mins = Math.floor(minPerKm);
-  const secs = Math.round((minPerKm - mins) * 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
-
-function calcDecoupling(splits) {
-  if (!splits || splits.length < 4) return null;
-
-  const valid = splits.filter(s => s.average_speed > 0 && s.average_heartrate > 0 && s.distance > 500);
-  if (valid.length < 4) return null;
-
-  const mid = Math.floor(valid.length / 2);
-  const firstHalf = valid.slice(0, mid);
-  const secondHalf = valid.slice(mid);
-
-  const ratioFirst = firstHalf.reduce((s, sp) => {
-    const pace = 1000 / (sp.average_speed * 60);
-    return s + sp.average_heartrate / pace;
-  }, 0) / firstHalf.length;
-
-  const ratioSecond = secondHalf.reduce((s, sp) => {
-    const pace = 1000 / (sp.average_speed * 60);
-    return s + sp.average_heartrate / pace;
-  }, 0) / secondHalf.length;
-
-  if (ratioFirst === 0) return null;
-
-  return ((ratioSecond - ratioFirst) / ratioFirst) * 100;
-}
 
 // Level keys for i18n lookup
 function getDecouplingLevelKey(pct) {
@@ -82,7 +52,7 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
         new Date(a.start_date).getTime() >= cutoff
       )
       .map(a => {
-        const dc = calcDecoupling(a.splits_metric);
+        const dc = decouplingPct(a.splits_metric);
         if (dc === null) return null;
 
         const pace = a.average_speed > 0 ? 16.6667 / a.average_speed : 0;
@@ -97,7 +67,7 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
           km: (a.distance / 1000).toFixed(1),
           duration: Math.round(a.moving_time / 60),
           pace,
-          paceLabel: formatPace(pace),
+          paceLabel: formatPaceFromMinPerKm(pace),
           hr: Math.round(a.average_heartrate),
           decoupling: Math.round(dc * 10) / 10,
           levelKey,

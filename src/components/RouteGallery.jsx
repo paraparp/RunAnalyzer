@@ -4,6 +4,7 @@ import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
 import { RectangleGroupIcon, SwatchIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import { formatPaceFromSpeed, PACE_PLACEHOLDER } from '../lib/timeFormat';
 
 const THEMES = {
     light: {
@@ -155,13 +156,7 @@ export default function RouteGallery({ activities }) {
       return d.toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\//g, '.');
   };
 
-  const getPaceStr = (speed) => {
-    if (!speed) return '0:00/km';
-    const mins = 1000 / (speed * 60);
-    const m = Math.floor(mins);
-    const s = Math.round((mins - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}/km`;
-  };
+  const getPaceStr = (speed) => (speed ? `${formatPaceFromSpeed(speed)}/km` : `${PACE_PLACEHOLDER}/km`);
 
   const formatCoords = (latlng) => {
       if (!latlng || latlng.length < 2) return "0.0000°N 0.0000°W";

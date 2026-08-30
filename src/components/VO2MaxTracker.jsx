@@ -2,6 +2,13 @@ import { useMemo, useState, useEffect } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { isoWeekKey } from '../lib/isoWeek';
+import { formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { detectMaxHR, detectRestHR, DEFAULT_REST_HR } from '../lib/hrZones';
+import { gapSpeedFromGain } from '../lib/gap';
+import {
+  oxygenCostDaniels, oxygenCostLeger, oxygenCostACSM, vo2maxFromHRR, vo2maxFromHRmaxPct,
+} from '../lib/physiology';
 import {
   ComposedChart, AreaChart, Area, Line, ScatterChart, Scatter, Cell, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -52,58 +59,11 @@ import {
 // - ACSM Guidelines for Exercise Testing
 // ============================================================
 
-// --- Oxygen cost models ---
-
-/** Daniels-Gilbert quadratic (1979). v = m/min */
-function oxygenCostDaniels(vMperMin) {
-  return -4.60 + 0.182258 * vMperMin + 0.000104 * vMperMin * vMperMin;
-}
-
-/** Léger-Mercier outdoor with Pugh wind resistance (1984). v = km/h */
-function oxygenCostLeger(vKmh) {
-  return 2.209 + 3.163 * vKmh + 0.000525542 * vKmh * vKmh * vKmh;
-}
-
-/** ACSM running metabolic equation. speed = m/min, grade = fractional */
-function oxygenCostACSM(speedMperMin, grade) {
-  return 0.2 * speedMperMin + 0.9 * speedMperMin * grade + 3.5;
-}
-
-// --- HRR method (Swain-Leutholtz 1997) ---
-
-/**
- * %HRR = %VO2R (Swain-Leutholtz 1997)
- * VO2_running = VO2rest + %HRR × (VO2max - VO2rest)
- * Solving: VO2max = VO2rest + (VO2_running - VO2rest) / %HRR
- *
- * @param {number} vo2Running - oxygen cost at running speed (ml/kg/min)
- * @param {number} hr - average heart rate during segment
- * @param {number} hrRest - resting heart rate
- * @param {number} hrMax - maximum heart rate
- * @returns {number|null} estimated VO2max
- */
-function vo2maxFromHRR(vo2Running, hr, hrRest, hrMax) {
-  const VO2_REST = 3.5; // 1 MET
-  const pctHRR = (hr - hrRest) / (hrMax - hrRest);
-  if (pctHRR < 0.35 || pctHRR > 0.95) return null;
-  const vo2max = VO2_REST + (vo2Running - VO2_REST) / pctHRR;
-  return vo2max > 15 && vo2max < 90 ? vo2max : null;
-}
-
-// --- %HRmax fallback (Swain 1994) ---
-
-/**
- * %VO2max = 1.5286 × %HRmax - 0.5286
- * Less accurate than HRR but doesn't need resting HR.
- */
-function vo2maxFromHRmaxPct(vo2Running, hr, hrMax) {
-  const pctHRmax = hr / hrMax;
-  if (pctHRmax < 0.55 || pctHRmax > 0.98) return null;
-  const pctVO2max = 1.5286 * pctHRmax - 0.5286;
-  if (pctVO2max <= 0.20) return null;
-  const vo2max = vo2Running / pctVO2max;
-  return vo2max > 15 && vo2max < 90 ? vo2max : null;
-}
+// Los modelos de coste de oxígeno (Daniels-Gilbert, Léger-Mercier, ACSM) y las
+// dos vías de FC → VO2max (HRR de Swain-Leutholtz y el fallback %FCmax) viven en
+// lib/physiology, compartidos con VDOTEstimator y VitalsOverview. Lo que queda
+// aquí es la parte propia de esta vista: deriva cardiaca, filtrado, media
+// recortada y ponderación EWMA.
 
 // --- Firstbeat-style regression ---
 
@@ -185,48 +145,6 @@ function correctDrift(splits) {
   });
 }
 
-// --- Resting HR estimation ---
-
-/**
- * Estimate resting HR from multiple runs using linear regression.
- * Extrapolate VO2 vs HR line to VO2rest (3.5 ml/kg/min).
- * Falls back to 0.32 × HRmax if insufficient data.
- */
-function estimateRestHR(activities, hrMax) {
-  const points = [];
-  for (const a of activities) {
-    if (!a.average_heartrate || !a.average_speed || a.average_speed < 1.5) continue;
-    if (a.moving_time < 600 || a.average_heartrate < 90) continue;
-    const vKmh = a.average_speed * 3.6;
-    const vo2 = oxygenCostLeger(vKmh);
-    points.push({ vo2, hr: a.average_heartrate });
-  }
-
-  if (points.length < 5) return Math.round(hrMax * 0.32);
-
-  // Linear regression: hr = slope * vo2 + intercept
-  const n = points.length;
-  let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
-  for (const p of points) {
-    sumX += p.vo2;
-    sumY += p.hr;
-    sumXX += p.vo2 * p.vo2;
-    sumXY += p.vo2 * p.hr;
-  }
-  const denom = n * sumXX - sumX * sumX;
-  if (Math.abs(denom) < 1e-10) return Math.round(hrMax * 0.32);
-
-  const slope = (n * sumXY - sumX * sumY) / denom;
-  const intercept = (sumY - slope * sumX) / n;
-
-  // Extrapolate to VO2rest = 3.5
-  const hrRest = slope * 3.5 + intercept;
-
-  // Sanity bounds (restrict regression madness)
-  if (hrRest >= 40 && hrRest <= 80) return Math.round(hrRest);
-  return Math.round(hrMax * 0.32); // Fallback to classical 32% rule
-}
-
 // --- Multi-method estimator per activity ---
 
 function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
@@ -237,14 +155,18 @@ function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
 
   const vMperMin = speed * 60;
   const vKmh = speed * 3.6;
-  const grade = activity.total_elevation_gain && activity.distance
-    ? activity.total_elevation_gain / activity.distance
-    : 0;
+
+  // ACSM espera PENDIENTE NETA con signo, no D+ acumulado: en un bucle que vuelve
+  // al inicio la pendiente neta es 0 y meter ahí el desnivel positivo cobra toda la
+  // subida sin acreditar la bajada (el término 0.9·S·G infla el VO2 siempre).
+  // El desnivel se paga donde toca: velocidad equivalente en llano (Minetti, gap.js)
+  // con grade = 0, que es el modelo de perfil ondulado que ya usa el resto de la app.
+  const vFlatMperMin = gapSpeedFromGain(speed, activity.distance, activity.total_elevation_gain) * 60;
 
   // Three oxygen cost models
   const vo2Daniels = oxygenCostDaniels(vMperMin);
   const vo2Leger = oxygenCostLeger(vKmh);
-  const vo2ACSM = oxygenCostACSM(vMperMin, grade);
+  const vo2ACSM = oxygenCostACSM(vFlatMperMin || vMperMin, 0);
 
   // Average of models (Léger weighted higher for outdoor)
   const vo2Avg = (vo2Daniels * 0.3 + vo2Leger * 0.5 + vo2ACSM * 0.2);
@@ -303,22 +225,6 @@ function getVO2Category(vo2, t) {
   return { label: t('vo2.categories.very_poor'), color: '#ef4444', percentile: '<20' };
 }
 
-function formatPace(minPerKm) {
-  if (!minPerKm || minPerKm <= 0 || minPerKm > 15) return '--:--';
-  const mins = Math.floor(minPerKm);
-  const secs = Math.round((minPerKm - mins) * 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
-
-function getWeekKey(dateStr) {
-  const d = new Date(dateStr);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week1 = new Date(d.getFullYear(), 0, 4);
-  const week = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
-}
-
 export default function VO2MaxTracker({ activities }) {
   const { t, i18n } = useTranslation();
   const MONTH_SHORT = i18n.language.startsWith('es')
@@ -349,17 +255,12 @@ export default function VO2MaxTracker({ activities }) {
     };
   }, []);
 
-  // FC reposo basal: mediana de los últimos ~14 días con dato (robusto a ruido)
+  // FC reposo basal: vía ÚNICA compartida con el resto de la app (hrZones.detectRestHR).
+  // Antes esta pestaña tenía su propia mediana de 14 días + un estimador por regresión,
+  // así que daba una FCreposo distinta a la de Zonas/Umbrales sobre los mismos datos.
   const garminRestHR = useMemo(() => {
-    if (!garminCardiac?.length) return null;
-    const recent = garminCardiac
-      .filter(r => r.restingHR > 20)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 14)
-      .map(r => r.restingHR)
-      .sort((a, b) => a - b);
-    if (!recent.length) return null;
-    return recent[Math.floor(recent.length / 2)];
+    const { value, source } = detectRestHR(garminCardiac);
+    return source === 'garmin' ? value : null;
   }, [garminCardiac]);
 
   // Historial de FC reposo para la gráfica, acotado al rango seleccionado
@@ -372,31 +273,15 @@ export default function VO2MaxTracker({ activities }) {
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [garminCardiac, monthsToShow]);
 
-  // FCmax y VO2 oficial no los aporta el sync global → caen a estimación
-  const garminMaxHR = null;
-  const garminOfficialVO2 = null;
-
   const { trendData, weeklyData, stats, efficiencyData } = useMemo(() => {
     if (!activities || activities.length === 0)
       return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
 
-    // --- Detect HRmax from data (Filtering out sensor glitches) ---
-    // Cadence lock and static can cause 1-2 runs to have impossible HRs (e.g., 215 bpm).
-    // We sort the max HRs and take the 3rd highest across the whole history to clip anomalies.
-    const sortedMaxHR = activities
-      .map(a => a.max_heartrate)
-      .filter(hr => hr > 100 && hr < 220)
-      .sort((a, b) => b - a);
+    // --- FCmax: fuente única del proyecto (mediana del 5% superior, filtro 140-215) ---
+    const { value: activeMaxHR } = detectMaxHR(activities);
 
-    const detectedMaxHRFromSession = sortedMaxHR.length > 3 ? sortedMaxHR[2] : (sortedMaxHR[0] || 190);
-
-    // Use Garmin HRmax if available, as detected HR (208) is likely sensor noise
-    const activeMaxHR = garminMaxHR || detectedMaxHRFromSession;
-
-    // --- Resting HR ---
-    // Use Garmin actual if available, else estimate
-    const estimatedRestHR = estimateRestHR(activities, activeMaxHR);
-    const activeRestHR = garminRestHR || estimatedRestHR;
+    // --- FC reposo: Garmin si hay, si no el valor por defecto honesto. Sin heurísticas. ---
+    const activeRestHR = garminRestHR || DEFAULT_REST_HR;
 
     const months = parseInt(monthsToShow);
     const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
@@ -423,11 +308,11 @@ export default function VO2MaxTracker({ activities }) {
           date: a.start_date,
           dateMs: date.getTime(),
           dateLabel: `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`,
-          weekKey: getWeekKey(a.start_date),
+          weekKey: isoWeekKey(a.start_date),
           km: (a.distance / 1000).toFixed(1),
           duration: Math.round(a.moving_time / 60),
           pace,
-          paceLabel: formatPace(pace),
+          paceLabel: formatPaceFromMinPerKm(pace),
           hr: Math.round(a.average_heartrate),
           vo2max: result.vo2max,
           confidence: result.confidence,
@@ -546,17 +431,16 @@ export default function VO2MaxTracker({ activities }) {
         trendDir: Math.round(trendDir * 10) / 10,
         category,
         totalSessions: validRuns.length,
-        detectedMaxHR: detectedMaxHRFromSession,
+        detectedMaxHR: activeMaxHR,
         methodCounts,
         avgConfidence: Math.round(avgConf * 100),
         activeRestHR,
         isRestHREstimated: !garminRestHR,
         activeMaxHR,
-        isMaxHREstimated: !garminMaxHR,
-        officialVO2: garminOfficialVO2
+        isMaxHREstimated: true,
       },
     };
-  }, [activities, monthsToShow, smoothing, garminRestHR, garminMaxHR, garminOfficialVO2, t]);
+  }, [activities, monthsToShow, smoothing, garminRestHR, t]);
 
   if (!stats || trendData.length === 0) {
     return (
@@ -620,14 +504,6 @@ export default function VO2MaxTracker({ activities }) {
           </div>
 
           <div className="mt-6 flex flex-col gap-2 relative z-10">
-            {stats.officialVO2 && (
-              <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
-                <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">
-                  Perfil Garmin: <span className="text-white ml-1">{stats.officialVO2}</span>
-                </p>
-              </div>
-            )}
-
             <div className="flex items-center justify-between px-2 pt-4 border-t border-white/5">
               <p className={`text-[11px] font-black uppercase tracking-widest ${stats.trendDir > 0 ? 'text-emerald-400' : stats.trendDir < -1 ? 'text-rose-400' : 'text-blue-400'}`}>
                 {stats.trendDir > 0 ? t('vo2.tendency') : stats.trendDir < -1 ? t('vo2.drop') : t('vo2.stable')}
@@ -717,7 +593,7 @@ export default function VO2MaxTracker({ activities }) {
             </h4>
             <p className="text-sm text-slate-500 max-w-2xl leading-relaxed font-medium">
               {garminRestHR
-                ? `Frecuencia cardíaca en reposo basal de ${garminRestHR} bpm (mediana de tus últimos días) tomada de tu sincronización de Garmin. No hace falta volver a iniciar sesión aquí.`
+                ? `Frecuencia cardíaca en reposo basal de ${garminRestHR} bpm (última medición) tomada de tu sincronización de Garmin. No hace falta volver a iniciar sesión aquí.`
                 : 'Este apartado reutiliza los datos de tu sincronización global de Garmin. Conéctate desde el botón de sincronización principal y la FC en reposo real se aplicará aquí automáticamente. Mientras tanto se usan estimaciones.'
               }
             </p>
@@ -912,7 +788,7 @@ export default function VO2MaxTracker({ activities }) {
                 type="number"
                 tick={{ fontSize: 10, fill: '#94a3b8' }}
                 reversed
-                tickFormatter={v => formatPace(v)}
+                tickFormatter={v => formatPaceFromMinPerKm(v)}
                 domain={['dataMin - 0.3', 'dataMax + 0.3']}
                 name="Ritmo"
               />

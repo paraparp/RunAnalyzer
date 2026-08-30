@@ -30,9 +30,10 @@ export const DEFAULT_REST_HR = 60;
 // Robust HRmax: median of the top 5% recorded max HRs (all-time — HRmax is a
 // stable trait). Filters <140 / >215 sensor glitches; the median resists optical
 // "cadence-lock" false spikes. Returns { value, n } where n = peaks sampled (0 → default).
+export const HRMAX_FILTER = { lo: 140, hi: 215 };
 export function detectMaxHR(activities) {
   const topHRs = (activities ?? [])
-    .filter(a => a.max_heartrate > 140 && a.max_heartrate < 215)
+    .filter(a => a.max_heartrate > HRMAX_FILTER.lo && a.max_heartrate < HRMAX_FILTER.hi)
     .map(a => a.max_heartrate)
     .sort((a, b) => b - a);
   if (!topHRs.length) return { value: 185, n: 0 };

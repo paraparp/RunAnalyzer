@@ -1,31 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { isoWeek, isoWeekKey, weekStartFromIso } from '../lib/isoWeek';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell
 } from 'recharts';
-
-function getISOWeek(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week1 = new Date(d.getFullYear(), 0, 4);
-  return {
-    year: d.getFullYear(),
-    week: 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7),
-  };
-}
-
-function getWeekStart(year, week) {
-  const jan4 = new Date(year, 0, 4);
-  const dayOfWeek = (jan4.getDay() + 6) % 7;
-  const firstMonday = new Date(jan4);
-  firstMonday.setDate(jan4.getDate() - dayOfWeek);
-  const weekStart = new Date(firstMonday);
-  weekStart.setDate(firstMonday.getDate() + (week - 1) * 7);
-  return weekStart;
-}
 
 export default function WeeklyProgression({ activities }) {
   const { i18n } = useTranslation();
@@ -40,8 +20,8 @@ export default function WeeklyProgression({ activities }) {
     const weeksMap = {};
 
     activities.forEach(a => {
-      const { year, week } = getISOWeek(a.start_date);
-      const key = `${year}-W${String(week).padStart(2, '0')}`;
+      const { year, week } = isoWeek(a.start_date);
+      const key = isoWeekKey(a.start_date);
       if (!weeksMap[key]) {
         weeksMap[key] = { key, year, week, km: 0, time: 0, sessions: 0, elevation: 0 };
       }
@@ -56,13 +36,13 @@ export default function WeeklyProgression({ activities }) {
     // Fill gaps between weeks
     const filled = [];
     if (sorted.length > 0) {
-      const firstWeekStart = getWeekStart(sorted[0].year, sorted[0].week);
-      const lastWeekStart = getWeekStart(sorted[sorted.length - 1].year, sorted[sorted.length - 1].week);
+      const firstWeekStart = weekStartFromIso(sorted[0].year, sorted[0].week);
+      const lastWeekStart = weekStartFromIso(sorted[sorted.length - 1].year, sorted[sorted.length - 1].week);
       const cursor = new Date(firstWeekStart);
 
       while (cursor <= lastWeekStart) {
-        const { year, week } = getISOWeek(cursor);
-        const key = `${year}-W${String(week).padStart(2, '0')}`;
+        const { year, week } = isoWeek(cursor);
+        const key = isoWeekKey(cursor);
         const existing = weeksMap[key];
         filled.push(existing || { key, year, week, km: 0, time: 0, sessions: 0, elevation: 0 });
         cursor.setDate(cursor.getDate() + 7);
@@ -80,7 +60,7 @@ export default function WeeklyProgression({ activities }) {
       const window = filled.slice(start, i + 1);
       const avg4w = window.reduce((s, x) => s + x.km, 0) / window.length;
 
-      const weekStart = getWeekStart(w.year, w.week);
+      const weekStart = weekStartFromIso(w.year, w.week);
       const label = `${weekStart.getDate()} ${MONTH_SHORT[weekStart.getMonth()]}`;
 
       return {

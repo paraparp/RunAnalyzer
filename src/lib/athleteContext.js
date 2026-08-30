@@ -1,5 +1,7 @@
 import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT } from './lactateThreshold';
 import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from './hrZones';
+import { computePMC as computePmcSeries, sessionLoad, buildLoadParams } from './trainingLoad';
+import { DISTANCE_KM } from './raceDistances';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -13,60 +15,23 @@ const fmtMinKm = (minPerKm) => {
 };
 
 /**
- * Per-session training load (TRIMP proxy). Prefers Strava's suffer_score
- * (Banister-derived), then a HR-weighted minutes model, then distance.
- * Mirrors FitnessFatigue.jsx so the whole app shares one load definition.
+ * PMC redondeado para el prompt. La matemática vive en `lib/trainingLoad.js`
+ * (fuente única compartida con StatusSnapshot, FitnessFatigue, InjuryRisk y
+ * VitalsOverview); aquí solo se redondea para que el texto del prompt no
+ * arrastre decimales.
  */
-function estimateLoad(a) {
-  const mins = (a.moving_time || 0) / 60;
-  if (a.suffer_score) return a.suffer_score;
-  if (a.average_heartrate) return mins * (a.average_heartrate / 180) * 1.92;
-  if (a.distance) return (a.distance / 1000) * 0.8;
-  return mins * 0.4;
-}
-
-/**
- * Banister / Coggan Performance Management Chart (TrainingPeaks standard).
- * CTL = 42-day EWMA (Fitness), ATL = 7-day EWMA (Fatigue),
- * TSB = CTL − ATL (Form), ACWR = ATL/CTL (acute:chronic, Gabbett injury model),
- * ramp = CTL change per week. Uses ALL sports (cardiovascular load is global).
- */
-function computePMC(activities) {
-  if (!activities?.length) return null;
-  const daily = {};
-  let minTs = Infinity;
-  for (const a of activities) {
-    const ds = a.start_date?.slice(0, 10);
-    if (!ds) continue;
-    const ts = new Date(ds).getTime();
-    if (ts < minTs) minTs = ts;
-    daily[ds] = (daily[ds] || 0) + estimateLoad(a);
-  }
-  if (minTs === Infinity) return null;
-
-  const kC = Math.exp(-1 / 42), kA = Math.exp(-1 / 7);
-  let ctl = 0, atl = 0, peak = 0;
-  const ctlSeries = [];
-  for (let ts = minTs; ts <= Date.now(); ts += 86400000) {
-    const ds = new Date(ts).toISOString().slice(0, 10);
-    const load = daily[ds] || 0;
-    ctl = ctl * kC + load * (1 - kC);
-    atl = atl * kA + load * (1 - kA);
-    if (ctl > peak) peak = ctl;
-    ctlSeries.push(ctl);
-  }
-  const n = ctlSeries.length;
-  const ctl28 = n > 28 ? ctlSeries[n - 29] : 0;
-  const ctl7 = n > 7 ? ctlSeries[n - 8] : 0;
-  const ramp = n > 28 ? (ctl - ctl28) / 4 : (ctl - ctl7);
+function computePMC(activities, params) {
+  const pmc = computePmcSeries(activities, { params });
+  if (!pmc) return null;
+  const c = pmc.current;
   return {
-    ctl: Math.round(ctl),
-    atl: Math.round(atl),
-    tsb: Math.round(ctl - atl),
-    acwr: ctl > 0 ? +(atl / ctl).toFixed(2) : null,
-    ramp: Math.round(ramp * 10) / 10,
-    peak: Math.round(peak),
-    pctPeak: peak > 0 ? Math.round((ctl / peak) * 100) : 0,
+    ctl: Math.round(c.ctl),
+    atl: Math.round(c.atl),
+    tsb: Math.round(c.tsb),
+    acwr: c.acwr != null ? +c.acwr.toFixed(2) : null,
+    ramp: Math.round(c.ramp * 10) / 10,
+    peak: Math.round(c.peak),
+    pctPeak: c.pctPeak,
   };
 }
 
@@ -213,10 +178,12 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     : '';
 
   // ── Race goal (athlete-selected target distance + optional pace + date) ────
-  const GOAL_KM = { '5K': 5, '10K': 10, '21K': 21.0975, '42K': 42.195 };
+  // La distancia llega en mayúsculas desde el planificador ('21K'); la tabla
+  // única (lib/raceDistances) la indexa en minúsculas.
   let goalLine = '';
-  if (goal?.distance && GOAL_KM[goal.distance]) {
-    const km = GOAL_KM[goal.distance];
+  const goalKm = DISTANCE_KM[String(goal?.distance ?? '').toLowerCase()];
+  if (goalKm) {
+    const km = goalKm;
     let extra;
     if (goal.pace && /^\d{1,2}:\d{2}$/.test(goal.pace.trim())) {
       const [pm, ps] = goal.pace.trim().split(':').map(Number);
@@ -245,9 +212,6 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     }
     goalLine = `OBJETIVO DE CARRERA: estás preparando un ${goal.distance}${extra}.${when} Orienta la rampa de carga (tendencia) y las sesiones de calidad/ritmo (próximo entrenamiento) HACIA este objetivo: deriva los ritmos de tempo/intervalos del ritmo objetivo y de tus marcas. En la tendencia indica explícitamente si el objetivo es realista, ambicioso o conservador dado tu tope (marcas personales), tu CTL/forma actuales y el tiempo disponible, y qué falta para alcanzarlo.`;
   }
-
-  // ── Banister PMC over ALL sports (cardiovascular load is global) ───────────
-  const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo));
 
   // ── Weekly breakdown (4 weeks) ────────────────────────────────────────────
   const byWeek = [0, 1, 2, 3].map(w => {
@@ -304,6 +268,12 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     none:    'Friel approx (87.5% FCmax)',
   }[ltDet.method];
   const lthrIsEstimate = !['segment', 'field'].includes(ltDet.method);
+
+  // ── PMC de Banister sobre TODOS los deportes (la carga cardiovascular es global) ─
+  // Se reutiliza la calibración ya detectada arriba: así el CTL del prompt sale
+  // de la misma FCmax/FCreposo/LTHR que las zonas que se le describen al modelo.
+  const loadParams = buildLoadParams(activities, { hrmax: fcmax, hrrest: fcRest, lthr });
+  const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo), loadParams);
 
   // ── Lactate-threshold model (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold) ─
   // El modelo de Critical Speed da el LT2 anclado a RENDIMIENTO (ritmo), y el
@@ -623,7 +593,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     `Fitness (CTL, EWMA 42d)=${pmc.ctl} · ${pmc.pctPeak}% de tu pico histórico (${pmc.peak})`,
     `Fatiga (ATL, EWMA 7d)=${pmc.atl}`,
     `Forma (TSB=CTL−ATL)=${pmc.tsb > 0 ? '+' : ''}${pmc.tsb} (${pmc.tsb > 15 ? 'muy fresco/desentrenando' : pmc.tsb > 5 ? 'fresco' : pmc.tsb >= -10 ? 'óptimo' : pmc.tsb >= -20 ? 'cargado' : 'sobrecargado'})`,
-    `ACWR (agudo:crónico, Gabbett)=${pmc.acwr} (óptimo 0.8–1.3; >1.5 riesgo alto lesión)`,
+    `ACWR (agudo:crónico 7:28 por EWMA, Williams 2017)=${pmc.acwr} (zona habitual 0.8–1.3; >1.5 sugiere subida brusca de carga). Trátalo como señal blanda: su validez como predictor de lesión está cuestionada (Impellizzeri 2020), no bases una recomendación solo en él`,
     `Rampa CTL=${pmc.ramp > 0 ? '+' : ''}${pmc.ramp}/sem (no superar +5/sem)`,
   ].join('\n') : 'Sin datos suficientes para el modelo PMC.';
 
@@ -665,7 +635,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     if (lastAct.max_heartrate) ln.push(`FC máx: ${Math.round(lastAct.max_heartrate)}ppm`);
     if (lastAct.total_elevation_gain) ln.push(`Desnivel: +${Math.round(lastAct.total_elevation_gain)}m`);
     if (lastAct.suffer_score) ln.push(`Esfuerzo Strava: ${lastAct.suffer_score}`);
-    ln.push(`Carga estimada (TRIMP): ${Math.round(estimateLoad(lastAct))}`);
+    ln.push(`Carga estimada (TSS, 100 = 1h a umbral): ${Math.round(sessionLoad(lastAct, loadParams).load)}`);
     if (isRunning(lastAct) && isFastRun(lastAct) && lastAct.splits_metric) {
       const ds = detailedSplits(lastAct.splits_metric);
       if (ds) ln.push(`Parciales por km (formato: ritmo · FC · desnivel). Analiza la distribución del esfuerzo (positive/negative split, desfallecimiento, ritmo parejo, descontrol inicial), pero AJUSTA por desnivel: un parcial lento EN SUBIDA o rápido EN BAJADA no es un error de ejecución: ${ds}`);

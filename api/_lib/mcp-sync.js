@@ -27,14 +27,14 @@
 // una respuesta vacía de un proveedor caído.
 // ============================================================================
 import {
-  readKey, readKeyFresh, writeKey, invalidateKey, listUsersWithKey,
+  readKey, readKeyFresh, writeKey, listUsersWithKey,
 } from './mcp-store.js';
 import { getGarminClientFor } from './garmin-session.js';
 import {
   fetchGarminActivities, fetchHrvBulk, fetchBodyBatteryBulk, fetchSleepBulk,
   fetchDayData, toDateStr,
 } from './garmin-helpers.js';
-import { computeFlatEfforts } from '../../src/lib/flatEfforts.js';
+import { computeFlatEfforts, needsFlatEfforts } from '../../src/lib/flatEfforts.js';
 
 // ── Política de frescura ────────────────────────────────────────────────────
 const STATE_KEY = 'mcp_sync_state';
@@ -318,7 +318,7 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
   const recentFirst = (a, b) => String(b.start_date).localeCompare(String(a.start_date));
   const needSplits = stored.filter((a) => isRun(a) && a.distance > 0 && !a.splits_metric)
     .sort(recentFirst).slice(0, splitsBudget);
-  const needFlat = stored.filter((a) => isRun(a) && a.distance >= 1000 && !a.flat_efforts)
+  const needFlat = stored.filter((a) => isRun(a) && a.distance >= 1000 && needsFlatEfforts(a))
     .sort(recentFirst).slice(0, flatBudget);
 
   let splits = 0, flat = 0;
@@ -332,11 +332,11 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
   for (const act of needFlat) {
     try {
       const streams = await stravaGet(
-        `/activities/${act.id}/streams?keys=time,distance,altitude,heartrate,velocity_smooth&key_by_type=true`,
+        `/activities/${act.id}/streams?keys=time,distance,altitude,grade_smooth&key_by_type=true`,
         accessToken,
       );
       const prev = byId.get(act.id);
-      byId.set(act.id, { ...prev, flat_efforts: computeFlatEfforts(streams) || {} });
+      byId.set(act.id, { ...prev, flat_efforts: computeFlatEfforts(streams) });
       flat++;
     } catch (e) { console.warn(`[mcp-sync] flat_efforts ${act.id}:`, e.message); }
     await new Promise((r) => setTimeout(r, 400));
@@ -547,12 +547,6 @@ function withDeadline(promise, ms) {
     const done = (v) => { clearTimeout(t); resolve(v); };
     promise.then(done, (e) => done({ error: e?.message }));
   });
-}
-
-/** Invalida el cache de vencimiento (tests / forzar un sync inmediato). */
-export function resetFreshness(userId) {
-  _nextCheck.delete(userId);
-  invalidateKey(userId, STATE_KEY);
 }
 
 /**

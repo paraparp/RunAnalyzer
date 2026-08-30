@@ -12,15 +12,8 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-
-function getISOWeekKey(dateStr) {
-  const d = new Date(dateStr);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week1 = new Date(d.getFullYear(), 0, 4);
-  const week = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
-}
+import { computePMC, activityDayKey, dayKey } from '../lib/trainingLoad';
+import { isoWeekKey } from '../lib/isoWeek';
 
 function getRiskLevel(score, t) {
   if (score < 35) return { label: t('injury.risk_levels.low'), color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
@@ -34,38 +27,22 @@ export default function InjuryRisk({ activities }) {
   const { riskScore, factors, historyData, recommendations } = useMemo(() => {
     if (!activities || activities.length === 0) return { riskScore: 0, factors: [], historyData: [], recommendations: [] };
 
-    const now = new Date();
     const sorted = [...activities].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
 
-    // --- ACWR (Acute:Chronic Workload Ratio) ---
+    // --- Carga diaria y ACWR desde lib/trainingLoad (fuente única) ---
+    // Antes esta vista tenía su propio bucle CTL/ATL con una carga distinta a la
+    // del resto de la app, y calculaba el ACWR como ATL/CTL(42). Ahora usa el
+    // modelo compartido y el ACWR por EWMA 7:28 (Williams 2017).
+    const pmc = computePMC(activities);
+    if (!pmc) return { riskScore: 0, factors: [], historyData: [], recommendations: [] };
+
     const dailyLoad = {};
-    sorted.forEach(a => {
-      const dateStr = a.start_date.split('T')[0];
-      const load = a.suffer_score || (a.moving_time / 60) * 0.5;
-      dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + load;
-    });
-
-    // Calculate CTL (42d) and ATL (7d)
     const allDates = [];
-    const minDate = new Date(sorted[0].start_date);
-    const cursor = new Date(minDate);
-    cursor.setHours(0, 0, 0, 0);
-    while (cursor <= now) {
-      allDates.push(cursor.toISOString().split('T')[0]);
-      cursor.setDate(cursor.getDate() + 1);
+    for (const p of pmc.series) {
+      allDates.push(p.date);
+      if (p.load > 0) dailyLoad[p.date] = p.load;
     }
-
-    let ctl = 0, atl = 0;
-    const kCTL = Math.exp(-1 / 42);
-    const kATL = Math.exp(-1 / 7);
-    let latestACWR = 0;
-
-    allDates.forEach(d => {
-      const load = dailyLoad[d] || 0;
-      ctl = ctl * kCTL + load * (1 - kCTL);
-      atl = atl * kATL + load * (1 - kATL);
-      if (ctl > 0) latestACWR = atl / ctl;
-    });
+    const latestACWR = pmc.current.acwr ?? 0;
 
     // ACWR risk: sweet spot 0.8-1.3, danger >1.5
     let acwrRisk = 0;
@@ -78,14 +55,19 @@ export default function InjuryRisk({ activities }) {
     // --- Weekly volume progression ---
     const weeklyKm = {};
     sorted.forEach(a => {
-      const key = getISOWeekKey(a.start_date);
+      const key = isoWeekKey(activityDayKey(a));
       weeklyKm[key] = (weeklyKm[key] || 0) + (a.distance || 0) / 1000;
     });
-    const weekKeys = Object.keys(weeklyKm).sort();
+    // Se comparan las dos últimas semanas CERRADAS. Antes se cogía la semana en
+    // curso, casi siempre incompleta: un martes con 12 km contra 50 km de la anterior
+    // daba -76 % y la vista lo publicaba como "bajada brusca". El indicador solo era
+    // legible los domingos por la noche.
+    const currentWeekKey = isoWeekKey(dayKey(new Date()));
+    const weekKeys = Object.keys(weeklyKm).sort().filter(k => k < currentWeekKey);
     const lastWeekKey = weekKeys[weekKeys.length - 1];
     const prevWeekKey = weekKeys.length > 1 ? weekKeys[weekKeys.length - 2] : null;
 
-    const lastWeekKm = weeklyKm[lastWeekKey] || 0;
+    const lastWeekKm = lastWeekKey ? weeklyKm[lastWeekKey] || 0 : 0;
     const prevWeekKm = prevWeekKey ? weeklyKm[prevWeekKey] || 0 : 0;
     const weeklyChange = prevWeekKm > 0 ? ((lastWeekKm - prevWeekKm) / prevWeekKm) * 100 : 0;
 
@@ -120,11 +102,16 @@ export default function InjuryRisk({ activities }) {
     else if (monotony > 1.0) monotonyRisk = 15;
 
     // --- Strain ---
+    // Umbrales RECALIBRADOS a la escala TSS. Los de Foster (1000/2000/3000) están
+    // definidos sobre carga session-RPE (RPE 1-10 x minutos), donde una semana vale
+    // 1.500-4.000 UA. Aquí `weeklyLoadTotal` es TSS (100 = 1 h a umbral): una semana
+    // seria son 300-700 y, con monotonía 1,0-2,0, el strain sale 300-1.400 — el tramo
+    // >3000 era inalcanzable y el factor no disparaba nunca (peso muerto en el índice).
     const weeklyLoadTotal = last7Loads.reduce((s, v) => s + v, 0);
     const strain = weeklyLoadTotal * monotony;
     let strainRisk = 0;
-    if (strain > 3000) strainRisk = 70;
-    else if (strain > 2000) strainRisk = 40;
+    if (strain > 2200) strainRisk = 70;
+    else if (strain > 1500) strainRisk = 40;
     else if (strain > 1000) strainRisk = 15;
 
     // --- Composite score ---

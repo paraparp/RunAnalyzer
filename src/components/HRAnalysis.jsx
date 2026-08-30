@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import useHrParams from '../hooks/useHrParams';
+import { gapSpeedFromGain } from '../lib/gap';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
@@ -43,24 +46,13 @@ const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","
 const getMonthLabel = (monthIndex, lang = 'en') =>
     (lang.startsWith('es') ? MONTHS_ES : MONTHS_EN)[monthIndex] || "";
 
-const formatPaceFromSpeed = (speedMs) => {
-    if (!speedMs || speedMs === 0) return "0:00";
-    const paceMinKm = 1000 / (speedMs * 60);
-    const minutes = Math.floor(paceMinKm);
-    const seconds = Math.round((paceMinKm - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-// GAP = Grade Adjusted Pace: removes elevation penalty so trail & flat are comparable
+// GAP = Grade Adjusted Pace: removes elevation penalty so trail & flat are comparable.
+// Modelo único en lib/gap; aquí solo se conoce el D+ acumulado de la actividad.
 const calculateGAP = (speedMs, distanceKm, elevGain) => {
     if (!speedMs || speedMs === 0 || !distanceKm || distanceKm === 0) return { gap: "0:00", gapMinKm: 0 };
-    const rawPaceMinKm = 1000 / (speedMs * 60);
-    const elevPerKm = elevGain / distanceKm;
-    const adjustmentMin = (elevPerKm / 10) * 8 / 60; // ~8s per 10m D+/km
-    const gapMinKm = Math.max(rawPaceMinKm - adjustmentMin, rawPaceMinKm * 0.80);
-    const minutes = Math.floor(gapMinKm);
-    const seconds = Math.round((gapMinKm - minutes) * 60);
-    return { gap: `${minutes}:${seconds.toString().padStart(2, "0")}`, gapMinKm };
+    const v = gapSpeedFromGain(speedMs, distanceKm * 1000, elevGain || 0);
+    if (!(v > 0)) return { gap: "0:00", gapMinKm: 0 };
+    return { gap: formatPaceFromSpeed(v), gapMinKm: 1000 / (v * 60) };
 };
 
 // Open activity in Strava
@@ -148,6 +140,10 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
     const [effMetric, setEffMetric] = useState("hre"); // "hre" or "ratio"
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState(0);
+
+    // FCreposo efectiva (Garmin → override manual → defecto): la necesita el
+    // escalado a 150 ppm, que se hace sobre la RESERVA cardiaca, no sobre la FC bruta.
+    const { hrrest } = useHrParams(activities);
 
     const toggleMonth = (monthIndex) => {
         setHiddenMonths(prev => {
@@ -365,13 +361,18 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 const avgSpeed = validSplits.reduce((acc, s) => acc + s.average_speed, 0) / validSplits.length;
                 const avgHr = validSplits.reduce((acc, s) => acc + s.average_heartrate, 0) / validSplits.length;
                 
-                // Estimate speed at 150 BPM linearly
-                const speed150 = avgSpeed * (150 / avgHr);
+                // Velocidad equivalente a 150 ppm escalando sobre la RESERVA cardiaca.
+                // La regla de tres `avgSpeed * (150 / avgHr)` asume que la recta
+                // FC-velocidad pasa por el origen (0 ppm ↔ 0 m/s); la ordenada real es
+                // la FC de reposo, y el sesgo (~9 s/km) crece cuanto más lejos de 150
+                // esté la FC media, así que contaminaba la propia tendencia.
+                const hrReserveNum = 150 - hrrest;
+                const hrReserveDen = avgHr - hrrest;
+                if (!(hrReserveNum > 0) || !(hrReserveDen > 0)) return null;
+                const speed150 = avgSpeed * (hrReserveNum / hrReserveDen);
                 const paceMinKm = 1000 / (speed150 * 60);
                 
-                const mins = Math.floor(paceMinKm);
-                const secs = Math.round((paceMinKm - mins) * 60);
-                const pace150Str = `${mins}:${secs.toString().padStart(2, '0')}`;
+                const pace150Str = formatPaceFromMinPerKm(paceMinKm);
                 
                 return {
                     ...r,
@@ -439,7 +440,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             },
             missingDetails: missingDetails.map(r => r.id)
         };
-    }, [filteredActivities]);
+    }, [filteredActivities, hrrest]);
 
     if (!processedData) {
         return (
@@ -1160,11 +1161,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                         <YAxis
                                             domain={["auto", "auto"]}
                                             tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            tickFormatter={(val) => {
-                                                const m = Math.floor(val);
-                                                const s = Math.round((val - m) * 60);
-                                                return `${m}:${s.toString().padStart(2, '0')}`;
-                                            }}
+                                            tickFormatter={(val) => formatPaceFromMinPerKm(val)}
                                             reversed={true}
                                             label={{ value: "Ritmo (min/km)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
                                         />

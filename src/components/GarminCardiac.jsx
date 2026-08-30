@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush
 } from "recharts";
 import { motion } from "framer-motion";
+import { formatMinutesHm } from '../lib/timeFormat';
 import {
   HeartIcon, ArrowPathIcon, TrashIcon, LockClosedIcon,
   CheckCircleIcon, ExclamationTriangleIcon,
@@ -2233,10 +2234,7 @@ const QUALITY_LABEL = {
   POOR:      'Pobre',
 };
 
-function fmtDur(min) {
-  if (min == null) return '—';
-  return `${Math.floor(min / 60)}h ${min % 60}m`;
-}
+const fmtDur = (min) => formatMinutesHm(min);
 
 function SleepSection({ sleepData }) {
   const [view, setView] = useState('score'); // 'score' | 'stages'

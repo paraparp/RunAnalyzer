@@ -251,7 +251,7 @@ const TOOLS = [
   },
   {
     name: 'get_training_load_model',
-    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal, desde el training_load de Garmin. Usa granularity=weekly o summary_only para no saturar el contexto.',
+    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal. La carga es TSS (100 = 1 h a umbral, TRIMP sobre HRR) del mismo modelo que pinta la pestaña Estado de la app, así que las cifras coinciden. Usa granularity=weekly o summary_only para no saturar el contexto.',
     inputSchema: {
       type: 'object',
       properties: {

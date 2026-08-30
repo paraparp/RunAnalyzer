@@ -36,9 +36,11 @@ import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
-import { computeFlatEfforts } from './lib/flatEfforts';
+import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
 import { syncGarminActivities } from './lib/garminActivitiesSync';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
+import { formatPaceFromSpeed, formatPaceFromMinPerKm } from './lib/timeFormat';
+import { gapFactorFromGain, gapSpeedFromGain } from './lib/gap';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
@@ -271,14 +273,16 @@ const Dashboard = ({ user, handleLogout }) => {
     if (!accessToken || !Array.isArray(acts)) return;
     const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
     const need = acts
-      .filter(a => isRun(a) && a.distance >= 1000 && !a.flat_efforts)
+      .filter(a => isRun(a) && a.distance >= 1000 && needsFlatEfforts(a))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
     for (const act of need) {
       try {
         const streams = await getActivityStreams(accessToken, act.id);
-        // Guardamos aunque sea {} para no volver a pedir esta actividad nunca más.
-        const flat_efforts = computeFlatEfforts(streams) || {};
+        // computeFlatEfforts devuelve siempre un objeto con `_v`, aunque no haya
+        // ningún tramo llano: así esta actividad no se vuelve a pedir hasta que
+        // cambie la versión del algoritmo.
+        const flat_efforts = computeFlatEfforts(streams);
         setStravaData(prev => {
           if (!prev?.activities) return prev;
           const idx = prev.activities.findIndex(x => x.id === act.id);
@@ -517,14 +521,6 @@ const Dashboard = ({ user, handleLogout }) => {
     window.location.href = getStravaAuthUrl();
   };
 
-  const calculatePace = (speed) => {
-    if (!speed || speed === 0) return '0:00';
-    const pace = 16.6667 / speed;
-    const minutes = Math.floor(pace);
-    const seconds = Math.floor((pace - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   // Memoized: useHrParams runs the HRmax/LTHR detectors over this list, so a new
   // array identity every render would re-scan the whole history on every keystroke.
   const runningActivities = useMemo(() => stravaData?.activities
@@ -549,12 +545,15 @@ const Dashboard = ({ user, handleLogout }) => {
   }, [selectedYear, runningActivities]);
 
   const stats = useMemo(() => {
+    // Tiempo EN MOVIMIENTO, no puerta a puerta: es la base sobre la que la app
+    // calcula ritmos (average_speed) en el resto de vistas. Mezclarlas hacía que
+    // el ritmo del dashboard no cuadrase con el de los parciales de la actividad.
     return filteredActivities.reduce((acc, act) => ({
       distance: acc.distance + act.distance,
-      elapsed_time: acc.elapsed_time + (act.elapsed_time || act.moving_time),
+      moving_time: acc.moving_time + (act.moving_time || act.elapsed_time),
       elevation_gain: acc.elevation_gain + act.total_elevation_gain,
       count: acc.count + 1
-    }), { distance: 0, elapsed_time: 0, elevation_gain: 0, count: 0 });
+    }), { distance: 0, moving_time: 0, elevation_gain: 0, count: 0 });
   }, [filteredActivities]);
 
   const handleSort = (key) => {
@@ -638,12 +637,12 @@ const Dashboard = ({ user, handleLogout }) => {
         case 'distance':
           aValue = a.distance; bValue = b.distance; break;
         case 'time':
-          aValue = a.elapsed_time || a.moving_time; bValue = b.elapsed_time || b.moving_time; break;
+          aValue = a.moving_time || a.elapsed_time; bValue = b.moving_time || b.elapsed_time; break;
         case 'real_pace': {
           const aDist = a.distance / 1000;
           const bDist = b.distance / 1000;
-          aValue = aDist > 0 ? ((a.elapsed_time || a.moving_time) / 60) / aDist : 0;
-          bValue = bDist > 0 ? ((b.elapsed_time || b.moving_time) / 60) / bDist : 0;
+          aValue = aDist > 0 ? ((a.moving_time || a.elapsed_time) / 60) / aDist : 0;
+          bValue = bDist > 0 ? ((b.moving_time || b.elapsed_time) / 60) / bDist : 0;
           break;
         }
         case 'elevation':
@@ -653,19 +652,19 @@ const Dashboard = ({ user, handleLogout }) => {
         case 'pace': {
           const aDkm = a.distance / 1000;
           const bDkm = b.distance / 1000;
-          aValue = aDkm > 0 ? (a.elapsed_time || a.moving_time) / aDkm : 0;
-          bValue = bDkm > 0 ? (b.elapsed_time || b.moving_time) / bDkm : 0;
+          aValue = aDkm > 0 ? (a.moving_time || a.elapsed_time) / aDkm : 0;
+          bValue = bDkm > 0 ? (b.moving_time || b.elapsed_time) / bDkm : 0;
           break;
         }
         case 'gap': {
-          const aDistKm = a.distance / 1000;
-          const bDistKm = b.distance / 1000;
-          const aElevPerKm = aDistKm > 0 ? (a.total_elevation_gain || 0) / aDistKm : 0;
-          const bElevPerKm = bDistKm > 0 ? (b.total_elevation_gain || 0) / bDistKm : 0;
-          const aRawPace = (a.moving_time / 60) / aDistKm;
-          const bRawPace = (b.moving_time / 60) / bDistKm;
-          aValue = Math.max(aRawPace - ((aElevPerKm / 10) * 8 / 60), aRawPace * 0.80);
-          bValue = Math.max(bRawPace - ((bElevPerKm / 10) * 8 / 60), bRawPace * 0.80);
+          // Ritmo GAP en min/km: mismo modelo (lib/gap) que la columna que se pinta.
+          const gapPace = (x) => {
+            const t = x.moving_time || x.elapsed_time;
+            if (!(x.distance > 0) || !(t > 0)) return 0;
+            const v = gapSpeedFromGain(x.distance / t, x.distance, x.total_elevation_gain || 0);
+            return v > 0 ? 1000 / (v * 60) : 0;
+          };
+          aValue = gapPace(a); bValue = gapPace(b);
           break;
         }
         case 'suffer_score':
@@ -945,30 +944,23 @@ const Dashboard = ({ user, handleLogout }) => {
                   />
                   <StatCard
                     label={t('dashboard.time')}
-                    value={`${Math.floor(stats.elapsed_time / 3600)}`}
+                    value={`${Math.floor(stats.moving_time / 3600)}`}
                     unit="h"
                     icon={ClockIcon}
                     color="sky"
                   />
                   <StatCard
                     label={t('dashboard.avg_pace')}
-                    value={calculatePace(stats.distance > 0 ? stats.distance / stats.elapsed_time : 0)}
+                    value={formatPaceFromSpeed(stats.distance > 0 ? stats.distance / stats.moving_time : 0)}
                     unit="/km"
                     icon={BoltIcon}
                     color="emerald"
                   />
                   <StatCard
                     label={t('dashboard.gap')}
-                    value={(() => {
-                      const d = stats.distance / 1000;
-                      if (d <= 0) return '0:00';
-                      const p = (stats.elapsed_time / 60) / d;
-                      const e = stats.elevation_gain / d;
-                      const g = Math.max(p - ((e / 10) * 8 / 60), p * 0.8);
-                      const m = Math.floor(g);
-                      const s = Math.round((g - m) * 60);
-                      return `${m}:${s.toString().padStart(2, '0')}`;
-                    })()}
+                    value={stats.distance > 0 && stats.moving_time > 0
+                      ? formatPaceFromSpeed(gapSpeedFromGain(stats.distance / stats.moving_time, stats.distance, stats.elevation_gain))
+                      : '0:00'}
                     unit="/km"
                     icon={FireIcon}
                     color="amber"
@@ -1261,19 +1253,11 @@ const Dashboard = ({ user, handleLogout }) => {
                           <TableBody>
                             {pagedActivities.map(activity => {
                               const distKm = activity.distance / 1000;
-                              const elevPerKm = distKm > 0 ? (activity.total_elevation_gain || 0) / distKm : 0;
-                              const elapsedSecs = activity.elapsed_time || activity.moving_time;
-                              const rawPaceMinKm = (elapsedSecs / 60) / distKm;
-                              const gapAdjustmentSeconds = (elevPerKm / 10) * 8;
-                              const gapAdjustment = gapAdjustmentSeconds / 60;
-                              const adjustedPace = Math.max(rawPaceMinKm - gapAdjustment, rawPaceMinKm * 0.80);
+                              const movingSecs = activity.moving_time || activity.elapsed_time;
+                              const rawPaceMinKm = distKm > 0 ? (movingSecs / 60) / distKm : 0;
+                              const gapPct = gapFactorFromGain(activity.distance, activity.total_elevation_gain || 0);
+                              const adjustedPace = rawPaceMinKm / gapPct;
                               const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
-
-                              const formatPace = (paceMinKm) => {
-                                const minutes = Math.floor(paceMinKm);
-                                const seconds = Math.round((paceMinKm % 1) * 60);
-                                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                              };
 
                               return (
                                 <Fragment key={activity.id}>
@@ -1313,16 +1297,16 @@ const Dashboard = ({ user, handleLogout }) => {
                                       <span className="text-sm tabular-nums text-slate-700">{(activity.distance / 1000).toFixed(2)}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      <span className="text-sm tabular-nums text-slate-700">{Math.floor((activity.elapsed_time || activity.moving_time) / 60)}</span>
+                                      <span className="text-sm tabular-nums text-slate-700">{Math.floor((activity.moving_time || activity.elapsed_time) / 60)}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      <span className="text-sm tabular-nums text-slate-700">{calculatePace(activity.distance / (activity.elapsed_time || activity.moving_time))}</span>
+                                      <span className="text-sm tabular-nums text-slate-700">{formatPaceFromSpeed(activity.distance / (activity.moving_time || activity.elapsed_time))}</span>
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {hasSignificantAdjustment ? (
-                                        <Badge color="emerald" size="xs">{formatPace(adjustedPace)}</Badge>
+                                        <Badge color="emerald" size="xs">{formatPaceFromMinPerKm(adjustedPace)}</Badge>
                                       ) : (
-                                        <span className="text-sm tabular-nums text-slate-700">{formatPace(adjustedPace)}</span>
+                                        <span className="text-sm tabular-nums text-slate-700">{formatPaceFromMinPerKm(adjustedPace)}</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-right">

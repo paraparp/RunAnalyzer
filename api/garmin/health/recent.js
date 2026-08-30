@@ -1,11 +1,12 @@
 import {
-  createClient, toDateStr, mergeData, mergeSleepData,
+  createClient, toDateStr, mergeSleepData,
   fetchHrvBulk, fetchBodyBatteryBulk, fetchSleepBulk, fetchDayData,
 } from '../../_lib/garmin-helpers.js';
 
 export const config = { maxDuration: 60 };
 
-export default async function handler(req, res) {
+/** Ver la nota de inyección de cliente en `health/stream.js`. */
+export default async function handler(req, res, { getClient = createClient, onError } = {}) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { username, password, days = 30 } = req.body ?? {};
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const client = await createClient(username, password);
+    const client = await getClient(username, password);
     const totalDays = Math.min(days, 90);
     const today = new Date();
 
@@ -37,8 +38,9 @@ export default async function handler(req, res) {
       await new Promise(r => setTimeout(r, 120));
     }
 
-    res.json({ data: results, sleepData: sleepRows, total: results.length });
+    res.json({ data: results, sleepData: mergeSleepData([], sleepRows), total: results.length });
   } catch (e) {
+    onError?.(e);
     res.status(500).json({ error: e.message });
   }
 }

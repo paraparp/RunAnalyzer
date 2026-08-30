@@ -8,29 +8,19 @@ import {
 } from 'recharts';
 import {
     buildMeanMaxCurve, fitCriticalSpeed, predictTime, speedForDuration,
-    CANON_EFFORTS, fmtTime, fmtPace, FIT_MIN_S, FIT_MAX_S,
+    CANON_EFFORTS, fmtTime, fmtPace, FIT_MIN_S, FIT_MAX_S, monthsAgoISO,
 } from '../lib/criticalSpeed';
+import { RACE_DISTANCES } from '../lib/raceDistances';
 
-// Distancias sobre las que se enseña la predicción del modelo.
-const TARGETS = [
-    { id: '5k', m: 5000, label: '5K' },
-    { id: '10k', m: 10000, label: '10K' },
-    { id: 'half-marathon', m: 21097, label: '21K' },
-    { id: 'marathon', m: 42195, label: '42K' },
-];
+// Distancias sobre las que se enseña la predicción del modelo: las cuatro
+// oficiales de carretera, con el id canónico de la curva de esfuerzos.
+const TARGETS = RACE_DISTANCES.map(({ id, m, short }) => ({ id, m, label: short }));
 
 const WINDOWS = [
     { id: '180', months: 6 },
     { id: '365', months: 12 },
     { id: 'all', months: null },
 ];
-
-const isoMonthsAgo = (months) => {
-    if (months == null) return null;
-    const d = new Date();
-    d.setMonth(d.getMonth() - months);
-    return d.toISOString().slice(0, 10);
-};
 
 const labelOf = (id) => CANON_EFFORTS.find((e) => e.id === id)?.label || id;
 
@@ -54,10 +44,10 @@ const CriticalSpeed = ({ activities = [] }) => {
     // Curva del periodo elegido y la del periodo ANTERIOR de igual duración, para
     // ver si la curva se ha movido y por dónde.
     const { curve, previous, fit } = useMemo(() => {
-        const from = isoMonthsAgo(months);
+        const from = monthsAgoISO(months);
         const cur = buildMeanMaxCurve(activities, { from });
         const prev = months
-            ? buildMeanMaxCurve(activities, { from: isoMonthsAgo(months * 2), to: from })
+            ? buildMeanMaxCurve(activities, { from: monthsAgoISO(months * 2), to: from })
             : [];
         return { curve: cur, previous: prev, fit: fitCriticalSpeed(cur) };
     }, [activities, months]);

@@ -1,28 +1,21 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { karvonenBounds, classifyHR } from '../lib/hrZones';
+import { formatDuration, formatPaceFromSpeed, formatPaceFromSecPerKm } from '../lib/timeFormat';
+import { gapSpeed, gapSpeedFromGain } from '../lib/gap';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const calculatePace = (speed) => {
-    if (!speed || speed === 0) return '--:--';
-    const pace = 16.6667 / speed;
-    const m = Math.floor(pace);
-    const s = Math.floor((pace - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-};
-
+// GAP del parcial con el modelo único de lib/gap (Minetti amortiguado).
+// `elevation_difference` es desnivel NETO con signo, que es la entrada natural del
+// modelo; si el parcial no lo trae se cae a `total_elevation_gain` (acumulado), que
+// exige la hipótesis de perfil ondulado.
 const calculateGAP = (speed, distance, elevation_diff, elevation_gain) => {
-    if (!speed || speed === 0) return '--:--';
-    const elevation = typeof elevation_diff === 'number' ? elevation_diff : (elevation_gain || 0);
-    const distKm = distance / 1000;
-    const paceMinKm = 16.6667 / speed;
-    const elevPerKm = distKm > 0 ? elevation / distKm : 0;
-    const gapAdjustment = (elevPerKm / 10) * 8 / 60;
-    const adjustedPace = Math.max(paceMinKm - gapAdjustment, paceMinKm * 0.8);
-    const m = Math.floor(adjustedPace);
-    const s = Math.round((adjustedPace - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    if (!speed || speed === 0 || !(distance > 0)) return '--:--';
+    const v = typeof elevation_diff === 'number'
+        ? gapSpeed(speed, elevation_diff / distance)
+        : gapSpeedFromGain(speed, distance, elevation_gain || 0);
+    return v > 0 ? formatPaceFromSpeed(v) : '--:--';
 };
 
 // ─── zone config ─────────────────────────────────────────────────────────────
@@ -44,12 +37,6 @@ const ZONES = {
 const getZone = (hr, bounds) => classifyHR(hr, bounds) + 1;
 
 // ─── SVG overview chart ───────────────────────────────────────────────────────
-
-const fmtPace = (paceS) => {
-    const m = Math.floor(paceS / 60);
-    const s = Math.round(paceS % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-};
 
 const OverviewChart = ({ rows, avgPaceS }) => {
     const { t } = useTranslation();
@@ -127,11 +114,11 @@ const OverviewChart = ({ rows, avgPaceS }) => {
                 </div>
                 <div className="flex items-center gap-1">
                     <div className="w-4 h-px" style={{ background: '#6366f1' }} />
-                    <span className="text-[9px] text-slate-400 font-mono">{t('splits.avg', 'media')} {fmtPace(avgPaceS)}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">{t('splits.avg', 'media')} {formatPaceFromSecPerKm(avgPaceS)}</span>
                 </div>
             </div>
-            <div className="absolute left-1 top-0.5 text-[9px] text-slate-400 font-mono">{fmtPace(minP)} ↑</div>
-            <div className="absolute left-1 bottom-0.5 text-[9px] text-slate-400 font-mono">{fmtPace(maxP)} ↓</div>
+            <div className="absolute left-1 top-0.5 text-[9px] text-slate-400 font-mono">{formatPaceFromSecPerKm(minP)} ↑</div>
+            <div className="absolute left-1 bottom-0.5 text-[9px] text-slate-400 font-mono">{formatPaceFromSecPerKm(maxP)} ↓</div>
         </div>
     );
 };
@@ -188,7 +175,7 @@ const SimilarActivitiesBanner = ({ similar }) => {
         }
     }
 
-    const avgPaceStr = average_speed > 0 ? fmtPace(1000 / average_speed) : null;
+    const avgPaceStr = average_speed > 0 ? formatPaceFromSecPerKm(1000 / average_speed) : null;
 
     const bgClass = isPR
         ? 'bg-amber-50 border-amber-100'
@@ -238,7 +225,7 @@ const BestEffortsSection = ({ efforts }) => {
                     const isPR = effort.pr_rank === 1;
                     const prLabel = PR_RANK_LABELS[effort.pr_rank];
                     const paceStr = effort.distance > 0
-                        ? fmtPace((effort.elapsed_time / effort.distance) * 1000)
+                        ? formatPaceFromSecPerKm((effort.elapsed_time / effort.distance) * 1000)
                         : null;
 
                     return (
@@ -299,15 +286,15 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
             // Use Strava's official GAP if available, otherwise fall back to local calculation
             const stravaGapSpeed = stravaGapMap[split.split];
             const gap = stravaGapSpeed
-                ? calculatePace(stravaGapSpeed)
+                ? formatPaceFromSpeed(stravaGapSpeed)
                 : calculateGAP(split.average_speed, split.distance, split.elevation_difference, split.total_elevation_gain);
 
             return {
                 ...split,
                 idx, paceS, deviationPct, elevation, isPartial, isBest, hrZone, isFaster,
-                pace: calculatePace(split.average_speed),
+                pace: formatPaceFromSpeed(split.average_speed),
                 gap,
-                timeStr: `${Math.floor(split.moving_time / 60)}:${(split.moving_time % 60).toString().padStart(2, '0')}`,
+                timeStr: formatDuration(split.moving_time),
                 distKm: (split.distance / 1000).toFixed(2),
             };
         });

@@ -6,6 +6,8 @@
 // ritmo min/km en la UI), por eso incluyen Walk/Hike. El criterio CIENTÍFICO de
 // "carrera" para el análisis (athleteContext.js → isRunning) es más estricto
 // (solo Run/TrailRun/VirtualRun): no unificar sin revisar ambos usos.
+import { formatPaceFromMinPerKm } from './timeFormat';
+
 export const RUN_TYPES = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'];
 export const RIDE_TYPES = ['Ride', 'VirtualRide'];
 
@@ -21,10 +23,7 @@ export const activityEmoji = (type) => {
 
 // ── Formateadores ────────────────────────────────────────────────────────────
 // min/km → "M:SS" (redondeo por segundos totales: evita resultados tipo "5:60")
-export const paceStr = (minPerKm) => {
-  const total = Math.round(minPerKm * 60);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-};
+export const paceStr = (minPerKm) => formatPaceFromMinPerKm(minPerKm);
 
 export const formatTs = (ts) => {
   if (!ts) return null;
