@@ -12,6 +12,7 @@ import {
   paceFromSpeed,
   formatPace,
 } from '../lib/lactateThreshold';
+import useHrParams from '../hooks/useHrParams';
 
 // ─── methodology ──────────────────────────────────────────────────────────────
 //
@@ -33,9 +34,13 @@ export default function LactateThreshold({ activities }) {
   const { t } = useTranslation();
   const [monthsToShow, setMonthsToShow] = useState('12');
 
+  // FCreposo efectiva (Garmin → override manual → defecto), la misma que ven las
+  // zonas y el prompt del coach. Sin ella el modelo caía a un estimador propio.
+  const { hrrest } = useHrParams(activities);
+
   const model = useMemo(
-    () => computeLactateModel(activities, parseInt(monthsToShow)),
-    [activities, monthsToShow]
+    () => computeLactateModel(activities, parseInt(monthsToShow), { hrrest }),
+    [activities, monthsToShow, hrrest]
   );
 
   const { hrInfo, hrmax, lt2Hr, monthly: monthlyData = [], hr, cs, hasData } = model;

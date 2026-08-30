@@ -372,12 +372,12 @@ function mergeGarminActivity(prev, next) {
   return merged;
 }
 
-async function syncGarminActivities(userId, { limit = 100, enrichRuns = 20 } = {}) {
+async function syncGarminActivities(userId, { limit = 100, enrichDetail = 20 } = {}) {
   const client = await getGarminClientFor(userId);
   const raw = await readKeyFresh(userId, 'garmin_activities');
   const stored = Array.isArray(raw) ? raw : [];
   const incoming = await fetchGarminActivities(client, limit, {
-    enrichRuns,
+    enrichDetail,
     alreadyEnriched: stored.filter((a) => a?.hr_source != null).map((a) => String(a.garmin_id)),
   });
   // Lista vacía con histórico guardado = respuesta sospechosa: no se toca nada.
@@ -509,7 +509,7 @@ export async function ensureFresh(userId) {
         // ella, HRV y sueño no se refrescarían nunca por esta vía.
         if (stale(state.garmin, GARMIN_HARD_TTL_MS)) {
           try {
-            out.garmin = await syncGarminActivities(userId, { limit: 30, enrichRuns: 5 });
+            out.garmin = await syncGarminActivities(userId, { limit: 30, enrichDetail: 5 });
             // Best-effort e independiente: si la salud falla, las actividades que ya
             // se guardaron arriba no se pierden.
             try { out.garmin_health = await syncGarminHealth(userId); }
@@ -577,7 +577,7 @@ export async function runFullSync(userId, { force = false, backfill = true } = {
 
     if (force || stale(state.garmin, GARMIN_TTL_MS)) {
       try {
-        out.garmin_activities = await syncGarminActivities(userId, { limit: 100, enrichRuns: 20 });
+        out.garmin_activities = await syncGarminActivities(userId, { limit: 100, enrichDetail: 20 });
         out.garmin_health = await syncGarminHealth(userId);
         await writeState(userId, { garmin: mark(true) });
       } catch (e) {

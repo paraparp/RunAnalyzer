@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import useHrParams from '../hooks/useHrParams';
+import { efficiencyMPerBeat, toBeatsPerKm } from '../lib/efficiencyFactor';
 import { gapSpeedFromGain } from '../lib/gap';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -137,7 +138,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
     const [hiddenMonths, setHiddenMonths] = useState(new Set());
     const [hiddenDriftRuns, setHiddenDriftRuns] = useState(new Set());
     const [driftView, setDriftView] = useState("hr"); // "hr" or "eff"
-    const [effMetric, setEffMetric] = useState("hre"); // "hre" or "ratio"
+    const [effMetric, setEffMetric] = useState("hre"); // "hre" (lat/km) o "ef" (m/latido)
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState(0);
 
@@ -337,18 +338,19 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 return { ...r, drift: avgLast - avgFirst };
             });
 
-        // Efficiency data: HR/speed ratio for flat runs (<2.5% gradient, GAP < 7:00/km)
-        // Two metrics:
-        //   ratio = FC / velocidad GAP (bpm/(m/s)) — lower = better (inverse of TrainingPeaks EF)
-        //   hre = FC × pace GAP (beats/km) — lower = better (Heart Rate Efficiency, per arXiv/ResearchGate)
+        // Eficiencia cardíaca en carreras llanas (<2.5% pendiente, GAP < 7:00/km).
+        // UNA sola cantidad, en las dos unidades con las que se lee:
+        //   ef  = m/latido (convención TrainingPeaks / Jones) — MÁS es mejor
+        //   hre = latidos/km, su recíproco exacto (1000 / ef)  — MENOS es mejor
+        // Antes había aquí tres expresiones distintas, una de ellas invertida
+        // respecto al EF de TrainingPeaks, y ninguna comparable con la del
+        // resumen vital. La definición vive en src/lib/efficiencyFactor.js.
         const efficiencyData = withHR
             .filter(r => r.elevPerKm < 25 && r.km >= 3.5 && r.gapMinKm > 0 && r.gapMinKm < 7)
-            .map(r => ({
-                ...r,
-                ratio: r.avgHr / (r.gapSpeed || r.speedMs),
-                hre: r.avgHr * r.gapMinKm, // beats per km (FC × min/km)
-                efficiency: (r.gapSpeed || r.speedMs) / r.avgHr * 1000,
-            }));
+            .map(r => {
+                const ef = efficiencyMPerBeat(r.gapSpeed || r.speedMs, r.avgHr);
+                return { ...r, ef: +ef.toFixed(2), hre: toBeatsPerKm(ef) };
+            });
 
         // Pace at 150 BPM (before km 7, on flat terrain)
         // Helps track aerobic fitness over long runs without cardiac drift
@@ -412,14 +414,17 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         const highDrift = driftRuns.some(r => r.drift > 18);
         const avgDrift = driftRuns.length > 0 ? driftRuns.reduce((s, r) => s + r.drift, 0) / driftRuns.length : 0;
 
-        // 3. Efficiency trend (compare first 20% vs last 20% of efficiency points)
+        // 3. Tendencia de eficiencia (primer 25% vs último 25% de los puntos).
+        // Sobre `ef` en m/latido, donde MÁS es mejor: con la métrica invertida que
+        // había antes, el sentido de la comparación estaba al revés que el de la
+        // gráfica del resumen vital.
         let effTrend = "stable";
         if (efficiencyData.length >= 6) {
             const chunk = Math.max(2, Math.floor(efficiencyData.length * 0.25));
-            const startRatio = efficiencyData.slice(0, chunk).reduce((s, r) => s + r.ratio, 0) / chunk;
-            const endRatio = efficiencyData.slice(-chunk).reduce((s, r) => s + r.ratio, 0) / chunk;
-            if (endRatio > startRatio * 1.05) effTrend = "worsening";
-            else if (endRatio < startRatio * 0.95) effTrend = "improving";
+            const startEf = efficiencyData.slice(0, chunk).reduce((s, r) => s + r.ef, 0) / chunk;
+            const endEf = efficiencyData.slice(-chunk).reduce((s, r) => s + r.ef, 0) / chunk;
+            if (endEf > startEf * 1.05) effTrend = "improving";
+            else if (endEf < startEf * 0.95) effTrend = "worsening";
         }
 
         return {
@@ -1008,7 +1013,8 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                             <div>
                                 <h3 className="text-sm font-bold text-slate-800 mb-0.5">Eficiencia Cardíaca</h3>
                                 <p className="text-[11px] text-slate-400">
-                                    Carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km). Menor = más eficiente.
+                                    Carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km).
+                                    {effMetric === "hre" ? " Menos latidos/km = más eficiente." : " Más metros por latido = más eficiente."}
                                 </p>
                             </div>
                             <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80 shrink-0">
@@ -1023,14 +1029,14 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                     HRE (lat/km)
                                 </button>
                                 <button
-                                    onClick={() => setEffMetric("ratio")}
+                                    onClick={() => setEffMetric("ef")}
                                     className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150
-                                        ${effMetric === "ratio"
+                                        ${effMetric === "ef"
                                             ? "bg-white text-slate-900 shadow-sm"
                                             : "text-slate-500 hover:text-slate-700"
                                         }`}
                                 >
-                                    Ratio (bpm/m·s⁻¹)
+                                    EF (m/latido)
                                 </button>
                             </div>
                         </div>
@@ -1047,7 +1053,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                         <YAxis
                                             domain={["auto", "auto"]}
                                             tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: effMetric === "hre" ? "Latidos/km" : "FC/Velocidad", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            label={{ value: effMetric === "hre" ? "Latidos/km" : "Metros por latido", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
                                         />
                                         <Tooltip content={({ active, payload }) => {
                                             if (active && payload?.[0]) {
@@ -1059,7 +1065,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                                         <div className="text-rose-400">FC: {Math.round(d.avgHr)} bpm</div>
                                                         <div className="text-emerald-400">GAP: {d.gap}/km (real: {d.rawPace}/km)</div>
                                                         <div className="text-cyan-400">HRE: {Math.round(d.hre)} lat/km</div>
-                                                        <div className="text-blue-400">Ratio: {d.ratio.toFixed(1)} bpm/(m/s)</div>
+                                                        <div className="text-blue-400">EF: {d.ef.toFixed(2)} m/latido</div>
                                                         <div className="text-amber-400">Elev: {Math.round(d.elev)}m D+</div>
                                                         <div className="text-blue-400 text-[11px] mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
                                                     </div>
@@ -1134,7 +1140,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                         {effMetric === "hre" ? (
                             <><strong className="text-cyan-600">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-[11px] bg-white/60 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
                         ) : (
-                            <><strong className="text-blue-600">🧠 Ratio FC/Velocidad:</strong> El inverso del <em>Efficiency Factor</em> de TrainingPeaks (<code className="text-[11px] bg-white/60 px-1 rounded">FC / velocidad GAP</code>). Un ratio <strong>decreciente</strong> indica que tu corazón es más eficiente. Si sube, puede indicar fatiga, calor, deshidratación o pérdida de forma.</>
+                            <><strong className="text-blue-600">🧠 EF (Efficiency Factor):</strong> Los metros que recorres por cada latido (<code className="text-[11px] bg-white/60 px-1 rounded">velocidad GAP × 60 / FC</code>), la convención de TrainingPeaks y la misma cifra que verás en el resumen vital. Un EF <strong>creciente</strong> indica que tu corazón es más eficiente. Si baja, puede indicar fatiga, calor, deshidratación o pérdida de forma. Es el recíproco exacto del HRE: 1.000 / EF = latidos por km.</>
                         )}
                     </div>
 
@@ -1263,10 +1269,10 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                     {diagnosis.effTrend === "worsening" ? "📉" : diagnosis.effTrend === "improving" ? "📈" : "⚖️"}
                                 </span>
                                 <div>
-                                    <h4 className="font-bold text-slate-900 text-[15px] mb-1">Tendencia de Eficiencia (FC/Velocidad)</h4>
+                                    <h4 className="font-bold text-slate-900 text-[15px] mb-1">Tendencia de Eficiencia (m/latido)</h4>
                                     <p className="text-slate-500 text-[13px] leading-relaxed">
                                         {diagnosis.effTrend === "worsening"
-                                            ? "Tu ratio de eficiencia está empeorando. Cada unidad de velocidad te cuesta más latidos que hace un mes."
+                                            ? "Tu eficiencia está empeorando: recorres menos metros por latido que hace un mes."
                                             : diagnosis.effTrend === "improving"
                                                 ? "¡Felicidades! Tu eficiencia cardiovascular está mejorando. Tu corazón es cada vez más capaz de moverte a la misma velocidad con menos esfuerzo."
                                                 : "Tu eficiencia se mantiene estable en el tiempo."

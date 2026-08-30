@@ -14,6 +14,7 @@ import { DISTANCE_M, RACE_KEYS, RACE_DISTANCES } from '../../src/lib/raceDistanc
 import { buildMeanMaxCurve, fitCriticalSpeed, predictTime } from '../../src/lib/criticalSpeed.js';
 import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
 import { gapFactor } from '../../src/lib/gap.js';
+import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
 import { computePMC } from '../../src/lib/trainingLoad.js';
 import {
   heatPenaltyPct,
@@ -762,8 +763,11 @@ export async function activityStats(userId, args = {}) {
 // otra con la métrica que decide si hay progreso: el índice de eficiencia (metros
 // recorridos por latido). El ritmo solo no vale, porque un día vas a 150 ppm y otro a
 // 145; m/latido normaliza el coste cardíaco y hace la serie comparable.
+// m/latido, de src/lib/efficiencyFactor.js: la misma convención (y la misma
+// función) que la gráfica de eficiencia del front, para que el número que da el
+// MCP y el que ve el atleta en pantalla sean comparables.
 const efficiencyIndex = (distanceM, timeS, avgHr) =>
-  distanceM && timeS && avgHr ? (distanceM / timeS) / (avgHr / 60) : null;
+  distanceM && timeS ? efficiencyMPerBeat(distanceM / timeS, avgHr) : null;
 
 const median = (arr) => {
   if (!arr.length) return null;

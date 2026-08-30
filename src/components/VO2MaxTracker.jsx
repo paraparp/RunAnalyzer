@@ -318,7 +318,6 @@ export default function VO2MaxTracker({ activities }) {
           confidence: result.confidence,
           methods: result.methods,
           methodCount: result.methods.length,
-          effIndex: Math.round((a.average_speed / a.average_heartrate) * 10000) / 10,
         };
       })
       .filter(Boolean)
@@ -366,10 +365,9 @@ export default function VO2MaxTracker({ activities }) {
     // --- Weekly aggregation ---
     const weekMap = {};
     validRuns.forEach(r => {
-      if (!weekMap[r.weekKey]) weekMap[r.weekKey] = { values: [], weights: [], eff: [] };
+      if (!weekMap[r.weekKey]) weekMap[r.weekKey] = { values: [], weights: [] };
       weekMap[r.weekKey].values.push(r.vo2max);
       weekMap[r.weekKey].weights.push(r.confidence);
-      weekMap[r.weekKey].eff.push(r.effIndex);
     });
     const weekly = Object.entries(weekMap)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -377,13 +375,11 @@ export default function VO2MaxTracker({ activities }) {
         const wSum = d.weights.reduce((s, w) => s + w, 0);
         const wAvg = d.values.reduce((s, v, i) => s + v * d.weights[i], 0) / (wSum || 1);
         const best = Math.max(...d.values);
-        const avgEff = d.eff.reduce((s, v) => s + v, 0) / d.eff.length;
         return {
           week: key.slice(6),
           avgVO2: Math.round(wAvg * 10) / 10,
           bestVO2: Math.round(best * 10) / 10,
           sessions: d.values.length,
-          avgEff: Math.round(avgEff * 10) / 10,
         };
       });
 

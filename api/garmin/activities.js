@@ -8,7 +8,8 @@ export const config = { maxDuration: 60 };
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { username, password, limit = 100, enrichedIds, enrichRuns } = req.body ?? {};
+  const { username, password, limit = 100, enrichedIds, enrichDetail, enrichRuns } = req.body ?? {};
+  const budget = [enrichDetail, enrichRuns].find(Number.isFinite); // enrichRuns: nombre antiguo
   if (!username || !password) {
     return res.status(400).json({ error: 'Credenciales requeridas' });
   }
@@ -16,10 +17,11 @@ export default async function handler(req, res) {
   try {
     const client = await createClient(username, password);
     // `enrichedIds`: garmin_id que el cliente ya tiene enriquecidos (hr_source, laps…).
+    // Cubre carreras y bicis: el detalle es lo único que trae el origen de la FC.
     // Se saltan para que cada sync avance sobre el histórico pendiente.
     const activities = await fetchGarminActivities(client, limit, {
       alreadyEnriched: Array.isArray(enrichedIds) ? enrichedIds : null,
-      ...(Number.isFinite(enrichRuns) ? { enrichRuns } : {}),
+      ...(budget != null ? { enrichDetail: budget } : {}),
     });
     const enriched = activities.filter((a) => a.hr_source != null).length;
     res.json({ activities, total: activities.length, enriched_now: enriched });

@@ -18,7 +18,7 @@
 // FCmax — delegated to hrZones.detectMaxHR (median of the top 5% of observed
 //   max HRs), so this model shares ONE HRmax with the zones UI and the AI prompt.
 
-import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER } from './hrZones';
+import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER, DEFAULT_REST_HR } from './hrZones';
 import { formatPaceFromMinPerKm, paceMinPerKm } from './timeFormat';
 import {
   buildMeanMaxCurve, fitCriticalSpeed, hasNonMaximalPoints, monthsAgoISO,
@@ -60,22 +60,6 @@ export function thresholdHRs(hrmax, hrrest) {
     };
   }
   return { lt1: hrmax * LT1_TARGET_PCT, lt2: hrmax * LT2_TARGET_PCT, basis: 'hrmax' };
-}
-
-/**
- * Fallback resting-HR estimate from easy long runs when no wearable RHR is
- * supplied: 15th-percentile easy-run avg HR × 0.56, clamped to a plausible band.
- * Mirrors the athlete-context heuristic so both consumers agree.
- */
-export function estimateRestingHR(activities) {
-  const easy = activities
-    .filter(a => (a.type === 'Run' || a.sport_type === 'Run') &&
-                 a.average_heartrate > 0 && a.moving_time > 2400)
-    .map(a => a.average_heartrate)
-    .sort((a, b) => a - b);
-  if (!easy.length) return null;
-  const p = easy[Math.floor(easy.length * 0.15)];
-  return Math.max(38, Math.min(78, Math.round(p * 0.56)));
 }
 
 function gaussianWeight(hr, target, sigma) {
@@ -381,7 +365,11 @@ export function computeLactateModel(activities, months = 12, opts = {}) {
   const hrmax = hrInfo?.hrmax ?? null;
   if (!hrmax) return { hasData: false, hrmax: null, hrInfo: null };
 
-  const hrrest = (opts.hrrest && opts.hrrest > 30) ? opts.hrrest : estimateRestingHR(activities);
+  // FCreposo: la que pase el llamador (Garmin / calibración manual vía useHrParams)
+  // o el valor por defecto del proyecto. NO se estima desde la FC de actividad: aquí
+  // había un `percentil15 × 0.56` sin referencia que entraba directo en Karvonen y
+  // por tanto fijaba LT1/LT2, las zonas y el TRIMP. Ver hrZones.DEFAULT_REST_HR.
+  const hrrest = (opts.hrrest && opts.hrrest > 30) ? opts.hrrest : DEFAULT_REST_HR;
   const targets = thresholdHRs(hrmax, hrrest);
 
   const monthly = computeLTMonthly(activities, months, hrmax, hrrest);

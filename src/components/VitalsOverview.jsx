@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { computePMC } from '../lib/trainingLoad';
 import { vo2FromRun } from '../lib/physiology';
-import { gapFactor, gapFactorFromGain } from '../lib/gap';
+import { efficiencyFactorRun } from '../lib/efficiencyFactor';
 import { decouplingPct } from '../lib/decoupling';
 
 // ---------------------------------------------------------------------------
@@ -408,59 +408,12 @@ export default function VitalsOverview({ activities = [] }) {
       : aggregate(ctlPts, gran, 1);
 
     // ── Eficiencia aeróbica (metros por latido) ──
-    // Normalizado: solo carreras aeróbicas (70-88% FCmax), llanas (<1% desnivel)
-    // y de duración media (15-120 min) → descarta series, tempos y deriva de tiradas largas.
-    // EF fiable solo en esfuerzo aeróbico sub-umbral (TrainingPeaks / Jones 2023):
-    // por encima del umbral la relación pace/FC se rompe. Banda 70-85% FCmax.
-    // Suelo de FCmax: la FC máx registrada por Strava infravalora la real si no haces
-    // esfuerzos máximos → sin suelo, la zona excluiría rodajes normales a FC 145-155.
-    const hrMaxZone = Math.max(maxObserved, 185);
-    const zLow = hrMaxZone * 0.70;
-    const zHigh = hrMaxZone * 0.85;
-    const gradCap = gapAdjust ? 4 : 1; // GAP permite hasta 4% de desnivel medio; llano solo <1%
-    // EF por parciales (km): en vez de exigir que TODA la carrera sea aeróbica y llana,
-    // extrae los km que sí lo son — así tiradas largas, rodajes con cuestas y calentamientos
-    // de series también aportan dato y la serie no se queda con huecos de semanas.
-    // Reglas por km: FC en zona, llano (según gradCap), ≥900 m, dentro de los primeros
-    // 75 min (deriva cardíaca <~5%). Se descarta el 1er km (retardo de FC al arrancar).
-    const efFromSplits = (a) => {
-      let cum = 0, wSum = 0, tSum = 0, nOk = 0;
-      for (let i = 0; i < a.splits_metric.length; i++) {
-        const s = a.splits_metric[i];
-        const start = cum;
-        cum += s.moving_time || 0;
-        if (i === 0) continue; // retardo de FC del arranque
-        if (start > 4500) break; // solo primeros 75 min (evita deriva cardíaca)
-        if (!s.average_heartrate || s.average_heartrate < zLow || s.average_heartrate > zHigh) continue;
-        if (!s.average_speed || s.average_speed < 1.5 || (s.distance || 0) < 900) continue;
-        const grade = (s.elevation_difference || 0) / s.distance; // con signo (subida/bajada)
-        if (Math.abs(grade) * 100 >= gradCap) continue;
-        const speed = gapAdjust ? s.average_speed * gapFactor(grade) : s.average_speed;
-        const t = s.moving_time || 1;
-        wSum += ((speed * 60) / s.average_heartrate) * t; // m/latido ponderado por tiempo
-        tSum += t;
-        nOk++;
-      }
-      // ≥3 km aeróbicos válidos para que el valor sea representativo de la sesión
-      return nOk >= 3 && tSum > 0 ? wSum / tSum : null;
-    };
-    // Fallback sin parciales: criterio clásico de carrera entera (20-75 min, toda en zona, llana)
-    const efWholeRun = (a) => {
-      if (!a.average_heartrate || a.average_heartrate < zLow || a.average_heartrate > zHigh) return null;
-      if (!a.average_speed || a.average_speed < 1.5) return null;
-      const dur = a.moving_time || 0;
-      if (dur < 1200 || dur > 4500) return null;
-      const gradeFrac = (a.total_elevation_gain || 0) / a.distance;
-      if (Math.abs(gradeFrac) * 100 >= gradCap) return null;
-      const speed = gapAdjust ? a.average_speed * gapFactorFromGain(a.distance, a.total_elevation_gain || 0) : a.average_speed;
-      // m/latido = velocidad(m/s) · 60 / FC(ppm)
-      return (speed * 60) / a.average_heartrate;
-    };
+    // La definición vive en src/lib/efficiencyFactor.js: era la única de las seis
+    // que había en la app que estaba bien (m/latido, solo km aeróbicos, ajustada
+    // por desnivel) y ahora es la compartida. Ver la cabecera de ese módulo.
     const effRunsAll = activities
       .map((a) => {
-        if (!/run/i.test(a.sport_type || a.type || "")) return null; // fútbol/bici/tenis contaminan el EF
-        if (!a.distance || a.distance < 2000) return null;
-        const v = a.splits_metric?.length >= 4 ? efFromSplits(a) : efWholeRun(a);
+        const v = efficiencyFactorRun(a, { maxObservedHr: maxObserved, gapAdjust });
         return v == null ? null : { ms: new Date(a.start_date).getTime(), v: +v.toFixed(3) };
       })
       .filter(Boolean)

@@ -12,13 +12,19 @@
 >
 > ## Estado de la remediación (2026-08-30)
 >
-> **Cerrado en esta tanda** (build en verde, 182 tests / 13 ficheros): `A2`, `A3`, `A4`, `A5`,
-> `A6`, `A7`, `A8` (la parte del ACSM), `D` completo, y las porciones baratas de `B2`, `B5` y `B6`.
-> Los números de línea de esos bloques son los de **antes** del arreglo y se conservan como
-> registro de qué había; el estado real de cada uno va marcado en su propio encabezado.
+> Los números de línea de los bloques ya cerrados son los de **antes** del arreglo y se conservan
+> como registro de qué había; el estado real de cada uno va marcado en su propio encabezado.
 >
-> **Sigue abierto**: `A1`, `A8` (procedencia de la mezcla y confianza inflada), `B1`, `B3`, `B4`,
-> el resto de `B2`/`B5`/`B6`, `C`, `E` y toda la sección `F`.
+> **Tanda 1** (build en verde, 182 tests): `A2`, `A3`, `A4`, `A5`, `A6`, `A7`, `A8` (la parte del
+> ACSM), `D` completo, y las porciones baratas de `B2`, `B5` y `B6`.
+>
+> **Tanda 2** (build en verde, **254 tests / 16 ficheros**): `E` en sus dos módulos prioritarios
+> (`hrZones` y `physiology`, 47 tests nuevos), `B2` + `F6` completos, y `B1` completo con
+> `src/lib/efficiencyFactor.js` como fuente única (25 tests).
+>
+> **Sigue abierto**: `A1`, `A8` (procedencia de la mezcla y confianza inflada), `B3`, `B4`,
+> el resto de `B5`/`B6`, `C`, el resto de `E` (`athleteContext`, `raceDistances`, `planFormat`,
+> `garminActivitiesSync`) y el resto de `F`.
 
 ## Índice
 
@@ -34,15 +40,15 @@
 | A7 | [Bug `m:60` en nueve formateadores inline](#a7-bug-m60-en-nueve-formateadores-de-ritmo-inline) | 🟡 Bajo | Trivial | ✅ Arreglado |
 | A8 | [ACSM alimentado con desnivel acumulado](#a8-la-ecuación-acsm-recibe-desnivel-acumulado-donde-espera-pendiente-neta) | 🟡 Bajo | Trivial | 🟨 Parcial |
 | **B** | [Duplicación viva](#b-duplicación-viva) | | | |
-| B1 | [Efficiency Factor en 5 sitios con 3 convenciones](#b1-efficiency-factor-cinco-sitios-tres-unidades-y-un-signo-invertido) | 🟠 Medio | Medio | ⬜ Abierto |
-| B2 | [Dos estimadores de FCreposo que contradicen la política declarada](#b2-dos-estimadores-de-fcreposo-que-contradicen-la-política-escrita-en-hrzonesjs) | 🟠 Medio | Bajo | 🟨 Parcial |
+| B1 | [Efficiency Factor en 5 sitios con 3 convenciones](#b1-efficiency-factor-cinco-sitios-tres-unidades-y-un-signo-invertido) | 🟠 Medio | Medio | ✅ Arreglado |
+| B2 | [Dos estimadores de FCreposo que contradicen la política declarada](#b2-dos-estimadores-de-fcreposo-que-contradicen-la-política-escrita-en-hrzonesjs) | 🟠 Medio | Bajo | ✅ Arreglado |
 | B3 | [Dos umbrales de FC en dos pestañas](#b3-dos-umbrales-de-frecuencia-cardiaca-en-dos-pestañas) | 🟠 Medio | Medio | ⬜ Abierto |
 | B4 | [Cuarta implementación de deriva en `lactateThreshold`](#b4-queda-una-cuarta-implementación-de-deriva-en-lactatethreshold) | 🟡 Bajo | Bajo | ⬜ Abierto |
 | B5 | [Catorce formateadores de tiempo/ritmo inline](#b5-catorce-formateadores-inline-con-timeformatjs-ya-escrito) | 🟡 Bajo | Bajo | 🟨 Parcial |
 | B6 | [`isoWeekKey` y `dayKey` reimplementados](#b6-isoweekkey-y-daykey-reimplementados-en-ocho-sitios) | 🟡 Bajo | Bajo | 🟨 Parcial |
 | **C** | [Ventanas temporales y zona horaria](#c-ventanas-temporales-y-zona-horaria) | 🟡 Bajo | Bajo | ⬜ Abierto |
 | **D** | [Código muerto](#d-código-muerto) | 🟡 Bajo | Trivial | ✅ Arreglado |
-| **E** | [Cobertura de tests](#e-cobertura-de-tests) | 🟠 Medio | Medio | ⬜ Abierto |
+| **E** | [Cobertura de tests](#e-cobertura-de-tests) | 🟠 Medio | Medio | 🟨 Parcial |
 | **F** | [Fórmulas mejorables](#f-fórmulas-mejorables) | | | ⬜ Abierto |
 
 ---
@@ -289,6 +295,25 @@ parcialmente. **La confianza reportada está inflada por construcción.**
 
 ## B1. Efficiency Factor: cinco sitios, tres unidades y un signo invertido
 
+> ✅ **ARREGLADO.** La definición vive en **`src/lib/efficiencyFactor.js`** (25 tests), con la
+> convención de TrainingPeaks / Jones —**m/latido, más es mejor**— y los filtros que la hacen
+> significar algo: banda aeróbica 70-85 % FCmax con suelo de 185, tope de desnivel (1 % en crudo,
+> 4 % con GAP), ventana de 75 min y mínimo de 3 km válidos. Los seis sitios quedan así:
+>
+> | Sitio | Antes | Ahora |
+> |---|---|---|
+> | `VitalsOverview` | la buena, pero local | `efficiencyFactorRun()` |
+> | `HRAnalysis` `ratio` | `avgHr / gapSpeed` — **invertido** | borrado |
+> | `HRAnalysis` `hre` | `avgHr × gapMinKm` | `toBeatsPerKm(ef)`, recíproco exacto del EF |
+> | `HRAnalysis` `efficiency` | `speed / hr × 1000` | `efficiencyMPerBeat()` (`ef`) |
+> | `VO2MaxTracker` `effIndex` | `speed / hr × 1000`, sin filtros | **borrado: era código muerto** (solo alimentaba `avgEff`, que no pintaba nadie) |
+> | `mcp-store.js` `efficiencyIndex` | cuenta propia, ya en m/latido | delega en `efficiencyMPerBeat()` |
+>
+> El toggle de la pestaña de FC sigue existiendo, pero ya no ofrece dos métricas distintas: son
+> **el mismo número en dos unidades** (lat/km y m/latido), derivadas la una de la otra. La
+> tendencia de eficiencia del diagnóstico iba con el signo al revés respecto a la gráfica del
+> resumen vital y ahora va con el EF, donde subir es mejorar.
+
 | Sitio | Fórmula | Unidad | Filtros |
 |---|---|---|---|
 | `VitalsOverview.jsx:413-421` | m/latido por km aeróbico | m/latido | 70–85 % FCmax, GAP, 1.os 75 min |
@@ -309,10 +334,13 @@ m/latido, que es la convención de TrainingPeaks / Jones. **Debería salir a `sr
 
 ## B2. Dos estimadores de FCreposo que contradicen la política escrita en `hrZones.js`
 
-> 🟨 **PARCIAL.** Borrado el de `VO2MaxTracker` (regresión FC↔VO2 + *fallback* 0,32 × FCmax): esa
-> pestaña usa ya `detectRestHR` / `DEFAULT_REST_HR`. **Sigue abierto** `estimateRestingHR` × 0,56
-> en `lactateThreshold.js:70`, que es el que está en la ruta crítica de Karvonen → LT1/LT2 → zonas
-> → TRIMP y por tanto el que hay que tocar con cuidado (ver también F6).
+> ✅ **ARREGLADO** (con `F6`). Borrados los dos. `VO2MaxTracker` perdió la regresión FC↔VO2 y su
+> *fallback* 0,32 × FCmax; `lactateThreshold.js` perdió `estimateRestingHR` (percentil 15 × 0,56)
+> y `computeLactateModel` cae ahora a `DEFAULT_REST_HR` cuando el llamador no pasa una FCreposo
+> plausible. `LactateThreshold.jsx` pasa la efectiva vía `useHrParams`, que es la misma que ven
+> las zonas y el prompt del coach (`athleteContext` ya usaba `detectRestHR`). Queda **una** vía:
+> Garmin → calibración manual → valor por defecto, y la política de la cabecera de `hrZones.js`
+> describe por fin lo que hace el código. Los 27 tests de `hrZones` la fijan.
 
 `src/lib/hrZones.js:23-26` declara la política del proyecto:
 
@@ -450,6 +478,15 @@ de divergencia que estas auditorías vienen cerrando.
 
 # E. Cobertura de tests
 
+> 🟨 **PARCIAL.** Los dos módulos prioritarios ya tienen tests: **`hrZones`** (27) y
+> **`physiology`** (20), más **`efficiencyFactor`** (25) que nace con los suyos. La suite pasa de
+> 176 a **254 tests en 16 ficheros**. Los de `hrZones` fijan la *política*, no solo los números:
+> que `detectRestHR` NO estime desde la FC de actividad y que la cascada de `detectLTHR` degrade
+> en el orden documentado bajando la confianza. Los de `physiology` contrastan las cuatro
+> ecuaciones contra el valor de la fuente publicada, y uno de ellos deja fijado —para que el
+> arreglo sea visible— el sesgo de intensidad que describe `A1`.
+> **Siguen sin tests** `athleteContext.js`, `raceDistances.js`, `planFormat.js` y
+> `garminActivitiesSync.js`.
 13 ficheros, 176 tests, todos en verde — y `decoupling.test.js` / `flatEfforts.test.js` ya cubren
 los dos módulos recién extraídos. Lo que queda sin **ningún** test son los módulos con más
 consumidores:
@@ -533,6 +570,8 @@ un decaimiento de CS con el tiempo. Hoy la bandera `optimistic` cumple, así que
 
 ### F6. `estimateRestingHR` × 0,56: eliminar
 
+> ✅ **ARREGLADO.** Borrada. Ver B2.
+
 Ver B2. No es una fórmula mejorable, es una constante sin procedencia en la ruta crítica de
 Karvonen. La mejora es borrarla.
 
@@ -551,15 +590,15 @@ configurable por par, o al menos por tipo.
 |---|---|---|---|
 | 1 | **A2** — que `VO2MaxTracker` use `detectMaxHR`/`detectRestHR` | 15 min; quita la incoherencia más visible entre pestañas | ✅ |
 | 2 | **A4**, **A7** | Bugs de presentación, arreglo trivial, resultado visible | ✅ |
-| 3 | **E** — tests de `hrZones` y `physiology` | Sin esto, los pasos 4–8 se hacen a ciegas | ⬜ **siguiente** |
-| 4 | **B2** + **F6** — una sola vía de FCreposo | Está en la ruta crítica de zonas, umbrales y carga | 🟨 falta `lactateThreshold` |
+| 3 | **E** — tests de `hrZones` y `physiology` | Sin esto, los pasos 4–8 se hacen a ciegas | ✅ |
+| 4 | **B2** + **F6** — una sola vía de FCreposo | Está en la ruta crítica de zonas, umbrales y carga | ✅ |
 | 5 | **A5**, **A6** — recalibrar `strain`, cerrar la semana | Devuelven sentido a dos de los cinco factores de lesión | ✅ |
-| 6 | **B1** — extraer el EF de `VitalsOverview` a `lib/` | Seis expresiones → una | ⬜ |
-| 7 | **B3** — unificar LTHR en el método anclado a CS | Cierra el último "dos números para lo mismo" del menú | ⬜ |
+| 6 | **B1** — extraer el EF de `VitalsOverview` a `lib/` | Seis expresiones → una | ✅ |
+| 7 | **B3** — unificar LTHR en el método anclado a CS | Cierra el último "dos números para lo mismo" del menú | ⬜ **siguiente** |
 | 8 | **A1** + **F1** — anclar VO2max y predicciones en rendimiento | El cambio de mayor valor y el de mayor coste | ⬜ |
 | 9 | **D**, **C**, **B4**, **B5**, **B6**, **F7** | Limpieza, sin prisa | 🟨 hecho `D`; parcial `B5`/`B6` |
 
-> El paso 3 pasa a ser el primero de la siguiente tanda: los bloques que quedan (`B2` en
-> `lactateThreshold`, `B1`, `B3`, `A1`) tocan todos la ruta crítica de zonas y umbrales, y sin
-> tests de `hrZones` / `physiology` se hacen a ciegas. Lo cerrado en esta tanda no los necesitaba:
-> eran sustituciones mecánicas o formateo, y la suite existente (182 tests) sigue en verde.
+> Quedan los pasos 7 y 8, los dos de mayor calado: **B3** (dos LTHR en dos entradas del menú) y
+> **A1 + F1** (anclar VO2max y predicciones en rendimiento en vez de en FC). Ambos se apoyan en
+> los tests de `hrZones` y `physiology` que ya existen, así que dejan de hacerse a ciegas. El
+> resto del paso 9 es limpieza sin prisa.

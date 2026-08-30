@@ -460,16 +460,24 @@ async function mapLimit(items, limit, fn) {
   await Promise.all(workers);
 }
 
-// Plazas del presupuesto de enriquecido reservadas a las carreras más recientes.
+// Plazas del presupuesto de enriquecido reservadas a las actividades más recientes.
 const RECENT_ENRICH_SLOTS = 10;
+
+// Deportes que reciben el detalle por actividad. Antes solo se enriquecía lo que
+// contuviera 'run', así que las bicis nunca llegaban a pedir el detalle y su
+// `hr_source` quedaba 'unknown'/origin 'missing' PARA SIEMPRE (el filtro las
+// descartaba en cada sync aunque siguieran pendientes). Eso se leía como "Garmin no
+// grabó el sensor" cuando en realidad era "nunca se ha mirado".
+const ENRICHABLE_TYPES = /(run|cycling|biking|ride)/;
 
 /**
  * Lista las últimas `limit` actividades de Garmin con running dynamics y enriquece
- * carreras con el detalle (origen FC, laps reales, WBGT, dinámica que falte).
+ * carreras y salidas en bici con el detalle (origen FC, laps reales, WBGT, medidor
+ * de potencia externo, dinámica que falte).
  *
  * El enriquecido es INCREMENTAL: `alreadyEnriched` trae los garmin_id que ya tienen
  * detalle guardado y se saltan, de modo que cada sync gasta su presupuesto en las
- * carreras que aún no lo tienen. Antes se enriquecían siempre las 20 más recientes,
+ * que aún no lo tienen. Antes se enriquecían siempre las 20 más recientes,
  * así que `hr_source` solo existía en una ventana móvil y el histórico nunca se
  * completaba por mucho que se sincronizara.
  *
@@ -477,8 +485,9 @@ const RECENT_ENRICH_SLOTS = 10;
  * "Garmin caído" de "no hay actividades", y guardar ese [] borraba el histórico.
  */
 export async function fetchGarminActivities(
-  client, limit = 100, { enrichRuns = 40, alreadyEnriched = null } = {}
+  client, limit = 100, { enrichDetail = 40, enrichRuns, alreadyEnriched = null } = {}
 ) {
+  const budget = Number.isFinite(enrichRuns) ? enrichRuns : enrichDetail; // enrichRuns: nombre antiguo
   const cap = Math.min(Math.max(limit, 1), 300);
   let raw;
   try {
@@ -490,22 +499,22 @@ export async function fetchGarminActivities(
   }
   if (!Array.isArray(raw)) throw new Error('Respuesta inesperada del activitylist-service de Garmin');
   const normalized = raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
-  if (enrichRuns > 0) {
+  if (budget > 0) {
     const done = alreadyEnriched instanceof Set ? alreadyEnriched
       : new Set(Array.isArray(alreadyEnriched) ? alreadyEnriched.map(String) : []);
-    // Presupuesto repartido: primero las carreras recientes pendientes (para que un
+    // Presupuesto repartido: primero las recientes pendientes (para que un
     // entreno de hoy tenga hr_source ya en este sync) y el resto hacia atrás en el
     // tiempo, de modo que los syncs sucesivos completen el histórico. Solo hacia
     // atrás dejaría lo nuevo sin enriquecer hasta vaciar el backlog.
     const pending = normalized
-      .filter((a) => (a.type || '').includes('run') && !done.has(String(a.garmin_id)))
+      .filter((a) => ENRICHABLE_TYPES.test(a.type || '') && !done.has(String(a.garmin_id)))
       .sort((x, y) => new Date(y.start_time) - new Date(x.start_time)); // reciente primero
-    const recent = pending.slice(0, Math.min(RECENT_ENRICH_SLOTS, enrichRuns));
+    const recent = pending.slice(0, Math.min(RECENT_ENRICH_SLOTS, budget));
     const backfill = pending.slice(recent.length).reverse()             // antigua primero
-      .slice(0, enrichRuns - recent.length);
-    const runs = [...recent, ...backfill];
+      .slice(0, budget - recent.length);
+    const targets = [...recent, ...backfill];
     try {
-      await mapLimit(runs, 4, (a) => enrichGarminActivity(client, a));
+      await mapLimit(targets, 4, (a) => enrichGarminActivity(client, a));
     } catch (e) {
       console.warn('garmin enrich phase failed:', e.message);
     }
