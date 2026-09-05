@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from './useGarminWearableData';
 import {
-  generateAIObject, fetchModelGroups, buildModelGroups, buildProviderChain,
-  parseModelValue, normalizeModelValue, FALLBACK_GEMINI,
+  generateAIObject, buildProviderChain, parseModelValue,
 } from '../services/ai';
+import useAIModel from './useAIModel';
 import { buildPrompt } from '../lib/athleteContext';
 import { getPrimaryTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { paceStr, coachObjectToBlocks, coachCoherenceWarnings } from '../lib/aiInsights';
@@ -30,9 +30,8 @@ export default function useAIInsights(activities) {
   const [providerLabel, setProviderLabel] = useState('');
   const [usedProvider, setUsedProvider] = useState('');
   const [isFallback, setIsFallback] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(
-    () => normalizeModelValue(cloudStorage.getItem('ai_insights_model'))
-  );
+  // Modelo IA: preferencia GLOBAL (selector único en el menú de usuario).
+  const [selectedModel] = useAIModel();
   const [weeklyTarget, setWeeklyTarget] = useState(
     () => cloudStorage.getItem('ai_weekly_target') || '2'
   );
@@ -54,29 +53,6 @@ export default function useAIInsights(activities) {
     }
     return { distance, pace, date: nextRace.date };
   }, [nextRace]);
-
-  // Grupos "empresa → modelos" — arrancan con la reserva Gemini y se reemplazan
-  // con la lista viva (Gemini + OpenRouter) cuando el endpoint responde.
-  const [modelGroups, setModelGroups] = useState(() => buildModelGroups({ gemini: FALLBACK_GEMINI }));
-  useEffect(() => {
-    const ctrl = new AbortController();
-    fetchModelGroups(ctrl.signal)
-      .then(g => { if (g.length) setModelGroups(g); })
-      .catch(() => { /* keep shared fallback */ });
-    return () => ctrl.abort();
-  }, []);
-
-  // Si el valor persistido no está entre las opciones vivas (modelo obsoleto), se
-  // corrige al primero disponible — así el <select> nunca queda en blanco ni se
-  // envía un modelo inexistente (mismo criterio que ModelSelector).
-  const modelValues = useMemo(() => modelGroups.flatMap(g => g.options.map(o => o.value)), [modelGroups]);
-  useEffect(() => {
-    if (modelValues.length && !modelValues.includes(selectedModel)) {
-      const next = modelValues[0];
-      setSelectedModel(next);
-      cloudStorage.setItem('ai_insights_model', next);
-    }
-  }, [modelValues, selectedModel]);
 
   // Ajustes en ref-espejo: `run` los lee de aquí para NO depender de ellos.
   // Así cambiar modelo/frecuencia/objetivo no recrea `run` ni re-dispara el
@@ -263,11 +239,6 @@ export default function useAIInsights(activities) {
     if (activities?.length >= 3 && garmin !== undefined && sleep !== undefined) run(false);
   }, [activities, garmin, sleep, run]);
 
-  const changeModel = useCallback((m) => {
-    cloudStorage.setItem('ai_insights_model', m);
-    setSelectedModel(m);
-  }, []);
-
   const changeWeeklyTarget = useCallback((v) => {
     cloudStorage.setItem('ai_weekly_target', v);
     setWeeklyTarget(v);
@@ -280,9 +251,9 @@ export default function useAIInsights(activities) {
     loading, providerLabel, usedProvider, isFallback,
     cacheTs, restoreWarning, dismissRestoreWarning,
     garmin, stravaFetch,
-    selectedModel, changeModel,
+    selectedModel,
     weeklyTarget, changeWeeklyTarget,
-    modelGroups, goal,
+    goal,
     run,
   };
 }

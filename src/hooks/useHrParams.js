@@ -11,10 +11,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from './useGarminWearableData';
-import {
-  detectMaxHR, detectRestHR, detectLTHR, estimateLTHR, HR_LIMITS,
-} from '../lib/hrZones';
-import { computeCriticalSpeed, computeFieldLT2Hr, LT_MONTHS } from '../lib/lactateThreshold';
+import { resolveHrCalibration, parseOverride } from '../lib/loadCalibration';
 
 export const OVERRIDES_KEY = 'hr_zone_overrides';
 
@@ -22,13 +19,7 @@ export const loadOverrides = () => {
   try { return JSON.parse(cloudStorage.getItem(OVERRIDES_KEY)) ?? {}; } catch { return {}; }
 };
 
-// Parse a manual override. Returns the integer if it's inside [lo, hi],
-// null if empty, NaN if present but out of range (→ ignored, flagged in UI).
-export const parseOverride = (raw, lo, hi) => {
-  if (raw === '' || raw == null) return null;
-  const v = Math.round(+raw);
-  return Number.isFinite(v) && v >= lo && v <= hi ? v : NaN;
-};
+export { parseOverride };
 
 export default function useHrParams(activities) {
   const [userMax,  setUserMax]  = useState(() => loadOverrides().max  ?? '');
@@ -43,52 +34,32 @@ export default function useHrParams(activities) {
     if (userLTHR) o.lthr = userLTHR;
     if (Object.keys(o).length) cloudStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
     else cloudStorage.removeItem(OVERRIDES_KEY);
+    // El PMC de las otras vistas también depende de estos overrides (useCalibratedPMC):
+    // sin el aviso, ajustar el LTHR a mano no movía el CTL hasta recargar la página.
+    window.dispatchEvent(new Event('hr-overrides-updated'));
   }, [userMax, userRest, userLTHR]);
 
   // ── Garmin cardiac data (resting HR source) ──
   const { garmin } = useGarminWearableData();
 
-  // ── Calibration window: LTHR drifts with fitness, so it is read from the last
-  //    two months. HRmax is a stable trait → detected over the full history. ──
-  const recentActivities = useMemo(() => {
-    if (!activities?.length) return [];
-    const now = new Date();
-    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-    return activities.filter(a => new Date(a.start_date) >= twoMonthsAgo);
-  }, [activities]);
-
-  const autoMax  = useMemo(() => detectMaxHR(activities), [activities]);
-  const autoRest = useMemo(() => detectRestHR(garmin), [garmin]);
-
-  // ── Effective parameters: valid manual overrides win, out-of-range input is
-  //    ignored (falls back to auto) and flagged in the UI. Ordering is enforced
-  //    (hrrest < hrmax, hrrest < lthr ≤ hrmax) so no model can produce inverted zones. ──
-  const maxOv  = parseOverride(userMax, HR_LIMITS.maxLo, HR_LIMITS.maxHi);
-  const hrmax  = maxOv || autoMax.value;
-  const restOv = parseOverride(userRest, HR_LIMITS.restLo, Math.min(HR_LIMITS.restHi, hrmax - 20));
-  const hrrest = restOv || Math.min(autoRest.value, hrmax - 20);
-
-  // ── LTHR anclado a RENDIMIENTO: la FC medida al ritmo de la velocidad crítica
-  //    es la misma que usa el modelo de lactato (Motor Aeróbico › Umbrales), así
-  //    que las dos pestañas dejan de mostrar dos umbrales distintos. Si no hay
-  //    ajuste de CS válido, `detectLTHR` sigue con su cascada de siempre. ──
-  const csLt2 = useMemo(() => {
-    if (!activities?.length) return null;
-    const cs = computeCriticalSpeed(activities, LT_MONTHS);
-    if (!cs?.valid) return null;
-    return computeFieldLT2Hr(activities, LT_MONTHS, cs.csPace, hrmax);
-  }, [activities, hrmax]);
-
-  const lthrResult = useMemo(
-    () => detectLTHR(recentActivities, hrmax, { csLt2 }),
-    [recentActivities, hrmax, csLt2],
+  // ── La RESOLUCIÓN vive en lib/loadCalibration, no aquí: es la misma que usa el
+  //    PMC de las cuatro vistas y la que el MCP reproduce en el servidor. Este
+  //    hook solo aporta lo que es de la UI: el estado de los overrides y su
+  //    persistencia. Antes la cascada estaba escrita aquí y la carga la ignoraba,
+  //    así que el atleta podía fijar su LTHR a mano y el CTL seguía con la fórmula. ──
+  const overrides = useMemo(
+    () => ({ max: userMax, rest: userRest, lthr: userLTHR }),
+    [userMax, userRest, userLTHR],
   );
-
-  const lthrOv = parseOverride(userLTHR, hrrest + 10, hrmax);
-  const lthr   = lthrOv || Math.min(lthrResult.lthr ?? estimateLTHR(hrmax), hrmax);
+  const cal = useMemo(
+    () => resolveHrCalibration(activities, { garminData: garmin, overrides }),
+    [activities, garmin, overrides],
+  );
+  const { hrmax, hrrest, lthr, maxOv, restOv, lthrOv, autoMax, autoRest, lthrResult, recentActivities } = cal;
 
   return {
-    hrmax, hrrest, lthr, hrr: hrmax - hrrest,
+    hrmax, hrrest, lthr, hrr: cal.hrr,
+    calibration: cal,
     maxOv, restOv, lthrOv,
     autoMax, autoRest, lthrResult,
     recentActivities,

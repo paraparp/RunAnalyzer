@@ -148,7 +148,7 @@ const TOOLS = [
   },
   {
     name: 'compare_similar_sessions',
-    description: 'Compara sesiones EQUIVALENTES entre sí ("todas mis salidas llanas de 10 km con FC media entre 142 y 152"). Define el grupo con distance_km + tolerancia y banda de FC media, o pasa `reference_id` y toma los criterios de esa actividad. Devuelve cada sesión con ritmo, GAP, FC, WBGT y el índice de eficiencia (metros por latido), más agregados y `trend` (mediana de eficiencia de la mitad reciente vs la antigua). La eficiencia es lo que hay que mirar: el ritmo solo no distingue mejorar de haber ido más enchufado ese día.',
+    description: 'Compara sesiones EQUIVALENTES entre sí ("todas mis salidas llanas de 10 km con FC media entre 142 y 152"). Define el grupo con distance_km + tolerancia y banda de FC media, o pasa `reference_id` y toma los criterios de esa actividad. Devuelve cada sesión con ritmo, GAP, FC, WBGT y el índice de eficiencia (metros por latido), más agregados y `trend` (mediana de eficiencia de la mitad reciente vs la antigua). La eficiencia es lo que hay que mirar: el ritmo solo no distingue mejorar de haber ido más enchufado ese día. Las COMPETICIONES se excluyen por defecto (no son sesiones equivalentes a un rodaje aunque midan lo mismo): mira `homogeneity.races`. Antes de leer `trend` comprueba `trend.comparable`: si las dos mitades se midieron con sensores distintos (banda vs muñeca) el cambio es del sensor, no del atleta.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -161,6 +161,8 @@ const TOOLS = [
         flat_only: { type: 'boolean', description: 'Solo salidas llanas (<10 m de desnivel por km)' },
         sport: { type: 'string', description: 'Tipo Strava (por defecto solo carreras)' },
         from: dateArg, to: dateArg,
+        include_races: { type: 'boolean', description: 'Incluir competiciones en el grupo (por defecto false: distorsionan medianas y tendencia)' },
+        hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Acota el grupo a un solo origen de FC. Necesario para que la eficiencia (m/latido) y `trend` sean comparables entre sí' },
         limit: { type: 'number', description: 'Máx. sesiones devueltas (por defecto 25, tope 100)' },
       },
     },
@@ -252,7 +254,7 @@ const TOOLS = [
   },
   {
     name: 'get_training_load_model',
-    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal. La carga es TSS (100 = 1 h a umbral, TRIMP sobre HRR) del mismo modelo que pinta la pestaña Estado de la app, así que las cifras coinciden. Usa granularity=weekly o summary_only para no saturar el contexto.',
+    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal. La carga es TSS (100 = 1 h a umbral, TRIMP sobre HRR) del mismo modelo que pinta la pestaña Estado de la app, así que las cifras coinciden. Usa granularity=weekly o summary_only para no saturar el contexto. CTL/ATL/TSB dependen de la calibración que va en `model` (FCmax, FC de reposo y LTHR, re-detectados del historial en cada llamada): compara series entre llamadas SOLO si coincide `model.version`. Si `model.hrrest_source` es "default" o `model.lthr_method` es "formula", ese parámetro está estimado y no medido.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -396,7 +398,7 @@ const TOOLS = [
   },
   {
     name: 'critical_speed',
-    description: 'Ajusta el modelo de VELOCIDAD CRÍTICA (d = CS·t + D′) sobre los mejores esfuerzos del histórico: CS es el umbral MEDIDO del atleta (m/s y ritmo) y D′ su reserva anaeróbica en metros. Devuelve además la curva de mejores marcas por distancia y las predicciones de 5K/10K/21K/42K. El ajuste solo usa esfuerzos de 2-30 min; las predicciones con optimistic=true son cota inferior, no pronóstico. Para responder qué tiempo puede hacer en una carrera —sobre todo media y maratón— usa `predict_races`, que combina este modelo con VDOT y Riegel; aquí las predicciones son solo la lectura cruda de CS. Con compare_previous compara con el periodo anterior de igual duración para ver si mejora la velocidad o la resistencia.',
+    description: 'Ajusta el modelo de VELOCIDAD CRÍTICA (d = CS·t + D′) sobre los mejores esfuerzos del histórico: CS es el umbral MEDIDO del atleta (m/s y ritmo) y D′ su reserva anaeróbica en metros. Devuelve además la curva de mejores marcas por distancia y las predicciones de 5K/10K/21K/42K. El ajuste solo usa esfuerzos de 2-30 min; las predicciones con optimistic=true son cota inferior, no pronóstico. Para responder qué tiempo puede hacer en una carrera —sobre todo media y maratón— usa `predict_races`, que combina este modelo con VDOT y Riegel; aquí las predicciones son solo la lectura cruda de CS. Con compare_previous compara con el periodo anterior de igual duración para ver si mejora la velocidad o la resistencia. NO leas `fit.r2` sin mirar `fit.n_activities`: si los esfuerzos vienen de menos de 3 actividades distintas el ajuste sale casi perfecto por construcción (los tramos de una misma sesión se solapan) y `fit.concentrated` se pone a true con el aviso en `fit.r2_caveat`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -709,6 +711,15 @@ const INSTRUCTIONS = [
   'predicciones y consejos en ella. Las carreras pasadas traen `result` (tiempo real vs objetivo).',
   'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
+  'Calor: si `weather.wbgt_plausible` es false, la unidad de la temperatura de origen venía mal',
+  'etiquetada y no se puede recuperar: ignora el calor de esa sesión, no la penalización.',
+  'Carga: CTL/ATL/TSB solo son comparables entre llamadas con el mismo `model.version`;',
+  'la calibración se re-detecta en cada llamada y puede mover la serie entera.',
+  'Comparaciones: compare_similar_sessions excluye competiciones por defecto y avisa en',
+  '`homogeneity` si el grupo mezcla FC de banda y de muñeca; `trend.comparable` dice si el',
+  'cambio es del atleta o del sensor.',
+  'CS: `fit.r2` no vale nada sin `fit.n_activities` — con esfuerzos de una sola sesión el',
+  'ajuste es perfecto por construcción (`fit.concentrated`).',
 ].join(' ');
 
 function buildServer(userId) {

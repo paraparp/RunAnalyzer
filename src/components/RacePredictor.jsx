@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import {
@@ -14,7 +13,7 @@ import {
     Callout
 } from "@tremor/react";
 import { SparklesIcon, FlagIcon } from "@heroicons/react/24/solid";
-import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
+import useAIModel from '../hooks/useAIModel';
 import AIToolHeader from './AIToolHeader';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import NextRaceBanner from './NextRaceBanner';
@@ -30,10 +29,8 @@ const CONFIDENCE_COLOR = { Alta: 'emerald', Media: 'amber', Baja: 'rose' };
 const MODEL_LABEL = { vdot: 'VDOT', cs: 'CS/D′', riegel: 'Riegel' };
 
 const RacePredictor = ({ activities }) => {
-    const [selectedModel, setSelectedModel] = useState(
-        () => cloudStorage.getItem('racepredictor_model') || DEFAULT_GEMINI_MODEL
-    );
-    useEffect(() => { try { cloudStorage.setItem('racepredictor_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
+    // Modelo IA: preferencia global (se cambia en el menú de usuario).
+    const [selectedModel] = useAIModel();
     // Aborta la petición en curso al desmontar (evita setState sobre desmontado).
     const abortRef = useRef(null);
     useEffect(() => () => abortRef.current?.abort(), []);
@@ -174,14 +171,7 @@ Devuelve las mismas ${model.items.length} distancias con:
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <AIToolHeader title="Predictor de Marcas" subtitle="Marcas potenciales actuales, calculadas sobre tus propios esfuerzos">
-                <ModelSelector
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
-                    disabled={loading}
-                    showLabel={false}
-                />
-            </AIToolHeader>
+            <AIToolHeader title="Predictor de Marcas" subtitle="Marcas potenciales actuales, calculadas sobre tus propios esfuerzos" />
 
             {/* Próxima carrera objetivo */}
             <NextRaceBanner />

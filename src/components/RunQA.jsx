@@ -4,7 +4,7 @@ import useGarminWearableData from '../hooks/useGarminWearableData';
 import { streamAI, buildProviderChain, parseModelValue } from '../services/ai';
 import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
-import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
+import useAIModel from '../hooks/useAIModel';
 import MarkdownText from './MarkdownText';
 import { paceStr } from '../lib/aiInsights';
 import { formatDuration } from '../lib/timeFormat';
@@ -57,7 +57,8 @@ const RunQA = ({ activities }) => {
     const [pendingAsk, setPendingAsk] = useState(null); // pregunta auto-lanzada al llegar con foco desde el panel
     const autoAskedRef = useRef(false);
     const [error, setError] = useState('');
-    const [selectedModel, setSelectedModel] = useState(() => cloudStorage.getItem('runqa_model') || DEFAULT_GEMINI_MODEL);
+    // Modelo IA: preferencia global (se cambia en el menú de usuario).
+    const [selectedModel] = useAIModel();
     const [copiedIdx, setCopiedIdx] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [seedOpen, setSeedOpen] = useState(false);
@@ -71,7 +72,6 @@ const RunQA = ({ activities }) => {
     const abortRef = useRef(null);
 
     // Persist the model choice across sessions.
-    useEffect(() => { try { cloudStorage.setItem('runqa_model', selectedModel); } catch {} }, [selectedModel]);
     // Abort any in-flight stream on unmount.
     useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -423,13 +423,6 @@ INSTRUCCIONES:
                                 <SelectItem value="365d">Último año</SelectItem>
                             </Select>
                         )}
-
-                        <ModelSelector
-                            selectedModel={selectedModel}
-                            setSelectedModel={setSelectedModel}
-                            disabled={loading}
-                            showLabel={false}
-                        />
 
                         {/* Garmin period selector */}
                         <div className="flex items-center gap-1.5">

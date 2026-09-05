@@ -179,9 +179,8 @@ const AIInsights = ({ activities, onOpenChat }) => {
     loading, providerLabel, usedProvider, isFallback,
     cacheTs, restoreWarning, dismissRestoreWarning,
     garmin, stravaFetch,
-    selectedModel, changeModel,
     weeklyTarget, changeWeeklyTarget,
-    modelGroups, goal,
+    goal,
     run,
   } = useAIInsights(activities);
 
@@ -356,26 +355,6 @@ const AIInsights = ({ activities, onOpenChat }) => {
               >
                 {[2, 3, 4, 5, 6].map(n => (
                   <option key={n} value={String(n)}>{n}×/sem</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="ai-model" className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Modelo IA</label>
-              <select
-                id="ai-model"
-                value={selectedModel}
-                disabled={loading}
-                onChange={e => changeModel(e.target.value)}
-                className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
-                style={SELECT_ARROW}
-              >
-                {modelGroups.map(g => (
-                  <optgroup key={g.provider} label={g.label}>
-                    {g.options.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </optgroup>
                 ))}
               </select>
             </div>

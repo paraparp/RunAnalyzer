@@ -266,39 +266,61 @@ export function wbgtFromCelsius(ta, rh) {
   return 0.567 * ta + 0.393 * e + 3.94;
 }
 
+// Margen mínimo (°C) por el que una interpretación de unidad tiene que ganar a la
+// otra para creerla. Con humedad alta el árbitro del punto de rocío es DEGENERADO:
+// a 100 % de humedad el rocío es igual a la temperatura del aire en cualquier
+// escala, así que las dos hipótesis explican el dato con error ~0 y quien ganaba
+// era el ruido de coma flotante. Ese empate daba 55 °F etiquetados como 55 °C
+// (WBGT 96,7) en unas sesiones y 14 °C convertidos como si fueran °F (WBGT −2,1)
+// en otras: el mismo fallo apuntando en direcciones opuestas.
+const UNIT_MARGIN_C = 1.5;
+
 /**
  * Temperatura y punto de rocío en °C a partir de valores de unidad desconocida.
  * Es idempotente: si ya vienen en °C los deja igual, así que vale tanto para la
  * respuesta cruda de Garmin como para filas del cache guardadas con la heurística vieja.
+ *
+ * Devuelve además `unit_source`: 'dew_point' si lo decidió el árbitro, 'threshold'
+ * si hubo que caer al umbral de magnitud (sin rocío/humedad, o empate).
  */
 export function normalizeWeatherTemps(temp, dew, rh) {
   const t = gnum(temp);
   const d = gnum(dew);
   const h = gnum(rh);
-  if (t == null) return { temp_c: null, dew_point_c: null };
+  if (t == null) return { temp_c: null, dew_point_c: null, unit_source: null };
 
-  if (d != null && h != null && h > 0) {
-    let best = null;
-    for (const ta of [t, F_TO_C(t)]) {
-      const pred = dewPointC(ta, h);
-      if (pred == null) continue;
-      for (const td of [d, F_TO_C(d)]) {
-        if (td > ta + 0.5) continue; // el rocío no puede superar la temperatura del aire
-        const err = Math.abs(pred - td);
-        if (!best || err < best.err) best = { ta, td, err };
-      }
-    }
-    if (best) return { temp_c: best.ta, dew_point_c: best.td };
+  // Umbral de magnitud: el respaldo. Garmin manda las dos lecturas en la MISMA
+  // unidad, así que la decisión es una sola para el par. No distingue 45 °F de
+  // 45 °C: es el límite del dato, no del criterio.
+  const byThreshold = () => (t > 45
+    ? { temp_c: F_TO_C(t), dew_point_c: d == null ? null : F_TO_C(d), unit_source: 'threshold' }
+    : { temp_c: t, dew_point_c: d ?? null, unit_source: 'threshold' });
+
+  if (d == null || h == null || h <= 0) return byThreshold();
+
+  // Sólo pares COHERENTES: o las dos lecturas están en °C o las dos en °F. Antes se
+  // elegían por separado y se podía acabar con la temperatura en una escala y el
+  // rocío en la otra dentro de la misma actividad.
+  const candidates = [
+    { temp_c: t, dew_point_c: d },
+    { temp_c: F_TO_C(t), dew_point_c: F_TO_C(d) },
+  ];
+  const scored = [];
+  for (const c of candidates) {
+    if (c.dew_point_c > c.temp_c + 0.5) continue; // el rocío no puede superar el aire
+    const pred = dewPointC(c.temp_c, h);
+    if (pred == null) continue;
+    scored.push({ ...c, err: Math.abs(pred - c.dew_point_c) });
   }
+  if (!scored.length) return byThreshold();
+  scored.sort((a, b) => a.err - b.err);
 
-  // Sin humedad o sin rocío no hay árbitro. Queda el umbral de respaldo, pero decidido
-  // UNA vez y aplicado a los dos campos, para no volver a mezclar unidades dentro de la
-  // misma actividad. Sigue sin poder distinguir 45 °F de 45 °C: es el límite del dato.
-  const isF = t > 45;
-  return {
-    temp_c: isF ? F_TO_C(t) : t,
-    dew_point_c: d == null ? null : isF ? F_TO_C(d) : d,
-  };
+  // Con una sola hipótesis viable el árbitro decide; con dos hace falta que la
+  // ganadora explique el rocío CLARAMENTE mejor. Si el empate está dentro del
+  // margen, el árbitro no sabe nada y manda la magnitud.
+  const decisive = scored.length === 1 || scored[1].err - scored[0].err >= UNIT_MARGIN_C;
+  if (!decisive) return byThreshold();
+  return { temp_c: scored[0].temp_c, dew_point_c: scored[0].dew_point_c, unit_source: 'dew_point' };
 }
 
 // Penalización de ritmo por calor, interpolada por tramos sobre la tabla de consenso

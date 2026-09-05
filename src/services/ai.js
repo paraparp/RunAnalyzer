@@ -25,13 +25,26 @@ export const OPENROUTER_FALLBACK_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
 ];
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+
+// Escalera de respaldo DENTRO de Gemini: si el modelo elegido falla (429, 5xx,
+// retirado…), se baja de versión antes de saltar a otro proveedor — el modelo
+// sigue siendo Gemini, que es el que mejor rinde con estos prompts. Orden: la
+// versión actual, las dos anteriores y por último el flash-lite (el que se
+// usaba antes: el más barato y el que menos cuota consume).
+export const GEMINI_FALLBACK_CHAIN = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.1-flash-lite',
+];
 
 // Lista Gemini de reserva cuando el endpoint ListModels no responde.
 export const FALLBACK_GEMINI = [
-  { id: 'gemini-3.6-flash', label: '3.6 Flash' },
+  { id: 'gemini-3.8-flash', label: '3.8 Flash' },
+  { id: 'gemini-3.7-flash', label: '3.7 Flash · versión anterior' },
+  { id: 'gemini-3.6-flash', label: '3.6 Flash · versión anterior' },
   { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
-  { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' }
 ];
 
 // Modelos fijos por proveedor (los "libres" que el guardarraíl del servidor
@@ -88,13 +101,28 @@ export function buildModelGroups({ gemini, openrouter } = {}) {
 // Cadena de proveedores para un primario dado: el elegido primero, seguido del
 // resto de proveedores gratuitos como fallback (sin duplicar exactamente el par
 // elegido). Orden pensado por FIABILIDAD, no velocidad, porque el fallback solo
-// entra cuando el primario falla: primero gpt-oss-20b (único gratis que hace
-// texto Y estructurado), luego Z.ai/Groq (solo chat, pero rápidos) y por último
-// el backup estructurado de OpenRouter.
+// entra cuando el primario falla.
+//
+// Si el primario es Gemini se intercalan ANTES las versiones anteriores de
+// Gemini (3.8 → 3.7 → 3.6 → 3.1 Flash Lite, ver GEMINI_FALLBACK_CHAIN): bajar
+// de versión conserva la calidad del prompt mejor que saltar a un modelo
+// gratuito de otra casa. Agotado Gemini se sigue con gpt-oss-20b (único gratis
+// que hace texto Y estructurado), luego Z.ai/Groq (solo chat, pero rápidos) y
+// por último el backup estructurado de OpenRouter.
 export function buildProviderChain({ provider = 'gemini', model } = {}) {
   const orName = (m) => `OpenRouter ${m.split('/').pop().replace(':free', '')}`;
   const [orUniversal, ...orRest] = OPENROUTER_FALLBACK_MODELS;
+  const geminiName = (m) => `Gemini ${m.replace(/^gemini-/, '').replace(/-/g, ' ')}`;
+  // Solo las versiones POR DEBAJO de la elegida: si el usuario ya está en 3.6
+  // no tiene sentido reintentar con 3.8/3.7, que también estarán caídas o sin
+  // cuota. Un modelo fuera de la escalera (p. ej. gemini-pro-latest) recorre
+  // la escalera entera.
+  const geminiFrom = GEMINI_FALLBACK_CHAIN.indexOf(model) + 1;
+  const geminiFallback = provider === 'gemini'
+    ? GEMINI_FALLBACK_CHAIN.slice(geminiFrom).map(m => ({ provider: 'gemini', model: m, name: geminiName(m) }))
+    : [];
   const fallback = [
+    ...geminiFallback,
     { provider: 'openrouter', model: orUniversal, name: orName(orUniversal) },
     { provider: 'zai', model: ZAI_MODEL, name: 'Z.ai GLM Flash' },
     { provider: 'groq', model: GROQ_MODEL, name: 'Groq Llama' },

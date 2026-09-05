@@ -27,7 +27,7 @@ const MIGRATED_KEYS = [
   'hr_strap_since',   // fecha desde la que el usuario lleva banda (la lee el MCP)
   'garmin_creds',
   'garminRestHR',
-  'ai_insights_model',
+  'ai_model',        // modelo IA global (antes: uno por herramienta)
   'ai_weekly_target',
   'ai_goal_distance',
   'ai_goal_pace',
@@ -35,10 +35,7 @@ const MIGRATED_KEYS = [
   'ai_insights_cache',
   'ai_insights_backup',
   'runqa_seed',
-  'runqa_model',
-  'racepredictor_model',
   'shoe_life_km',     // vida útil del calzado fijada a mano, por par
-  'planner_model',
   'target_races',     // carreras objetivo + plan de entrenamiento (las lee y escribe el MCP)
 ];
 

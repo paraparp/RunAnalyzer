@@ -16,6 +16,7 @@ import StatusSnapshot from './components/StatusSnapshot';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import VersionBadge from './components/VersionBadge';
+import ModelSelector from './components/ModelSelector';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
 import HRAnalysis from './components/HRAnalysis';
@@ -850,9 +851,15 @@ const Dashboard = ({ user, handleLogout }) => {
               <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
             </div>
           </div>
+          {/* Modelo IA — selector ÚNICO de la app: lo comparten el Coach,
+              el planner, el predictor y el chat (ver lib/aiModel). */}
+          <div className="mt-3 px-2">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{t('topbar.ai_model', 'Modelo IA')}</p>
+            <ModelSelector showLabel={false} />
+          </div>
           <button
             onClick={handleLogout}
-            className="w-full mt-1 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+            className="w-full mt-3 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
           >
             <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
             {t('topbar.logout')}

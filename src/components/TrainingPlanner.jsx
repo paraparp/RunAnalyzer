@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
@@ -8,7 +7,7 @@ import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
 import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
+import useAIModel from '../hooks/useAIModel';
 import AIToolHeader from './AIToolHeader';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
@@ -78,10 +77,8 @@ const TrainingPlanner = ({ activities }) => {
         return Math.min(24, Math.max(1, Math.round(daysToRace / 7)));
     })();
 
-    const [selectedModel, setSelectedModel] = useState(
-        () => cloudStorage.getItem('planner_model') || DEFAULT_GEMINI_MODEL
-    );
-    useEffect(() => { try { cloudStorage.setItem('planner_model', selectedModel); } catch { /* ignore */ } }, [selectedModel]);
+    // Modelo IA: preferencia global (se cambia en el menú de usuario).
+    const [selectedModel] = useAIModel();
     const [loading, setLoading] = useState(false);
     const [plan, setPlan] = useState(null);
     const [error, setError] = useState('');
@@ -183,14 +180,7 @@ const TrainingPlanner = ({ activities }) => {
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             {/* Header Section */}
-            <AIToolHeader title={t('planner.title')} subtitle={t('planner.subtitle')}>
-                <ModelSelector
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
-                    disabled={loading}
-                    showLabel={false}
-                />
-            </AIToolHeader>
+            <AIToolHeader title={t('planner.title')} subtitle={t('planner.subtitle')} />
 
             {/* Config Card */}
             <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm mb-8">
