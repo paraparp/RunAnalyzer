@@ -18,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { computePMC } from '../lib/trainingLoad';
 import { weekStartKey } from '../lib/isoWeek';
+import { monthKey, dayKey, activityDayKey } from '../lib/trainingLoad';
 import { formatPaceFromSpeed, formatDurationHm } from '../lib/timeFormat';
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ function computeStats(activities) {
   const runActivities = activities.filter(isRun);
   const weeklyKm = {};
   runActivities.forEach((a) => {
-    const wk = weekStartKey(new Date(a.start_date));
+    const wk = weekStartKey(activityDayKey(a));
     weeklyKm[wk] = (weeklyKm[wk] || 0) + a.distance / 1000;
   });
 
@@ -152,18 +153,18 @@ function computeStats(activities) {
   const hrEffAll = hrEff(runActivities);
 
   // ── consistency ──
-  const activeDays = new Set(activities.map((a) => a.start_date.split('T')[0]));
-  const last28days = Array.from({ length: 28 }, (_, i) => {
-    const d = new Date(nowMs - i * 86400000);
-    return d.toISOString().split('T')[0];
-  });
+  // Días LOCALES a los dos lados de la comparación: con `start_date` en UTC y
+  // "hoy" sacado de `toISOString()`, entre las 00:00 y las 02:00 locales la
+  // ventana entera se corría un día.
+  const activeDays = new Set(activities.map(activityDayKey).filter(Boolean));
+  const last28days = Array.from({ length: 28 }, (_, i) => dayKey(new Date(nowMs - i * 86400000)));
   const activeLast28 = last28days.filter((d) => activeDays.has(d)).length;
   const activeLast7 = last28days.slice(0, 7).filter((d) => activeDays.has(d)).length;
 
   // streak
   let streak = 0;
   for (let i = 0; ; i++) {
-    const d = new Date(nowMs - i * 86400000).toISOString().split('T')[0];
+    const d = dayKey(new Date(nowMs - i * 86400000));
     if (activeDays.has(d)) streak++;
     else break;
   }
@@ -222,9 +223,11 @@ function computeGarminStats(rawData) {
   const sorted = [...rawData].sort((a, b) => a.date.localeCompare(b.date));
   const now = new Date();
   const thisYear = now.getFullYear();
-  const last7  = new Date(now.getTime() -  7 * 86400000).toISOString().split('T')[0];
-  const last28 = new Date(now.getTime() - 28 * 86400000).toISOString().split('T')[0];
-  const last60 = new Date(now.getTime() - 60 * 86400000).toISOString().split('T')[0];
+  // `d.date` de Garmin es un día local: los cortes también, o la ventana se
+  // desplaza un día en la franja de madrugada.
+  const last7  = dayKey(new Date(now.getTime() -  7 * 86400000));
+  const last28 = dayKey(new Date(now.getTime() - 28 * 86400000));
+  const last60 = dayKey(new Date(now.getTime() - 60 * 86400000));
 
   const recent7      = sorted.filter(d => d.date >= last7);
   const recent28     = sorted.filter(d => d.date >= last28);
@@ -1115,12 +1118,9 @@ export default function StatusSnapshot({ activities }) {
                   const dateObj = new Date(d.date);
                   let key = d.date;
                   if (garminGranularity === 'week') {
-                    const day = dateObj.getDay();
-                    const diff = dateObj.getDate() - day + (day === 0 ? -6 : 1);
-                    const weekStart = new Date(dateObj.setDate(diff));
-                    key = weekStart.toISOString().split('T')[0];
+                    key = weekStartKey(dateObj);
                   } else if (garminGranularity === 'month') {
-                    key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-01`;
+                    key = `${monthKey(dateObj)}-01`;
                   }
                   if (!grouped[key]) grouped[key] = { date: key, rhr: [], rec: [] };
                   if (d.rhr != null) grouped[key].rhr.push(d.rhr);

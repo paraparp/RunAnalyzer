@@ -134,6 +134,30 @@ describe('detectLTHR', () => {
     expect(detectLTHR([run()], null)).toEqual({ lthr: null, confidence: 0, method: 'none', n: 0 });
   });
 
+  it('escalón -1 (cs): la FC medida a ritmo de velocidad crítica gana a los splits', () => {
+    // Aunque haya bloques umbral suficientes para el escalón `segment`, el ancla
+    // por rendimiento manda: es la misma cifra que muestra Motor Aeróbico.
+    const conSplits = (hr) => run({ splits_metric: [split(hr), split(hr)] });
+    const acts = [conSplits(172), conSplits(176), conSplits(180)];
+    const res = detectLTHR(acts, MAX, { csLt2: { valid: true, lt2Hr: 168, n: 9 } });
+    expect(res.method).toBe('cs');
+    expect(res.lthr).toBe(168);
+    expect(res.n).toBe(9);
+    expect(res.confidence).toBeGreaterThan(detectLTHR(acts, MAX).confidence);
+  });
+
+  it('escalón -1: se ignora un ancla de CS ausente, inválida o implausible', () => {
+    const conSplits = (hr) => run({ splits_metric: [split(hr), split(hr)] });
+    const acts = [conSplits(172), conSplits(176), conSplits(180)];
+    const seg = detectLTHR(acts, MAX).lthr;
+    // sin ajuste de CS válido
+    expect(detectLTHR(acts, MAX, { csLt2: { valid: false, n: 1 } }).lthr).toBe(seg);
+    // 120 ppm sobre FCmax 200 = 60 % → fuera de la banda fisiológica
+    expect(detectLTHR(acts, MAX, { csLt2: { valid: true, lt2Hr: 120, n: 5 } }).method).toBe('segment');
+    // 199 ppm = 99,5 % FCmax → tampoco
+    expect(detectLTHR(acts, MAX, { csLt2: { valid: true, lt2Hr: 199, n: 5 } }).method).toBe('segment');
+  });
+
   it('escalón 0 (segment): mediana de los bloques leídos de los splits', () => {
     const conSplits = (hr) => run({ splits_metric: [split(hr), split(hr)] });
     const res = detectLTHR([conSplits(172), conSplits(176), conSplits(180)], MAX);

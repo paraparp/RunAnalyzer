@@ -9,9 +9,21 @@
 // ISO-8601: la semana empieza en lunes y la semana 1 es la que contiene el 4 de
 // enero. Todo se calcula en hora LOCAL, que es el calendario que ve el atleta.
 
+/**
+ * Parseo LOCAL de la entrada. Un string "YYYY-MM-DD" —la forma que devuelven
+ * `dayKey` y `activityDayKey`, que es como llegan aquí las claves de día— lo
+ * interpreta `new Date()` como medianoche UTC, así que al oeste de Greenwich la
+ * semana se calculaba sobre el día ANTERIOR. Se construye a mano en local.
+ */
+function toLocalDate(value) {
+  if (value instanceof Date) return new Date(value);
+  const m = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
+}
+
 /** Lunes 00:00 (hora local) de la semana que contiene `date`. */
 export function weekStartDate(date) {
-  const d = new Date(date);
+  const d = toLocalDate(date);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
@@ -20,7 +32,7 @@ export function weekStartDate(date) {
 /** { year, week } ISO de una fecha. */
 export function isoWeek(date) {
   // Al jueves de esa semana: es el día que decide a qué año ISO pertenece.
-  const d = new Date(date);
+  const d = toLocalDate(date);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const week1 = new Date(d.getFullYear(), 0, 4);

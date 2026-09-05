@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 import { formatMinutesHm } from '../lib/timeFormat';
+import { weekStartKey } from '../lib/isoWeek';
 import {
   HeartIcon, ArrowPathIcon, TrashIcon, LockClosedIcon,
   CheckCircleIcon, ExclamationTriangleIcon,
@@ -52,14 +53,6 @@ function monthLabel(isoMonth) {
   return `${MONTHS_ES[+m - 1]} ${y.slice(2)}`;
 }
 
-function isoWeek(dateStr) {
-  // Returns "YYYY-Www" key for the Monday of that week
-  const d = new Date(dateStr);
-  const day = d.getDay() || 7; // Mon=1 … Sun=7
-  d.setDate(d.getDate() - day + 1);
-  return d.toISOString().split('T')[0]; // Monday date as key
-}
-
 function weekLabel(mondayStr) {
   const d = new Date(mondayStr);
   return `${d.getDate()} ${MONTHS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
@@ -74,7 +67,7 @@ function buildChartData(data, sleepData = [], granularity = 'month') {
   data.forEach(d => {
     const key =
       granularity === 'day'   ? d.date :
-      granularity === 'week'  ? isoWeek(d.date) :
+      granularity === 'week'  ? weekStartKey(d.date) :
                                 d.date.slice(0, 7);
     if (!buckets[key]) buckets[key] = { hr: [], hrv: [], bbHigh: [], bbLow: [], sleep: [] };
     if (d.restingHR)      buckets[key].hr.push(d.restingHR);

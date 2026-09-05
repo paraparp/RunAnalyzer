@@ -22,8 +22,9 @@ import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER, DEFAULT_REST_HR } from './h
 import { formatPaceFromMinPerKm, paceMinPerKm } from './timeFormat';
 import {
   buildMeanMaxCurve, fitCriticalSpeed, hasNonMaximalPoints, monthsAgoISO,
-  FIT_MIN_S, FIT_MAX_S,
+  activityWithinMonths, FIT_MIN_S, FIT_MAX_S,
 } from './criticalSpeed';
+import { segmentRatio } from './decoupling';
 
 // ── Threshold HR anchors ─────────────────────────────────────────────────────
 // PRIMARY: %HRR (Karvonen). LT2/anaerobic ≈ 85% HRR, LT1/aerobic ≈ 65% HRR.
@@ -38,6 +39,9 @@ export const LT1_TARGET_PCT = 0.75;
 export const LT2_SIGMA_PCT  = 0.025;
 export const LT1_SIGMA_PCT  = 0.025;
 export const EWMA_LAMBDA    = 0.3;
+// Ventana de histórico del modelo (meses). Única para CS, cross-check por FC y
+// para el LTHR anclado a CS que consume useHrParams: si se cambia, cambia en todo.
+export const LT_MONTHS = 12;
 export const MIN_DURATION_S = 20 * 60;
 export const MIN_LAP_TIME_S = 4 * 60;
 export const MIN_LAP_DIST_M = 400;
@@ -188,7 +192,7 @@ function extractSamples(a) {
  * around the LT1/LT2 target %HRmax bands, plus an EWMA-smoothed LT2 trend.
  */
 export function computeLTMonthly(activities, months, hrmax, hrrest) {
-  const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+  const inWindow = activityWithinMonths(months);
   const { lt1: lt1Target, lt2: lt2Target } = thresholdHRs(hrmax, hrrest);
   const lt2Sigma  = hrmax * LT2_SIGMA_PCT;
   const lt1Sigma  = hrmax * LT1_SIGMA_PCT;
@@ -196,7 +200,7 @@ export function computeLTMonthly(activities, months, hrmax, hrrest) {
   const runs = activities.filter(a =>
     (a.type === 'Run' || a.sport_type === 'Run') &&
     a.moving_time >= MIN_DURATION_S &&
-    new Date(a.start_date).getTime() >= cutoff
+    inWindow(a)
   );
 
   const byMonth = {};
@@ -241,8 +245,9 @@ export function computeLTMonthly(activities, months, hrmax, hrrest) {
 }
 
 // ── DATA-DRIVEN LT1 via aerobic decoupling ───────────────────────────────────
-// Within a steady run, if efficiency (speed:HR) drifts down between the first and
-// second half, the effort ran ABOVE the aerobic threshold. Regress decoupling %
+// Within a steady run, if the FC:velocidad ratio drifts UP between the first and
+// second half, the effort ran ABOVE the aerobic threshold. The ratio and its sign
+// are the ones of `decoupling.js` (positivo = pierdes acoplamiento). Regress decoupling %
 // on avg HR across many steady runs; the HR where it crosses ~DECOUPLE_PCT is a
 // MEASURED LT1 — not an assumed %HRmax/%HRR. This is the field method Strava data
 // actually supports (DFA-α1, the HRV gold standard, needs beat-to-beat R-R).
@@ -250,7 +255,18 @@ export function computeLTMonthly(activities, months, hrmax, hrrest) {
 export const DECOUPLE_PCT = 5;                 // % drift marking loss of aerobic coupling
 export const MIN_DECOUPLE_TIME_S = 35 * 60;    // drift needs time to develop
 
-function runDecoupling(a) {
+// The ratio itself (FC/velocidad, ponderado por tiempo) comes from `decoupling.js`:
+// one definition and one sign for the whole repo. What differs here is only the
+// WINDOW, and deliberately:
+//   · decoupling.js `halves` parte por NÚMERO de parciales sobre `splits_metric`,
+//     que son kilómetros y por tanto reparten el tiempo de forma desigual;
+//   · aquí la entrada son `laps` de duración arbitraria (un lap puede ser 20 min
+//     y el siguiente 2), así que partir por índice dejaría mitades de duración
+//     muy distinta. Se parte por el PUNTO MEDIO TEMPORAL de cada lap.
+// The gates are also stricter than the UI's because this feeds a regression, not a
+// display: ≥35 min for the drift to develop, flat course, and <8% pace change so a
+// progression run does not enter as if it were steady state.
+export function runDecoupling(a) {
   const laps = (a.laps || []).filter(l =>
     l.average_heartrate > 80 && l.average_speed > 0 &&
     (l.moving_time || l.elapsed_time || 0) > 0);
@@ -262,31 +278,40 @@ function runDecoupling(a) {
 
   const half = total / 2;
   let cum = 0;
-  const seg = { 1: { t: 0, dist: 0, hrT: 0 }, 2: { t: 0, dist: 0, hrT: 0 } };
+  const seg = { 1: [], 2: [] };
   for (const l of laps) {
     const t = l.moving_time || l.elapsed_time;
     const which = (cum + t / 2) < half ? 1 : 2; // assign each lap by its midpoint
-    seg[which].t += t;
-    seg[which].dist += l.average_speed * t;      // distance = speed · time
-    seg[which].hrT += l.average_heartrate * t;
+    // `distance` se deriva de velocidad·tiempo, no del campo `distance` del lap:
+    // es la magnitud sobre la que ya se filtró (`average_speed > 0`) y evita que
+    // un lap con distancia ausente o incoherente descuadre la media.
+    seg[which].push({
+      average_heartrate: l.average_heartrate,
+      moving_time: t,
+      distance: l.average_speed * t,
+    });
     cum += t;
   }
-  if (seg[1].t === 0 || seg[2].t === 0) return null;
-  const sp1 = seg[1].dist / seg[1].t, sp2 = seg[2].dist / seg[2].t;
-  if (Math.abs(sp1 - sp2) / sp1 > 0.08) return null; // >8% pace change = progression, not steady
-  const ef1 = sp1 / (seg[1].hrT / seg[1].t);
-  const ef2 = sp2 / (seg[2].hrT / seg[2].t);
-  const decouple = ((ef1 - ef2) / ef1) * 100;
-  const avgHR = (seg[1].hrT + seg[2].hrT) / total;
-  return { avgHR, decouple, pace: paceFromSpeed((seg[1].dist + seg[2].dist) / total) };
+  const first = segmentRatio(seg[1]);
+  const second = segmentRatio(seg[2]);
+  if (!first || !second) return null;
+  if (Math.abs(first.speed - second.speed) / first.speed > 0.08) return null; // progression, not steady
+
+  const t1 = seg[1].reduce((s, l) => s + l.moving_time, 0);
+  const t2 = total - t1;
+  return {
+    avgHR: (first.hr * t1 + second.hr * t2) / total,
+    decouple: (second.ratio / first.ratio - 1) * 100,
+    pace: paceFromSpeed((first.speed * t1 + second.speed * t2) / total),
+  };
 }
 
 export function computeDecouplingLT1(activities, months, hrmax) {
-  const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+  const inWindow = activityWithinMonths(months);
   const pts = [];
   for (const a of activities) {
     if (!(a.type === 'Run' || a.sport_type === 'Run')) continue;
-    if (new Date(a.start_date).getTime() < cutoff) continue;
+    if (!inWindow(a)) continue;
     const d = runDecoupling(a);
     if (d && d.avgHR > 90 && d.avgHR < hrmax) pts.push(d);
   }
@@ -330,13 +355,13 @@ export function computeDecouplingLT1(activities, months, hrmax) {
 // band around CS speed (≈ MLSS intensity).
 export function computeFieldLT2Hr(activities, months, csPace, hrmax) {
   if (!csPace) return { valid: false, n: 0 };
-  const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+  const inWindow = activityWithinMonths(months);
   const csSpeed = 1000 / (csPace * 60);
   const band = 0.06; // ±6% of CS speed ≈ threshold intensity
   const hrs = [];
   for (const a of activities) {
     if (!(a.type === 'Run' || a.sport_type === 'Run')) continue;
-    if (new Date(a.start_date).getTime() < cutoff) continue;
+    if (!inWindow(a)) continue;
     for (const s of extractSamples(a)) {
       if (s.isHilly) continue;
       const spd = 1000 / (s.pace * 60);
@@ -359,7 +384,7 @@ export function computeFieldLT2Hr(activities, months, csPace, hrmax) {
  *   lt1Hr — 'decoupling' (speed:HR drift) → 'ratio' (from measured LT2, %HRR) →
  *           'hrr'/'hrmax'
  */
-export function computeLactateModel(activities, months = 12, opts = {}) {
+export function computeLactateModel(activities, months = LT_MONTHS, opts = {}) {
   if (!activities || activities.length === 0) return { hasData: false, hrmax: null };
   const hrInfo = robustHRmax(activities);
   const hrmax = hrInfo?.hrmax ?? null;

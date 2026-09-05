@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { weekStartDate } from '../lib/isoWeek';
+import { weekStartDate, isoWeek } from '../lib/isoWeek';
+import { monthKey } from '../lib/trainingLoad';
 
 const GRID_LINES = 4;
 
@@ -49,20 +50,12 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
 
       const locale = i18n.language.startsWith('es') ? 'es-ES' : 'en-US';
       const wPrefix = i18n.language.startsWith('es') ? 'S' : 'W';
-      // Número de semana ISO a partir del lunes de la semana
-      const isoWeek = (monday) => {
-        const thu = new Date(monday);
-        thu.setDate(thu.getDate() + 3);
-        const week1 = new Date(thu.getFullYear(), 0, 4);
-        return 1 + Math.round(((thu - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-      };
-
       return Object.values(grouped)
         .sort((a, b) => a.date - b.date)
         .slice(-52)
         .map(d => ({
-          name:      `${wPrefix}${isoWeek(d.date)} · ${d.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`,
-          shortName: `${wPrefix}${isoWeek(d.date)}`,
+          name:      `${wPrefix}${isoWeek(d.date).week} · ${d.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`,
+          shortName: `${wPrefix}${isoWeek(d.date).week}`,
           distance:  Math.round(d.distance / 1000),
           time:      Number((d.time / 3600).toFixed(1)),
           elevation: Math.round(d.elevation),
@@ -73,7 +66,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
     // Group by month
     const grouped = activities.reduce((acc, activity) => {
       const date = new Date(activity.start_date);
-      const key  = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const key  = monthKey(date);
       if (!acc[key]) acc[key] = { date, distance: 0, time: 0, elevation: 0, load: 0 };
       acc[key].distance  += activity.distance || 0;
       acc[key].time      += activity.elapsed_time || activity.moving_time || 0;

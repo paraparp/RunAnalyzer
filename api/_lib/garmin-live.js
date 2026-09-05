@@ -6,6 +6,7 @@
 // el peso, la readiness y el estado de forma funcionan sin re-sincronizar la app.
 // ============================================================================
 import { getGarminClientFor } from './garmin-session.js';
+import { dayKey } from '../../src/lib/trainingLoad.js';
 
 const API = 'https://connectapi.garmin.com';
 const round = (n, d = 1) => (n == null ? null : parseFloat(Number(n).toFixed(d)));
@@ -22,7 +23,7 @@ function dateRange(from, to, cap = 31) {
   const start = from ? new Date(from + 'T00:00:00') : new Date(end.getTime() - (cap - 1) * 86400000);
   const out = [];
   for (let d = new Date(end); d >= start && out.length < cap; d.setDate(d.getDate() - 1)) {
-    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    out.push(dayKey(d));
   }
   return out;
 }

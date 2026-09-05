@@ -14,6 +14,7 @@ import useGarminWearableData from './useGarminWearableData';
 import {
   detectMaxHR, detectRestHR, detectLTHR, estimateLTHR, HR_LIMITS,
 } from '../lib/hrZones';
+import { computeCriticalSpeed, computeFieldLT2Hr, LT_MONTHS } from '../lib/lactateThreshold';
 
 export const OVERRIDES_KEY = 'hr_zone_overrides';
 
@@ -56,9 +57,8 @@ export default function useHrParams(activities) {
     return activities.filter(a => new Date(a.start_date) >= twoMonthsAgo);
   }, [activities]);
 
-  const autoMax    = useMemo(() => detectMaxHR(activities), [activities]);
-  const autoRest   = useMemo(() => detectRestHR(garmin), [garmin]);
-  const lthrResult = useMemo(() => detectLTHR(recentActivities, autoMax.value), [recentActivities, autoMax]);
+  const autoMax  = useMemo(() => detectMaxHR(activities), [activities]);
+  const autoRest = useMemo(() => detectRestHR(garmin), [garmin]);
 
   // ── Effective parameters: valid manual overrides win, out-of-range input is
   //    ignored (falls back to auto) and flagged in the UI. Ordering is enforced
@@ -67,6 +67,23 @@ export default function useHrParams(activities) {
   const hrmax  = maxOv || autoMax.value;
   const restOv = parseOverride(userRest, HR_LIMITS.restLo, Math.min(HR_LIMITS.restHi, hrmax - 20));
   const hrrest = restOv || Math.min(autoRest.value, hrmax - 20);
+
+  // ── LTHR anclado a RENDIMIENTO: la FC medida al ritmo de la velocidad crítica
+  //    es la misma que usa el modelo de lactato (Motor Aeróbico › Umbrales), así
+  //    que las dos pestañas dejan de mostrar dos umbrales distintos. Si no hay
+  //    ajuste de CS válido, `detectLTHR` sigue con su cascada de siempre. ──
+  const csLt2 = useMemo(() => {
+    if (!activities?.length) return null;
+    const cs = computeCriticalSpeed(activities, LT_MONTHS);
+    if (!cs?.valid) return null;
+    return computeFieldLT2Hr(activities, LT_MONTHS, cs.csPace, hrmax);
+  }, [activities, hrmax]);
+
+  const lthrResult = useMemo(
+    () => detectLTHR(recentActivities, hrmax, { csLt2 }),
+    [recentActivities, hrmax, csLt2],
+  );
+
   const lthrOv = parseOverride(userLTHR, hrrest + 10, hrmax);
   const lthr   = lthrOv || Math.min(lthrResult.lthr ?? estimateLTHR(hrmax), hrmax);
 

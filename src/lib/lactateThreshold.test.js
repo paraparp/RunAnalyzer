@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildMeanMaxCurve, fitCriticalSpeed, monthsAgoISO } from './criticalSpeed';
-import { computeCriticalSpeed } from './lactateThreshold';
+import { computeCriticalSpeed, runDecoupling } from './lactateThreshold';
+import { computeSplitDecoupling } from './decoupling';
 
 const today = new Date().toISOString().slice(0, 10);
 const effort = (distance, time) => ({ distance, moving_time: time, elapsed_time: time });
@@ -61,5 +62,49 @@ describe('computeCriticalSpeed delega en el modelo compartido', () => {
     const viejo = [{ ...athlete[0], start_date_local: '2019-01-01T08:00:00Z' }];
     expect(computeCriticalSpeed(viejo, 12).valid).toBe(false);
     expect(computeCriticalSpeed(viejo, null).valid).toBe(true);  // null = sin límite
+  });
+});
+
+// ── runDecoupling: misma definición de ratio que decoupling.js ────────────────
+// Laps de 6 min. El ratio es FC/velocidad ponderado por tiempo, así que la
+// segunda mitad más cara (misma velocidad, más pulsaciones) da deriva POSITIVA.
+const lap = (speed, hr, t = 360) => ({
+  average_speed: speed, average_heartrate: hr, moving_time: t,
+  distance: speed * t, split: 1,
+});
+const steady = (laps) => ({
+  laps, distance: laps.reduce((s, l) => s + l.distance, 0), total_elevation_gain: 0,
+});
+
+describe('runDecoupling reusa el ratio de decoupling.js', () => {
+  it('da el mismo % que computeSplitDecoupling cuando las mitades coinciden', () => {
+    const laps = [lap(3, 140), lap(3, 140), lap(3, 147), lap(3, 147),
+                  lap(3, 147), lap(3, 147), lap(3, 147), lap(3, 147)];
+    const d = runDecoupling(steady(laps));
+    const ui = computeSplitDecoupling(laps, { window: 'halves' });
+    expect(d.decouple).toBeCloseTo(ui.pct, 6);
+    expect(d.decouple).toBeGreaterThan(0);          // signo canónico: aflojar = positivo
+    expect(d.avgHR).toBeCloseTo(145.25, 6);
+  });
+
+  it('parte por punto medio TEMPORAL, no por número de laps', () => {
+    // Un lap largo al principio y varios cortos después: partir por índice
+    // metería casi toda la sesión en la primera mitad.
+    const laps = [lap(3, 140, 1800), lap(3, 150, 300), lap(3, 150, 300),
+                  lap(3, 150, 300), lap(3, 150, 300), lap(3, 150, 600)];
+    const d = runDecoupling(steady(laps));
+    expect(d.decouple).toBeGreaterThan(0);
+    expect(computeSplitDecoupling(laps, { window: 'halves' }).pct).not.toBeCloseTo(d.decouple, 3);
+  });
+
+  it('descarta sesiones cortas, con cuesta o en progresión', () => {
+    const flat = [lap(3, 140), lap(3, 140), lap(3, 145), lap(3, 145)];
+    expect(runDecoupling(steady(flat))).toBeNull();                       // 24 min < 35
+    const long = [...flat, lap(3, 145), lap(3, 145), lap(3, 145)];
+    expect(runDecoupling(steady(long))).not.toBeNull();
+    expect(runDecoupling({ ...steady(long), total_elevation_gain: 400 })).toBeNull();
+    const progresion = [lap(3, 140), lap(3, 140), lap(3, 140),
+                        lap(3.6, 155), lap(3.6, 155), lap(3.6, 155), lap(3.6, 155)];
+    expect(runDecoupling(steady(progresion))).toBeNull();                 // +20% de ritmo
   });
 });

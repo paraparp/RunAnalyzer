@@ -11,14 +11,61 @@ import {
   CheckBadgeIcon,
   ExclamationCircleIcon,
   ExclamationTriangleIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  PencilSquareIcon,
+  CheckIcon,
+  ArrowUturnLeftIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { formatPaceFromSpeed } from '../lib/timeFormat';
+import {
+  shoeLifeKm, sanitizeLifeOverrides, isValidLifeKm,
+  MIN_SHOE_LIFE_KM, MAX_SHOE_LIFE_KM,
+} from '../lib/shoeLife';
+
+// Vidas útiles fijadas a mano por el atleta, { gear_id: km }. Persisten como el
+// resto de preferencias (cloudStorage), no en el estado de la vista.
+const LIFE_KEY = 'shoe_life_km';
+
+function readLifeOverrides() {
+  try {
+    return sanitizeLifeOverrides(JSON.parse(cloudStorage.getItem(LIFE_KEY) || '{}'));
+  } catch {
+    return {};
+  }
+}
 
 export default function GearTracker({ activities, stravaData, setStravaData }) {
   const { t, i18n } = useTranslation();
   const [shoeNames, setShoeNames] = useState({});
+  // Vida útil por par: la que fija el atleta gana; si no, se deduce del tipo.
+  const [lifeOverrides, setLifeOverrides] = useState(readLifeOverrides);
+  const [editingId, setEditingId] = useState(null);
+  const [draftLife, setDraftLife] = useState('');
+
+  const persistLifeOverrides = (next) => {
+    setLifeOverrides(next);
+    try {
+      cloudStorage.setItem(LIFE_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.warn('No se pudo guardar la vida útil del calzado; se mantiene en memoria.', e);
+    }
+  };
+
+  const saveLife = (gearId) => {
+    if (!isValidLifeKm(draftLife)) return;               // fuera de rango: no se guarda nada
+    persistLifeOverrides({ ...lifeOverrides, [gearId]: Number(draftLife) });
+    setEditingId(null);
+  };
+
+  // Volver a "automático" es BORRAR el override, no escribir el valor deducido:
+  // así el par sigue la tabla si algún día se afina.
+  const resetLife = (gearId) => {
+    const next = { ...lifeOverrides };
+    delete next[gearId];
+    persistLifeOverrides(next);
+    setEditingId(null);
+  };
   // Evita re-pedir el perfil en bucle: si una zapatilla usada está RETIRADA en
   // Strava nunca vuelve en profile.shoes, así que la condición "falta nombre"
   // seguiría siendo verdadera indefinidamente. Solo refrescamos una vez por montaje.
@@ -137,11 +184,16 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
           lastUsedStr: gear.lastUsed.getTime() === 0 ? '?' : lastUsedStr,
           firstUsedDate: hasFirst ? fmtDate(gear.firstUsed) : '?',
           lastUsedDate: hasLast ? fmtDate(gear.lastUsed) : '?',
-          maxLife: 800 // Vida utíl base (se recomienda escalar)
+          // Antes: `maxLife: 800` fijo. 800 km es la ventana de una zapatilla de
+          // RODAJE; con la barra de desgaste pintada encima, aplicarla a una de
+          // placa de carbono (~250 km) decía "buen estado" con el par muerto.
+          ...(({ km, source, category }) => ({ maxLife: km, lifeSource: source, lifeCategory: category }))(
+            shoeLifeKm(gear.name, lifeOverrides[gear.id])
+          ),
         };
       })
       .sort((a, b) => b.distanceKm - a.distanceKm);
-  }, [activities, shoeNames, t, i18n.language]);
+  }, [activities, shoeNames, lifeOverrides, t, i18n.language]);
 
   if (gearStats.length === 0) {
     return (
@@ -247,9 +299,55 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
                   {/* Wear Progress */}
                   <div className="w-full lg:w-64 xl:w-80 shrink-0">
-                    <div className="flex justify-between items-end mb-2">
+                    <div className="flex justify-between items-end mb-2 gap-2">
                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
-                       <p className="text-xs font-black text-slate-900 tabular-nums">{Math.round(gear.distanceKm)} <span className="text-[10px] text-slate-400 font-bold">/ {gear.maxLife} km</span></p>
+                       {editingId === gear.id ? (
+                         <div className="flex items-center gap-1">
+                           <input
+                             type="number"
+                             autoFocus
+                             min={MIN_SHOE_LIFE_KM}
+                             max={MAX_SHOE_LIFE_KM}
+                             value={draftLife}
+                             onChange={(e) => setDraftLife(e.target.value)}
+                             onKeyDown={(e) => {
+                               if (e.key === 'Enter') saveLife(gear.id);
+                               if (e.key === 'Escape') setEditingId(null);
+                             }}
+                             className="w-20 px-2 py-0.5 text-xs font-black tabular-nums text-slate-900 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
+                             aria-label={t('gear.life.edit')}
+                           />
+                           <button
+                             type="button"
+                             onClick={() => saveLife(gear.id)}
+                             disabled={!isValidLifeKm(draftLife)}
+                             title={t('gear.life.save')}
+                             className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:text-slate-300 disabled:hover:bg-transparent"
+                           >
+                             <CheckIcon className="w-3.5 h-3.5" />
+                           </button>
+                           <button
+                             type="button"
+                             onClick={() => resetLife(gear.id)}
+                             title={t('gear.life.auto')}
+                             className="p-1 rounded-lg text-slate-400 hover:bg-slate-50"
+                           >
+                             <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                           </button>
+                         </div>
+                       ) : (
+                         <button
+                           type="button"
+                           onClick={() => { setEditingId(gear.id); setDraftLife(String(gear.maxLife)); }}
+                           title={t('gear.life.edit')}
+                           className="flex items-center gap-1.5 group/life"
+                         >
+                           <span className="text-xs font-black text-slate-900 tabular-nums">
+                             {Math.round(gear.distanceKm)} <span className="text-[10px] text-slate-400 font-bold">/ {gear.maxLife} km</span>
+                           </span>
+                           <PencilSquareIcon className="w-3 h-3 text-slate-300 group-hover/life:text-slate-500 transition-colors" />
+                         </button>
+                       )}
                     </div>
                     <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100 relative">
                        <motion.div 
@@ -259,6 +357,15 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                           transition={{ duration: 1, ease: "easeOut" }}
                        />
                     </div>
+                    {/* De dónde sale el denominador: es una estimación por tipo salvo
+                        que el atleta lo haya fijado, y la vista lo dice. */}
+                    <p className="mt-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      {gear.lifeSource === 'override'
+                        ? t('gear.life.source.override')
+                        : gear.lifeCategory
+                          ? `${t('gear.life.source.category')} · ${t(`gear.life.categories.${gear.lifeCategory}`)}`
+                          : t('gear.life.source.default')}
+                    </p>
                   </div>
                 </div>
               </motion.div>

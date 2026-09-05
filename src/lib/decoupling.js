@@ -22,8 +22,14 @@ const MIN_SPLIT_DIST_M = 500;
 const isUsable = (s) =>
   s && s.average_speed > 0 && s.average_heartrate > 0 && (s.distance || 0) > MIN_SPLIT_DIST_M;
 
-/** FC y velocidad medias de un tramo, ponderadas por tiempo. null si no hay datos. */
-function segmentRatio(splits) {
+/**
+ * FC y velocidad medias de un tramo, ponderadas por tiempo, y su ratio FC/velocidad.
+ * null si no hay datos. Exportada porque es la primitiva del cálculo: cualquier
+ * otra ventana de deriva del repo (p. ej. la de `lactateThreshold.runDecoupling`,
+ * que parte por tiempo en vez de por número de parciales) debe construirse sobre
+ * ella para que el ratio —y su signo— sigan siendo los mismos en todo el proyecto.
+ */
+export function segmentRatio(splits) {
   let hrTime = 0, hrSum = 0, dist = 0, time = 0;
   for (const s of splits) {
     const t = s.moving_time || s.elapsed_time || 0;
@@ -102,3 +108,53 @@ export function computeSplitDecoupling(splits, { window = 'halves' } = {}) {
 
 /** Atajo para la UI, que solo quiere el número (null si no se puede calcular). */
 export const decouplingPct = (splits, opts) => computeSplitDecoupling(splits, opts).pct;
+
+/**
+ * Deriva MEDIDA de la sesión expresada como TASA por hora (fracción, no %).
+ *
+ * `computeSplitDecoupling` da el salto total entre dos ventanas, que depende de
+ * cuánto se separan en el tiempo: el mismo 6% no significa lo mismo en una sesión
+ * de 40 min que en una de 3 h. Aquí se divide por la distancia temporal entre los
+ * CENTROIDES de las dos ventanas, que es el intervalo sobre el que ese salto se
+ * ha producido de verdad.
+ *
+ * Existe para que quien necesite corregir la FC por deriva (p. ej. la regresión
+ * FC→VO2 de VO2MaxTracker) use el valor de ESA sesión en vez de una constante
+ * inventada. Devuelve null cuando no hay deriva medible: sin medida, lo honesto
+ * es no corregir.
+ *
+ * Ojo con la interpretación: el ratio es FC/velocidad, así que la tasa es el
+ * aumento de FC A IGUAL VELOCIDAD — justo lo que hace falta para deshacer la
+ * deriva de una FC observada, y no lo mismo que "la FC subió un x%".
+ */
+export function driftRatePerHour(splits, { window = 'halves' } = {}) {
+  const d = computeSplitDecoupling(splits, { window });
+  if (d.pct == null) return null;
+
+  // Se rehace el reparto en ventanas para poder situarlas en el tiempo; es el
+  // mismo `spec` y los mismos objetos de `valid`, así que no hay dos criterios.
+  const valid = splits.filter(isUsable);
+  const { initial, final } = DECOUPLING_WINDOWS[window].split(valid);
+  const mid = new Map();
+  let acc = 0;
+  for (const s of valid) {
+    const t = s.moving_time || s.elapsed_time || 0;
+    mid.set(s, acc + t / 2);
+    acc += t;
+  }
+  const centroid = (part) => {
+    let w = 0, sum = 0;
+    for (const s of part) {
+      const t = s.moving_time || s.elapsed_time || 0;
+      if (!t) continue;
+      w += t; sum += t * mid.get(s);
+    }
+    return w ? sum / w : null;
+  };
+  const t0 = centroid(initial.splits);
+  const t1 = centroid(final.splits);
+  if (t0 == null || t1 == null) return null;
+  const spanH = (t1 - t0) / 3600;
+  if (!(spanH > 0)) return null;
+  return d.pct / 100 / spanH;
+}

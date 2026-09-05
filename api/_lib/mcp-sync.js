@@ -35,6 +35,7 @@ import {
   fetchDayData, toDateStr,
 } from './garmin-helpers.js';
 import { computeFlatEfforts, needsFlatEfforts } from '../../src/lib/flatEfforts.js';
+import { computeStreamGap, needsStreamGap } from '../../src/lib/streamGap.js';
 
 // ── Política de frescura ────────────────────────────────────────────────────
 const STATE_KEY = 'mcp_sync_state';
@@ -299,8 +300,8 @@ async function refreshStrava(userId, lane = {}, { detailBudget = 3 } = {}) {
 }
 
 /**
- * Backlog de enriquecido (carril caro): rellena `flat_efforts` y los parciales que
- * falten en el histórico. Cada actividad son 1-2 requests a Strava, así que va con
+ * Backlog de enriquecido (carril caro): rellena `flat_efforts`, `stream_gap` (ambos
+ * de la MISMA descarga de streams) y los parciales que falten en el histórico. Cada actividad son 1-2 requests a Strava, así que va con
  * presupuesto y throttle. Guarda `{}` cuando no hay tramos llanos para no volver a
  * pedir esa actividad nunca más.
  */
@@ -318,7 +319,10 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
   const recentFirst = (a, b) => String(b.start_date).localeCompare(String(a.start_date));
   const needSplits = stored.filter((a) => isRun(a) && a.distance > 0 && !a.splits_metric)
     .sort(recentFirst).slice(0, splitsBudget);
-  const needFlat = stored.filter((a) => isRun(a) && a.distance >= 1000 && needsFlatEfforts(a))
+  // Una sola descarga de streams alimenta los dos cálculos (tramos llanos y GAP
+  // muestra a muestra), así que basta con que falte uno para pedirlos.
+  const needFlat = stored
+    .filter((a) => isRun(a) && a.distance >= 1000 && (needsFlatEfforts(a) || needsStreamGap(a)))
     .sort(recentFirst).slice(0, flatBudget);
 
   let splits = 0, flat = 0;
@@ -336,7 +340,11 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
         accessToken,
       );
       const prev = byId.get(act.id);
-      byId.set(act.id, { ...prev, flat_efforts: computeFlatEfforts(streams) });
+      byId.set(act.id, {
+        ...prev,
+        flat_efforts: computeFlatEfforts(streams),
+        stream_gap: computeStreamGap(streams),
+      });
       flat++;
     } catch (e) { console.warn(`[mcp-sync] flat_efforts ${act.id}:`, e.message); }
     await new Promise((r) => setTimeout(r, 400));

@@ -58,17 +58,41 @@ export function velocityFromVO2(vo2) {
 // ── VO2max a partir de la frecuencia cardiaca ───────────────────────────────
 
 /**
+ * Banda donde la equivalencia %HRR = %VO2R de Swain-Leutholtz aguanta de verdad.
+ *
+ * La banda antigua (35–95 % HRR) no filtraba nada: con FCmax 190 y FCrep 50 son
+ * 99 ppm de ancho, así que entraba cualquier sesión y el VO2max estimado salía
+ * ~16 % MÁS ALTO en un rodaje suave que en un tempo del mismo atleta el mismo
+ * día. Fuera de 70–88 % HRR la relación se curva y lo que se mide es la
+ * intensidad de la sesión, no la forma.
+ */
+export const HRR_VALID_MIN = 0.70;
+export const HRR_VALID_MAX = 0.88;
+
+/**
  * Método HRR (Swain-Leutholtz 1997): %HRR = %VO2R.
  *   VO2_run = VO2rest + %HRR × (VO2max − VO2rest)
- * Se despeja VO2max. Solo válido en la banda fiable de esfuerzo (35–95% HRR);
+ * Se despeja VO2max. Solo válido dentro de `HRR_VALID_MIN`–`HRR_VALID_MAX`;
  * fuera de ella devuelve null en vez de un número que no significa nada.
+ *
+ * Aun dentro de banda, esto es un PROXY SUBMÁXIMO de eficiencia: la cifra buena
+ * de VO2max sale de un rendimiento medido (`lib/vdot.js`), no de la FC.
  */
 export function vo2maxFromHRR(vo2Running, hr, hrRest, hrMax) {
   const pctHRR = (hr - hrRest) / (hrMax - hrRest);
-  if (pctHRR < 0.35 || pctHRR > 0.95) return null;
+  if (pctHRR < HRR_VALID_MIN || pctHRR > HRR_VALID_MAX) return null;
   const vo2max = VO2_REST + (vo2Running - VO2_REST) / pctHRR;
   return vo2max > 15 && vo2max < 90 ? vo2max : null;
 }
+
+/**
+ * Banda equivalente a `HRR_VALID_MIN`–`HRR_VALID_MAX` expresada en %FCmax. Con
+ * FCmax 190 y FCrep 50, 70–88 % HRR son 78–91 % FCmax; se redondea a 78–92 %
+ * para no dejar fuera perfiles con FC en reposo más alta. Sin esta banda el
+ * fallback reintroducía por la puerta de atrás justo el sesgo que HRR filtra.
+ */
+export const HRMAX_PCT_VALID_MIN = 0.78;
+export const HRMAX_PCT_VALID_MAX = 0.92;
 
 /**
  * Fallback %FCmax (Swain 1994): %VO2max = 1.5286 × %FCmax − 0.5286.
@@ -76,7 +100,7 @@ export function vo2maxFromHRR(vo2Running, hr, hrRest, hrMax) {
  */
 export function vo2maxFromHRmaxPct(vo2Running, hr, hrMax) {
   const pctHRmax = hr / hrMax;
-  if (pctHRmax < 0.55 || pctHRmax > 0.98) return null;
+  if (pctHRmax < HRMAX_PCT_VALID_MIN || pctHRmax > HRMAX_PCT_VALID_MAX) return null;
   const pctVO2max = 1.5286 * pctHRmax - 0.5286;
   if (pctVO2max <= 0.20) return null;
   const vo2max = vo2Running / pctVO2max;

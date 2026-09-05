@@ -22,6 +22,7 @@ import HRAnalysis from './components/HRAnalysis';
 import TechniqueAnalysis from './components/TechniqueAnalysis';
 import GlobalHeatmap from './components/GlobalHeatmap';
 import RouteGallery from './components/RouteGallery';
+import GeoZones from './components/GeoZones';
 import TrainingZones from './components/TrainingZones';
 import useHrParams from './hooks/useHrParams';
 
@@ -37,10 +38,11 @@ import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
 import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
 import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
+import { computeStreamGap, needsStreamGap, activityGapSpeed } from './lib/streamGap';
 import { syncGarminActivities } from './lib/garminActivitiesSync';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import { formatPaceFromSpeed, formatPaceFromMinPerKm } from './lib/timeFormat';
-import { gapFactorFromGain, gapSpeedFromGain } from './lib/gap';
+import { activityEmoji } from './lib/aiInsights';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
@@ -80,6 +82,7 @@ const NAV_ITEMS = [
   { id: 'zones', icon: SignalIcon },
   { id: 'heatmap', icon: MapIcon },
   { id: 'gallery', icon: RectangleGroupIcon },
+  { id: 'geozones', icon: MapPinIcon },
   { id: 'consistency', icon: CalendarDaysIcon },
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
@@ -95,7 +98,7 @@ const NAV_ITEMS = [
 
 const NAV_CATEGORIES = [
   { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
-  { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery'] },
+  { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery', 'geozones'] },
   { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'qa'] },
   { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'racehistory', 'criticalspeed', 'fitness', 'health'] },
   { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
@@ -126,7 +129,7 @@ const slimActivity = (act, fallback = {}) => {
 // splits_metric, laps ni best_efforts). Este merge conserva el detalle ya
 // enriquecido y persistido de cada actividad, de modo que el sync NO borre los
 // parciales que costó traer. Clave para que el dato viva de forma estable en Supabase.
-const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts'];
+const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts', 'stream_gap'];
 const mergeEnrichedActivities = (fresh, existing) => {
   const byId = new Map((existing || []).map(a => [a.id, a]));
   return (fresh || []).map(f => {
@@ -264,31 +267,33 @@ const Dashboard = ({ user, handleLogout }) => {
     }
   };
 
-  // Enriquece los "tramos llanos" (flat_efforts) que falten: descarga los streams
-  // (distance+altitude+time), calcula el mejor 1km/2km llano con ventana deslizante
-  // y guarda SOLO el resultado (pequeño) en la actividad. Como los parciales, va en
+  // Enriquece a partir de los streams (distance+altitude+time+grade_smooth) los dos
+  // cálculos que los necesitan —el mejor 1km/2km llano (flat_efforts) y el GAP
+  // muestra a muestra (stream_gap)— y guarda SOLO los resultados, que son pequeños.
+  // Una descarga, dos campos: pedirlos por separado duplicaría el gasto de API. Como los parciales, va en
   // segundo plano, con throttle y tope por sync; a lo largo de varios syncs cubre
   // todo el histórico y no se vuelve a pedir. Se cachea también el resultado vacío.
   const enrichMissingFlatEfforts = async (acts, accessToken, { cap = 30 } = {}) => {
     if (!accessToken || !Array.isArray(acts)) return;
     const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
     const need = acts
-      .filter(a => isRun(a) && a.distance >= 1000 && needsFlatEfforts(a))
+      .filter(a => isRun(a) && a.distance >= 1000 && (needsFlatEfforts(a) || needsStreamGap(a)))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
     for (const act of need) {
       try {
         const streams = await getActivityStreams(accessToken, act.id);
-        // computeFlatEfforts devuelve siempre un objeto con `_v`, aunque no haya
-        // ningún tramo llano: así esta actividad no se vuelve a pedir hasta que
-        // cambie la versión del algoritmo.
+        // Los dos devuelven siempre un objeto con `_v`, aunque no haya ningún tramo
+        // llano o no se pueda calcular el GAP: así esta actividad no se vuelve a
+        // pedir hasta que cambie la versión del algoritmo.
         const flat_efforts = computeFlatEfforts(streams);
+        const stream_gap = computeStreamGap(streams);
         setStravaData(prev => {
           if (!prev?.activities) return prev;
           const idx = prev.activities.findIndex(x => x.id === act.id);
           if (idx === -1) return prev;
           const updated = [...prev.activities];
-          updated[idx] = { ...prev.activities[idx], flat_efforts };
+          updated[idx] = { ...prev.activities[idx], flat_efforts, stream_gap };
           const nd = { ...prev, activities: updated };
           persistStravaData(nd);
           return nd;
@@ -533,27 +538,91 @@ const Dashboard = ({ user, handleLogout }) => {
 
   const [selectedYear, setSelectedYear] = useState('All');
 
+  // Selector de deportes del dashboard. `null` = comportamiento por defecto
+  // (solo carrera), para no cambiar lo que ve quien no toca el filtro. En cuanto
+  // se marca algo pasa a ser una lista explícita de sport_type.
+  const [selectedSports, setSelectedSports] = useState(null);
+
+  // Deportes presentes en el historial, con su nº de actividades, para pintar
+  // solo los checks que tienen datos.
+  const availableSports = useMemo(() => {
+    if (!stravaData?.activities) return [];
+    const counts = new Map();
+    for (const a of stravaData.activities) {
+      const st = a.sport_type || a.type;
+      if (!st) continue;
+      counts.set(st, (counts.get(st) || 0) + 1);
+    }
+    return Array.from(counts, ([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [stravaData]);
+
+  // Base del dashboard (stats + gráfico + tabla): carrera por defecto, o los
+  // deportes marcados. El resto de la app sigue colgando de runningActivities.
+  const dashboardActivities = useMemo(() => {
+    if (selectedSports === null) return runningActivities;
+    if (!stravaData?.activities || !selectedSports.length) return [];
+    return stravaData.activities.filter(a => selectedSports.includes(a.sport_type || a.type));
+  }, [selectedSports, runningActivities, stravaData]);
+
+  const toggleSport = (type) => {
+    setActivitiesPage(1);
+    setSelectedSports(prev => {
+      const base = prev === null ? RUNNING_TYPES.filter(t => availableSports.some(s => s.type === t)) : prev;
+      const next = base.includes(type) ? base.filter(t => t !== type) : [...base, type];
+      return next;
+    });
+  };
+
+  const resetSports = () => {
+    setActivitiesPage(1);
+    setSelectedSports(null);
+  };
+
+  // Deportes marcados de cara a la UI (con el default expandido a los checks).
+  const activeSports = selectedSports === null
+    ? RUNNING_TYPES.filter(t => availableSports.some(s => s.type === t))
+    : selectedSports;
+
   const availableYears = useMemo(() => {
-    if (!runningActivities.length) return [];
-    const years = new Set(runningActivities.map(a => new Date(a.start_date).getFullYear()));
+    if (!dashboardActivities.length) return [];
+    const years = new Set(dashboardActivities.map(a => new Date(a.start_date).getFullYear()));
     return Array.from(years).sort((a, b) => b - a);
-  }, [runningActivities]);
+  }, [dashboardActivities]);
 
   const filteredActivities = useMemo(() => {
-    if (selectedYear === 'All') return runningActivities;
-    return runningActivities.filter(a => new Date(a.start_date).getFullYear() === parseInt(selectedYear));
-  }, [selectedYear, runningActivities]);
+    if (selectedYear === 'All') return dashboardActivities;
+    return dashboardActivities.filter(a => new Date(a.start_date).getFullYear() === parseInt(selectedYear));
+  }, [selectedYear, dashboardActivities]);
+
+  // Los récords personales solo tienen sentido corriendo: aunque el usuario
+  // añada bici o natación a la tabla, esta tarjeta se queda en carrera.
+  const filteredRunning = useMemo(
+    () => filteredActivities.filter(a => RUNNING_TYPES.includes(a.sport_type || a.type)),
+    [filteredActivities]
+  );
 
   const stats = useMemo(() => {
     // Tiempo EN MOVIMIENTO, no puerta a puerta: es la base sobre la que la app
     // calcula ritmos (average_speed) en el resto de vistas. Mezclarlas hacía que
     // el ritmo del dashboard no cuadrase con el de los parciales de la actividad.
-    return filteredActivities.reduce((acc, act) => ({
-      distance: acc.distance + act.distance,
-      moving_time: acc.moving_time + (act.moving_time || act.elapsed_time),
-      elevation_gain: acc.elevation_gain + act.total_elevation_gain,
-      count: acc.count + 1
-    }), { distance: 0, moving_time: 0, elevation_gain: 0, count: 0 });
+    // El GAP agregado NO se calcula sobre los totales: la hipótesis de perfil
+    // ondulado no es lineal, y el D+ sumado de 300 sesiones repartido sobre la
+    // distancia sumada no describe ninguna de ellas. Se acumula el tiempo
+    // equivalente en llano actividad a actividad, con la misma fuente que usa la
+    // tabla de abajo (`activityGapSpeed`: medida por streams si la hay), y el
+    // ritmo sale de distancia_total / tiempo_llano_total.
+    return filteredActivities.reduce((acc, act) => {
+      const v = activityGapSpeed(act);
+      const t = act.moving_time || act.elapsed_time;
+      return {
+        distance: acc.distance + act.distance,
+        moving_time: acc.moving_time + t,
+        gap_time: acc.gap_time + (v > 0 ? act.distance / v : t),
+        elevation_gain: acc.elevation_gain + act.total_elevation_gain,
+        count: acc.count + 1
+      };
+    }, { distance: 0, moving_time: 0, gap_time: 0, elevation_gain: 0, count: 0 });
   }, [filteredActivities]);
 
   const handleSort = (key) => {
@@ -601,12 +670,14 @@ const Dashboard = ({ user, handleLogout }) => {
     return parseFloat(paceStr);
   };
 
-  const activeFilterCount = [distanceRange.min, distanceRange.max, elevationRange.min, elevationRange.max, paceRange.min, paceRange.max].filter(v => v !== '').length;
+  const activeFilterCount = [distanceRange.min, distanceRange.max, elevationRange.min, elevationRange.max, paceRange.min, paceRange.max].filter(v => v !== '').length
+    + (selectedSports === null ? 0 : 1);
 
   const clearFilters = () => {
     setDistanceRange({ min: '', max: '' });
     setElevationRange({ min: '', max: '' });
     setPaceRange({ min: '', max: '' });
+    resetSports();
   };
 
   const sortedActivities = [...filteredActivities]
@@ -657,11 +728,11 @@ const Dashboard = ({ user, handleLogout }) => {
           break;
         }
         case 'gap': {
-          // Ritmo GAP en min/km: mismo modelo (lib/gap) que la columna que se pinta.
+          // Ritmo GAP en min/km: misma fuente que la columna que se pinta (medida
+          // por streams si la actividad está enriquecida, hipótesis de perfil
+          // ondulado si no), para que ordenar y leer no den cifras distintas.
           const gapPace = (x) => {
-            const t = x.moving_time || x.elapsed_time;
-            if (!(x.distance > 0) || !(t > 0)) return 0;
-            const v = gapSpeedFromGain(x.distance / t, x.distance, x.total_elevation_gain || 0);
+            const v = activityGapSpeed(x);
             return v > 0 ? 1000 / (v * 60) : 0;
           };
           aValue = gapPace(a); bValue = gapPace(b);
@@ -958,8 +1029,8 @@ const Dashboard = ({ user, handleLogout }) => {
                   />
                   <StatCard
                     label={t('dashboard.gap')}
-                    value={stats.distance > 0 && stats.moving_time > 0
-                      ? formatPaceFromSpeed(gapSpeedFromGain(stats.distance / stats.moving_time, stats.distance, stats.elevation_gain))
+                    value={stats.distance > 0 && stats.gap_time > 0
+                      ? formatPaceFromSpeed(stats.distance / stats.gap_time)
                       : '0:00'}
                     unit="/km"
                     icon={FireIcon}
@@ -988,7 +1059,7 @@ const Dashboard = ({ user, handleLogout }) => {
                         </div>
                         <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
                       </div>
-                      <PersonalBests activities={filteredActivities} horizontal />
+                      <PersonalBests activities={filteredRunning} horizontal />
                     </div>
 
                     {/* Section 3: Progress Chart (full width) */}
@@ -1100,6 +1171,54 @@ const Dashboard = ({ user, handleLogout }) => {
                                 </button>
                               )}
                             </div>
+                            {availableSports.length > 1 && (
+                              <div className="px-5 py-4 border-b border-slate-100 space-y-2.5">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                                    <span className="text-xs">🏅</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-700 leading-none">Deportes</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">
+                                      {selectedSports === null ? 'Solo carrera (por defecto)' : `${dashboardActivities.length} actividades`}
+                                    </p>
+                                  </div>
+                                  {selectedSports !== null && (
+                                    <button
+                                      onClick={resetSports}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors shrink-0"
+                                    >
+                                      Por defecto
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {availableSports.map(({ type, count }) => {
+                                    const checked = activeSports.includes(type);
+                                    return (
+                                      <label
+                                        key={type}
+                                        className={`inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition-all select-none
+                                          ${checked
+                                            ? 'bg-violet-50 border-violet-300 text-violet-700'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                                          }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => toggleSport(type)}
+                                          className="w-3 h-3 rounded border-slate-300 text-violet-600 focus:ring-violet-500/30 cursor-pointer"
+                                        />
+                                        <span>{activityEmoji(type)}</span>
+                                        <span>{type}</span>
+                                        <span className="text-[10px] font-medium opacity-60 tabular-nums">{count}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                               {/* Distance filter card */}
                               <div className="p-4 space-y-3">
@@ -1255,8 +1374,10 @@ const Dashboard = ({ user, handleLogout }) => {
                               const distKm = activity.distance / 1000;
                               const movingSecs = activity.moving_time || activity.elapsed_time;
                               const rawPaceMinKm = distKm > 0 ? (movingSecs / 60) / distKm : 0;
-                              const gapPct = gapFactorFromGain(activity.distance, activity.total_elevation_gain || 0);
-                              const adjustedPace = rawPaceMinKm / gapPct;
+                              // GAP medido sobre los streams cuando ya está cacheado; si no,
+                              // la hipótesis de perfil ondulado sobre el D+ de la cabecera.
+                              const gapSpeedMs = activityGapSpeed(activity);
+                              const adjustedPace = gapSpeedMs > 0 ? 1000 / (gapSpeedMs * 60) : rawPaceMinKm;
                               const hasSignificantAdjustment = Math.abs(rawPaceMinKm - adjustedPace) > 0.05;
 
                               return (
@@ -1289,6 +1410,8 @@ const Dashboard = ({ user, handleLogout }) => {
                                           const isRace = activity.workout_type === 1;
                                           if (isRace) return <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-bold tracking-wide bg-amber-400 text-white uppercase">Race</span>;
                                           if (st === 'TrailRun') return <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-bold tracking-wide bg-emerald-500 text-white uppercase">Trail</span>;
+                                          // Con varios deportes en la tabla hace falta distinguirlos de un vistazo.
+                                          if (!RUNNING_TYPES.includes(st)) return <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-bold tracking-wide bg-violet-500 text-white uppercase">{activityEmoji(st)} {st}</span>;
                                           return null;
                                         })()}
                                       </div>
@@ -1405,6 +1528,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} />,
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,
                 gallery:     <RouteGallery activities={runningActivities} />,
+                geozones:    <GeoZones activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
                 targets:     <TargetRaces activities={runningActivities} planRaceId={raceId} />,

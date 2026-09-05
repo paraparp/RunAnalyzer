@@ -12,6 +12,7 @@ import { computePMC } from '../lib/trainingLoad';
 import { vo2FromRun } from '../lib/physiology';
 import { efficiencyFactorRun } from '../lib/efficiencyFactor';
 import { decouplingPct } from '../lib/decoupling';
+import useHrParams from '../hooks/useHrParams';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -351,6 +352,14 @@ export default function VitalsOverview({ activities = [] }) {
     };
   }, []);
 
+  // ── Calibración de FC: la MISMA que el resto de la app (override manual →
+  //    detección → fórmula). Antes esta vista derivaba su propia FCmax (máximo
+  //    bruto del histórico, sensible a un solo artefacto de banda) y su propia
+  //    FCreposo (media de TODO el histórico Garmin, frente a la política de
+  //    "medición más reciente"), así que el VO2max de aquí no podía coincidir
+  //    con el de la pestaña de VO2max. Ver bloque G1 de la auditoría. ──
+  const { hrmax, hrrest } = useHrParams(activities);
+
   // CTL runs over full history (EWMA needs the warm-up), filtered to the window below
   const ctlSeries = useMemo(() => computeCTLSeries(activities), [activities]);
 
@@ -376,15 +385,9 @@ export default function VitalsOverview({ activities = [] }) {
     const hrvData = series(hrvPts, 7);
     const hrData = series(rhrPts, 7);
 
-    // ── VO2max trend (forma física) from Strava runs ──
-    const allHr = garmin.filter((d) => d.restingHR).map((d) => d.restingHR);
-    const hrRest = allHr.length ? Math.round(allHr.reduce((a, b) => a + b, 0) / allHr.length) : null;
-    // FCmax observada, descartando artefactos de banda (lecturas >220 ppm)
-    const maxObserved = activities.reduce((m, a) => {
-      const h = a.max_heartrate || 0;
-      return h > m && h <= 220 ? h : m;
-    }, 0);
-    const hrMax = maxObserved > 120 ? maxObserved : 190;
+    // ── VO2max submáximo (proxy de eficiencia) desde los runs de Strava ──
+    // FCmax / FCreposo vienen de useHrParams (detectMaxHR / detectRestHR), no de
+    // estimadores propios de esta vista.
 
     const runs = activities
       .filter((a) => {
@@ -392,7 +395,7 @@ export default function VitalsOverview({ activities = [] }) {
         return ms >= cutoff && a.average_heartrate >= 90 && a.average_speed >= 1.5 && (a.moving_time || 0) >= 600;
       })
       .map((a) => {
-        const v = vo2FromRun(a.average_speed, a.average_heartrate, hrRest, hrMax);
+        const v = vo2FromRun(a.average_speed, a.average_heartrate, hrrest, hrmax);
         return v ? { ms: new Date(a.start_date).getTime(), v } : null;
       })
       .filter(Boolean)
@@ -413,7 +416,7 @@ export default function VitalsOverview({ activities = [] }) {
     // por desnivel) y ahora es la compartida. Ver la cabecera de ese módulo.
     const effRunsAll = activities
       .map((a) => {
-        const v = efficiencyFactorRun(a, { maxObservedHr: maxObserved, gapAdjust });
+        const v = efficiencyFactorRun(a, { maxObservedHr: hrmax, gapAdjust });
         return v == null ? null : { ms: new Date(a.start_date).getTime(), v: +v.toFixed(3) };
       })
       .filter(Boolean)
@@ -477,7 +480,7 @@ export default function VitalsOverview({ activities = [] }) {
         dec: { current: lastOf(decData), trend: deltaOf(decData) },
       },
     };
-  }, [garmin, activities, ctlSeries, days, gran, gapAdjust]);
+  }, [garmin, activities, ctlSeries, days, gran, gapAdjust, hrmax, hrrest]);
 
   // X-axis label format depends on granularity
   const xFmt = useMemo(() => {
@@ -509,7 +512,7 @@ export default function VitalsOverview({ activities = [] }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900 leading-tight">Resumen Vital</h2>
-            <p className="text-xs text-slate-400">VFC · FC reposo · Forma física en paralelo</p>
+            <p className="text-xs text-slate-400">VFC · FC reposo · VO₂max submáximo en paralelo</p>
           </div>
         </div>
 
@@ -623,8 +626,8 @@ export default function VitalsOverview({ activities = [] }) {
           avgLabel={avgLabel}
         />
         <VitalPanel
-          title="Forma física"
-          subtitle={`VO₂max estimado · ${granLabel}`}
+          title="VO₂max submáximo"
+          subtitle={`Proxy de eficiencia aeróbica · no es la forma física · ${granLabel}`}
           icon={BoltIcon}
           accent="violet"
           data={vo2Data}

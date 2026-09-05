@@ -2,16 +2,43 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { isoWeek, isoWeekKey, weekStartFromIso } from '../lib/isoWeek';
+import { weeklyVolumeRamp } from '../lib/weeklyVolume';
+import { activityDayKey, dayKey } from '../lib/trainingLoad';
+import { monthsAgoISO } from '../lib/criticalSpeed';
+import { monthShort } from '../lib/monthLabels';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell
 } from 'recharts';
 
+// Definido fuera del componente: dentro del render sería un tipo nuevo en cada
+// render y Recharts remontaría el subárbol del tooltip entero.
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 mb-1">
+        {d.label} (S{d.week}){d.isPartial && <span className="text-slate-400 font-medium"> · en curso</span>}
+      </p>
+      <p className="text-blue-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
+      <p className="text-slate-500">Sesiones: {d.sessions} | Desnivel: {Math.round(d.elevation)}m</p>
+      {d.avg4w != null && <p className="text-slate-500">Media 4 sem cerradas: {d.avg4w} km</p>}
+      {d.isPartial ? (
+        <p className="text-slate-400 italic">Semana incompleta: no se compara</p>
+      ) : d.change !== 0 && (
+        <p className={d.exceeds10 ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+          Cambio: {d.change > 0 ? '+' : ''}{d.change}% ({d.absDeltaKm > 0 ? '+' : ''}{d.absDeltaKm.toFixed(1)} km)
+          {d.exceeds10 && ' ⚠️ salto excesivo'}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function WeeklyProgression({ activities }) {
   const { i18n } = useTranslation();
-  const MONTH_SHORT = i18n.language.startsWith('es')
-    ? ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTH_SHORT = monthShort(i18n.language);
   const [monthsToShow, setMonthsToShow] = useState('6');
 
   const { weeklyData, stats } = useMemo(() => {
@@ -20,8 +47,11 @@ export default function WeeklyProgression({ activities }) {
     const weeksMap = {};
 
     activities.forEach(a => {
-      const { year, week } = isoWeek(a.start_date);
-      const key = isoWeekKey(a.start_date);
+      // El día LOCAL de la actividad decide su semana: una salida de domingo por
+      // la noche en horario europeo cae en la semana siguiente si se lee en UTC.
+      const day = activityDayKey(a);
+      const { year, week } = isoWeek(day);
+      const key = isoWeekKey(day);
       if (!weeksMap[key]) {
         weeksMap[key] = { key, year, week, km: 0, time: 0, sessions: 0, elevation: 0 };
       }
@@ -49,25 +79,44 @@ export default function WeeklyProgression({ activities }) {
       }
     }
 
+    // La semana en curso está a medias: su volumen NO es comparable con el de una
+    // semana completa. Antes entraba en todo —el % de cambio, la alerta del 10 %,
+    // la media móvil— y un lunes por la mañana la vista anunciaba -85 %. Aquí se
+    // marca y se excluye de cualquier comparación, igual que hizo `A6` en
+    // `InjuryRisk`. Se sigue dibujando, pero como barra "en curso".
+    const currentWeekKey = isoWeekKey(dayKey(new Date()));
+
     // Calculate change % and moving average
     const withMetrics = filled.map((w, i) => {
+      const isPartial = w.key >= currentWeekKey;
       const prev = i > 0 ? filled[i - 1] : null;
-      const change = prev && prev.km > 0 ? ((w.km - prev.km) / prev.km) * 100 : 0;
-      const exceeds10 = prev && prev.km > 2 && change > 10;
+      // La regla del 10 % vive en lib/weeklyVolume.js, compartida con InjuryRisk:
+      // porcentaje cruzado con el salto absoluto en km, que es el que se
+      // corresponde con la carga real.
+      const ramp = weeklyVolumeRamp(w.km, prev ? prev.km : 0);
+      const change = prev && prev.km > 0 ? ramp.changePct : 0;
+      const exceeds10 = !isPartial && !!prev && ramp.exceeds;
 
-      // 4-week moving average
-      const start = Math.max(0, i - 3);
-      const window = filled.slice(start, i + 1);
-      const avg4w = window.reduce((s, x) => s + x.km, 0) / window.length;
+      // Media móvil de 4 semanas, solo sobre semanas CERRADAS: si la parcial
+      // entra, arrastra el sesgo a la referencia contra la que se compara todo.
+      const windowSrc = isPartial
+        ? filled.slice(Math.max(0, i - 4), i)
+        : filled.slice(Math.max(0, i - 3), i + 1);
+      const window = windowSrc.filter(x => x.key < currentWeekKey);
+      const avg4w = window.length
+        ? window.reduce((s, x) => s + x.km, 0) / window.length
+        : null;
 
       const weekStart = weekStartFromIso(w.year, w.week);
       const label = `${weekStart.getDate()} ${MONTH_SHORT[weekStart.getMonth()]}`;
 
       return {
         ...w,
+        isPartial,
         change: Math.round(change),
+        absDeltaKm: ramp.absDeltaKm,
         exceeds10,
-        avg4w: Math.round(avg4w * 10) / 10,
+        avg4w: avg4w == null ? null : Math.round(avg4w * 10) / 10,
         label,
         dateMs: weekStart.getTime(),
       };
@@ -75,38 +124,48 @@ export default function WeeklyProgression({ activities }) {
 
     // Filter by time range
     const months = parseInt(monthsToShow);
-    const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
-    const filtered = withMetrics.filter(w => w.dateMs >= cutoff);
+    // Meses de CALENDARIO: `months * 30 * 86400000` recorta 360 días cuando el
+    // selector dice 12 meses. La frontera y el inicio de semana son días locales.
+    const from = monthsAgoISO(months);
+    const filtered = withMetrics.filter(w => dayKey(new Date(w.dateMs)) >= from);
 
-    // Stats
-    const recent4 = filtered.slice(-4);
+    // Stats — todas sobre semanas CERRADAS; la parcial solo se informa aparte.
+    const closed = filtered.filter(w => !w.isPartial);
+    const partialWeek = filtered.find(w => w.isPartial) || null;
+
+    const recent4 = closed.slice(-4);
     const avg4 = recent4.length > 0 ? recent4.reduce((s, w) => s + w.km, 0) / recent4.length : 0;
-    const currentWeek = filtered.length > 0 ? filtered[filtered.length - 1] : null;
-    const exceedCount = filtered.filter(w => w.exceeds10).length;
+    const lastClosed = closed.length > 0 ? closed[closed.length - 1] : null;
+    const exceedCount = closed.filter(w => w.exceeds10).length;
 
-    // Streak of consecutive weeks with activity
+    // Racha de semanas consecutivas con actividad. La semana en curso solo suma
+    // si ya tiene kilómetros: un lunes a las 9:00 no rompe una racha de meses.
     let streak = 0;
     for (let i = filtered.length - 1; i >= 0; i--) {
-      if (filtered[i].km > 0) streak++;
+      const w = filtered[i];
+      if (w.isPartial && w.km === 0) continue;
+      if (w.km > 0) streak++;
       else break;
     }
 
-    const maxWeek = filtered.reduce((max, w) => w.km > max.km ? w : max, { km: 0 });
+    const maxWeek = closed.reduce((max, w) => w.km > max.km ? w : max, { km: 0, label: '' });
 
     return {
       weeklyData: filtered,
       stats: {
-        currentKm: currentWeek ? currentWeek.km : 0,
-        currentChange: currentWeek ? currentWeek.change : 0,
+        lastClosedKm: lastClosed ? lastClosed.km : 0,
+        lastClosedChange: lastClosed ? lastClosed.change : 0,
+        lastClosedLabel: lastClosed ? lastClosed.label : '',
+        partialKm: partialWeek ? partialWeek.km : null,
         avg4weeks: avg4,
         streak,
         exceedCount,
-        totalWeeks: filtered.length,
+        totalWeeks: closed.length,
         maxWeek: maxWeek.km,
         maxWeekLabel: maxWeek.label,
       },
     };
-  }, [activities, monthsToShow]);
+  }, [activities, monthsToShow, MONTH_SHORT]);
 
   if (!weeklyData.length || !stats) {
     return (
@@ -116,35 +175,24 @@ export default function WeeklyProgression({ activities }) {
     );
   }
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
-    return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
-        <p className="font-bold text-slate-700 mb-1">{d.label} (S{d.week})</p>
-        <p className="text-blue-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
-        <p className="text-slate-500">Sesiones: {d.sessions} | Desnivel: {Math.round(d.elevation)}m</p>
-        <p className="text-slate-500">Media 4 sem: {d.avg4w} km</p>
-        {d.change !== 0 && (
-          <p className={d.exceeds10 ? 'text-rose-600 font-bold' : 'text-slate-500'}>
-            Cambio: {d.change > 0 ? '+' : ''}{d.change}%
-            {d.exceeds10 && ' ⚠️ >10%'}
-          </p>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Semana actual</p>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.currentKm.toFixed(1)}</p>
-          <p className={`text-[10px] mt-0.5 font-semibold ${stats.currentChange > 10 ? 'text-rose-500' : stats.currentChange > 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
-            {stats.currentChange > 0 ? '+' : ''}{stats.currentChange}% vs anterior
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Última semana cerrada</p>
+          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.lastClosedKm.toFixed(1)}</p>
+          <p className={`text-[10px] mt-0.5 font-semibold ${stats.lastClosedChange > 10 ? 'text-rose-500' : stats.lastClosedChange > 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
+            {stats.lastClosedChange > 0 ? '+' : ''}{stats.lastClosedChange}% vs anterior
           </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">En curso</p>
+          <p className="text-2xl font-black text-slate-500 tabular-nums">
+            {stats.partialKm == null ? '—' : stats.partialKm.toFixed(1)}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">km hasta hoy (sin comparar)</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media 4 semanas</p>
@@ -198,8 +246,8 @@ export default function WeeklyProgression({ activities }) {
                 {weeklyData.map((entry, idx) => (
                   <Cell
                     key={idx}
-                    fill={entry.exceeds10 ? '#f43f5e' : entry.km === 0 ? '#e2e8f0' : '#3b82f6'}
-                    fillOpacity={entry.exceeds10 ? 0.85 : 0.7}
+                    fill={entry.isPartial ? '#94a3b8' : entry.exceeds10 ? '#f43f5e' : entry.km === 0 ? '#e2e8f0' : '#3b82f6'}
+                    fillOpacity={entry.isPartial ? 0.45 : entry.exceeds10 ? 0.85 : 0.7}
                   />
                 ))}
               </Bar>
@@ -226,7 +274,11 @@ export default function WeeklyProgression({ activities }) {
           </div>
           <div className="flex items-start gap-2">
             <div className="w-3 h-3 rounded-sm bg-rose-500 mt-0.5 shrink-0" />
-            <p>Las barras rojas indican semanas donde el volumen aumentó más del 10% respecto a la semana anterior, incrementando el riesgo de lesión.</p>
+            <p>Las barras rojas indican semanas donde el salto de volumen excede la regla del 10% <em>y</em> supone un aumento absoluto relevante en km — el mismo criterio que usa el índice de riesgo de lesión.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <div className="w-3 h-3 rounded-sm bg-slate-400/50 mt-0.5 shrink-0" />
+            <p>La barra gris es la semana en curso: al estar incompleta no se compara con la anterior ni entra en la media móvil, las alertas ni la semana pico.</p>
           </div>
         </div>
       </Card>

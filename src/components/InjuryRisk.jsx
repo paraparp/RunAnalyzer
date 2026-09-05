@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { computePMC, activityDayKey, dayKey } from '../lib/trainingLoad';
 import { isoWeekKey } from '../lib/isoWeek';
+import { weeklyVolumeRamp } from '../lib/weeklyVolume';
 
 function getRiskLevel(score, t) {
   if (score < 35) return { label: t('injury.risk_levels.low'), color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
@@ -23,9 +24,9 @@ function getRiskLevel(score, t) {
 }
 
 export default function InjuryRisk({ activities }) {
-  const { t, i18n } = useTranslation();
-  const { riskScore, factors, historyData, recommendations } = useMemo(() => {
-    if (!activities || activities.length === 0) return { riskScore: 0, factors: [], historyData: [], recommendations: [] };
+  const { t } = useTranslation();
+  const { riskScore, factors, context, historyData, recommendations } = useMemo(() => {
+    if (!activities || activities.length === 0) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
 
     const sorted = [...activities].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
 
@@ -34,7 +35,7 @@ export default function InjuryRisk({ activities }) {
     // del resto de la app, y calculaba el ACWR como ATL/CTL(42). Ahora usa el
     // modelo compartido y el ACWR por EWMA 7:28 (Williams 2017).
     const pmc = computePMC(activities);
-    if (!pmc) return { riskScore: 0, factors: [], historyData: [], recommendations: [] };
+    if (!pmc) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
 
     const dailyLoad = {};
     const allDates = [];
@@ -42,15 +43,28 @@ export default function InjuryRisk({ activities }) {
       allDates.push(p.date);
       if (p.load > 0) dailyLoad[p.date] = p.load;
     }
+    // --- ACWR: SEÑAL DE CONTEXTO, NO FACTOR DE RIESGO ---
+    // Esta vista le daba el 30 % del índice y disparaba recomendaciones en
+    // imperativo ("reduce la intensidad esta semana"), contradiciendo la
+    // advertencia del propio modelo (cabecera de lib/trainingLoad.js): desde
+    // Impellizzeri et al. (2020) el ACWR arrastra acoplamiento matemático entre
+    // numerador y denominador y una sensibilidad enorme a la ventana elegida, y
+    // los estudios que lo validaban como predictor de lesión no replican. Se
+    // sigue mostrando —dice algo real sobre el reparto agudo/crónico— pero fuera
+    // del índice y sin lenguaje prescriptivo. Su 30 % pasa a la rampa de CTL,
+    // que mide la misma progresión de carga sin dividir una media por otra que
+    // la contiene.
     const latestACWR = pmc.current.acwr ?? 0;
 
-    // ACWR risk: sweet spot 0.8-1.3, danger >1.5
-    let acwrRisk = 0;
-    if (latestACWR > 1.5) acwrRisk = 90;
-    else if (latestACWR > 1.3) acwrRisk = 60 + (latestACWR - 1.3) * 150;
-    else if (latestACWR > 1.0) acwrRisk = 20 + (latestACWR - 1.0) * 133;
-    else if (latestACWR < 0.5) acwrRisk = 30; // too little (detraining + sudden load)
-    else if (latestACWR < 0.8) acwrRisk = 10;
+    // --- Rampa de CTL (puntos TSS por semana) ---
+    // Umbrales de Coggan/Friel: hasta +5/sem se asimila, +5..+8 es agresivo y
+    // solo sostenible en bloques cortos, >+10 es sobrecarga.
+    const ctlRamp = pmc.current.ramp ?? 0;
+    let rampRisk = 0;
+    if (ctlRamp > 10) rampRisk = 85;
+    else if (ctlRamp > 8) rampRisk = 60;
+    else if (ctlRamp > 5) rampRisk = 30;
+    else if (ctlRamp > 3) rampRisk = 10;
 
     // --- Weekly volume progression ---
     const weeklyKm = {};
@@ -69,13 +83,14 @@ export default function InjuryRisk({ activities }) {
 
     const lastWeekKm = lastWeekKey ? weeklyKm[lastWeekKey] || 0 : 0;
     const prevWeekKm = prevWeekKey ? weeklyKm[prevWeekKey] || 0 : 0;
-    const weeklyChange = prevWeekKm > 0 ? ((lastWeekKm - prevWeekKm) / prevWeekKm) * 100 : 0;
 
-    let volumeRisk = 0;
-    if (weeklyChange > 30) volumeRisk = 80;
-    else if (weeklyChange > 20) volumeRisk = 50;
-    else if (weeklyChange > 10) volumeRisk = 25;
-    else if (weeklyChange < -30) volumeRisk = 15; // sudden drop can also be risky on return
+    // La regla del 10 % leída solo en porcentaje miente en los dos extremos: un
+    // +40 % sobre 10 km/sem son 4 km más (nada), y un +15 % sobre 90 km/sem son
+    // 13 km más (mucho). El criterio —las dos escalas, manda la peor— vive en
+    // lib/weeklyVolume.js y lo comparte con WeeklyProgression.
+    const {
+      changePct: weeklyChange, absDeltaKm, risk: volumeRisk,
+    } = weeklyVolumeRamp(lastWeekKm, prevWeekKm);
 
     // --- Rest days ---
     const last14 = allDates.slice(-14);
@@ -115,9 +130,9 @@ export default function InjuryRisk({ activities }) {
     else if (strain > 1000) strainRisk = 15;
 
     // --- Composite score ---
-    const weights = { acwr: 0.30, volume: 0.25, rest: 0.20, monotony: 0.10, strain: 0.15 };
+    const weights = { ramp: 0.30, volume: 0.25, rest: 0.20, monotony: 0.10, strain: 0.15 };
     const composite = Math.round(
-      acwrRisk * weights.acwr +
+      rampRisk * weights.ramp +
       volumeRisk * weights.volume +
       restRisk * weights.rest +
       monotonyRisk * weights.monotony +
@@ -126,17 +141,28 @@ export default function InjuryRisk({ activities }) {
     const finalScore = Math.min(100, Math.max(0, composite));
 
     const factorsList = [
-      { name: t('injury.factors.acwr'), value: Math.round(latestACWR * 100) / 100, risk: Math.round(acwrRisk), weight: '30%', detail: latestACWR > 1.3 ? t('fitness.acwr_status.caution_desc') : t('fitness.acwr_status.optimal_desc') },
-      { name: t('injury.factors.volume'), value: `${weeklyChange > 0 ? '+' : ''}${Math.round(weeklyChange)}%`, risk: Math.round(volumeRisk), weight: '25%', detail: weeklyChange > 10 ? t('injury.factors.rule_10') + ': ' + Math.round(weeklyChange) + '%' : t('fitness.ramp_labels.safe') },
+      { name: t('injury.factors.ramp'), value: `${ctlRamp > 0 ? '+' : ''}${ctlRamp.toFixed(1)} CTL/sem`, risk: Math.round(rampRisk), weight: '30%', detail: ctlRamp > 5 ? t('fitness.ramp_labels.high') : t('fitness.ramp_labels.safe') },
+      { name: t('injury.factors.volume'), value: `${weeklyChange > 0 ? '+' : ''}${Math.round(weeklyChange)}% · ${absDeltaKm > 0 ? '+' : ''}${Math.round(absDeltaKm * 10) / 10} km`, risk: Math.round(volumeRisk), weight: '25%', detail: volumeRisk > 25 ? t('injury.factors.rule_10') + ': ' + Math.round(weeklyChange) + '%' : t('fitness.ramp_labels.safe') },
       { name: t('injury.factors.rest'), value: `${restDays7}d / 7d`, risk: Math.round(restRisk), weight: '20%', detail: restDays7 <= 1 ? t('fitness.status.overloaded_desc') : `${restDays7} ${t('injury.factors.rest').toLowerCase()}` },
       { name: t('injury.factors.monotony'), value: monotony.toFixed(1), risk: Math.round(monotonyRisk), weight: '10%', detail: monotony > 1.5 ? t('fitness.status.loaded_desc') : t('fitness.status.optimal_desc') },
       { name: t('injury.factors.strain'), value: Math.round(strain), risk: Math.round(strainRisk), weight: '15%', detail: `${t('injury.factors.strain')} = ${Math.round(strain)}` },
     ];
 
+    // Señales que se muestran pero NO puntúan (ver el comentario del ACWR arriba).
+    const contextList = [
+      {
+        name: t('injury.factors.acwr'),
+        value: latestACWR ? Math.round(latestACWR * 100) / 100 : '—',
+        detail: t('injury.context.acwr_note'),
+      },
+    ];
+
     // --- Recommendations ---
     const recs = [];
-    if (latestACWR > 1.3) recs.push('Reduce la intensidad esta semana. Tu carga aguda supera significativamente la crónica.');
-    if (weeklyChange > 10) recs.push(`Has aumentado el volumen un ${Math.round(weeklyChange)}%. Intenta no superar el 10% semanal.`);
+    // Nada de imperativos a partir del ACWR: no es un predictor de lesión.
+    if (ctlRamp > 8) recs.push(`Tu CTL sube ${ctlRamp.toFixed(1)} puntos por semana. Por encima de +8 la progresión rara vez se asimila: sostén el volumen actual una o dos semanas antes de volver a subir.`);
+    else if (ctlRamp > 5) recs.push(`Rampa de carga de +${ctlRamp.toFixed(1)} CTL/semana, por encima del +5 que se considera asimilable. Vigila que no se prolongue más de 2-3 semanas seguidas.`);
+    if (volumeRisk > 25) recs.push(`Has aumentado el volumen un ${Math.round(weeklyChange)}% (${absDeltaKm > 0 ? '+' : ''}${Math.round(absDeltaKm * 10) / 10} km). Intenta que el salto semanal no pase del 10% ni de unos 6 km absolutos.`);
     if (restDays7 <= 1) recs.push('Necesitas más días de descanso. Considera al menos 2 días de reposo por semana.');
     if (monotony > 1.5) recs.push('Varía más tus sesiones. Alterna días duros y suaves para reducir la monotonía.');
     if (finalScore < 35) recs.push('Tu riesgo de lesión es bajo. Buen trabajo manteniendo el equilibrio entre carga y descanso.');
@@ -164,7 +190,7 @@ export default function InjuryRisk({ activities }) {
       });
     });
 
-    return { riskScore: finalScore, factors: factorsList, historyData: history, recommendations: recs };
+    return { riskScore: finalScore, factors: factorsList, context: contextList, historyData: history, recommendations: recs };
   }, [activities, t]);
 
   const level = getRiskLevel(riskScore, t);
@@ -279,6 +305,28 @@ export default function InjuryRisk({ activities }) {
         </div>
       </div>
 
+      {/* Señales de contexto — se muestran, no puntúan */}
+      {context.length > 0 && (
+        <div className="bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 p-6">
+          <h3 className="text-slate-500 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-4 h-4 text-slate-400" />
+            {t('injury.context.title')}
+          </h3>
+          <p className="text-[11px] text-slate-400 font-medium mb-4">{t('injury.context.desc')}</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-4">
+            {context.map(c => (
+              <div key={c.name}>
+                <div className="flex justify-between items-baseline">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{c.name}</p>
+                  <p className="text-sm font-black text-slate-500 tabular-nums">{c.value}</p>
+                </div>
+                <p className="mt-1 text-[10px] font-medium text-slate-400 leading-relaxed">{c.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Risk history */}
       {historyData.length > 2 && (
         <Card className="shadow-lg border-slate-200">
@@ -337,12 +385,18 @@ export default function InjuryRisk({ activities }) {
         <div className="text-sm text-slate-600 space-y-2">
           <p>{t('injury.methodology_desc')}</p>
           <ul className="list-disc list-inside space-y-1 text-xs">
-            <li><span className="font-semibold">ACWR (30%)</span> — Ratio de carga aguda (7d) vs crónica (42d). Zona segura: 0.8-1.3.</li>
-            <li><span className="font-semibold">Volumen semanal (25%)</span> — Cambio de km respecto a la semana anterior. Regla del 10%.</li>
+            <li><span className="font-semibold">Rampa de CTL (30%)</span> — Puntos de fitness que gana el CTL por semana. Hasta +5/sem se asimila; por encima de +8, rara vez.</li>
+            <li><span className="font-semibold">Volumen semanal (25%)</span> — Cambio de km respecto a la semana anterior, leído en porcentaje <em>y</em> en kilómetros absolutos.</li>
             <li><span className="font-semibold">Descanso (20%)</span> — Días sin actividad en los últimos 7 días. Mínimo 1-2 días.</li>
             <li><span className="font-semibold">Monotonía (10%)</span> — Variabilidad de la carga diaria. Más variación = menos riesgo.</li>
             <li><span className="font-semibold">Strain (15%)</span> — Carga total × monotonía. Valores altos indican sobreentrenamiento.</li>
           </ul>
+          <p className="text-xs text-slate-500 mt-3">
+            El <span className="font-semibold">ACWR</span> se muestra como contexto pero <span className="font-semibold">no puntúa</span>:
+            desde Impellizzeri et al. (2020) su validez como predictor de lesión está seriamente cuestionada
+            (acoplamiento matemático entre carga aguda y crónica, y sensibilidad extrema a la ventana elegida).
+            Ese peso lo asume la rampa de CTL, que mide la misma progresión sin dividir una media por otra que la contiene.
+          </p>
           <p className="text-xs text-slate-400 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
         </div>
       </Card>

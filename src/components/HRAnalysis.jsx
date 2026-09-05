@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import useHrParams from '../hooks/useHrParams';
 import { efficiencyMPerBeat, toBeatsPerKm } from '../lib/efficiencyFactor';
-import { gapSpeedFromGain } from '../lib/gap';
+import { activityGapSpeed } from '../lib/streamGap';
+import { activityDayKey } from '../lib/trainingLoad';
+import { daysAgoISO } from '../lib/criticalSpeed';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
@@ -48,10 +50,10 @@ const getMonthLabel = (monthIndex, lang = 'en') =>
     (lang.startsWith('es') ? MONTHS_ES : MONTHS_EN)[monthIndex] || "";
 
 // GAP = Grade Adjusted Pace: removes elevation penalty so trail & flat are comparable.
-// Modelo único en lib/gap; aquí solo se conoce el D+ acumulado de la actividad.
-const calculateGAP = (speedMs, distanceKm, elevGain) => {
-    if (!speedMs || speedMs === 0 || !distanceKm || distanceKm === 0) return { gap: "0:00", gapMinKm: 0 };
-    const v = gapSpeedFromGain(speedMs, distanceKm * 1000, elevGain || 0);
+// Fuente única `activityGapSpeed`: el GAP MEDIDO sobre los streams si la actividad
+// viene enriquecida, y la hipótesis de perfil ondulado sobre el D+ de cabecera si no.
+const calculateGAP = (activity) => {
+    const v = activityGapSpeed(activity);
     if (!(v > 0)) return { gap: "0:00", gapMinKm: 0 };
     return { gap: formatPaceFromSpeed(v), gapMinKm: 1000 / (v * 60) };
 };
@@ -216,7 +218,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 const km = a.distance / 1000;
                 const speedMs = a.average_speed || (a.distance / a.moving_time);
                 const elev = a.total_elevation_gain || 0;
-                const { gap, gapMinKm } = calculateGAP(speedMs, km, elev);
+                const { gap, gapMinKm } = calculateGAP(a);
                 return {
                     id: a.id,
                     date: a.start_date,
@@ -239,6 +241,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                     color: getMonthColor(a.start_date),
                     movingTime: a.moving_time,
                     timestamp: date.getTime(),
+                    day: activityDayKey(a),
                     suffer_score: a.suffer_score || 0,
                     splits: a.splits_metric || null,
                     elevPerKm: km > 0 ? elev / km : 0, // m D+ per km
@@ -399,9 +402,11 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         // --- DIAGNOSIS LOGIC ---
         // 1. Compare last month with previous baseline for similar GAP intensity
         const baseRuns = withHR.filter(r => r.km > 5 && r.elevPerKm < 15);
-        const last30Days = Date.now() - (30 * 24 * 60 * 60 * 1000);
-        const recentBase = baseRuns.filter(r => r.timestamp > last30Days);
-        const baselineBase = baseRuns.filter(r => r.timestamp <= last30Days);
+        // Corte en días LOCALES: comparar un instante UTC con la hora UTC de la
+        // actividad movía la frontera un día según el huso del atleta.
+        const last30Days = daysAgoISO(30);
+        const recentBase = baseRuns.filter(r => r.day && r.day >= last30Days);
+        const baselineBase = baseRuns.filter(r => !r.day || r.day < last30Days);
 
         let hrDeviation = 0;
         if (recentBase.length >= 2 && baselineBase.length >= 2) {

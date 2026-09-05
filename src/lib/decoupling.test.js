@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSplitDecoupling, decouplingPct } from './decoupling';
+import { computeSplitDecoupling, decouplingPct, driftRatePerHour } from './decoupling';
 
 // Un parcial de 1 km: velocidad en m/s a partir del ritmo en min/km.
 const km = (paceMin, hr, split) => ({
@@ -93,5 +93,32 @@ describe('ventana durability', () => {
     const mitades = computeSplitDecoupling(long).pct;
     const durab = computeSplitDecoupling(long, { window: 'durability' }).pct;
     expect(mitades).not.toBeCloseTo(durab, 3);
+  });
+});
+
+describe('driftRatePerHour', () => {
+  it('reparte el salto medido sobre la separación real entre ventanas', () => {
+    // 6 km a 5:00 (30 min): los centroides de las dos mitades distan 15 min, así
+    // que un 10% de deriva total son 40%/h. La tasa depende de la duración, que es
+    // justo lo que una constante fija ignora.
+    const splits = [km(5, 150, 1), km(5, 150, 2), km(5, 150, 3), km(5, 165, 4), km(5, 165, 5), km(5, 165, 6)];
+    const pct = decouplingPct(splits);
+    const rate = driftRatePerHour(splits);
+    expect(rate).toBeCloseTo(pct / 100 / 0.25, 6);
+  });
+
+  it('la misma deriva en una sesión el doble de larga es la mitad de tasa', () => {
+    const corta = [1, 2, 3].map((i) => km(5, 150, i)).concat([4, 5, 6].map((i) => km(5, 165, i)));
+    const larga = [1, 2, 3].map((i) => km(10, 150, i)).concat([4, 5, 6].map((i) => km(10, 165, i)));
+    expect(driftRatePerHour(larga)).toBeCloseTo(driftRatePerHour(corta) / 2, 6);
+  });
+
+  it('null cuando la deriva no se puede medir', () => {
+    expect(driftRatePerHour([])).toBeNull();
+    expect(driftRatePerHour(steady.slice(0, 2))).toBeNull();
+  });
+
+  it('sesión estable: tasa ~0, no una constante inventada', () => {
+    expect(driftRatePerHour(steady)).toBeCloseTo(0, 6);
   });
 });

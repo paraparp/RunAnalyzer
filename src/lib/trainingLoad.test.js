@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildLoadParams, sessionLoad, dailyLoad, computePMC,
-  estimateThresholdSpeed, activityDayKey, TRIMP_COEF,
+  estimateThresholdSpeed, activityDayKey, dayKey, monthKey, TRIMP_COEF,
 } from './trainingLoad';
 
 // Atleta de referencia: FCmax 190, FCrep 50, LTHR 170 → HRR umbral = 120/140 = 0.857
@@ -145,6 +145,22 @@ describe('fallbacks sin frecuencia cardiaca', () => {
     expect(load).toBeCloseTo(49, 6); // 1 h × 0.70² × 100
   });
 
+  it('prefiere el GAP MEDIDO por streams al del D+ de cabecera', () => {
+    // Misma sesión: la cabecera dice 14,4 km en 1 h con 720 m de D+ (la hipótesis
+    // de perfil ondulado la sube a bastante más de 4,0 m/s), pero el enriquecido
+    // midió el GAP muestra a muestra y ahí el terreno sale llano (14400 m en 3600 s
+    // equivalentes). La rama medida manda, así que la carga vuelve a ser la de llano.
+    const base = { moving_time: 3600, distance: 14400, average_speed: 4.0, total_elevation_gain: 720 };
+    const cabecera = sessionLoad(run(base), PARAMS).load;
+    const medida = sessionLoad(
+      run({ ...base, stream_gap: { _v: 1, distance_m: 14400, gap_time_s: 3600 } }),
+      PARAMS,
+    );
+    expect(medida.method).toBe('rtss');
+    expect(medida.load).toBeCloseTo(100, 6);
+    expect(medida.load).toBeLessThan(cabecera);
+  });
+
   it('una sesión sin tiempo no aporta carga', () => {
     expect(sessionLoad(run({ moving_time: 0, elapsed_time: 0 }), PARAMS).load).toBe(0);
   });
@@ -168,6 +184,16 @@ describe('estimateThresholdSpeed', () => {
     expect(v).toBeCloseTo(4.0, 2);
   });
 
+  it('usa el GAP medido también al estimar la velocidad umbral', () => {
+    const v = estimateThresholdSpeed([
+      run({
+        moving_time: 2400, distance: 9600, average_speed: 4.0,
+        stream_gap: { _v: 1, distance_m: 9600, gap_time_s: 2000 }, // medido: 4,8 m/s
+      }),
+    ]);
+    expect(v).toBeCloseTo(4.8, 2);
+  });
+
   it('devuelve null si no hay nada utilizable', () => {
     expect(estimateThresholdSpeed([])).toBe(null);
   });
@@ -179,6 +205,24 @@ describe('agregación diaria', () => {
     // start_date UTC podría caer en otro día. Manda la fecha local.
     const a = run({ start_date: '2026-05-11T01:30:00Z', start_date_local: '2026-05-10T23:30:00Z' });
     expect(activityDayKey(a)).toBe('2026-05-10');
+  });
+
+  it('dayKey y monthKey leen el calendario LOCAL, no el UTC', () => {
+    // 1 de junio a las 00:30 LOCAL: toISOString() lo fecharía el 31 de mayo en
+    // cualquier huso al este de Greenwich, cambiando de día Y de mes.
+    const d = new Date(2026, 5, 1, 0, 30);
+    expect(dayKey(d)).toBe('2026-06-01');
+    expect(monthKey(d)).toBe('2026-06');
+  });
+
+  it('monthKey rellena el mes a dos dígitos para que la clave ordene', () => {
+    expect(monthKey(new Date(2026, 0, 15))).toBe('2026-01');
+    expect(monthKey(new Date(2026, 8, 15)) < monthKey(new Date(2026, 9, 15))).toBe(true);
+  });
+
+  it('dayKey y monthKey devuelven null con fecha inválida', () => {
+    expect(dayKey('no-es-una-fecha')).toBeNull();
+    expect(monthKey('no-es-una-fecha')).toBeNull();
   });
 
   it('suma varias sesiones del mismo día', () => {
@@ -255,5 +299,16 @@ describe('computePMC', () => {
     ], { params: PARAMS, until: new Date(2026, 2, 31) });
     const dias = pmc.series.map((p) => p.date);
     expect(dias).toEqual(['2026-03-27', '2026-03-28', '2026-03-29', '2026-03-30', '2026-03-31']);
+  });
+});
+
+describe('dayKey con claves ya resueltas', () => {
+  it('devuelve intacta una fecha "YYYY-MM-DD" sin reinterpretarla en UTC', () => {
+    expect(dayKey('2026-08-30')).toBe('2026-08-30');
+    expect(dayKey('2026-01-01')).toBe('2026-01-01');
+  });
+
+  it('sigue resolviendo en local un timestamp completo', () => {
+    expect(dayKey(new Date(2026, 7, 30, 0, 30))).toBe('2026-08-30');
   });
 });

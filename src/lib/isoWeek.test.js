@@ -66,3 +66,25 @@ describe('weekStartFromIso', () => {
     }
   });
 });
+
+describe('claves de día "YYYY-MM-DD" (independencia del huso)', () => {
+  // `new Date('2026-08-30')` es medianoche UTC: al oeste de Greenwich caía en el
+  // día 29 y la actividad cambiaba de semana. Las claves de `dayKey`/
+  // `activityDayKey` deben resolverse en LOCAL, igual que el Date equivalente.
+  const days = ['2026-08-30', '2026-01-01', '2025-12-29', '2026-03-01'];
+
+  it('coincide con el Date local del mismo día', () => {
+    for (const day of days) {
+      const [y, m, d] = day.split('-').map(Number);
+      const local = new Date(y, m - 1, d, 23, 30);
+      expect(isoWeekKey(day)).toBe(isoWeekKey(local));
+      expect(weekStartKey(day)).toBe(weekStartKey(local));
+      expect(isoWeek(day)).toEqual(isoWeek(local));
+    }
+  });
+
+  it('un domingo por la noche pertenece a su propia semana', () => {
+    // 2026-08-30 es domingo: cierra la semana que empieza el lunes 24.
+    expect(weekStartKey('2026-08-30')).toBe('2026-08-24');
+  });
+});

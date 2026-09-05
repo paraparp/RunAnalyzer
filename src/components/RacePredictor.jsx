@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
@@ -13,69 +13,21 @@ import {
     Button,
     Callout
 } from "@tremor/react";
-import { CalculatorIcon, SparklesIcon, ExclamationTriangleIcon, FlagIcon } from "@heroicons/react/24/solid";
+import { SparklesIcon, FlagIcon } from "@heroicons/react/24/solid";
 import ModelSelector, { DEFAULT_GEMINI_MODEL } from './ModelSelector';
 import AIToolHeader from './AIToolHeader';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import NextRaceBanner from './NextRaceBanner';
 import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
-import { KM_BY_LABEL, LABEL_BY_KEY } from '../lib/raceDistances';
+import { LABEL_BY_KEY } from '../lib/raceDistances';
 import { formatDuration, formatPaceFromSecPerKm } from '../lib/timeFormat';
+import { predictRaces, applyCoachAdjustment } from '../lib/racePrediction';
 
-// Distancias oficiales por etiqueta canónica (lib/raceDistances es la tabla única).
-const RACE_KM = KM_BY_LABEL;
 const GOAL_KEY_TO_LABEL = LABEL_BY_KEY;
 const CONFIDENCE_COLOR = { Alta: 'emerald', Media: 'amber', Baja: 'rose' };
 
-// El esquema del servidor es permisivo (label es string libre, no enum), así que
-// el modelo puede devolver "media maraton", "HM", "21k"… Se mapea a la etiqueta
-// canónica antes de calcular; lo que no reconozca se descarta.
-const normalizeLabel = (raw) => {
-    const s = String(raw || '').toLowerCase().replace(/[·\-\s]/g, '');
-    if (/(^|[^0-9])5k|^5000m?$/.test(s)) return '5K';
-    if (/10k|10000m?/.test(s)) return '10K';
-    if (/(media|half|21k|21\.1|halfmarathon)/.test(s)) return 'Media Maratón';
-    if (/(marat|42k|42\.2|full)/.test(s)) return 'Maratón';
-    return null;
-};
-
-const normalizeConfidence = (raw) => {
-    const s = String(raw || '').toLowerCase();
-    if (s.startsWith('alt') || s.startsWith('hig')) return 'Alta';
-    if (s.startsWith('med')) return 'Media';
-    return 'Baja';
-};
-
-// Valida y deriva las predicciones del modelo: el ritmo se calcula SIEMPRE en
-// cliente (tiempo/distancia), se descartan tiempos implausibles y se detectan
-// inversiones de ritmo (una distancia larga "más rápida" que una corta).
-const normalizePredictions = (raw) => {
-    const seen = new Set();
-    const items = (raw || [])
-        .map(p => ({ ...p, _label: normalizeLabel(p?.label), _time: Number(p?.time_seconds) }))
-        .filter(p => p._label && Number.isFinite(p._time) && p._time > 0)
-        .filter(p => !seen.has(p._label) && seen.add(p._label))
-        .map(p => {
-            const km = RACE_KM[p._label];
-            return {
-                label: p._label,
-                km,
-                confidence: normalizeConfidence(p.confidence),
-                rationale: p.rationale || '',
-                timeSeconds: Math.round(p._time),
-                paceSec: p._time / km,
-            };
-        })
-        // 2:30–12:00 min/km: fuera de ahí es una alucinación, no una predicción.
-        .filter(p => p.paceSec >= 150 && p.paceSec <= 720)
-        .sort((a, b) => a.km - b.km);
-
-    let inconsistent = false;
-    for (let i = 1; i < items.length; i++) {
-        if (items[i].paceSec < items[i - 1].paceSec - 1) inconsistent = true;
-    }
-    return { items, inconsistent };
-};
+// Nombre corto de cada modelo, para que la tarjeta diga de dónde sale el número.
+const MODEL_LABEL = { vdot: 'VDOT', cs: 'CS/D′', riegel: 'Riegel' };
 
 const RacePredictor = ({ activities }) => {
     const [selectedModel, setSelectedModel] = useState(
@@ -86,11 +38,21 @@ const RacePredictor = ({ activities }) => {
     const abortRef = useRef(null);
     useEffect(() => () => abortRef.current?.abort(), []);
     const [loading, setLoading] = useState(false);
-    const [predictions, setPredictions] = useState(null);
-    const [inconsistent, setInconsistent] = useState(false);
-    const [generatedAt, setGeneratedAt] = useState(null);
     const [error, setError] = useState('');
-    const [analysis, setAnalysis] = useState('');
+
+    // Predicción DETERMINISTA: VDOT sobre la curva mean-max + velocidad crítica
+    // dentro de su ventana + Riegel con exponente ajustado al atleta. Se calcula
+    // sin pedirle nada a nadie, así que está lista al abrir la pestaña.
+    const model = useMemo(() => predictRaces(activities || []), [activities]);
+
+    // El ajuste y la redacción de la IA se guardan JUNTO AL modelo que los
+    // originó: si el histórico cambia, el ajuste deja de aplicarse por sí solo y
+    // se vuelve a los números calculados, sin un efecto que resetee estado.
+    const [coach, setCoach] = useState(null);
+    const applied = coach?.forModel === model ? coach : null;
+    const predictions = applied?.items || model.items;
+    const analysis = applied?.analysis || '';
+    const generatedAt = applied?.at || null;
 
     // Próxima carrera objetivo (gestionada en la sección "Carreras objetivo").
     // Si existe, se inyecta en el prompt para evaluar la viabilidad del objetivo.
@@ -116,22 +78,9 @@ const RacePredictor = ({ activities }) => {
         }
     };
 
-    const generateAIPrediction = async () => {
+    const generateAIAnalysis = async () => {
         setLoading(true);
         setError('');
-        setPredictions(null);
-        setInconsistent(false);
-
-        // Mínimo real de datos: antes se medía la LONGITUD DEL STRING del log
-        // (una sola carrera ya pasaba); ahora se cuentan carreras de verdad.
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const recentCount = (activities || []).filter(a => new Date(a.start_date) >= threeMonthsAgo).length;
-        if (recentCount < 5) {
-            setError(`Solo hay ${recentCount} carrera(s) en los últimos 3 meses; se necesitan al menos 5 para una predicción fiable.`);
-            setLoading(false);
-            return;
-        }
 
         const richContext = buildRaceContext();
 
@@ -146,25 +95,31 @@ const RacePredictor = ({ activities }) => {
                 `. En "analysis" indica explícitamente si su forma actual lo pone en camino de lograr ese objetivo y, si no, qué le falta (ritmo, volumen, semanas de trabajo).`;
         }
 
+        const anchor = model.anchor;
+        const computedBlock = model.items.map((p) => {
+            const from = Object.keys(p.models).map((k) => MODEL_LABEL[k]).join(' + ');
+            return `- ${p.label}: ${p.timeSeconds} s (${formatDuration(p.timeSeconds)}, ${formatPaceFromSecPerKm(p.paceSec)}/km) — modelos: ${from}; confianza ${p.confidence}`;
+        }).join('\n');
+
         try {
             const prompt = `Actúa como un experto fisiólogo deportivo y entrenador de running que aplica ciencia validada (modelo PMC de Banister CTL/ATL/TSB, ratio agudo:crónico de Gabbett, umbral de lactato).
-Analiza el siguiente contexto del corredor (datos científicos: carga de entrenamiento, ACWR, zonas de FC, ritmos de referencia, marcas personales, distribución polarizada, wearable):
+
+PREDICCIONES YA CALCULADAS (no las recalcules: salen de modelos deterministas ajustados sobre el histórico real de este corredor — VDOT de Daniels sobre su curva de mejores esfuerzos, velocidad crítica CS/D′ dentro de su ventana de validez, y Riegel con exponente ${model.riegel?.exponent?.toFixed(3) || '1.060'} ajustado a sus propias marcas):
+
+${computedBlock}
+
+ANCLAJE: ${anchor ? `mejor esfuerzo de ${(anchor.distance_m / 1000).toFixed(1)} km en ${formatDuration(anchor.time_s)} (${anchor.date}), VDOT ${model.vdot}` : 'sin ancla'}.
+
+CONTEXTO DEL CORREDOR (carga de entrenamiento, ACWR, zonas de FC, ritmos de referencia, marcas personales, distribución polarizada, wearable):
 
 ${richContext}
 
 TAREA:
-Devuelve exactamente 4 predicciones (5K, 10K, Media Maratón, Maratón) con el tiempo total en SEGUNDOS en "time_seconds". Son sus marcas potenciales REALISTAS ACTUALES (si compitiera hoy, EN LLANO), no la mejor marca teórica.
-
-MÉTODO (aplícalo en este orden antes de responder):
-1. ANCLAJE: identifica la marca personal o el mejor esfuerzo sostenido más reciente y fiable del contexto (distancia, tiempo, ritmo). Corrige por desnivel: ritmos corridos con +m de desnivel equivalen a un ritmo más rápido en llano (GAP).
-2. EXTRAPOLACIÓN: proyecta a las demás distancias con Riegel: T2 = T1 × (D2/D1)^1.06.
-3. AJUSTE: corrige por forma actual (CTL/TSB), volumen semanal y frecuencia. Si el volumen es insuficiente para la distancia (p. ej. maratón sin tiradas largas), penaliza claramente la predicción y dilo en "rationale".
-4. VERIFICACIÓN: el ritmo implícito (time_seconds ÷ km) debe ser estrictamente más lento cuanto mayor la distancia (5K < 10K < Media < Maratón). Si no se cumple, corrígelo antes de responder.
-
-REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
-- Una predicción NO puede ser más rápida que la marca personal de esa distancia salvo mejora clara y reciente del umbral o de la forma; si ocurre, justifícalo en "rationale".
-- Confianza "Alta" solo con esfuerzos o marcas recientes cerca de esa distancia; "Media" si extrapolas moderadamente; "Baja" si extrapolas lejos del historial.
-- "rationale" (máx 15 palabras): anclaje usado y ajuste aplicado, p. ej. "PB 10K 42:30 reciente + Riegel, penalizado por bajo volumen".${goalBlock}`;
+Devuelve las mismas ${model.items.length} distancias con:
+1. "time_seconds": el tiempo calculado arriba AJUSTADO por contexto (forma actual CTL/TSB, volumen semanal, especificidad, calor). El ajuste no puede pasar del 8 % en ninguna dirección: si crees que hace falta más, dilo en "analysis" pero no lo apliques. Si el contexto no aporta nada, devuelve el tiempo tal cual.
+2. "rationale" (máx 15 palabras): QUÉ ajuste has aplicado y por qué, p. ej. "sin tiradas largas: +6 % en maratón" o "sin cambios: volumen acorde".
+3. "confidence": repite la confianza indicada arriba; está medida sobre los datos.
+4. "analysis" (máx 60 palabras): estado de forma y, si falta volumen o especificidad para alguna distancia, dilo.${goalBlock}`;
 
             abortRef.current?.abort();
             const controller = new AbortController();
@@ -178,19 +133,17 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                 signal: controller.signal,
             });
 
-            const { items, inconsistent: hasInversion } = normalizePredictions(object.predictions);
-            if (items.length === 0) {
-                throw new Error('la IA devolvió tiempos fuera de rango; vuelve a intentarlo o cambia de modelo');
-            }
-            setPredictions(items);
-            setInconsistent(hasInversion);
-            setAnalysis(object.analysis);
-            setGeneratedAt(new Date());
+            setCoach({
+                forModel: model,
+                items: applyCoachAdjustment(model.items, object.predictions),
+                analysis: object.analysis,
+                at: new Date(),
+            });
             setLoading(false);
 
         } catch (err) {
             if (err?.name === 'AbortError') return; // desmontado o cancelado
-            console.error("Error generando predicción:", err);
+            console.error("Error generando análisis:", err);
 
             let errorMessage = err.message || "Error desconocido";
             if (errorMessage.includes('404') || errorMessage.includes('401')) {
@@ -198,7 +151,7 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
             } else if (errorMessage.includes('429')) {
                 errorMessage = "Has excedido la cuota (429) en Gemini y Groq. Prueba otro modelo o inténtalo más tarde.";
             } else {
-                errorMessage = `Error generando predicción: ${errorMessage}.`;
+                errorMessage = `Error generando el análisis: ${errorMessage}.`;
             }
 
             setError(errorMessage);
@@ -209,18 +162,19 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
     // Comparación con el objetivo guardado: solo aplica a la tarjeta de esa distancia.
     const goalForPrediction = (pred) => {
         if (!nextRace || nextRace.goalTimeMin == null) return null;
-        if (GOAL_KEY_TO_LABEL[nextRace.distance] !== pred.label) return null;
+        if (nextRace.distance !== pred.key) return null;
         const goalSec = nextRace.goalTimeMin * 60;
         const delta = pred.timeSeconds - goalSec; // >0: forma actual más lenta que el objetivo
         return { goalSec, delta };
     };
 
-    const maxPace = predictions ? Math.max(...predictions.map(p => p.paceSec)) : 0;
+    const maxPace = predictions.length ? Math.max(...predictions.map(p => p.paceSec)) : 0;
+    const anchor = model.anchor;
 
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <AIToolHeader title="Predictor Biométrico AI" subtitle="Predice tus marcas potenciales en carrera">
+            <AIToolHeader title="Predictor de Marcas" subtitle="Marcas potenciales actuales, calculadas sobre tus propios esfuerzos">
                 <ModelSelector
                     selectedModel={selectedModel}
                     setSelectedModel={setSelectedModel}
@@ -232,41 +186,22 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
             {/* Próxima carrera objetivo */}
             <NextRaceBanner />
 
-            {/* Generate Button */}
-            {!predictions && !loading && (
+            {predictions.length === 0 && (
                 <Card className="p-8 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
                     <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
                         <span className="text-4xl block mb-3">🎯</span>
                         <Text className="text-slate-500 dark:text-slate-400 mb-2">
-                            Analiza tu historial con IA para estimar tus marcas actuales en llano (5K a Maratón).
+                            Aún no se puede predecir: {model.reason || 'faltan esfuerzos máximos en el histórico'}.
                         </Text>
-                        <Text className="text-xs text-slate-400 dark:text-slate-500 mb-6">
-                            Anclada a tus marcas personales y umbral, extrapolada con Riegel y ajustada por tu forma (CTL/TSB).
+                        <Text className="text-xs text-slate-400 dark:text-slate-500">
+                            La predicción se ancla en tu mejor esfuerzo sostenido (de 3,5 min a 3,8 h) del último año.
                         </Text>
-                        <Button size="xl" onClick={generateAIPrediction} icon={CalculatorIcon} disabled={loading} color="blue">
-                            Generar Predicción Inteligente
-                        </Button>
-                        {error && <Callout title="Error" color="rose" className="mt-6 text-left">{error}</Callout>}
-                    </div>
-                </Card>
-            )}
-
-            {loading && (
-                <Card className="p-8 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
-                    <div className="text-center py-8">
-                        <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                        <Text className="text-slate-600 dark:text-slate-300 font-medium">Analizando marcas, umbral y forma actual (CTL/TSB)...</Text>
-                        <Grid numItems={2} numItemsSm={4} className="gap-3 mt-8">
-                            {['5K', '10K', 'Media', 'Maratón'].map(d => (
-                                <div key={d} className="h-24 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                            ))}
-                        </Grid>
                     </div>
                 </Card>
             )}
 
             {/* Results Grid */}
-            {predictions && (
+            {predictions.length > 0 && (
                 <div className="space-y-6 fade-in">
                     {analysis && (
                         <Callout title="Análisis del Entrenador AI" icon={SparklesIcon} color="blue">
@@ -274,18 +209,14 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                         </Callout>
                     )}
 
-                    {inconsistent && (
-                        <Callout title="Predicción poco consistente" icon={ExclamationTriangleIcon} color="amber">
-                            Los ritmos entre distancias no siguen la progresión esperada (una distancia larga sale más rápida que una corta). Considera recalcular o cambiar de modelo.
-                        </Callout>
-                    )}
+                    {error && <Callout title="Error" color="rose">{error}</Callout>}
 
                     <Grid numItems={1} numItemsSm={2} numItemsLg={4} className="gap-4">
                         {predictions.map((pred) => {
                             const goal = goalForPrediction(pred);
                             return (
                                 <Card
-                                    key={pred.label}
+                                    key={pred.key}
                                     decoration="top"
                                     decorationColor={CONFIDENCE_COLOR[pred.confidence]}
                                     className="p-4 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900"
@@ -296,6 +227,11 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                                     </Flex>
                                     <Metric className="mt-2 text-slate-900 dark:text-slate-50">{formatDuration(pred.timeSeconds)}</Metric>
                                     <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
+                                    <Text className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                        {Object.keys(pred.models).map(k => MODEL_LABEL[k]).join(' · ')}
+                                        {pred.baseTimeSeconds != null && pred.baseTimeSeconds !== pred.timeSeconds &&
+                                            ` · ajustado desde ${formatDuration(pred.baseTimeSeconds)}`}
+                                    </Text>
                                     {pred.rationale && (
                                         <Text className="text-xs text-slate-400 dark:text-slate-500 mt-2 leading-snug">{pred.rationale}</Text>
                                     )}
@@ -318,7 +254,7 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                         <Title className="text-lg font-semibold text-slate-900 dark:text-slate-100">Comparativa de Ritmos (min/km)</Title>
                         <div className="mt-4 space-y-3">
                             {predictions.map((p) => (
-                                <div key={p.label} className="flex items-center gap-3">
+                                <div key={p.key} className="flex items-center gap-3">
                                     <span className="w-28 shrink-0 text-sm font-medium text-slate-600 dark:text-slate-300">{p.label}</span>
                                     <div className="flex-1 h-6 rounded-md bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                         <div
@@ -332,13 +268,35 @@ REGLAS DE FIABILIDAD (la fiabilidad importa más que el optimismo):
                         </div>
                     </Card>
 
+                    {/* Procedencia: de dónde sale cada número, para que sea auditable. */}
+                    <Card className="p-4 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
+                        <Text className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Cómo se ha calculado</Text>
+                        <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-1 leading-relaxed">
+                            {anchor && (
+                                <li>
+                                    <span className="font-medium">Anclaje</span>: {(anchor.distance_m / 1000).toFixed(1)} km en {formatDuration(anchor.time_s)} ({anchor.date}) → VDOT {model.vdot}
+                                </li>
+                            )}
+                            {model.cs && (
+                                <li>
+                                    <span className="font-medium">Velocidad crítica</span>: {formatPaceFromSecPerKm(model.cs.cs_pace_min_km * 60)}/km, D′ {Math.round(model.cs.d_prime_m)} m (R² {model.cs.r2.toFixed(3)}, n={model.cs.n}) — solo se usa hasta 30 min
+                                </li>
+                            )}
+                            {model.riegel && (
+                                <li>
+                                    <span className="font-medium">Riegel</span>: exponente {model.riegel.exponent.toFixed(3)} {model.riegel.fitted ? `ajustado a tus marcas (n=${model.riegel.n})` : '(clásico: no hay marcas suficientes para individualizarlo)'}
+                                </li>
+                            )}
+                        </ul>
+                    </Card>
+
                     <Flex justifyContent="between" alignItems="center" className="flex-wrap gap-2">
                         <Text className="text-xs text-slate-400 dark:text-slate-500">
-                            {generatedAt && `Generado a las ${generatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · `}
-                            Estimación orientativa; no sustituye un test de campo.
+                            {generatedAt && `Análisis de las ${generatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · `}
+                            Estimación en llano; no sustituye un test de campo.
                         </Text>
-                        <Button variant="secondary" onClick={generateAIPrediction} color="blue" disabled={loading}>
-                            Recalcular Predicción
+                        <Button variant="secondary" onClick={generateAIAnalysis} color="blue" disabled={loading} icon={SparklesIcon}>
+                            {loading ? 'Analizando…' : analysis ? 'Recalcular análisis' : 'Ajustar y analizar con IA'}
                         </Button>
                     </Flex>
                 </div>

@@ -80,7 +80,7 @@
 // Extensiones explícitas: este módulo lo importa también `api/_lib/mcp-store.js`,
 // que corre en Node ESM (sin bundler) y ahí un import extensionless no resuelve.
 import { detectMaxHR, detectRestHR, estimateLTHR, DEFAULT_REST_HR } from './hrZones.js';
-import { gapSpeedFromGain } from './gap.js';
+import { activityGapSpeed } from './streamGap.js';
 
 // ── Constantes del modelo ────────────────────────────────────────────────────
 
@@ -121,9 +121,27 @@ const MIN_SPLIT_HR = 60;
  * cambios de horario; aquí se avanza con setDate sobre una fecha local.
  */
 export function dayKey(date) {
+  // Un string "YYYY-MM-DD" ya ES la clave: parsearlo lo llevaría a medianoche
+  // UTC y al oeste de Greenwich devolvería el día anterior.
+  if (typeof date === 'string') {
+    const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return date;
+  }
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return null;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Clave de mes LOCAL (YYYY-MM). Misma razón que `dayKey`: los cuatro sitios que
+ * agrupaban por mes lo construían inline y alguno lo sacaba de `toISOString()`,
+ * que en husos al este de Greenwich mete la actividad del día 1 a primera hora
+ * en el mes anterior.
+ */
+export function monthKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /** Día local de una actividad, preferiendo la hora local de Strava. */
@@ -143,14 +161,11 @@ const keyToDate = (key) => {
 
 // ── Ajuste por pendiente ─────────────────────────────────────────────────────
 // El modelo vive en lib/gap (Minetti amortiguado), compartido con la tabla del
-// dashboard, los parciales y el backend. Aquí solo se conoce el D+ acumulado de la
-// actividad, así que se usa la variante de perfil ondulado.
-
-/** Velocidad equivalente en llano (m/s) a partir del D+ acumulado. */
-function gradeAdjustedSpeed(speedMs, distanceM, elevGainM) {
-  if (!(speedMs > 0)) return null;
-  return gapSpeedFromGain(speedMs, distanceM, elevGainM);
-}
+// dashboard, los parciales y el backend. La elección de fuente —GAP MEDIDO sobre
+// los streams si la actividad viene enriquecida, hipótesis de perfil ondulado
+// sobre el D+ de cabecera si no— se toma en un solo sitio, `activityGapSpeed`:
+// aquí se le pasa la actividad entera, no sus tres números sueltos, para que el
+// TSS y la tabla del dashboard no puedan dar dos GAP distintos de la misma sesión.
 
 // ── Calibración ──────────────────────────────────────────────────────────────
 
@@ -168,7 +183,7 @@ export function estimateThresholdSpeed(activities) {
     if (t < 25 * 60 || t > 70 * 60 || d <= 0) continue;
     const elev = a.total_elevation_gain || 0;
     if (elev / d > 0.02) continue; // demasiada pendiente para comparar ritmos
-    const v = gradeAdjustedSpeed(a.average_speed || d / t, d, elev);
+    const v = activityGapSpeed(a);
     if (v > best) best = v;
   }
   return best > 0 ? best : null;
@@ -261,9 +276,7 @@ export function sessionLoad(a, params) {
   // 3) Sin FC: TSS por ritmo (Coggan) — duración_h · IF² · 100.
   const distance = a.distance || 0;
   if (params.thresholdSpeed > 0 && distance > 0) {
-    const speed = gradeAdjustedSpeed(
-      a.average_speed || distance / seconds, distance, a.total_elevation_gain || 0,
-    );
+    const speed = activityGapSpeed(a);
     if (speed > 0) {
       // IF acotado: un GPS con deriva puede fabricar un 3:00/km imposible.
       const intensity = Math.min(1.3, speed / params.thresholdSpeed);

@@ -12,14 +12,119 @@ import {
 } from '@heroicons/react/24/outline';
 import { computePMC, dayKey, activityDayKey } from '../lib/trainingLoad';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { monthShort } from '../lib/monthLabels';
 
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 // Devuelven null (no un marcador) a propósito: aquí la tarjeta omite la línea
 // entera cuando no hay dato, en vez de pintar un hueco.
 const fmtDur = (secs) => formatDurationHm(secs, null);
 const fmtPace = (speed) => formatPaceFromSpeed(speed, null);
+
+// ── Tooltips ─────────────────────────────────────────────────────────────────
+// Definidos fuera del componente: declarados dentro del render serían un tipo nuevo
+// en cada render y Recharts remontaría el subárbol del tooltip entero.
+function PMCTooltip({ active, payload, label }) {
+  const { i18n } = useTranslation();
+  const es = i18n.language.startsWith('es');
+  if (!active || !payload?.length) return null;
+  const day  = payload[0]?.payload;
+  const acts = day?.acts || [];
+  const date = new Date(label);
+  const dateFmt = !isNaN(date) ? date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }) : label;
+
+  // Only show ATL and CTL lines (skip load bar entry)
+  const lines = payload.filter(e => e.dataKey === 'Fatiga' || e.dataKey === 'Fitness');
+
+  return (
+    <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden min-w-[240px] max-w-[290px]">
+      <div className="px-4 pt-3 pb-2 bg-slate-50 border-b border-slate-100">
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{dateFmt}</p>
+      </div>
+      <div className="px-4 py-2.5 space-y-1.5">
+        {day?.load > 0 && (
+          <div className="flex justify-between items-center">
+            <span className="text-[11px] text-slate-400 font-medium">{es ? 'Carga' : 'Load'}</span>
+            <span className="text-[12px] font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
+          </div>
+        )}
+        {lines.map((e, i) => (
+          <div key={i} className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.stroke }} />
+              <span className="text-[12px] font-semibold text-slate-600">{e.name}</span>
+            </div>
+            <span className="text-[13px] font-black tabular-nums" style={{ color: e.stroke }}>{e.value}</span>
+          </div>
+        ))}
+        {day?.Forma != null && (
+          <div className="flex justify-between items-center gap-4 pt-1 border-t border-slate-100 mt-1">
+            <span className="text-[11px] font-semibold text-slate-500">TSB / {es ? 'Forma' : 'Form'}</span>
+            <span className={`text-[13px] font-black tabular-nums ${day.Forma > 5 ? 'text-emerald-600' : day.Forma < -10 ? 'text-rose-600' : 'text-slate-700'}`}>
+              {day.Forma > 0 ? '+' : ''}{day.Forma}
+            </span>
+          </div>
+        )}
+      </div>
+      {acts.length > 0 && (
+        <div className="border-t border-slate-100 px-4 py-2.5">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{es ? 'Actividades' : 'Activities'}</p>
+          <div className="space-y-2.5">
+            {acts.map((a, i) => (
+              <div key={i}>
+                <div className="flex justify-between items-baseline gap-2">
+                  <span className="text-[12px] font-bold text-slate-800 truncate">{a.name}</span>
+                  <span className="text-[11px] text-slate-400 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                  {fmtDur(a.moving_time)    && <span className="text-[10px] text-slate-400">⏱ {fmtDur(a.moving_time)}</span>}
+                  {fmtPace(a.average_speed) && <span className="text-[10px] text-slate-400">⚡ {fmtPace(a.average_speed)}/km</span>}
+                  {a.average_heartrate      && <span className="text-[10px] text-slate-400">❤️ {Math.round(a.average_heartrate)} bpm</span>}
+                  {a.suffer_score           && <span className="text-[10px] text-slate-400">🔥 SS: {a.suffer_score}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeeklyTooltip({ active, payload, label }) {
+  const { t, i18n } = useTranslation();
+  const es = i18n.language.startsWith('es');
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  return (
+    <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl">
+      <p className="text-[11px] font-semibold text-slate-500 mb-1">{es ? 'Semana' : 'Week'} {label}</p>
+      <p className="text-sm font-bold text-slate-900">{es ? 'Carga' : 'Load'}: {d?.Carga}</p>
+      <p className="text-xs text-slate-500">{d?.Sesiones} {t('vo2.sessions')}</p>
+    </div>
+  );
+}
+
+function ScatterTooltip({ active, payload }) {
+  const { i18n } = useTranslation();
+  const es = i18n.language.startsWith('es');
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  const paceFmt = formatPaceFromMinPerKm(d.pace);
+  return (
+    <div className="bg-white/95 p-4 border border-slate-200 shadow-xl rounded-xl min-w-[200px]">
+      <p className="font-bold text-slate-800 text-sm mb-2">{d.name}</p>
+      <div className="space-y-1">
+        <p className="text-xs text-slate-500">{es ? 'Fecha' : 'Date'}: <span className="font-bold text-slate-900">{d.dateStrFmt}</span></p>
+        <p className="text-xs text-slate-500">CTL: <span className="font-bold text-slate-900">{d.Fitness}</span></p>
+        <p className="text-xs text-slate-500">TSB: <span className={`font-bold ${d.Forma > 5 ? 'text-emerald-600' : d.Forma < -10 ? 'text-rose-600' : 'text-slate-900'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
+        <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
+        <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
+      </div>
+      <p className="text-[10px] text-slate-400 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
+    </div>
+  );
+}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function FitnessFatigue({ activities }) {
@@ -162,102 +267,6 @@ export default function FitnessFatigue({ activities }) {
     return          { label: t('fitness.acwr_status.danger'),    desc: t('fitness.acwr_status.danger_desc'),    color: 'rose',    risk: t('fitness.risk.high') };
   }, [current, t]);
 
-  // ── 6. Tooltips ──────────────────────────────────────────────────────────────
-  const PMCTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    const day  = payload[0]?.payload;
-    const acts = day?.acts || [];
-    const date = new Date(label);
-    const dateFmt = !isNaN(date) ? date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }) : label;
-
-    // Only show ATL and CTL lines (skip load bar entry)
-    const lines = payload.filter(e => e.dataKey === 'Fatiga' || e.dataKey === 'Fitness');
-
-    return (
-      <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden min-w-[240px] max-w-[290px]">
-        <div className="px-4 pt-3 pb-2 bg-slate-50 border-b border-slate-100">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{dateFmt}</p>
-        </div>
-        <div className="px-4 py-2.5 space-y-1.5">
-          {day?.load > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-[11px] text-slate-400 font-medium">{es ? 'Carga' : 'Load'}</span>
-              <span className="text-[12px] font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
-            </div>
-          )}
-          {lines.map((e, i) => (
-            <div key={i} className="flex justify-between items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.stroke }} />
-                <span className="text-[12px] font-semibold text-slate-600">{e.name}</span>
-              </div>
-              <span className="text-[13px] font-black tabular-nums" style={{ color: e.stroke }}>{e.value}</span>
-            </div>
-          ))}
-          {day?.Forma != null && (
-            <div className="flex justify-between items-center gap-4 pt-1 border-t border-slate-100 mt-1">
-              <span className="text-[11px] font-semibold text-slate-500">TSB / {es ? 'Forma' : 'Form'}</span>
-              <span className={`text-[13px] font-black tabular-nums ${day.Forma > 5 ? 'text-emerald-600' : day.Forma < -10 ? 'text-rose-600' : 'text-slate-700'}`}>
-                {day.Forma > 0 ? '+' : ''}{day.Forma}
-              </span>
-            </div>
-          )}
-        </div>
-        {acts.length > 0 && (
-          <div className="border-t border-slate-100 px-4 py-2.5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{es ? 'Actividades' : 'Activities'}</p>
-            <div className="space-y-2.5">
-              {acts.map((a, i) => (
-                <div key={i}>
-                  <div className="flex justify-between items-baseline gap-2">
-                    <span className="text-[12px] font-bold text-slate-800 truncate">{a.name}</span>
-                    <span className="text-[11px] text-slate-400 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                    {fmtDur(a.moving_time)    && <span className="text-[10px] text-slate-400">⏱ {fmtDur(a.moving_time)}</span>}
-                    {fmtPace(a.average_speed) && <span className="text-[10px] text-slate-400">⚡ {fmtPace(a.average_speed)}/km</span>}
-                    {a.average_heartrate      && <span className="text-[10px] text-slate-400">❤️ {Math.round(a.average_heartrate)} bpm</span>}
-                    {a.suffer_score           && <span className="text-[10px] text-slate-400">🔥 SS: {a.suffer_score}</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const WeeklyTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0]?.payload;
-    return (
-      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl">
-        <p className="text-[11px] font-semibold text-slate-500 mb-1">{es ? 'Semana' : 'Week'} {label}</p>
-        <p className="text-sm font-bold text-slate-900">{es ? 'Carga' : 'Load'}: {d?.Carga}</p>
-        <p className="text-xs text-slate-500">{d?.Sesiones} {t('vo2.sessions')}</p>
-      </div>
-    );
-  };
-
-  const ScatterTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
-    const paceFmt = formatPaceFromMinPerKm(d.pace);
-    return (
-      <div className="bg-white/95 p-4 border border-slate-200 shadow-xl rounded-xl min-w-[200px]">
-        <p className="font-bold text-slate-800 text-sm mb-2">{d.name}</p>
-        <div className="space-y-1">
-          <p className="text-xs text-slate-500">{es ? 'Fecha' : 'Date'}: <span className="font-bold text-slate-900">{d.dateStrFmt}</span></p>
-          <p className="text-xs text-slate-500">CTL: <span className="font-bold text-slate-900">{d.Fitness}</span></p>
-          <p className="text-xs text-slate-500">TSB: <span className={`font-bold ${d.Forma > 5 ? 'text-emerald-600' : d.Forma < -10 ? 'text-rose-600' : 'text-slate-900'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
-          <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
-          <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
-        </div>
-        <p className="text-[10px] text-slate-400 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
-      </div>
-    );
-  };
 
   // ── No data ──────────────────────────────────────────────────────────────────
   if (!current) {
@@ -269,6 +278,7 @@ export default function FitnessFatigue({ activities }) {
     );
   }
 
+  const MONTH_SHORT = monthShort(i18n.language);
   const xTickFormatter = v => {
     const d = new Date(v);
     return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;

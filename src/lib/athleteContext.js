@@ -1,18 +1,19 @@
-import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT } from './lactateThreshold';
+import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT, LT_MONTHS } from './lactateThreshold';
 import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from './hrZones';
 import { computePMC as computePmcSeries, sessionLoad, buildLoadParams } from './trainingLoad';
 import { DISTANCE_KM } from './raceDistances';
+import { formatPaceFromMinPerKm, formatPaceFromSecPerKm, formatDuration } from './timeFormat';
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// M:SS desde min/km decimal, redondeando sobre segundos TOTALES: el patrón
-// `Math.round((p % 1) * 60)` produce "5:60" cuando los decimales rozan el minuto.
-const fmtMinKm = (minPerKm) => {
-  const t = Math.round(minPerKm * 60);
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-};
+// Los formateadores de tiempo/ritmo son los de `timeFormat.js`; aquí no se
+// reimplementan. Nota sobre el marcador: fuera de PACE_LIMITS (2–30 min/km) el
+// módulo devuelve '--:--' en vez de un número. En un prompt eso es lo que se
+// quiere —un ritmo imposible como ancla es peor que decir que no hay dato—, y por
+// eso el ritmo medio de referencia usa `null` como fallback: así el generador cae
+// a su rama de "no disponible" en vez de meter texto roto en el contexto.
 
 /**
  * PMC redondeado para el prompt. La matemática vive en `lib/trainingLoad.js`
@@ -117,11 +118,7 @@ export const buildPlainActivityLog = (activities) => {
       const min = ((a.moving_time || 0) / 60).toFixed(1);
       // Ritmo en M:SS/km — el formato decimal (5.32) se presta a leerse como 5:32.
       const pace = a.distance > 0 && a.moving_time > 0
-        ? (() => {
-            // Redondeo sobre los segundos totales para no producir "4:60".
-            const total = Math.round(a.moving_time / (a.distance / 1000));
-            return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')} min/km`;
-          })()
+        ? `${formatPaceFromSecPerKm(a.moving_time / (a.distance / 1000), 'n/d')} min/km`
         : 'ritmo n/d';
       const date = new Date(a.start_date).toLocaleDateString('es-ES');
       const hr = a.average_heartrate ? `FC media: ${Math.round(a.average_heartrate)}ppm` : 'sin FC';
@@ -156,19 +153,14 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     { id: 'Media maratón', min: 21000, max: 21500 },
     { id: 'Maratón', min: 42000, max: 43000 },
   ];
-  const fmtPbTime = (s) => {
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.round(s % 60);
-    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${x.toString().padStart(2, '0')}` : `${m}:${x.toString().padStart(2, '0')}`;
-  };
   const pbLines = PB_RANGES.map(r => {
     const best = activities
       .filter(a => isRunning(a) && a.distance >= r.min && a.distance <= r.max && (a.elapsed_time || a.moving_time) > 0)
       .sort((a, b) => (a.elapsed_time || a.moving_time) / a.distance - (b.elapsed_time || b.moving_time) / b.distance)[0];
     if (!best) return null;
     const t = best.elapsed_time || best.moving_time;
-    const pace = t / (best.distance / 1000);
-    const pm = Math.floor(pace / 60), ps = Math.round(pace % 60).toString().padStart(2, '0');
-    return `${r.id}: ${fmtPbTime(t)} @${pm}:${ps}/km (${new Date(best.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })})`;
+    const pace = formatPaceFromSecPerKm(t / (best.distance / 1000));
+    return `${r.id}: ${formatDuration(t)} @${pace}/km (${new Date(best.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })})`;
   }).filter(Boolean);
   const pbSection = pbLines.length ? pbLines.join('\n') : null;
 
@@ -187,7 +179,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     let extra;
     if (goal.pace && /^\d{1,2}:\d{2}$/.test(goal.pace.trim())) {
       const [pm, ps] = goal.pace.trim().split(':').map(Number);
-      const finish = fmtPbTime(Math.round((pm * 60 + ps) * km));
+      const finish = formatDuration(Math.round((pm * 60 + ps) * km));
       extra = ` con RITMO OBJETIVO ${goal.pace.trim()}/km (tiempo meta ≈ ${finish})`;
     } else {
       extra = ' (sin ritmo objetivo fijado: propón uno realista según mis marcas personales y mi forma actual)';
@@ -246,7 +238,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const loadDelta = prevKm > 0 ? ((recentKm - prevKm) / prevKm * 100).toFixed(0) : null;
 
   const recentMin = recentRuns.reduce((s, a) => s + (a.moving_time || 0) / 60, 0);
-  const avgPace = recentKm > 0 ? fmtMinKm(recentMin / recentKm) : null;
+  const avgPace = recentKm > 0 ? formatPaceFromMinPerKm(recentMin / recentKm, null) : null;
   const withHR = recentRuns.filter(a => a.average_heartrate);
   const avgHR = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
@@ -256,18 +248,26 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const restDet = detectRestHR(garminData);
   const fcRest  = restDet.value;
 
+  // ── Modelo de lactato (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold).
+  // Se calcula ANTES que el LTHR porque su LT2 de campo (la FC medida al ritmo de
+  // la velocidad crítica) es el ancla preferente del umbral: así el coach IA, la
+  // pestaña de Zonas y la de Umbral de Lactato dan UN solo número. Ver B3 en
+  // docs/AUDITORIA_DUPLICACION.md.
+  const lt = computeLactateModel(activities, LT_MONTHS, { hrrest: fcRest });
+
   // LTHR sobre los últimos 2 meses (estado de forma actual). minFieldRuns=2:
   // para el prompt del coach aceptamos algo menos de evidencia que en la UI.
-  const ltDet = detectLTHR(twoMonthActs, fcmax, { minFieldRuns: 2 });
+  const ltDet = detectLTHR(twoMonthActs, fcmax, { minFieldRuns: 2, csLt2: lt?.fieldLt2 });
   const lthr = ltDet.lthr ?? estimateLTHR(fcmax);
   const lthrMethod = {
+    cs:      `FC medida a ritmo de velocidad crítica (${ltDet.n} tramos)`,
     segment: `segmentos (${ltDet.n} bloques umbral sostenidos en los parciales de tus carreras)`,
     field:   `campo (${ltDet.n} esfuerzos umbral detectados)`,
     race:    `competición (p75 de ${ltDet.n} carrera(s) × 0.97)`,
     formula: 'Friel approx (87.5% FCmax)',
     none:    'Friel approx (87.5% FCmax)',
   }[ltDet.method];
-  const lthrIsEstimate = !['segment', 'field'].includes(ltDet.method);
+  const lthrIsEstimate = !['cs', 'segment', 'field'].includes(ltDet.method);
 
   // ── PMC de Banister sobre TODOS los deportes (la carga cardiovascular es global) ─
   // Se reutiliza la calibración ya detectada arriba: así el CTL del prompt sale
@@ -275,15 +275,11 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const loadParams = buildLoadParams(activities, { hrmax: fcmax, hrrest: fcRest, lthr });
   const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo), loadParams);
 
-  // ── Lactate-threshold model (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold) ─
-  // El modelo de Critical Speed da el LT2 anclado a RENDIMIENTO (ritmo), y el
-  // cross-check de FC da los ritmos LT1/LT2 mensuales. Lo reutilizamos aquí para
-  // que el coach IA y la pestaña de Umbral de Lactato hablen el MISMO idioma.
-  // LTHR (FC umbral, LT2) sigue siendo el detectado de campo arriba. El LT1 en FC
-  // prioriza la MEDICIÓN por decoupling FC–ritmo (lt.lt1HrMethod==='decoupling');
-  // si no hay señal suficiente, se deriva de LT2 vía %FCR (Karvonen):
-  // LT1 = FCreposo + (65/85)·(LTHR − FCreposo). Fallback a ratio %FCmax sin reposo.
-  const lt = computeLactateModel(activities, 12, { hrrest: fcRest });
+  // ── Umbral aeróbico (LT1) sobre el modelo ya calculado arriba ─────────────
+  // El LT1 en FC prioriza la MEDICIÓN por decoupling FC–ritmo
+  // (lt.lt1HrMethod==='decoupling'); si no hay señal suficiente, se deriva del
+  // LTHR vía %FCR (Karvonen): LT1 = FCreposo + (65/85)·(LTHR − FCreposo).
+  // Fallback a ratio %FCmax cuando no hay FC de reposo.
   const lt1Measured = lt?.lt1HrMethod === 'decoupling' && lt.lt1Hr;
   const lt1Hr = lt1Measured
     ? lt.lt1Hr
@@ -339,11 +335,6 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     const [m, s] = avgPace.split(':').map(Number);
     const pSec = m * 60 + s; // segundos por km del ritmo medio 4 sem
     const baseSec = easyPaceSec ?? pSec; // ancla fisiológica del rodaje fácil
-    // Redondeo sobre segundos totales para no producir "5:60".
-    const fmt = (sec) => {
-      const t = Math.round(sec);
-      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-    };
     // lt.lt2Pace viene en MIN/km decimal (paceFromSpeed) → a segundos. Guarda de
     // cordura: un umbral fuera de 2:00-8:00/km es dato corrupto, no se usa como ancla.
     const lt2SecRaw = lt?.lt2Pace ? lt.lt2Pace * 60 : null;
@@ -355,23 +346,23 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     }
     const lines = [
       `Ritmo medio real 4 sem = ${avgPace}/km (mezcla TODAS las carreras; solo referencia)`,
-      `Ritmo de rodaje fácil real (carreras bajo umbral) = ${fmt(baseSec)}/km (ESTA es tu ancla para base/fácil)`,
-      `Regenerativo (≈ +0:20/+0:40 sobre fácil): ${fmt(baseSec + 20)}-${fmt(baseSec + 40)}/km`,
-      `Aeróbico base (≈ -0:05/+0:15 sobre fácil): ${fmt(baseSec - 5)}-${fmt(baseSec + 15)}/km`,
+      `Ritmo de rodaje fácil real (carreras bajo umbral) = ${formatPaceFromSecPerKm(baseSec)}/km (ESTA es tu ancla para base/fácil)`,
+      `Regenerativo (≈ +0:20/+0:40 sobre fácil): ${formatPaceFromSecPerKm(baseSec + 20)}-${formatPaceFromSecPerKm(baseSec + 40)}/km`,
+      `Aeróbico base (≈ -0:05/+0:15 sobre fácil): ${formatPaceFromSecPerKm(baseSec - 5)}-${formatPaceFromSecPerKm(baseSec + 15)}/km`,
     ];
     if (lt2Sec) {
       // Tempo/umbral ≈ LT2 (un pelín más suave); series/intervalos por debajo del umbral.
-      lines.push(`Tempo/umbral (ANCLADO A TU LT2 ${fmt(lt2Sec)}/km, NO al ritmo fácil): ${fmt(lt2Sec)}-${fmt(lt2Sec + 8)}/km`);
-      lines.push(`Intervalos/series (más rápido que el umbral, coherente con tus MARCAS 5K/10K): ${fmt(lt2Sec - 28)}-${fmt(lt2Sec - 12)}/km`);
-      lines.push(`AVISO: tu ritmo fácil (${fmt(baseSec)}) está lejos de tu umbral (${fmt(lt2Sec)}) porque estás en fase base/desentrenado. NUNCA derives tempo/series restando segundos al fácil; usa el ancla LT2 y tus marcas.`);
+      lines.push(`Tempo/umbral (ANCLADO A TU LT2 ${formatPaceFromSecPerKm(lt2Sec)}/km, NO al ritmo fácil): ${formatPaceFromSecPerKm(lt2Sec)}-${formatPaceFromSecPerKm(lt2Sec + 8)}/km`);
+      lines.push(`Intervalos/series (más rápido que el umbral, coherente con tus MARCAS 5K/10K): ${formatPaceFromSecPerKm(lt2Sec - 28)}-${formatPaceFromSecPerKm(lt2Sec - 12)}/km`);
+      lines.push(`AVISO: tu ritmo fácil (${formatPaceFromSecPerKm(baseSec)}) está lejos de tu umbral (${formatPaceFromSecPerKm(lt2Sec)}) porque estás en fase base/desentrenado. NUNCA derives tempo/series restando segundos al fácil; usa el ancla LT2 y tus marcas.`);
     } else {
       if (lt2SecRaw != null) {
         lines.push(`AVISO: el ritmo umbral calculado (LT2) es inválido (dato corrupto) y se ha descartado; los rangos de tempo salen del ritmo fácil.`);
       }
-      lines.push(`Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${fmt(baseSec - 25)}-${fmt(baseSec - 10)}/km`);
+      lines.push(`Tempo/umbral (≈ -0:25/-0:10 sobre fácil): ${formatPaceFromSecPerKm(baseSec - 25)}-${formatPaceFromSecPerKm(baseSec - 10)}/km`);
     }
     if (goalSec) {
-      lines.push(`Ritmo objetivo de carrera = ${fmt(goalSec)}/km. GUARDARRAÍL: el tempo/umbral NUNCA debe ser MÁS LENTO que este ritmo (el ritmo de carrera no puede ser más rápido que tu tempo).`);
+      lines.push(`Ritmo objetivo de carrera = ${formatPaceFromSecPerKm(goalSec)}/km. GUARDARRAÍL: el tempo/umbral NUNCA debe ser MÁS LENTO que este ritmo (el ritmo de carrera no puede ser más rápido que tu tempo).`);
     }
     lines.push(`REGLA: NO prescribas el rodaje fácil más lento que tu último rodaje si éste fue a ≤75% FCmax (ya era fácil; frenar más es contraproducente).`);
     paceRefs = lines.join('\n');
@@ -463,7 +454,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     const dkm = (sp.distance || 0) / 1000;
     const t = sp.moving_time || sp.elapsed_time || 0;
     if (dkm <= 0 || t <= 0) return null;
-    return fmtMinKm((t / 60) / dkm);
+    return formatPaceFromMinPerKm((t / 60) / dkm);
   };
   // Desnivel del parcial: solo si es relevante (≥2 m), con signo. Un parcial lento
   // en subida NO es desfallecimiento → el desnivel es imprescindible para leerlo bien.
@@ -513,7 +504,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
         const wt = { 1: '🏁OFICIAL', 2: 'tirada-larga', 3: 'calidad' }[a.workout_type];
         typeLabel = wt ? `[Carrera·${wt}]` : '[Carrera]';
         if (kmNum > 0 && min > 0) {
-          performance = `@${fmtMinKm(min / kmNum)}/km`;
+          performance = `@${formatPaceFromMinPerKm(min / kmNum)}/km`;
         }
       } else if (isCycling(a)) {
         typeLabel = '[Ciclismo]';
@@ -524,12 +515,15 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       } else if (isSwimming(a)) {
         typeLabel = '[Natación]';
         if (kmNum > 0 && min > 0) {
-          performance = `@${fmtMinKm(min / (a.distance / 100))}/100m`;
+          // Ritmo de natación: min/100 m cae por debajo de PACE_LIMITS (2 min/km),
+          // que es una ventana pensada para carrera. Aquí es una DURACIÓN por 100 m,
+          // así que se formatea como tal y no se le aplica esa ventana.
+          performance = `@${formatDuration((min / (a.distance / 100)) * 60)}/100m`;
         }
       } else if (a.type === 'Walk' || a.type === 'Hike') {
         typeLabel = `[Caminata]`;
         if (kmNum > 0 && min > 0) {
-          performance = `@${fmtMinKm(min / kmNum)}/km`;
+          performance = `@${formatPaceFromMinPerKm(min / kmNum)}/km`;
         }
       } else if (a.type === 'WeightTraining') {
         typeLabel = '[Fuerza]';
@@ -627,7 +621,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
       min > 0 ? `Duración: ${Math.round(min)}min` : null,
     ];
     if (kmNum > 0 && min > 0 && isRunning(lastAct)) {
-      ln.push(`Ritmo: ${fmtMinKm(min / kmNum)}/km (ritmo medio 4 sem: ${avgPace ?? '?'}/km)`);
+      ln.push(`Ritmo: ${formatPaceFromMinPerKm(min / kmNum)}/km (ritmo medio 4 sem: ${avgPace ?? '?'}/km)`);
     } else if (kmNum > 0 && min > 0 && isCycling(lastAct)) {
       ln.push(`Velocidad: ${(kmNum / (min / 60)).toFixed(1)}km/h`);
     }

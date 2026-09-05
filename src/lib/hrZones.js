@@ -79,8 +79,19 @@ export function thresholdBlocks(splits, maxHR) {
   return blocks;
 }
 
+// Plausibility band for a threshold HR expressed as a fraction of HRmax. LT2
+// sits ~80–92% HRmax between individuals (Faude et al. 2009); the band is widened
+// slightly so a genuine outlier is kept and only nonsense is rejected.
+export const LTHR_PLAUSIBLE = { lo: 0.75, hi: 0.98 };
+
 // LTHR detection from training data.
-// Strategy 0 (segment, highest confidence): sustained threshold blocks read from
+// Strategy -1 (cs, highest confidence): HR measured AT critical-speed pace, passed
+//   in by the caller as `csLt2` (the `computeFieldLT2Hr` result of the lactate
+//   model). Anchoring the threshold HR to a MEASURED performance beats every
+//   %HRmax-defined heuristic below, which are circular: they look for blocks
+//   delimited by the very percentage they are trying to establish. This is what
+//   makes the Zones tab and Aerobic Engine › Thresholds show ONE number.
+// Strategy 0 (segment): sustained threshold blocks read from
 //   the per-km splits of ANY run — captures tempo/interval blocks embedded in a
 //   mixed run that whole-activity averaging would miss. Median of block HRs.
 // Strategy 1 (field): sustained hard efforts 18–70 min
@@ -89,9 +100,22 @@ export function thresholdBlocks(splits, maxHR) {
 // Strategy 2 (race): workout_type===1 or suffer_score>150 → p75 avg HR × 0.97
 //   (races run ~3% above LTHR, Friel).
 // Strategy 3 (formula): Friel LTHR ≈ 87.5% HRmax.
-// Returns { lthr, confidence 0-100, method: 'segment'|'field'|'race'|'formula'|'none', n }.
-export function detectLTHR(activities, maxHR, { minFieldRuns = 3 } = {}) {
+// Returns { lthr, confidence 0-100, method: 'cs'|'segment'|'field'|'race'|'formula'|'none', n }.
+export function detectLTHR(activities, maxHR, { minFieldRuns = 3, csLt2 = null } = {}) {
   if (!activities?.length || !maxHR) return { lthr: null, confidence: 0, method: 'none', n: 0 };
+
+  if (csLt2?.valid && csLt2.lt2Hr > 0) {
+    const pct = csLt2.lt2Hr / maxHR;
+    if (pct >= LTHR_PLAUSIBLE.lo && pct <= LTHR_PLAUSIBLE.hi) {
+      const n = csLt2.n ?? 0;
+      return {
+        lthr: Math.round(csLt2.lt2Hr),
+        confidence: Math.min(96, 70 + n * 2),
+        method: 'cs',
+        n,
+      };
+    }
+  }
 
   const segBlocks = activities.flatMap(a => thresholdBlocks(a.splits_metric, maxHR));
   if (segBlocks.length >= minFieldRuns) {

@@ -9,6 +9,8 @@ import {
   CalendarIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import { dayKey, activityDayKey } from '../lib/trainingLoad';
+import { weekStartKey } from '../lib/isoWeek';
 
 function getColorForValue(value, max, metric) {
   if (!value || value === 0) return 'bg-slate-100/60';
@@ -36,7 +38,7 @@ export default function ConsistencyHeatmap({ activities }) {
 
   const availableYears = useMemo(() => {
     if (!activities || activities.length === 0) return [new Date().getFullYear()];
-    const years = new Set(activities.map(a => new Date(a.start_date).getFullYear()));
+    const years = new Set(activities.map(a => Number(activityDayKey(a)?.slice(0, 4))).filter(Boolean));
     return Array.from(years).sort((a, b) => b - a);
   }, [activities]);
 
@@ -48,9 +50,11 @@ export default function ConsistencyHeatmap({ activities }) {
     let max = 0;
 
     activities.forEach(a => {
-      const date = new Date(a.start_date);
-      if (date.getFullYear() !== selectedYear) return;
-      const key = date.toISOString().split('T')[0];
+      // Día LOCAL del atleta: `toISOString()` fechaba la actividad en UTC y la
+      // rejilla se indexa por días locales, así que el mapa pintaba las salidas
+      // de la franja de madrugada un día corrido.
+      const key = activityDayKey(a);
+      if (!key || Number(key.slice(0, 4)) !== selectedYear) return;
 
       if (!data[key]) data[key] = { distance: 0, time: 0, load: 0, count: 0 };
       data[key].distance += (a.distance || 0) / 1000;
@@ -83,7 +87,7 @@ export default function ConsistencyHeatmap({ activities }) {
     while (current <= dec31 || weeks.length < 53) {
       const week = [];
       for (let d = 0; d < 7; d++) {
-        const dateStr = current.toISOString().split('T')[0];
+        const dateStr = dayKey(current);
         const inYear = current.getFullYear() === selectedYear;
         const value = dailyData[dateStr] || null;
         const metricValue = value
@@ -127,8 +131,8 @@ export default function ConsistencyHeatmap({ activities }) {
   const consistencyStats = useMemo(() => {
     if (!activities || activities.length === 0) return { currentStreak: 0, longestStreak: 0, totalDays: 0, weeksWith3: 0, totalWeeks: 0 };
 
-    const yearActivities = activities.filter(a => new Date(a.start_date).getFullYear() === selectedYear);
-    const activeDays = new Set(yearActivities.map(a => a.start_date.split('T')[0]));
+    const yearActivities = activities.filter(a => Number(activityDayKey(a)?.slice(0, 4)) === selectedYear);
+    const activeDays = new Set(yearActivities.map(activityDayKey).filter(Boolean));
     const totalDays = activeDays.size;
 
     // Streaks: consecutive days with activity
@@ -150,8 +154,8 @@ export default function ConsistencyHeatmap({ activities }) {
     }
 
     // Check if current streak is alive (includes today or yesterday)
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = dayKey(new Date());
+    const yesterday = dayKey(new Date(Date.now() - 86400000));
     if (sortedDays.length > 0) {
       const lastDay = sortedDays[sortedDays.length - 1];
       if (lastDay === today || lastDay === yesterday) {
@@ -170,11 +174,7 @@ export default function ConsistencyHeatmap({ activities }) {
     // Weeks with >= 3 sessions
     const weekCounts = {};
     yearActivities.forEach(a => {
-      const d = new Date(a.start_date);
-      const dayOfWeek = d.getDay();
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
-      const weekKey = monday.toISOString().split('T')[0];
+      const weekKey = weekStartKey(activityDayKey(a));
       weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
     });
 

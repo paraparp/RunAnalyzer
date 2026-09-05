@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { decouplingPct } from '../lib/decoupling';
+import { activityWithinMonths } from '../lib/criticalSpeed';
 import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
@@ -31,6 +32,24 @@ function getDecouplingColor(pct) {
   return key ? LEVEL_COLORS[key] : '#94a3b8';
 }
 
+// Definido fuera del componente: si se declara dentro del render, cada render crea un
+// tipo nuevo y Recharts remonta el subárbol del tooltip entero.
+function CustomTooltip({ active, payload }) {
+  const { t } = useTranslation();
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 mb-1">{d.name}</p>
+      <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>
+      <p className="text-slate-600">{t('decoupling.subtitle').split(' ')[0]}: {d.paceLabel}/km | FC: {d.hr} bpm</p>
+      <p className="font-bold" style={{ color: d.color }}>
+        Decoupling: {d.decoupling}% ({d.levelKey ? t(`decoupling.levels.${d.levelKey}`) : 'N/A'})
+      </p>
+    </div>
+  );
+}
+
 export default function CardiacDecoupling({ activities, onEnrichActivity }) {
   const { t } = useTranslation();
   const [monthsToShow, setMonthsToShow] = useState('6');
@@ -41,7 +60,9 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
 
     const minMins = parseInt(minDuration);
     const months = parseInt(monthsToShow);
-    const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+    // Meses de CALENDARIO sobre el día local, como el resto de las vistas: el
+    // `months * 30 * 86400000` anterior daba 180 días cuando el selector dice 6 meses.
+    const inWindow = activityWithinMonths(months);
 
     const results = activities
       .filter(a =>
@@ -49,7 +70,7 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
         a.splits_metric.length >= 4 &&
         a.average_heartrate > 0 &&
         a.moving_time >= minMins * 60 &&
-        new Date(a.start_date).getTime() >= cutoff
+        inWindow(a)
       )
       .map(a => {
         const dc = decouplingPct(a.splits_metric);
@@ -133,21 +154,6 @@ export default function CardiacDecoupling({ activities, onEnrichActivity }) {
       </div>
     );
   }
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
-    return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
-        <p className="font-bold text-slate-700 mb-1">{d.name}</p>
-        <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>
-        <p className="text-slate-600">{t('decoupling.subtitle').split(' ')[0]}: {d.paceLabel}/km | FC: {d.hr} bpm</p>
-        <p className="font-bold" style={{ color: d.color }}>
-          Decoupling: {d.decoupling}% ({d.levelKey ? t(`decoupling.levels.${d.levelKey}`) : 'N/A'})
-        </p>
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">

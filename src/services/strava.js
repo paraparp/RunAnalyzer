@@ -89,9 +89,10 @@ export const getActivity = async (accessToken, activityId) => {
 };
 
 export const getActivityStreams = async (accessToken, activityId) => {
-    // distance + altitude + time alineados por índice: sirve tanto para el
-    // desnivel de los laps como para calcular los tramos "llanos" (flat_efforts).
-    // grade_smooth es la pendiente ya suavizada por Strava: flatEfforts la prefiere
+    // distance + altitude + time alineados por índice: sirve para el desnivel de
+    // los laps, para los tramos "llanos" (flat_efforts) y para el GAP muestra a
+    // muestra (stream_gap), que salen de esta misma descarga.
+    // grade_smooth es la pendiente ya suavizada por Strava: streamProfile la prefiere
     // frente a derivarla de la altitud, cuyo ruido inventa desnivel bruto.
     const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,altitude,time,grade_smooth&key_by_type=true`, {
         headers: {

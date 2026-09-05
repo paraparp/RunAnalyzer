@@ -14,8 +14,9 @@ import { DISTANCE_M, RACE_KEYS, RACE_DISTANCES } from '../../src/lib/raceDistanc
 import { buildMeanMaxCurve, fitCriticalSpeed, predictTime } from '../../src/lib/criticalSpeed.js';
 import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
 import { gapFactor } from '../../src/lib/gap.js';
+import { hasStreamGap } from '../../src/lib/streamGap.js';
 import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
-import { computePMC } from '../../src/lib/trainingLoad.js';
+import { computePMC, dayKey } from '../../src/lib/trainingLoad.js';
 import {
   heatPenaltyPct,
   heatIntensityFactor,
@@ -395,9 +396,55 @@ export function computeDecoupling(a) {
 // El modelo (Minetti amortiguado con K_UP/K_DOWN y topes) vive en src/lib/gap.js,
 // que es también el que usan la tabla del dashboard y los parciales: así la tool
 // MCP y la UI no pueden volver a divergir. Esta era la copia canónica.
+//
+// DOS RESOLUCIONES DE ENTRADA, no dos modelos:
+//
+//   1. `stream_gap` — integración muestra a muestra sobre los streams de altitud
+//      (`src/lib/streamGap.js`), cacheada por actividad. Es la MEDIDA.
+//   2. splits de 1 km — sólo conoce el desnivel NETO de cada km, así que las
+//      subidas y bajadas dentro del mismo kilómetro se cancelan antes de entrar al
+//      modelo y un km rompepiernas se procesa como llano. Es una COTA INFERIOR.
+//
+// El respaldo (2) sigue existiendo porque el enriquecido de streams va por backlog:
+// una actividad recién sincronizada aún no lo tiene. Cada respuesta dice de cuál
+// de los dos viene, y el respaldo publica su `caveat` cuando el desnivel bruto
+// delata que se ha perdido oscilación.
 
-/** Ritmo ajustado por desnivel (GAP) agregado y por split, desde splits_metric. */
-export function computeGap(a) {
+/** GAP desde `stream_gap`: el ajuste ya integrado sobre la pendiente instantánea. */
+function gapFromStreams(a) {
+  const sg = a.stream_gap;
+  if (!hasStreamGap(sg)) return null;
+  const per_split = (sg.per_km ?? []).map((k) => ({
+    split: k.km,
+    grade_pct: k.distance_m > 0 ? round((k.net_m / k.distance_m) * 100, 1) : 0,
+    gain_m: k.gain_m,
+    loss_m: k.loss_m,
+    gap_pace: calcPace(k.gap_speed_ms),
+  }));
+  // La cobertura baja no invalida el número (el agregado ya exige 80%), pero sí
+  // conviene decir sobre cuánta sesión se ha medido: el resto eran pausas o huecos.
+  const partial = sg.coverage_pct != null && sg.coverage_pct < 97;
+  return {
+    source: 'computed (Minetti amortiguado K_up=0.5/K_down=0.35, muestra a muestra sobre streams de altitud)',
+    gap_pace: calcPace(sg.distance_m / sg.gap_time_s),
+    elevation: {
+      gain_m: sg.gain_m,                        // D+ real DENTRO del recorrido (con histéresis)
+      loss_m: sg.loss_m,                        // D− real, el que el neto por km escondía
+      net_m: sg.net_m,
+      activity_gain_m: a.total_elevation_gain ?? null,
+      grade_source: sg.grade_source,            // grade_smooth (Strava) | altitude (derivada)
+      distance_m: sg.distance_m,
+    },
+    caveat: partial
+      ? `Medido sobre el ${sg.coverage_pct}% de la distancia: el resto son pausas o huecos de GPS, `
+        + 'que se descartan en vez de repartir su tiempo por el tramo.'
+      : null,
+    per_split,
+  };
+}
+
+/** Respaldo por parciales de 1 km, mientras no estén los streams de la actividad. */
+function gapFromSplits(a) {
   const splits = a.splits_metric;
   if (!Array.isArray(splits) || !splits.length) return null;
   let dist = 0, gapTime = 0, netElev = 0;
@@ -415,12 +462,10 @@ export function computeGap(a) {
   // Etiquetado explícito: este GAP es cálculo propio (Minetti amortiguado sobre splits
   // por km) y NO coincide con `garmin.laps[].gap_pace` (avgGradeAdjustedSpeed del reloj,
   // modelo distinto y por lap). No mezclar: pueden diferir ~30 s/km en el mismo km.
-  // El desnivel por split es NETO, así que las subidas y bajadas dentro de un mismo km
-  // se cancelan antes de entrar al modelo: un km rompepiernas se procesa como llano.
   //
-  // Ese sesgo es sistemático y hacia el lado equivocado: en un circuito ondulado el GAP
-  // sale casi igual al ritmo real cuando debería salir algo más rápido (subir cuesta más
-  // de lo que baja compensa). Publicamos el desnivel bruto de la actividad frente al neto
+  // Con el desnivel NETO por split, el sesgo es sistemático y hacia el lado equivocado:
+  // en un circuito ondulado el GAP sale casi igual al ritmo real cuando debería salir
+  // algo más rápido. Publicamos el desnivel bruto de la actividad frente al neto
   // agregado para que se vea cuánta oscilación se ha perdido, en vez de fingir precisión.
   const gross = a.total_elevation_gain ?? null;
   const rolling = gross != null && Math.abs(netElev) < gross * 0.5;
@@ -434,12 +479,20 @@ export function computeGap(a) {
     },
     // Aviso, no error: con estas dos cifras un agente sabe si puede fiarse del número.
     caveat: rolling
-      ? 'Recorrido ondulado (desnivel bruto >> neto): el modelo trabaja sobre el desnivel neto por km, '
+      ? 'Recorrido ondulado (desnivel bruto >> neto): este respaldo trabaja sobre el desnivel neto por km, '
         + 'así que subidas y bajadas dentro del mismo km se cancelan y este GAP INFRAESTIMA el ajuste. '
-        + 'Trátalo como cota inferior; para tramos concretos usa garmin.laps[].gap_pace.'
+        + 'Trátalo como cota inferior; el cálculo por streams (muestra a muestra) llega con el enriquecido.'
       : null,
     per_split,
   };
+}
+
+/**
+ * Ritmo ajustado por desnivel (GAP) agregado y por split. Prefiere la medida por
+ * streams; si esa actividad todavía no está enriquecida, cae a los parciales.
+ */
+export function computeGap(a) {
+  return gapFromStreams(a) ?? gapFromSplits(a);
 }
 
 // ── Consultas de alto nivel ─────────────────────────────────────────────────
@@ -665,6 +718,10 @@ export function filterActivities(list, {
     const km = (a.distance || 0) / 1000;
     if (min_distance_km && km < min_distance_km) return false;
     if (max_distance_km && km > max_distance_km) return false;
+    // Sin FC media no se puede afirmar que la sesion cumpla NINGUNA de las dos cotas.
+    // `null <= hiHr` es true por coercion, asi que un filtro de "FC media por debajo
+    // de X" colaba las sesiones sin pulsometro, justo las que no se puede saber.
+    if ((loHr || hiHr) && !(a.average_heartrate > 0)) return false;
     if (loHr && !(a.average_heartrate >= loHr)) return false;
     if (hiHr && !(a.average_heartrate <= hiHr)) return false;
     if (flat_only) {
@@ -1276,15 +1333,14 @@ export async function getHrvResting(userId, { from, to } = {}) {
 }
 
 // ── Modelo de Banister: CTL / ATL / TSB desde la carga por sesión ────────────
-const toISODate = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// La clave de día local es `dayKey` de src/lib/trainingLoad.js (importada arriba).
 
 // Lunes (ISO) de la semana de una fecha YYYY-MM-DD.
 function mondayOf(iso) {
   const d = new Date(iso + 'T00:00:00');
   const day = (d.getDay() + 6) % 7; // Lun=0
   d.setDate(d.getDate() - day);
-  return toISODate(d);
+  return dayKey(d);
 }
 
 // Colapsa la serie diaria a semanal: CTL/ATL y forma al CIERRE de la semana (último
@@ -1605,7 +1661,7 @@ export async function getTimeInZones(userId, { from, to, sport, hr_max, granular
 const addDays = (iso, n) => {
   const d = new Date(iso + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return toISODate(d);
+  return dayKey(d);
 };
 
 // Etiqueta de calidad de Garmin derivada del score (sleepScoreQuality): la semana en
@@ -1652,7 +1708,7 @@ function weekFromNights(weekStart, nights) {
  */
 export async function getSleep(userId, { from, to } = {}) {
   const weeklyRows = (await readKey(userId, 'garmin_sleep_data')) || [];
-  const today = toISODate(new Date());
+  const today = dayKey(new Date());
   const thisMonday = mondayOf(today);
   // Una semana entra si SOLAPA el rango pedido, no solo si empieza dentro: pedir
   // desde el 1/8 debe devolver la semana que contiene el 1/8.

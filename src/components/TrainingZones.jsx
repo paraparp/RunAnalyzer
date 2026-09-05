@@ -9,6 +9,8 @@ import {
   seilerBounds, karvonenBounds, estimateLTHR, classifyHR,
   SEILER_TARGETS, HR_LIMITS,
 } from '../lib/hrZones';
+import { weekStartKey } from '../lib/isoWeek';
+import { monthKey } from '../lib/trainingLoad';
 
 // ─── Scientific References ────────────────────────────────────────────────────
 // [1] Karvonen et al. (1957) Ann Med Exp Biol Fenn — Heart Rate Reserve: %HRR ≈ %VO2R
@@ -151,17 +153,9 @@ export default function TrainingZones({ activities, hrParams }) {
       const segs = hrSegments(a);
       if (!segs.length) return;
       const d = new Date(a.start_date);
-      let key;
-      if (groupBy === 'week') {
-        const w = new Date(d);
-        const day = w.getDay();
-        w.setDate(w.getDate() - day + (day === 0 ? -6 : 1));
-        // Local-date key (toISOString would shift Monday-night activities to the
-        // previous week for timezones ahead of UTC)
-        key = `${w.getFullYear()}-${String(w.getMonth() + 1).padStart(2, '0')}-${String(w.getDate()).padStart(2, '0')}`;
-      } else {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      }
+      // `weekStartKey` / `monthKey` resuelven la clave en hora LOCAL: toISOString
+      // movería a la semana o al mes anterior las sesiones de madrugada.
+      const key = groupBy === 'week' ? weekStartKey(d) : monthKey(d);
       if (!buckets[key]) buckets[key] = { key, zones: new Array(bounds.length).fill(0) };
       for (const seg of segs) {
         const z = classifyHR(seg.hr, bounds);
@@ -208,6 +202,7 @@ export default function TrainingZones({ activities, hrParams }) {
   // ── Confidence labels ──
   const confColor = lthrResult.confidence >= 70 ? 'emerald' : lthrResult.confidence >= 40 ? 'amber' : 'rose';
   const methodText = {
+    cs:      t('zones.method_cs', { n: lthrResult.n }),
     segment: t('zones.method_segment', { n: lthrResult.n }),
     field:   t('zones.method_field', { n: lthrResult.n }),
     race:    t('zones.method_race', { n: lthrResult.n }),

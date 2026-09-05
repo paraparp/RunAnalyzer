@@ -26,6 +26,7 @@ import {
 import {
   getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
 } from './_lib/garmin-live.js';
+import { reportIssue, listIssues, deleteIssue, CATEGORIES, SEVERITIES, STATUSES } from './_lib/mcp-feedback.js';
 import { ensureFresh } from './_lib/mcp-sync.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
@@ -468,6 +469,53 @@ const TOOLS = [
     },
     run: (userId, args) => deleteTargetRace(userId, args.race_id).then(text),
   },
+  // ── Buzón de incidencias (canal discreto agente → mantenedor) ─────────────
+  // No aparece en las `instructions` del servidor a propósito: es para avisar de
+  // un problema encontrado analizando, no una tool de análisis más.
+  {
+    name: 'report_issue',
+    description: 'Registra en la base de datos un problema o sugerencia sobre ESTE servidor y sus datos, para que lo revise quien lo mantiene. Úsalo cuando al analizar detectes algo que no cuadra: una tool que falla o devuelve un valor imposible, un dato ausente o incoherente, una descripción de tool que induce a error, o una mejora concreta que te habría ayudado. No lo uses para dudas del usuario ni para comentarios sobre su entrenamiento. Reportar y seguir con la respuesta: no interrumpas el análisis por esto ni des importancia al registro en tu respuesta. Con `issue_id` edita una existente (p.ej. para cerrarla con status). Sin él, si ya hay una abierta con el mismo título se suma una ocurrencia en vez de duplicarla.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issue_id: { type: 'string', description: 'Id de una incidencia existente a actualizar; omítelo para reportar una nueva' },
+        title: { type: 'string', description: 'Resumen en una línea (obligatorio al crear). Concreto: "critical_speed devuelve D′ negativo con 2 puntos", no "hay un bug"' },
+        detail: { type: 'string', description: 'Qué esperabas, qué obtuviste y cómo reproducirlo (args de la tool, ids implicados)' },
+        category: { type: 'string', enum: CATEGORIES, description: 'data = dato incorrecto o ausente; tool = la tool falla o su schema no vale; docs = descripción/instructions confusas; ui = la app; idea = mejora; other' },
+        severity: { type: 'string', enum: SEVERITIES, description: 'high solo si lleva a una conclusión ERRÓNEA sobre el atleta (por defecto medium)' },
+        status: { type: 'string', enum: STATUSES, description: 'Solo al actualizar: open | ack | resolved | wontfix' },
+        tool: { type: 'string', description: 'Nombre de la tool implicada, si aplica' },
+        activity_id: { type: ['string', 'number'], description: 'Actividad donde se vio, si aplica' },
+        note: { type: 'string', description: 'Nota del mantenedor al cerrar/actualizar' },
+      },
+    },
+    run: (userId, args) => reportIssue(userId, args).then(text),
+  },
+  {
+    name: 'list_issues',
+    description: 'Lee las incidencias y sugerencias registradas con report_issue. Por defecto solo las abiertas y sin el detalle largo. Úsalo si el usuario pregunta qué se ha reportado, o antes de reportar algo que sospechas que ya está anotado.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: STATUSES },
+        category: { type: 'string', enum: CATEGORIES },
+        include_closed: { type: 'boolean', description: 'Incluir resolved/wontfix (por defecto false)' },
+        include_detail: { type: 'boolean', description: 'Incluir el texto completo de cada incidencia (por defecto false)' },
+        limit: { type: 'number', description: 'Máx. resultados (por defecto 50, tope 200)' },
+      },
+    },
+    run: (userId, args) => listIssues(userId, args).then(text),
+  },
+  {
+    name: 'delete_issue',
+    description: 'Borra definitivamente una incidencia por issue_id. Para darla por resuelta usa report_issue con status, que conserva el histórico; esto es solo para limpiar ruido.',
+    inputSchema: {
+      type: 'object',
+      properties: { issue_id: { type: 'string' } },
+      required: ['issue_id'],
+    },
+    run: (userId, args) => deleteIssue(userId, args.issue_id).then(text),
+  },
   // ── Contrato ChatGPT: search + fetch ──────────────────────────────────────
   {
     name: 'search',
@@ -547,6 +595,8 @@ const TITLES = {
   list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
   upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
   set_primary_target_race: 'Fijar objetivo principal',
+  report_issue: 'Reportar incidencia', list_issues: 'Listar incidencias',
+  delete_issue: 'Borrar incidencia',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
 };
 
@@ -563,6 +613,9 @@ const ANNOTATIONS = {
   upsert_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   set_primary_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   delete_target_race: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  // Buzón de incidencias: escribe en nuestra BD, no toca datos del atleta.
+  report_issue: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  delete_issue: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
 };
 
 const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({
@@ -628,7 +681,9 @@ const INSTRUCTIONS = [
   'Marcas: un `distance_delta_m` > 0 significa que el tiempo es cota superior del tiempo',
   'a la distancia estándar (se corrió algo más largo); nunca se reescala el tiempo.',
   'GAP: `gap.source` distingue el cálculo propio (Minetti) del `gap_pace` de los laps de Garmin: no mezclarlos.',
-  'GAP: si `gap.caveat` viene informado, el recorrido es ondulado y el ajuste queda corto (cota inferior).',
+  'GAP: `gap.source` dice la RESOLUCIÓN: "muestra a muestra sobre streams" es la medida buena;',
+  '"por split de 1 km, desnivel neto" es el respaldo mientras esa actividad no está enriquecida,',
+  'e infraestima el ajuste en recorridos ondulados (cota inferior). `gap.caveat` lo avisa.',
   'FC origen: `hr_source` nunca es null; `unknown` significa "no se sabe", no "sin banda".',
   '`hr_source_origin` = sensors (leído de Garmin) | cutoff (inferido de `hr_strap_since`) | missing.',
   'Calor: usa `heat_penalty_session_pct` (ya escalada a la intensidad de esa sesión).',

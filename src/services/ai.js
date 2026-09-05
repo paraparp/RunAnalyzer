@@ -25,13 +25,13 @@ export const OPENROUTER_FALLBACK_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
 ];
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 // Lista Gemini de reserva cuando el endpoint ListModels no responde.
 export const FALLBACK_GEMINI = [
+  { id: 'gemini-3.6-flash', label: '3.6 Flash' },
   { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite · menos tokens' },
-  { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' },
-  { id: 'gemini-2.5-flash', label: '2.5 Flash · equilibrado' },
+  { id: 'gemini-3.5-flash', label: '3.5 Flash · mejor calidad' }
 ];
 
 // Modelos fijos por proveedor (los "libres" que el guardarraíl del servidor

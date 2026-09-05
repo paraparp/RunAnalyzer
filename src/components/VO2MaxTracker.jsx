@@ -3,9 +3,14 @@ import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { isoWeekKey } from '../lib/isoWeek';
-import { formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { activityDayKey } from '../lib/trainingLoad';
+import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { buildMeanMaxCurve, monthsAgoISO, daysAgoISO, activityWithinMonths, CANON_EFFORTS } from '../lib/criticalSpeed';
+import { vdotFromCurve } from '../lib/vdot';
 import { detectMaxHR, detectRestHR, DEFAULT_REST_HR } from '../lib/hrZones';
-import { gapSpeedFromGain } from '../lib/gap';
+import { activityGapSpeed } from '../lib/streamGap';
+import { driftRatePerHour } from '../lib/decoupling';
+import { monthShort } from '../lib/monthLabels';
 import {
   oxygenCostDaniels, oxygenCostLeger, oxygenCostACSM, vo2maxFromHRR, vo2maxFromHRmaxPct,
 } from '../lib/physiology';
@@ -26,7 +31,20 @@ import {
 } from '@heroicons/react/24/outline';
 
 // ============================================================
-// VO2max Multi-Method Estimation Engine
+// VO2max: cifra de cabecera ANCLADA EN RENDIMIENTO + serie submáxima por FC
+//
+// La cifra grande sale del VDOT sobre la curva de mejores esfuerzos
+// (`lib/vdot.vdotFromCurve`), igual que hacen el sistema Daniels y los modelos
+// de Garmin/Firstbeat: un tiempo real sobre una distancia real.
+//
+// La estimación por FC que había aquí NO mide la forma, mide la intensidad de la
+// sesión: con el mismo atleta el mismo día, un rodaje suave salía ~16 % más alto
+// que un tempo, así que un bloque de base hacía "subir" la curva y una semana de
+// series la hacía "bajar". Se conserva como serie SECUNDARIA —proxy submáximo de
+// eficiencia— y acotada ya a la banda 70–88 % HRR, que es donde %HRR ≈ %VO2R
+// aguanta (Swain-Leutholtz); fuera de ahí no significa nada.
+//
+// Multi-method engine de la serie submáxima:
 //
 // Combines 3 independent approaches with reliability weighting:
 //
@@ -125,27 +143,54 @@ function firstbeatRegression(splits, hrMax, hrRest) {
 }
 
 // --- Cardiac drift correction ---
+//
+// La deriva se MIDE en cada sesión (`decoupling.driftRatePerHour`), no se asume:
+// antes aquí había un 3%/h fijo, el mismo para un rodaje suave que para unas
+// series en calor, y ese número entraba en una regresión que luego se extrapola
+// hasta FCmax. La tasa medida es el aumento de FC A IGUAL VELOCIDAD, que es
+// exactamente lo que hay que deshacer para comparar los parciales entre sí.
+//
+// Sin medida (pocos parciales, o sin FC en las ventanas) no se corrige: la
+// regresión trabaja con la FC cruda, que es peor que corregir bien pero mejor que
+// corregir con una constante inventada.
+
+// Tope de la tasa medida, en fracción por hora. Por debajo de 0 la "deriva
+// negativa" suele ser el calentamiento (FC que aún sube al principio), no una
+// mejora real: corregir al alza ahí sería inventar. Por arriba, una sesión que se
+// desmorona daría un factor que deforma la regresión entera.
+const MAX_DRIFT_RATE_PER_H = 0.10;
 
 function correctDrift(splits) {
   if (!splits || splits.length < 3) return splits;
-  const totalDurMin = splits.reduce((s, sp) => s + (sp.moving_time || sp.elapsed_time || 300), 0) / 60;
-  let elapsed = 0;
+  const measured = driftRatePerHour(splits);
+  if (measured == null) return splits;
+  const rate = Math.min(Math.max(measured, 0), MAX_DRIFT_RATE_PER_H);
+  if (rate === 0) return splits;
 
+  let elapsed = 0;   // segundos hasta el INICIO del parcial en curso
   return splits.map(sp => {
-    const dur = (sp.moving_time || sp.elapsed_time || 300) / 60;
+    const dur = sp.moving_time || sp.elapsed_time || 300;
+    const midH = (elapsed + dur / 2) / 3600;   // el parcial se ancla en su centro
     elapsed += dur;
-    // Linear drift model: ~3% per hour at moderate effort
-    const driftFraction = 0.03 * (elapsed / 60);
     return {
       ...sp,
       hr_corrected: sp.average_heartrate
-        ? sp.average_heartrate / (1 + driftFraction)
+        ? sp.average_heartrate / (1 + rate * midH)
         : sp.average_heartrate,
     };
   });
 }
 
 // --- Multi-method estimator per activity ---
+
+// De qué depende cada método. Dos métodos de la misma familia comparten entrada,
+// así que su acuerdo no aporta confianza (ver el cálculo de `confidence`).
+const METHOD_FAMILY = {
+  HRR: 'coste-de-velocidad',        // vo2Avg + FC media
+  '%HRmax': 'coste-de-velocidad',   // vo2Leger + FC media
+  Firstbeat: 'regresion-parciales', // pendiente FC→VO2 dentro de la sesión
+};
+const FAMILY_COUNT = new Set(Object.values(METHOD_FAMILY)).size;
 
 function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
   const estimates = [];
@@ -160,15 +205,23 @@ function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
   // al inicio la pendiente neta es 0 y meter ahí el desnivel positivo cobra toda la
   // subida sin acreditar la bajada (el término 0.9·S·G infla el VO2 siempre).
   // El desnivel se paga donde toca: velocidad equivalente en llano (Minetti, gap.js)
-  // con grade = 0, que es el modelo de perfil ondulado que ya usa el resto de la app.
-  const vFlatMperMin = gapSpeedFromGain(speed, activity.distance, activity.total_elevation_gain) * 60;
+  // con grade = 0. La fuente la elige `activityGapSpeed` —medida sobre los streams
+  // si la actividad viene enriquecida, perfil ondulado sobre el D+ de cabecera si no—,
+  // el mismo punto de entrada que usan la tabla del dashboard y el TSS.
+  const vFlatMperMin = activityGapSpeed(activity) * 60;
 
-  // Three oxygen cost models
+  // Tres modelos de coste de oxígeno para la misma velocidad.
   const vo2Daniels = oxygenCostDaniels(vMperMin);
   const vo2Leger = oxygenCostLeger(vKmh);
   const vo2ACSM = oxygenCostACSM(vFlatMperMin || vMperMin, 0);
 
-  // Average of models (Léger weighted higher for outdoor)
+  // Mezcla ponderada. AVISO: los pesos son una calibración de esta app, NO salen de
+  // ninguna de las referencias de physiology.js. El criterio es la procedencia de
+  // cada ecuación: Léger-Mercier se midió corriendo EN EXTERIOR (y ya incluye la
+  // resistencia al viento de Pugh), que es el caso de estos datos, así que manda;
+  // Daniels-Gilbert viene de rendimiento en competición y ACSM de tapiz rodante,
+  // donde no hay viento ni terreno. Cambiar estos pesos mueve toda la serie
+  // histórica, así que si se tocan, se tocan a la vez que la versión del cálculo.
   const vo2Avg = (vo2Daniels * 0.3 + vo2Leger * 0.5 + vo2ACSM * 0.2);
 
   // METHOD A: HRR (Swain-Leutholtz) — highest accuracy
@@ -201,11 +254,17 @@ function estimateVO2maxMultiMethod(activity, hrMax, hrRest) {
   const totalW = estimates.reduce((s, e) => s + e.weight, 0);
   const weighted = estimates.reduce((s, e) => s + e.value * e.weight, 0) / totalW;
 
-  // Confidence: more methods agreeing = higher confidence
+  // Confianza por FAMILIAS, no por número de métodos. HRR y %FCmax parten de lo
+  // mismo —el coste de oxígeno de la velocidad media y la FC media de la sesión—,
+  // sólo cambia cómo traducen esa FC a fracción del VO2max: que coincidan no es
+  // evidencia de nada. La única entrada distinta es la regresión FC→VO2 sobre los
+  // parciales. Contar los tres como independientes inflaba la confianza por
+  // construcción: dos de cada tres sesiones llegaban al máximo sin merecerlo.
+  const families = new Set(estimates.map(e => METHOD_FAMILY[e.method]));
   const spread = estimates.length > 1
     ? Math.max(...estimates.map(e => e.value)) - Math.min(...estimates.map(e => e.value))
     : 5;
-  const confidence = Math.min(1.0, (estimates.length / 3) * (1 - Math.min(spread / 15, 0.5)));
+  const confidence = Math.min(1.0, (families.size / FAMILY_COUNT) * (1 - Math.min(spread / 15, 0.5)));
 
   return {
     vo2max: Math.round(weighted * 10) / 10,
@@ -225,11 +284,42 @@ function getVO2Category(vo2, t) {
   return { label: t('vo2.categories.very_poor'), color: '#ef4444', percentile: '<20' };
 }
 
+// Definido fuera del componente: dentro del render sería un tipo nuevo en cada
+// render y Recharts remontaría el subárbol del tooltip entero.
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs max-w-[260px]">
+      <p className="font-bold text-slate-700 mb-1">{d.name || d.week}</p>
+      {d.dateLabel && <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>}
+      {d.paceLabel && <p className="text-slate-500">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>}
+      {d.vo2max !== undefined && (
+        <p className="text-blue-600 font-bold">
+          VO2max: {d.vo2max} ml/kg/min
+          {d.confidence !== undefined && <span className="text-slate-400 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
+        </p>
+      )}
+      {d.vo2avg !== undefined && <p className="text-blue-500">Media ponderada: {d.vo2avg}</p>}
+      {d.methods && d.methods.length > 0 && (
+        <div className="mt-1 pt-1 border-t border-slate-100">
+          {d.methods.map((m, i) => (
+            <p key={i} className="text-slate-400">
+              {m.method}: {Math.round(m.value * 10) / 10} <span className="opacity-60">(w={m.weight.toFixed(1)})</span>
+            </p>
+          ))}
+        </div>
+      )}
+      {d.avgVO2 !== undefined && <p className="text-blue-600 font-bold">Media: {d.avgVO2}</p>}
+      {d.bestVO2 !== undefined && <p className="text-emerald-600">Mejor: {d.bestVO2}</p>}
+      {d.sessions !== undefined && <p className="text-slate-400">{d.sessions} sesiones</p>}
+    </div>
+  );
+}
+
 export default function VO2MaxTracker({ activities }) {
   const { t, i18n } = useTranslation();
-  const MONTH_SHORT = i18n.language.startsWith('es')
-    ? ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MONTH_SHORT = monthShort(i18n.language);
 
   const [monthsToShow, setMonthsToShow] = useState('12');
   const [smoothing, setSmoothing] = useState('7');
@@ -266,9 +356,11 @@ export default function VO2MaxTracker({ activities }) {
   // Historial de FC reposo para la gráfica, acotado al rango seleccionado
   const garminHistory = useMemo(() => {
     if (!garminCardiac?.length) return [];
-    const cutoff = monthsToShow === '60' ? 0 : Date.now() - parseInt(monthsToShow) * 30 * 86400000;
+    // `r.date` es un día ya local (YYYY-MM-DD): se compara como texto contra la
+    // misma frontera de calendario que usa el resto de la pestaña.
+    const fromISO = monthsToShow === '60' ? null : monthsAgoISO(parseInt(monthsToShow));
     return garminCardiac
-      .filter(r => r.restingHR > 20 && new Date(r.date).getTime() >= cutoff)
+      .filter(r => r.restingHR > 20 && (!fromISO || String(r.date).slice(0, 10) >= fromISO))
       .map(r => ({ date: r.date, rhr: r.restingHR }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [garminCardiac, monthsToShow]);
@@ -284,7 +376,42 @@ export default function VO2MaxTracker({ activities }) {
     const activeRestHR = garminRestHR || DEFAULT_REST_HR;
 
     const months = parseInt(monthsToShow);
-    const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+    // Misma ventana que el ancla de rendimiento de abajo: meses de calendario
+    // sobre el día local, no bloques de 30 días cortados en un instante UTC.
+    const inWindow = activityWithinMonths(months);
+
+    // --- ANCLA DE RENDIMIENTO: VDOT sobre la curva de mejores esfuerzos ---
+    // Es la cifra de cabecera. Solo un esfuerzo mejor que los anteriores la sube;
+    // un rodaje suave no puede moverla, al revés que la estimación por FC.
+    const fromISO = monthsAgoISO(months);
+    const anchor = vdotFromCurve(buildMeanMaxCurve(activities, { from: fromISO }));
+
+    // Tendencia del ancla: mejor VDOT de la segunda mitad de la ventana contra el
+    // de la primera. Se comparan rendimientos, no puntos de trabajo.
+    const midISO = monthsAgoISO(Math.max(1, Math.round(months / 2)));
+    const anchorPrev = vdotFromCurve(buildMeanMaxCurve(activities, { from: fromISO, to: midISO }));
+    const anchorRecent = vdotFromCurve(buildMeanMaxCurve(activities, { from: midISO }));
+    const anchorTrend = (anchorPrev && anchorRecent)
+      ? Math.round((anchorRecent.vdot - anchorPrev.vdot) * 10) / 10
+      : null;
+
+    // La forma ACTUAL es el mejor rendimiento de la mitad reciente de la ventana;
+    // el pico es el mejor de toda ella. Si la mitad reciente no tiene ningún
+    // esfuerzo utilizable, la cabecera cae al ancla global (y se dice de cuándo es).
+    const headlineAnchor = anchorRecent || anchor;
+
+    const describe = (fit) => fit ? {
+      vdot: fit.vdot,
+      n: fit.n,
+      label: CANON_EFFORTS.find(e => e.id === fit.anchor.id)?.label || fit.anchor.id,
+      date: fit.anchor.date,
+      timeLabel: formatDuration(fit.anchor.time_s),
+      paceLabel: formatPaceFromMinPerKm(fit.anchor.pace_min_km),
+      activityName: fit.anchor.activity_name,
+    } : null;
+
+    const anchorInfo = describe(headlineAnchor);
+    const anchorPeak = anchor ? anchor.vdot : null;
 
     // --- Estimate VO2max for each valid run ---
     const validRuns = activities
@@ -292,7 +419,7 @@ export default function VO2MaxTracker({ activities }) {
         if (!a.average_heartrate || a.average_heartrate < 90) return false;
         if (!a.average_speed || a.average_speed < 1.5) return false;
         if (a.moving_time < 600) return false;
-        if (new Date(a.start_date).getTime() < cutoff) return false;
+        if (!inWindow(a)) return false;
         return true;
       })
       .map(a => {
@@ -307,8 +434,9 @@ export default function VO2MaxTracker({ activities }) {
           name: a.name,
           date: a.start_date,
           dateMs: date.getTime(),
+          day: activityDayKey(a),
           dateLabel: `${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`,
-          weekKey: isoWeekKey(a.start_date),
+          weekKey: isoWeekKey(activityDayKey(a)),
           km: (a.distance / 1000).toFixed(1),
           duration: Math.round(a.moving_time / 60),
           pace,
@@ -323,8 +451,35 @@ export default function VO2MaxTracker({ activities }) {
       .filter(Boolean)
       .sort((a, b) => a.dateMs - b.dateMs);
 
-    if (validRuns.length === 0)
-      return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
+    // Con la banda de HRR ya acotada a 70–88 % es normal que no haya sesiones
+    // válidas (un bloque entero de rodaje suave queda fuera). El ancla de
+    // rendimiento no depende de la FC, así que la cabecera se sigue pintando.
+    if (validRuns.length === 0) {
+      if (!anchorInfo) return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
+      return {
+        trendData: [], weeklyData: [], efficiencyData: [],
+        stats: {
+          current: anchorInfo.vdot,
+          currentSource: 'vdot',
+          anchor: anchorInfo,
+          submaxCurrent: null,
+          peak: anchorPeak,
+          avg: anchorInfo.vdot,
+          recentAvg: anchorInfo.vdot,
+          trendDir: anchorTrend ?? 0,
+          trendSource: anchorTrend != null ? 'vdot' : 'none',
+          category: getVO2Category(anchorInfo.vdot, t),
+          totalSessions: 0,
+          detectedMaxHR: activeMaxHR,
+          methodCounts: { HRR: 0, Firstbeat: 0, '%HRmax': 0 },
+          avgConfidence: 0,
+          activeRestHR,
+          isRestHREstimated: !garminRestHR,
+          activeMaxHR,
+          isMaxHREstimated: true,
+        },
+      };
+    }
 
     // --- Trimmed mean: discard top/bottom 10% of estimates ---
     const sortedByVO2 = [...validRuns].sort((a, b) => a.vo2max - b.vo2max);
@@ -402,9 +557,10 @@ export default function VO2MaxTracker({ activities }) {
     // Average confidence
     const avgConf = validRuns.reduce((s, r) => s + r.confidence, 0) / validRuns.length;
 
-    // Last 30 days
-    const last30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const recent = validRuns.filter(r => r.dateMs >= last30);
+    // Últimos 30 días, en días LOCALES: el corte por instante UTC metía o sacaba
+    // la sesión de primera hora del día frontera según el huso del atleta.
+    const last30 = daysAgoISO(30);
+    const recent = validRuns.filter(r => r.day && r.day >= last30);
     const recentAvg = recent.length > 0
       ? recent.reduce((s, r) => s + r.vo2max * r.confidence, 0) / recent.reduce((s, r) => s + r.confidence, 0)
       : 0;
@@ -413,18 +569,30 @@ export default function VO2MaxTracker({ activities }) {
     const methodCounts = { HRR: 0, Firstbeat: 0, '%HRmax': 0 };
     validRuns.forEach(r => r.methods.forEach(m => { methodCounts[m.method] = (methodCounts[m.method] || 0) + 1; }));
 
-    const category = getVO2Category(current, t);
+    // La cabecera es el ancla de rendimiento; la serie por FC solo la sustituye
+    // si todavía no hay ningún esfuerzo dentro de la ventana de validez del VDOT.
+    const submaxCurrent = Math.round(current * 10) / 10;
+    const headline = anchorInfo ? anchorInfo.vdot : submaxCurrent;
+    const headlineTrend = anchorInfo
+      ? (anchorTrend ?? 0)
+      : Math.round(trendDir * 10) / 10;
+    const category = getVO2Category(headline, t);
 
     return {
       trendData: trend,
       weeklyData: weekly,
       efficiencyData: efficiency,
       stats: {
-        current: Math.round(current * 10) / 10,
-        peak: Math.round(peak * 10) / 10,
+        current: headline,
+        currentSource: anchorInfo ? 'vdot' : 'hr',
+        anchor: anchorInfo,
+        submaxCurrent,
+        peak: anchorInfo ? anchorPeak : Math.round(peak * 10) / 10,
+        submaxPeak: Math.round(peak * 10) / 10,
         avg: Math.round(avg * 10) / 10,
         recentAvg: Math.round(recentAvg * 10) / 10,
-        trendDir: Math.round(trendDir * 10) / 10,
+        trendDir: headlineTrend,
+        trendSource: anchorInfo ? (anchorTrend != null ? 'vdot' : 'none') : 'hr',
         category,
         totalSessions: validRuns.length,
         detectedMaxHR: activeMaxHR,
@@ -436,9 +604,9 @@ export default function VO2MaxTracker({ activities }) {
         isMaxHREstimated: true,
       },
     };
-  }, [activities, monthsToShow, smoothing, garminRestHR, t]);
+  }, [activities, monthsToShow, smoothing, garminRestHR, t, MONTH_SHORT]);
 
-  if (!stats || trendData.length === 0) {
+  if (!stats) {
     return (
       <div className="text-center py-12 text-slate-400">
         <p className="text-sm">{t('vo2.no_data', 'No hay datos suficientes para estimar tu VO2max.')}</p>
@@ -447,36 +615,6 @@ export default function VO2MaxTracker({ activities }) {
     );
   }
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0].payload;
-    return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs max-w-[260px]">
-        <p className="font-bold text-slate-700 mb-1">{d.name || d.week}</p>
-        {d.dateLabel && <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>}
-        {d.paceLabel && <p className="text-slate-500">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>}
-        {d.vo2max !== undefined && (
-          <p className="text-blue-600 font-bold">
-            VO2max: {d.vo2max} ml/kg/min
-            {d.confidence !== undefined && <span className="text-slate-400 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
-          </p>
-        )}
-        {d.vo2avg !== undefined && <p className="text-blue-500">Media ponderada: {d.vo2avg}</p>}
-        {d.methods && d.methods.length > 0 && (
-          <div className="mt-1 pt-1 border-t border-slate-100">
-            {d.methods.map((m, i) => (
-              <p key={i} className="text-slate-400">
-                {m.method}: {Math.round(m.value * 10) / 10} <span className="opacity-60">(w={m.weight.toFixed(1)})</span>
-              </p>
-            ))}
-          </div>
-        )}
-        {d.avgVO2 !== undefined && <p className="text-blue-600 font-bold">Media: {d.avgVO2}</p>}
-        {d.bestVO2 !== undefined && <p className="text-emerald-600">Mejor: {d.bestVO2}</p>}
-        {d.sessions !== undefined && <p className="text-slate-400">{d.sessions} sesiones</p>}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -487,11 +625,20 @@ export default function VO2MaxTracker({ activities }) {
           <div className="absolute top-0 right-0 p-8 opacity-10 transition-transform group-hover:scale-125">
             <SparklesIcon className="w-24 h-24 text-white" />
           </div>
-          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 relative z-10">{t('vo2.estimated')}</p>
+          <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 relative z-10">
+            {stats.currentSource === 'vdot' ? t('vo2.anchored') : t('vo2.estimated')}
+          </p>
           <div className="relative z-10">
             <p className="text-7xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.current}</p>
             <p className="text-blue-300 text-xs font-bold mt-2 uppercase tracking-widest">{t('vo2.ml_kg_min')}</p>
           </div>
+
+          {/* Procedencia: qué rendimiento sostiene la cifra, o por qué no hay ancla */}
+          <p className="text-blue-300/70 text-[10px] font-bold mt-3 relative z-10 px-4 leading-snug">
+            {stats.anchor
+              ? `${t('vo2.anchor_from')} ${stats.anchor.label} ${stats.anchor.timeLabel} · ${stats.anchor.paceLabel}/km · ${stats.anchor.date}`
+              : t('vo2.anchor_missing')}
+          </p>
 
           <div className="mt-8 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm relative z-10">
             <div className="w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ backgroundColor: stats.category.color }} />
@@ -514,8 +661,22 @@ export default function VO2MaxTracker({ activities }) {
         {/* Stat cards */}
         <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
           {[
-            { label: t('vo2.peak'), value: stats.peak, unit: t('vo2.ml_kg_min'), color: "text-emerald-600", icon: FlagIcon },
-            { label: t('vo2.global_avg'), value: stats.avg, unit: t('vo2.ml_kg_min'), color: "text-slate-600", icon: ChartBarIcon },
+            {
+              label: t('vo2.peak'),
+              value: stats.peak ?? '--',
+              unit: t('vo2.ml_kg_min'),
+              color: "text-emerald-600",
+              icon: FlagIcon,
+              sub: stats.currentSource === 'vdot' ? t('vo2.peak_window') : null,
+            },
+            {
+              label: stats.currentSource === 'vdot' ? t('vo2.submax') : t('vo2.global_avg'),
+              value: (stats.currentSource === 'vdot' ? stats.submaxCurrent : stats.avg) ?? '--',
+              unit: t('vo2.ml_kg_min'),
+              color: "text-slate-600",
+              icon: ChartBarIcon,
+              sub: stats.currentSource === 'vdot' ? t('vo2.submax_sub') : null,
+            },
             { label: t('vo2.last_30'), value: stats.recentAvg || '--', unit: t('vo2.ml_kg_min'), color: "text-blue-600", icon: CalendarIcon },
             {
               label: stats.isMaxHREstimated ? t('vo2.garmin_sync.max_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.max_hr') + " (Garmin)",
@@ -557,7 +718,8 @@ export default function VO2MaxTracker({ activities }) {
         </div>
       </div>
 
-      {/* Method breakdown */}
+      {/* Method breakdown — los tres métodos son de la serie SUBMÁXIMA por FC */}
+      {trendData.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { key: 'HRR', label: 'Estrategia HRR', desc: 'Basado en Reserva (Swain 1997)', color: 'bg-blue-600' },
@@ -575,6 +737,7 @@ export default function VO2MaxTracker({ activities }) {
           </div>
         ))}
       </div>
+      )}
 
       {/* Estado de datos fisiológicos (proviene del sync global de Garmin) */}
       <div className={`rounded-2xl border-l-[12px] p-8 transition-all bg-white border border-slate-100 ${garminRestHR ? 'border-l-emerald-500 shadow-xl shadow-emerald-100/20' : 'border-l-slate-300 shadow-sm'}`}>
@@ -675,11 +838,14 @@ export default function VO2MaxTracker({ activities }) {
         </Select>
       </div>
 
-      {/* Main evolution chart */}
+      {/* Main evolution chart — serie SUBMÁXIMA, no la cifra de cabecera */}
+      {trendData.length > 0 && (
       <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">Evolución del VO2max</Title>
+        <Title className="text-slate-800 font-bold mb-1">VO2max submáximo (proxy de eficiencia)</Title>
         <Text className="text-slate-500 text-sm mb-4">
-          Multi-método: HRR + regresión Firstbeat + %FCmax con pesos de fiabilidad y corrección de drift
+          Multi-método por FC: HRR (70–88 % HRR) + regresión Firstbeat + %FCmax. Mide el punto de
+          trabajo de cada sesión, no la forma: la cifra de cabecera sale del VDOT sobre tus mejores
+          esfuerzos.
         </Text>
         <div className="h-[360px] w-full min-h-[360px]">
           <ResponsiveContainer width="100%" height="100%" minHeight={360}>
@@ -709,16 +875,17 @@ export default function VO2MaxTracker({ activities }) {
               />
 
               <ReferenceLine
-                y={stats.peak}
+                y={stats.submaxPeak}
                 stroke="#10b981"
                 strokeDasharray="5 3"
                 strokeWidth={1}
-                label={{ value: `Pico: ${stats.peak}`, position: 'insideTopRight', fill: '#10b981', fontSize: 10 }}
+                label={{ value: `Pico: ${stats.submaxPeak}`, position: 'insideTopRight', fill: '#10b981', fontSize: 10 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </Card>
+      )}
 
 
 
@@ -762,6 +929,7 @@ export default function VO2MaxTracker({ activities }) {
       )}
 
       {/* Efficiency scatter */}
+      {efficiencyData.length > 0 && (
       <Card className="shadow-lg border-slate-200">
         <Title className="text-slate-800 font-bold mb-1">Eficiencia Aeróbica</Title>
         <Text className="text-slate-500 text-sm mb-4">
@@ -806,6 +974,7 @@ export default function VO2MaxTracker({ activities }) {
           Puntos más oscuros = sesiones más recientes. Tamaño = confianza de la estimación.
         </p>
       </Card>
+      )}
 
       {/* VO2max classification */}
       <Card className="shadow-lg border-slate-200">

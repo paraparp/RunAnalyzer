@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildMeanMaxCurve, fitCriticalSpeed, predictTime, speedForDuration,
-  canonByMeters, raceDistanceId, hasNonMaximalPoints, monthsAgoISO,
+  canonByMeters, raceDistanceId, hasNonMaximalPoints, monthsAgoISO, daysAgoISO, activityWithinMonths,
+  fitCriticalSpeed3P, VMAX_MIN_M_S, VMAX_MAX_M_S,
 } from './criticalSpeed';
 
 // Distancia por defecto NO canónica (12,4 km): así la actividad solo aporta los
@@ -151,5 +152,151 @@ describe('monthsAgoISO', () => {
     const hace6 = monthsAgoISO(6);
     expect(hace6).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(hace6 < hoy).toBe(true);
+  });
+});
+
+describe('daysAgoISO', () => {
+  const dayISO = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  it('sin días no pone límite inferior', () => {
+    expect(daysAgoISO(null)).toBe(null);
+  });
+
+  it('es el día LOCAL de hace N días, no un desfase UTC', () => {
+    // Al oeste de Greenwich `toISOString()` a última hora da ya el día siguiente:
+    // esa era la frontera que movía la ventana de "últimos 30 días" un día entero.
+    expect(daysAgoISO(30)).toBe(dayISO(30));
+    expect(daysAgoISO(0)).toBe(dayISO(0));
+  });
+
+  it('cruza el cambio de mes sin saltarse días', () => {
+    const from = daysAgoISO(45);
+    const hoy = dayISO(0);
+    expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(from < hoy).toBe(true);
+  });
+});
+
+describe('activityWithinMonths', () => {
+  const dayISO = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  it('sin meses acepta cualquier actividad', () => {
+    const inWindow = activityWithinMonths(null);
+    expect(inWindow({ start_date_local: '2001-01-01T08:00:00Z' })).toBe(true);
+  });
+
+  it('acepta lo reciente y descarta lo anterior a la frontera', () => {
+    const inWindow = activityWithinMonths(6);
+    expect(inWindow({ start_date_local: `${dayISO(30)}T08:00:00Z` })).toBe(true);
+    expect(inWindow({ start_date_local: `${dayISO(400)}T08:00:00Z` })).toBe(false);
+  });
+
+  it('la frontera es de calendario, no bloques de 30 días', () => {
+    // 12 meses de 30 días son 360 días: un esfuerzo de hace 362 quedaba fuera
+    // de la ventana de la CS y dentro de la del contraste por FC, o al revés.
+    const inWindow = activityWithinMonths(12);
+    expect(inWindow({ start_date_local: `${dayISO(362)}T08:00:00Z` })).toBe(true);
+  });
+
+  it('usa el día LOCAL de la actividad, no el instante UTC', () => {
+    // 00:30 local en UTC+2 es el día anterior en UTC: si la frontera cae ese día,
+    // la comparación por timestamp UTC la descartaba y la de día local la mantiene.
+    const from = monthsAgoISO(6);
+    const inWindow = activityWithinMonths(6);
+    expect(inWindow({ start_date_local: `${from}T00:30:00`, start_date: `${from}T22:30:00Z` })).toBe(true);
+  });
+
+  it('sin fecha, fuera', () => {
+    expect(activityWithinMonths(6)({})).toBe(false);
+  });
+});
+
+describe('fitCriticalSpeed3P (Morton)', () => {
+  // Atleta sintético con CS = 4 m/s, D′ = 200 m y vMax = 9 m/s
+  // → k = D′/(vMax − CS) = 40 s, d = 4t + 200·t/(t+40).
+  const CS = 4, DP = 200, VMAX = 9, K = DP / (VMAX - CS);
+  const dist3p = (t) => CS * t + DP * (t / (t + K));
+  const synthetic = [60, 120, 300, 600, 1200].map((t) => ({ id: `t${t}`, time_s: t, distance_m: dist3p(t) }));
+
+  it('recupera los tres parámetros de una curva generada con el modelo', () => {
+    const fit = fitCriticalSpeed3P(synthetic);
+    expect(fit.cs_m_s).toBeCloseTo(CS, 2);
+    expect(fit.d_prime_m).toBeCloseTo(DP, 0);
+    expect(fit.v_max_m_s).toBeCloseTo(VMAX, 1);
+    expect(fit.k_s).toBeCloseTo(K, 0);
+    expect(fit.r2).toBeGreaterThan(0.999);
+    expect(fit.model).toBe('3p');
+    expect(fit.n).toBe(5);
+  });
+
+  it('sobre esos mismos datos el modelo de 2 parámetros sobreestima la CS', () => {
+    // Es el sesgo que motiva el tercer parámetro: sin techo de velocidad, los
+    // esfuerzos cortos empujan la pendiente hacia arriba.
+    const two = fitCriticalSpeed(synthetic);
+    const three = fitCriticalSpeed3P(synthetic);
+    expect(two.cs_m_s).toBeGreaterThan(three.cs_m_s);
+    expect(three.cs_m_s).toBeCloseTo(CS, 2);
+  });
+
+  it('sin curvatura no se inventa un techo: cede al modelo de dos parámetros', () => {
+    // Curva generada SIN curvatura (d = CS·t + D′, k = 0): no hay vMax que
+    // estimar —saldría de cientos de m/s— y el ajuste se declara nulo en vez de
+    // devolver un tercer parámetro sacado del ruido.
+    const linear = [180, 300, 600, 1200].map((t) => ({ id: `t${t}`, time_s: t, distance_m: CS * t + DP }));
+    expect(fitCriticalSpeed3P(linear)).toBe(null);
+    expect(fitCriticalSpeed(linear).cs_m_s).toBeCloseTo(CS, 3);
+  });
+
+  it('predictTime invierte el modelo de tres parámetros', () => {
+    const fit = fitCriticalSpeed3P(synthetic);
+    for (const t of [90, 400, 900]) {
+      const p = predictTime(fit, dist3p(t));
+      expect(p.time_s).toBeCloseTo(t, 0);
+    }
+  });
+
+  it('speedForDuration no se dispara al acortar la duración', () => {
+    const fit = fitCriticalSpeed3P(synthetic);
+    // A 1 s el 2P daría CS + D′ = cientos de m/s; el 3P se queda bajo vMax.
+    expect(speedForDuration(fit, 1)).toBeLessThanOrEqual(fit.v_max_m_s);
+    expect(speedForDuration(fit, 1)).toBeGreaterThan(fit.cs_m_s);
+    // Y la curva sigue siendo decreciente en duración.
+    expect(speedForDuration(fit, 300)).toBeGreaterThan(speedForDuration(fit, 1200));
+  });
+
+  it('marca como optimista lo que cae más allá de la ventana', () => {
+    const fit = fitCriticalSpeed3P(synthetic);
+    expect(predictTime(fit, 5000).optimistic).toBe(false);
+    expect(predictTime(fit, 42195).optimistic).toBe(true);
+  });
+
+  it('exige cuatro puntos: con tres el ajuste sería una interpolación', () => {
+    expect(fitCriticalSpeed3P(synthetic.slice(0, 3))).toBe(null);
+    expect(fitCriticalSpeed3P([])).toBe(null);
+  });
+
+  it('descarta el ajuste si vMax sale fuera de la banda fisiológica', () => {
+    // Curva plana: todos los puntos al mismo ritmo, sin reserva anaeróbica que
+    // explique un techo de velocidad.
+    const flat = [60, 120, 300, 600].map((t) => ({ id: `t${t}`, time_s: t, distance_m: CS * t }));
+    expect(fitCriticalSpeed3P(flat)).toBe(null);
+    // Y cuando sí ajusta, vMax cae dentro de la banda declarada.
+    const fit = fitCriticalSpeed3P(synthetic);
+    expect(fit.v_max_m_s).toBeGreaterThanOrEqual(VMAX_MIN_M_S);
+    expect(fit.v_max_m_s).toBeLessThanOrEqual(VMAX_MAX_M_S);
+  });
+
+  it('respeta la ventana temporal y la deja anotada', () => {
+    const fit = fitCriticalSpeed3P(synthetic, { minTime: 100, maxTime: 1800 });
+    expect(fit.window_s).toEqual([100, 1800]);
+    expect(fit.used_ids).not.toContain('t60');
   });
 });

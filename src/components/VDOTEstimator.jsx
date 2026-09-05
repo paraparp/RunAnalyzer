@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Badge, Callout, Select, SelectItem } from '@tremor/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-import { oxygenCostDaniels, sustainableFraction, velocityFromVO2 } from '../lib/physiology';
+import { velocityFromVO2 } from '../lib/physiology';
+import { activityDayKey } from '../lib/trainingLoad';
+import { calculateVDOT, predictRaceTime } from '../lib/vdot';
 import { RACE_DISTANCES } from '../lib/raceDistances';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 
@@ -16,45 +18,9 @@ import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 // tracker and the vitals summary.
 // ============================================================
 
-/**
- * Calculate VDOT from a race performance using the Daniels-Gilbert formula.
- * Valid for race durations approximately 3.5 to 230 minutes.
- * @param {number} distanceMeters
- * @param {number} timeSeconds
- * @returns {number} VDOT value
- */
-function calculateVDOT(distanceMeters, timeSeconds) {
-  const t = timeSeconds / 60;
-  const v = distanceMeters / t;
-  const vo2 = oxygenCostDaniels(v);
-  const fraction = sustainableFraction(t);
-  if (fraction <= 0) return null;
-  const vdot = vo2 / fraction;
-  return vdot > 0 ? vdot : null;
-}
-
-/**
- * Predict race time for a given VDOT and distance.
- * Uses bisection method since the equation is transcendental.
- * @param {number} vdot
- * @param {number} distanceMeters
- * @returns {number} predicted time in seconds
- */
-function predictRaceTime(vdot, distanceMeters) {
-  let lo = 60;        // 1 min
-  let hi = 60 * 600;  // 10 hours
-
-  for (let i = 0; i < 80; i++) {
-    const mid = (lo + hi) / 2;
-    const midVdot = calculateVDOT(distanceMeters, mid);
-    if (midVdot === null || midVdot > vdot) {
-      lo = mid; // too fast → increase time
-    } else {
-      hi = mid; // too slow → decrease time
-    }
-  }
-  return (lo + hi) / 2;
-}
+// `calculateVDOT` y `predictRaceTime` viven en lib/vdot: son la misma pareja de
+// ecuaciones que ancla la cifra de cabecera del VO2max en rendimiento, y tener
+// dos copias era la razón de que VDOT y VO2max fueran dos números de lo mismo.
 
 /**
  * Training paces derived from %VO2max zones (Daniels' Running Formula).
@@ -111,6 +77,30 @@ const DISTANCE_RANGES = RACE_DISTANCES.map(({ key, m, label }) => ({
 // ============================================================
 // Component
 // ============================================================
+
+// Definido fuera del componente: dentro del render sería un tipo nuevo en cada
+// render y Recharts remontaría el subárbol del tooltip entero.
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl min-w-[140px]">
+        <p className="text-xs text-slate-500 mb-2 font-medium">{label}</p>
+        <div className="space-y-1.5">
+          {payload.map(p => (
+            <div key={p.dataKey} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: p.stroke }} />
+                <p className="text-xs font-medium text-slate-600">{p.name || p.dataKey}</p>
+              </div>
+              <p className="text-sm font-black tabular-nums" style={{ color: p.stroke }}>{p.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
 
 export default function VDOTEstimator({ activities }) {
   const [timeWindow, setTimeWindow] = useState('all');
@@ -198,7 +188,8 @@ export default function VDOTEstimator({ activities }) {
       const vdot = calculateVDOT(matchedRange.distM, normalizedTime);
 
       if (vdot && vdot >= 10 && vdot <= 95) {
-        const dateStr = a.start_date.split('T')[0];
+        // Día local: una salida de las 00:30 se fechaba el día anterior.
+        const dateStr = activityDayKey(a);
         
         if (!dateMap.has(dateStr)) {
           dateMap.set(dateStr, {
@@ -237,27 +228,6 @@ export default function VDOTEstimator({ activities }) {
     });
   }, [bestVDOT]);
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl min-w-[140px]">
-          <p className="text-xs text-slate-500 mb-2 font-medium">{label}</p>
-          <div className="space-y-1.5">
-            {payload.map(p => (
-              <div key={p.dataKey} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: p.stroke }} />
-                  <p className="text-xs font-medium text-slate-600">{p.name || p.dataKey}</p>
-                </div>
-                <p className="text-sm font-black tabular-nums" style={{ color: p.stroke }}>{p.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   if (!activities || activities.length === 0) {
     return (

@@ -7,7 +7,7 @@ import {
     Tooltip as RechartsTooltip, Scatter, ComposedChart, ReferenceLine,
 } from 'recharts';
 import {
-    buildMeanMaxCurve, fitCriticalSpeed, predictTime, speedForDuration,
+    buildMeanMaxCurve, fitCriticalSpeed, fitCriticalSpeed3P, predictTime, speedForDuration,
     CANON_EFFORTS, fmtTime, fmtPace, FIT_MIN_S, FIT_MAX_S, monthsAgoISO,
 } from '../lib/criticalSpeed';
 import { RACE_DISTANCES } from '../lib/raceDistances';
@@ -43,25 +43,33 @@ const CriticalSpeed = ({ activities = [] }) => {
 
     // Curva del periodo elegido y la del periodo ANTERIOR de igual duración, para
     // ver si la curva se ha movido y por dónde.
-    const { curve, previous, fit } = useMemo(() => {
+    const { curve, previous, fit, fit3p } = useMemo(() => {
         const from = monthsAgoISO(months);
         const cur = buildMeanMaxCurve(activities, { from });
         const prev = months
             ? buildMeanMaxCurve(activities, { from: monthsAgoISO(months * 2), to: from })
             : [];
-        return { curve: cur, previous: prev, fit: fitCriticalSpeed(cur) };
+        // El ajuste de tres parámetros es un COMPLEMENTO: solo sale si hay
+        // esfuerzos cortos que den curvatura, y no toca la CS ni el D′ que se
+        // muestran. Añade el techo de velocidad que al de dos parámetros le falta.
+        return { curve: cur, previous: prev, fit: fitCriticalSpeed(cur), fit3p: fitCriticalSpeed3P(cur) };
     }, [activities, months]);
 
     // Serie del modelo: velocidad sostenible para cada duración (escala log).
+    // Si hay ajuste de tres parámetros se pinta encima, en discontinua: es la
+    // misma curva salvo por el extremo corto, donde el de dos se dispara.
     const modelSeries = useMemo(() => {
         if (!fit) return [];
         const out = [];
         for (let s = 90; s <= 14400; s *= 1.12) {
+            const t = Math.round(s);
             const v = speedForDuration(fit, s);
-            out.push({ t: Math.round(s), modelPace: (1000 / v) / 60 });
+            const row = { t, modelPace: (1000 / v) / 60 };
+            if (fit3p) row.model3pPace = (1000 / speedForDuration(fit3p, s)) / 60;
+            out.push(row);
         }
         return out;
-    }, [fit]);
+    }, [fit, fit3p]);
 
     const points = useMemo(() => curve.map((p) => ({
         t: p.time_s, pointPace: p.pace_min_km, id: p.id, label: labelOf(p.id), date: p.date,
@@ -133,7 +141,7 @@ const CriticalSpeed = ({ activities = [] }) => {
         <div className="space-y-6 max-w-6xl mx-auto fade-in">
             {header}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${fit3p ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
                 <Metric
                     label={t('cs.cs')}
                     value={fmtPace(fit.cs_pace_min_km)}
@@ -153,6 +161,14 @@ const CriticalSpeed = ({ activities = [] }) => {
                     hint={t('cs.quality_hint', { n: fit.n })}
                     tone={fit.r2 > 0.99 ? 'text-emerald-600' : fit.r2 > 0.97 ? 'text-slate-900' : 'text-amber-600'}
                 />
+                {fit3p && (
+                    <Metric
+                        label={t('cs.v_max')}
+                        value={fit3p.v_max_m_s.toFixed(1)}
+                        unit="m/s"
+                        hint={t('cs.v_max_hint', { pace: fmtPace(fit3p.v_max_pace_min_km) })}
+                    />
+                )}
             </div>
 
             {/* Curva */}
@@ -200,11 +216,23 @@ const CriticalSpeed = ({ activities = [] }) => {
                                 type="monotone" dataKey="modelPace" stroke="#7c3aed" strokeWidth={2}
                                 dot={false} isAnimationActive={false} connectNulls
                             />
+                            {fit3p && (
+                                <Line
+                                    type="monotone" dataKey="model3pPace" stroke="#7c3aed" strokeWidth={2}
+                                    strokeDasharray="5 4" strokeOpacity={0.65}
+                                    dot={false} isAnimationActive={false} connectNulls
+                                />
+                            )}
                             <Scatter dataKey="prevPace" fill="#cbd5e1" shape="circle" isAnimationActive={false} />
                             <Scatter dataKey="pointPace" fill="#7c3aed" shape="circle" isAnimationActive={false} />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
+                {fit3p && (
+                    <p className="text-[11px] font-medium text-slate-400 mt-3">
+                        {t('cs.model_3p_note', { n: fit3p.n })}
+                    </p>
+                )}
             </div>
 
             {/* Predicciones */}

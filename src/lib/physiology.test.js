@@ -94,22 +94,32 @@ describe('vo2maxFromHRR', () => {
     expect(vo2maxFromHRR(43.5, 162, HR_REST, HR_MAX)).toBeCloseTo(53.5, 10);
   });
 
-  it('devuelve null fuera de la banda fiable 35–95 % HRR', () => {
+  it('devuelve null fuera de la banda fiable 70–88 % HRR', () => {
     expect(vo2maxFromHRR(43.5, 95, HR_REST, HR_MAX)).toBeNull();   // 32 % HRR
+    expect(vo2maxFromHRR(43.5, 140, HR_REST, HR_MAX)).toBeNull();  // 64 % HRR
+    expect(vo2maxFromHRR(43.5, 178, HR_REST, HR_MAX)).toBeNull();  // 91 % HRR
     expect(vo2maxFromHRR(43.5, 185, HR_REST, HR_MAX)).toBeNull();  // 96 % HRR
   });
 
-  it('descarta resultados fisiológicamente imposibles', () => {
-    // 40 % HRR con coste de oxígeno de umbral daría 103 ml/kg/min
-    expect(vo2maxFromHRR(43.5, 106, HR_REST, HR_MAX)).toBeNull();
+  it('acepta la banda entera y solo esa', () => {
+    expect(vo2maxFromHRR(43.5, 148, HR_REST, HR_MAX)).not.toBeNull();   // 70 % justo
+    expect(vo2maxFromHRR(43.5, 173, HR_REST, HR_MAX)).not.toBeNull();   // 88 % justo
+    expect(vo2maxFromHRR(43.5, 147, HR_REST, HR_MAX)).toBeNull();
+    expect(vo2maxFromHRR(43.5, 174, HR_REST, HR_MAX)).toBeNull();
   });
 
-  it('es el estimador sensible a la intensidad que documenta A1 de la auditoría', () => {
-    // Mismo atleta, mismo día: el rodaje suave sale MÁS ALTO que el tempo.
-    // El test fija el comportamiento actual para que el arreglo de A1 sea visible.
+  it('descarta resultados fisiológicamente imposibles dentro de banda', () => {
+    // 70 % HRR con un coste de oxígeno absurdo daría 98 ml/kg/min
+    expect(vo2maxFromHRR(70, 148, HR_REST, HR_MAX)).toBeNull();
+  });
+
+  it('A1: el rodaje suave ya no puede inflar el VO2max', () => {
+    // Mismo atleta, mismo día. Antes el rodaje salía ~16 % MÁS ALTO que el tempo
+    // y contaba igual; ahora queda fuera de banda y no entra en la media.
     const suave = vo2maxFromHRR(oxygenCostLeger(11.88), 130, HR_REST, HR_MAX);
     const tempo = vo2maxFromHRR(oxygenCostLeger(15.13), 172, HR_REST, HR_MAX);
-    expect(suave).toBeGreaterThan(tempo);
+    expect(suave).toBeNull();
+    expect(tempo).not.toBeNull();
   });
 });
 
@@ -121,8 +131,10 @@ describe('vo2maxFromHRmaxPct', () => {
     expect(vo2maxFromHRmaxPct(43.5, 161.5, HR_MAX)).toBeCloseTo(43.5 / pct, 6);
   });
 
-  it('devuelve null fuera de 55–98 % FCmax', () => {
+  it('devuelve null fuera de 78–92 % FCmax (equivalente a 70–88 % HRR)', () => {
     expect(vo2maxFromHRmaxPct(43.5, 100, HR_MAX)).toBeNull(); // 53 %
+    expect(vo2maxFromHRmaxPct(43.5, 145, HR_MAX)).toBeNull(); // 76 %
+    expect(vo2maxFromHRmaxPct(43.5, 178, HR_MAX)).toBeNull(); // 94 %
     expect(vo2maxFromHRmaxPct(43.5, 189, HR_MAX)).toBeNull(); // 99 %
   });
 });
@@ -138,10 +150,11 @@ describe('vo2FromRun', () => {
 
   it('cae a %FCmax cuando la vía HRR queda fuera de banda', () => {
     const speedMs = 4.2;
-    // 185 ppm = 96 % HRR (fuera) pero 97 % FCmax (dentro del otro rango)
-    expect(vo2maxFromHRR(oxygenCostLeger(speedMs * 3.6), 185, HR_REST, HR_MAX)).toBeNull();
-    const porHRmax = vo2maxFromHRmaxPct(oxygenCostLeger(speedMs * 3.6), 185, HR_MAX);
-    expect(vo2FromRun(speedMs, 185, HR_REST, HR_MAX)).toBeCloseTo(porHRmax, 10);
+    const REST_ALTA = 70; // HRR = 120
+    // 150 ppm = 67 % HRR (fuera) pero 79 % FCmax (dentro del otro rango)
+    expect(vo2maxFromHRR(oxygenCostLeger(speedMs * 3.6), 150, REST_ALTA, HR_MAX)).toBeNull();
+    const porHRmax = vo2maxFromHRmaxPct(oxygenCostLeger(speedMs * 3.6), 150, HR_MAX);
+    expect(vo2FromRun(speedMs, 150, REST_ALTA, HR_MAX)).toBeCloseTo(porHRmax, 10);
   });
 
   it('funciona sin FC en reposo', () => {

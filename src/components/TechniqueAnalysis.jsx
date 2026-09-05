@@ -9,6 +9,32 @@ import {
 import { useMemo, useState, useEffect } from 'react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 
+// Definido fuera del componente: dentro del render sería un tipo nuevo en cada
+// render y Recharts remontaría el subárbol del tooltip entero.
+function CustomTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const paceFmt = `${formatPaceFromMinPerKm(data.ritmoVal)} /km`;
+    return (
+      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl z-50">
+        <p className="font-bold text-slate-800 text-sm mb-1">{data.name}</p>
+        <div className="flex flex-col gap-1 mt-2">
+           <p className="text-slate-600 text-xs font-medium">Fecha: <span className="text-slate-900 font-bold ml-1">{data.dateStr}</span></p>
+           <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-slate-900 font-bold ml-1">{paceFmt}</span></p>
+           <p className="text-slate-600 text-xs font-medium">Cadencia: <span className="text-blue-600 font-bold ml-1">{data.Cadencia} spm</span></p>
+           <p className="text-slate-600 text-xs font-medium">Zancada: <span className="text-emerald-600 font-bold ml-1">{data.Zancada} m</span></p>
+           <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
+           <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
+        </div>
+        <div className="mt-2 text-[10px] text-slate-400 font-medium">
+          (Clic para abrir en Strava)
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function TechniqueAnalysis({ activities }) {
   const [flatOnly, setFlatOnly] = useState(false);
 
@@ -65,29 +91,6 @@ export default function TechniqueAnalysis({ activities }) {
     return baseData.filter(d => !deselectedYears.has(d.year));
   }, [baseData, deselectedYears]);
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const paceFmt = `${formatPaceFromMinPerKm(data.ritmoVal)} /km`;
-      return (
-        <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl z-50">
-          <p className="font-bold text-slate-800 text-sm mb-1">{data.name}</p>
-          <div className="flex flex-col gap-1 mt-2">
-             <p className="text-slate-600 text-xs font-medium">Fecha: <span className="text-slate-900 font-bold ml-1">{data.dateStr}</span></p>
-             <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-slate-900 font-bold ml-1">{paceFmt}</span></p>
-             <p className="text-slate-600 text-xs font-medium">Cadencia: <span className="text-blue-600 font-bold ml-1">{data.Cadencia} spm</span></p>
-             <p className="text-slate-600 text-xs font-medium">Zancada: <span className="text-emerald-600 font-bold ml-1">{data.Zancada} m</span></p>
-             <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
-             <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
-          </div>
-          <div className="mt-2 text-[10px] text-slate-400 font-medium">
-            (Clic para abrir en Strava)
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   const YEAR_COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#f43f5e', '#3b82f6'];
 

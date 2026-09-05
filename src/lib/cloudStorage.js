@@ -37,6 +37,7 @@ const MIGRATED_KEYS = [
   'runqa_seed',
   'runqa_model',
   'racepredictor_model',
+  'shoe_life_km',     // vida útil del calzado fijada a mano, por par
   'planner_model',
   'target_races',     // carreras objetivo + plan de entrenamiento (las lee y escribe el MCP)
 ];
