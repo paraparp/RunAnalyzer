@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowRightStartOnRectangleIcon,
@@ -11,11 +12,33 @@ import {
 import ModelSelector from './ModelSelector';
 import VersionBadge from './VersionBadge';
 import useAIModel from '../hooks/useAIModel';
+import cloudStorage from '../lib/cloudStorage';
 import { parseModelValue, PROVIDER_LABELS } from '../services/ai';
 
 /**
- * Menú de usuario desplegable con información de perfil, selector de modelo de IA,
- * selector de idioma y botón de cerrar sesión.
+ * Comprueba si el usuario tiene credenciales o datos guardados de Garmin Connect.
+ */
+function checkGarminConnected() {
+  try {
+    const credsStr = cloudStorage.getItem('garmin_creds');
+    if (credsStr) {
+      const creds = JSON.parse(credsStr);
+      if (creds && (creds.username || creds.email)) return true;
+    }
+    const dataStr = cloudStorage.getItem('garmin_cardiac_data');
+    if (dataStr) {
+      const data = JSON.parse(dataStr);
+      if (Array.isArray(data) && data.length > 0) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Menú de usuario desplegable con información de perfil, chips de conexión
+ * (Strava y Garmin), selector de modelo de IA, selector de idioma y botón de cerrar sesión.
  *
  * @param {object} props
  * @param {object} props.user - Objeto con datos del usuario (name, email, picture).
@@ -31,9 +54,22 @@ export default function UserMenu({
   className = '',
 }) {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const [selectedModel] = useAIModel();
+  const [isGarminConnected, setIsGarminConnected] = useState(checkGarminConnected);
+
+  // Escucha cambios en las credenciales o datos de Garmin
+  useEffect(() => {
+    const updateGarmin = () => setIsGarminConnected(checkGarminConnected());
+    window.addEventListener('garmin-cardiac-updated', updateGarmin);
+    window.addEventListener('storage', updateGarmin);
+    return () => {
+      window.removeEventListener('garmin-cardiac-updated', updateGarmin);
+      window.removeEventListener('storage', updateGarmin);
+    };
+  }, []);
 
   // Cerrar al hacer clic fuera o presionar Escape
   useEffect(() => {
@@ -101,9 +137,15 @@ export default function UserMenu({
             <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">
               {user?.name || 'Corredor'}
             </p>
-            <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate">
               <SparklesIcon className="w-3 h-3 text-blue-500 shrink-0" />
               <span className="truncate font-medium capitalize">{cleanModelName}</span>
+              {isGarminConnected && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-[#007cc3] shrink-0"
+                  title="Garmin Connect vinculado"
+                />
+              )}
             </div>
           </div>
           <div className="text-slate-400 shrink-0">
@@ -141,7 +183,7 @@ export default function UserMenu({
         <div
           className={`absolute z-50 animate-in fade-in zoom-in-95 duration-150 ${
             isSidebar
-              ? 'bottom-full left-0 mb-3 w-[275px] sm:w-[310px]'
+              ? 'bottom-full left-0 mb-3 w-[285px] sm:w-[320px]'
               : 'right-0 top-full mt-2 w-[320px] sm:w-[360px]'
           }`}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
@@ -158,21 +200,52 @@ export default function UserMenu({
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                    {user?.name}
-                  </p>
-                </div>
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  {user?.name}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60">
+
+                {/* Chips de conexiones Strava & Garmin */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {/* Chip Strava */}
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60 shadow-xs"
+                    title="Strava Conectado"
+                  >
                     <span className="w-1.5 h-1.5 rounded-full bg-[#fc4c02]" />
                     Strava
                   </span>
-                  <span className="text-[10px] text-slate-400">·</span>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                    {t('user_menu.active', 'Activo')}
-                  </span>
+
+                  {/* Chip Garmin */}
+                  {isGarminConnected ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigate('/health');
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-xs transition-colors cursor-pointer"
+                      title="Garmin Connect conectado · Haz clic para ver métricas en Salud Cardiaca"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#007cc3]" />
+                      Garmin
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 ml-0.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigate('/health');
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
+                      title="Garmin no conectado · Haz clic para vincular en Salud Cardiaca"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                      Garmin
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-normal">off</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
