@@ -6,11 +6,11 @@
 > tras verificarlos uno a uno contra el código el **2026-08-31**; su registro queda en el
 > historial de git (commit `261ca35` y anteriores).
 >
-> Estado de la suite en la última verificación: **634 tests / 30 ficheros en verde**, comprobada
+> Estado de la suite en la última verificación: **657 tests / 32 ficheros en verde**, comprobada
 > además bajo `TZ=America/New_York` (los husos al oeste de Greenwich son los que destapan las
 > claves de día en UTC).
 >
-> Lo que queda abierto es el bloque `G` (menos `G1`, `G2`, `G3`, `G4` y `G5`, ya cerrados y borrados): varios de aquellos
+> Lo que queda abierto es el bloque `G` (menos `G1`–`G5`, `G7` y `G9`, ya cerrados y borrados): varios de aquellos
 > arreglos se hicieron en el componente donde se detectó el síntoma y no en sus hermanos, que
 > hacen el mismo cálculo con el mismo defecto.
 
@@ -20,9 +20,7 @@
 |---|---|---|---|---|
 | **G** | [Segunda pasada: arreglos que no llegaron a las vistas hermanas](#g-segunda-pasada-arreglos-que-no-llegaron-a-las-vistas-hermanas) | | | ⬜ Abierto |
 | G6 | [`api/_lib` sin tests: cerrado en `mcp-store`, abierto en el resto](#g6-apilib-sin-tests-cerrado-en-mcp-store-abierto-en-el-resto) | 🟠 Medio | Medio | 🟨 Parcial |
-| G7 | [La superficie MCP y la app no predicen con el mismo modelo](#g7-la-superficie-mcp-y-la-app-no-predicen-con-el-mismo-modelo) | 🟡 Bajo | Bajo | ⬜ |
 | G8 | [Superficie de export excesiva (heredado del bloque `D`)](#g8-superficie-de-export-excesiva-heredado-de-d) | 🟡 Bajo | Bajo | ⬜ |
-| G9 | [Componentes definidos dentro del render (destapado al cerrar `G4`)](#g9-componentes-definidos-dentro-del-render-destapado-al-cerrar-g4) | 🟡 Bajo | Bajo | ⬜ |
 
 ---
 
@@ -30,8 +28,8 @@
 
 > Revisión del **2026-08-31** sobre el árbol de trabajo (112 ficheros: los 106 de la pasada
 > anterior más `geoZones`, `routeSimilarity`, `reverseGeocode`, `streamProfile`, `shoeLife` y
-> `GeoZones.jsx`). Suite en verde: **634 tests / 30 ficheros**. Los bloques `A`–`F` se han
-> comprobado uno a uno contra el código y **todos siguen cerrados**; `G1`, `G2`, `G3`, `G4` y `G5` también, y por eso
+> `GeoZones.jsx`). Suite en verde: **657 tests / 32 ficheros**. Los bloques `A`–`F` se han
+> comprobado uno a uno contra el código y **todos siguen cerrados**; `G1`–`G5`, `G7` y `G9` también, y por eso
 > ya no aparecen aquí (`VitalsOverview` consume `useHrParams` y su panel se titula ya
 > "VO₂max submáximo"; `WeeklyProgression` marca la semana en curso como parcial y comparte con
 > `InjuryRisk` la regla del 10 % de `src/lib/weeklyVolume.js`; las claves de día y de semana de
@@ -41,6 +39,27 @@
 > punto de entrada único al GAP en `trainingLoad.js`, `HRAnalysis`, `VO2MaxTracker` y la
 > tarjeta de cabecera del dashboard, de modo que ninguna vista puede dar dos GAP de la misma
 > sesión).
+>
+> `G7` se cerró el **2026-09-05**: la app y la superficie MCP ya predicen con el MISMO modelo.
+> `predictRaces` está expuesta como herramienta `predict_races` (`getRacePrediction` en
+> `api/_lib/mcp-store.js` es solo presentación: redondeos, tiempos formateados y cada modelo por
+> separado), y `critical_speed` —descripción de la tool y `note` de la respuesta— remite a ella
+> para media y maratón, donde el CS a secas es cota inferior y no pronóstico. Cinco casos nuevos
+> en `mcp-store.test.js` fijan justo lo que puede volver a divergir: que los tiempos de la tool
+> son los de `predictRaces` sobre las mismas actividades, que CS no entra en el maratón, que los
+> ritmos salen monótonos, que sin esfuerzos aprovechables hay error explicado y no una predicción
+> vacía, y que la ventana pedida se respeta.
+>
+> `G9` se cerró el **2026-09-05**: los trece tooltips que `CardiacDecoupling`, `FitnessFatigue`,
+> `TechniqueAnalysis`, `VDOTEstimator`, `VO2MaxTracker` y `WeeklyProgression` declaraban dentro
+> del cuerpo del componente están ya a nivel de módulo (los que necesitaban `t`/`i18n` llaman a
+> `useTranslation` por su cuenta en vez de cerrar sobre el del padre), y las dos memoizaciones
+> que el compilador no podía preservar dependían del mismo `MONTH_SHORT` recreado en cada
+> render: ahora sale de `src/lib/monthLabels.js`, que devuelve la misma referencia por idioma y
+> es por tanto estable como dependencia de `useMemo`. De paso desaparece la tercera copia de las
+> abreviaturas de mes, la de `FitnessFatigue`, que además estaba sin traducir. El React Compiler
+> ya no reporta ningún `Cannot create components during render` ni `Compilation Skipped` en
+> `src/`.
 >
 > El patrón de lo que queda es uno solo, y merece nombrarse: cada arreglo se aplicó **donde se
 > detectó el síntoma**, no en todos los sitios que hacen ese cálculo. `B6` unificó las claves de
@@ -52,7 +71,7 @@
 
 ## G6. `api/_lib` sin tests: cerrado en `mcp-store`, abierto en el resto
 
-**Cerrado el 2026-08-31 para `mcp-store.js`.** `api/_lib/mcp-store.test.js` (41 casos) cubre su
+**Cerrado el 2026-08-31 para `mcp-store.js`.** `api/_lib/mcp-store.test.js` (46 casos) cubre su
 capa propia —la que no heredaba nada de los tests de `src/lib/`— por la puerta pública, sin ampliar
 la superficie de export (ver `G8`): `calcPace`, `isRunning`, `shapeSummary`, `filterActivities`,
 `summarizeActivities`, `computeDecoupling` y `shapeFull`; `shapeWeather` y `lapConsistency` se
@@ -77,7 +96,7 @@ función. Ahora, con cualquiera de las dos cotas puesta, una sesión sin FC medi
 
 | Módulo | Líneas | Qué alimenta | Tests |
 |---|---|---|---|
-| `api/_lib/mcp-store.js` | 2.138 | **todas** las herramientas MCP que lee el coach | ✅ 41 casos |
+| `api/_lib/mcp-store.js` | 2.199 | **todas** las herramientas MCP que lee el coach | ✅ 46 casos |
 | `api/_lib/mcp-sync.js` | 612 | el enriquecido y el backlog de streams | ❌ |
 | `api/_lib/garmin-helpers.js` | 577 | normalización de Garmin, calor, dinámica | ❌ (de rebote, vía `shapeFull`) |
 | `api/_lib/garmin-write.js` | 273 | **escribe** entrenos en la cuenta del atleta | ❌ |
@@ -93,20 +112,6 @@ renderer de hooks, que hoy no es dependencia del proyecto, o extraer la resoluci
 pura), `src/lib/streamProfile.js` (cubierto de rebote por `flatEfforts` y `streamGap`) y
 `src/lib/cloudStorage.js`.
 
-## G7. La superficie MCP y la app no predicen con el mismo modelo
-
-`F1` dejó `predictRaces` (`src/lib/racePrediction.js`) como predictor de la app: media de VDOT,
-CS/D′ dentro de su ventana y Riegel individualizado, con monotonía impuesta. La herramienta
-`critical_speed` del MCP (`api/_lib/mcp-store.js:2090`) sigue publicando las predicciones del
-modelo de CS **a secas** —con su aviso de cota inferior, eso sí— y `predictRaces` no está expuesta
-como herramienta.
-
-Consecuencia práctica: a "¿qué maratón puedo hacer?" la app responde con el ensemble y el coach por
-MCP con el CS, que es el más optimista de los tres y el que el propio `racePrediction` descarta a
-esa distancia. La bandera y el `caveat` avisan, pero el aviso no evita que sean dos números.
-Lo barato es exponer `predictRaces` como herramienta; lo mínimo, que el texto de `critical_speed`
-remita a ella para maratón y media.
-
 ## G8. Superficie de export excesiva (heredado de `D`)
 
 Los dos últimos párrafos de `D` siguen abiertos y sin cambios: ~30 símbolos exportados con un único
@@ -116,27 +121,11 @@ auditorías cierran. Conviene tratarlo cuando se toque cada módulo, no como tar
 
 ---
 
-## G9. Componentes definidos dentro del render (destapado al cerrar `G4`)
-
-Al quitar los `Date.now()` de los `useMemo` de `CardiacDecoupling`, `WeeklyProgression`,
-`VO2MaxTracker` y `HRAnalysis`, el React Compiler dejó de abortar en el primer
-`Cannot call impure function during render` y llegó hasta el final del fichero. Lo de detrás no
-lo introdujo `G4` —estaba tapado por ese bailout—: seis `Cannot create components during render`
-(los tooltips de Recharts se declaran como funciones dentro del cuerpo del componente, así que
-son un tipo nuevo en cada render y el subárbol se remonta entero) y dos
-`Compilation Skipped: Existing memoization could not be preserved`.
-
-No cambia ningún número ni rompe nada visible: es coste de render y memoización perdida. Se
-arregla sacando cada tooltip fuera del componente. Mismo criterio que `G8`: cuando se toque
-cada vista.
-
----
-
 # Orden de ataque sugerido
 
 | Paso | Qué | Por qué en ese orden | Coste |
 |---|---|---|---|
 | 1 | **G6** — lo que queda: `garmin-write` (escribe en la cuenta), `mcp-sync` y `useHrParams` | Sin ellos, el lado servidor se toca a ciegas | Medio |
-| 2 | **G7**, **G8**, **G9** | Limpieza y coherencia entre superficies, sin prisa | Bajo |
+| 2 | **G8** | Limpieza, sin prisa: se trata al tocar cada módulo | Bajo |
 
 > Los dos pasos son independientes entre sí: ninguno bloquea a otro.

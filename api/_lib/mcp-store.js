@@ -12,6 +12,7 @@ import { parseTimeToMinutes, formatMinutes, daysUntil } from '../../src/lib/time
 import { detectPlanFormat } from '../../src/lib/planFormat.js';
 import { DISTANCE_M, RACE_KEYS, RACE_DISTANCES } from '../../src/lib/raceDistances.js';
 import { buildMeanMaxCurve, fitCriticalSpeed, predictTime } from '../../src/lib/criticalSpeed.js';
+import { predictRaces, DEFAULT_WINDOW_MONTHS } from '../../src/lib/racePrediction.js';
 import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
 import { gapFactor } from '../../src/lib/gap.js';
 import { hasStreamGap } from '../../src/lib/streamGap.js';
@@ -2134,6 +2135,65 @@ export async function getCriticalSpeed(userId, { from = null, to = null, compare
     previous,
     note: 'CS es el umbral medido del atleta y D′ su reserva anaeróbica. El ajuste solo usa '
       + 'esfuerzos de 2-30 min; las predicciones con optimistic=true ignoran la fatiga de las '
-      + 'pruebas largas y son una cota inferior del tiempo, no un pronóstico.',
+      + 'pruebas largas y son una cota inferior del tiempo, no un pronóstico: para media y '
+      + 'maratón usa predict_races, que es lo que enseña la app y descarta este modelo fuera '
+      + 'de su ventana.',
+  };
+}
+
+// ── Predicción de marcas ────────────────────────────────────────────────────
+// Mismo predictor que la app (`src/lib/racePrediction.js`): media de VDOT, CS
+// dentro de su ventana de validez y Riegel con exponente individualizado, con
+// monotonía impuesta. Existe como tool para que el coach por MCP y la pestaña
+// de predicción no den dos números distintos a la misma pregunta: `critical_speed`
+// publica el modelo de CS a secas, que en media y maratón es el más optimista de
+// los tres y el que este ensemble descarta precisamente ahí.
+
+/** Un ítem de `predictRaces` → forma de la respuesta MCP. */
+const predictionOut = (it) => ({
+  distance: it.key,
+  label: it.label,
+  distance_m: it.distanceM,
+  time: fmtTime(it.timeSeconds),
+  time_s: it.timeSeconds,
+  pace_min_km: round(it.paceSec / 60),
+  pace: fmtTime(it.paceSec),
+  confidence: it.confidence,
+  // Cada modelo por separado, en segundos: sirve para ver de dónde sale la media
+  // y si alguno se descolgó. `cs` ausente = fuera de la ventana 2-30 min.
+  models: Object.fromEntries(Object.entries(it.models).map(([k, v]) => [k, Math.round(v)])),
+  // Desacuerdo relativo entre modelos (0,05 = 5 % del tiempo mediano).
+  spread: round(it.spread, 3),
+  adjusted_for_monotonicity: it.adjustedForMonotonicity || false,
+});
+
+/**
+ * Predicción determinista de 5K/10K/21K/42K con los tres modelos ajustados sobre
+ * el histórico del atleta. Es la respuesta canónica a "¿qué tiempo puedo hacer?".
+ */
+export async function getRacePrediction(userId, { months = DEFAULT_WINDOW_MONTHS } = {}) {
+  const activities = await getActivities(userId);
+  const p = predictRaces(activities, { months });
+
+  if (!p.items.length) {
+    return { error: `No se pudo predecir: ${p.reason}`, window_months: months };
+  }
+
+  return {
+    window_months: months,
+    predictions: p.items.map(predictionOut),
+    // El ancla es el esfuerzo máximo del que cuelga Riegel: si es viejo, la
+    // predicción describe la forma de entonces (y la confianza ya lo recoge).
+    anchor: { ...csPoint(p.anchor), age_days: p.anchorAgeDays },
+    models: {
+      vdot: p.vdot,
+      cs: csFitOut(p.cs),
+      riegel: { exponent: round(p.riegel.exponent, 3), fitted: p.riegel.fitted, n: p.riegel.n },
+    },
+    note: 'Media de los tres modelos ajustados sobre los MISMOS datos del atleta (VDOT, '
+      + 'velocidad crítica solo dentro de su ventana 2-30 min, y Riegel con exponente '
+      + 'individualizado). Es el mismo número que enseña la app. Ajusta por contexto '
+      + '(CTL/TSB, volumen, especificidad, calor) y explícalo, pero no reescribas el tiempo: '
+      + 'un ajuste razonable no pasa del 8 %.',
   };
 }

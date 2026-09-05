@@ -34,8 +34,10 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const {
   calcPace, isRunning, shapeSummary, shapeFull, filterActivities,
-  summarizeActivities, computeDecoupling, getActivities,
+  summarizeActivities, computeDecoupling, getActivities, getRacePrediction,
 } = await import('./mcp-store.js');
+
+const { predictRaces } = await import('../../src/lib/racePrediction.js');
 
 const run = (o = {}) => ({
   id: 1,
@@ -403,5 +405,79 @@ describe('getActivities: correlacion con Garmin y politica de hr_source', () => 
     seed('u-wrapped', { stravaData: { activities: strava } });
     expect(await getActivities('u-wrapped')).toHaveLength(3);
     expect(await getActivities('u-vacio')).toEqual([]);
+  });
+});
+
+// ── predict_races: la tool debe dar EXACTAMENTE el número de la app ─────────
+//    El modelo vive en src/lib/racePrediction.js y ya está probado allí; aquí se
+//    prueba lo propio de la tool: que no reinterprete nada por el camino (era el
+//    defecto G7 de la auditoría: MCP predecía con CS a secas y la app con el
+//    ensemble, así que la misma pregunta tenía dos respuestas).
+describe('getRacePrediction: misma predicción que la app', () => {
+  const seed = (userId, rows) => {
+    for (const [key, value] of Object.entries(rows)) store.set(`${userId}:${key}`, value);
+  };
+  // Fechas relativas a hoy: la ventana por defecto son 12 meses y un fixture con
+  // fechas fijas dejaría de entrar en ella con el paso del tiempo.
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const race = (n, distance, timeS) => ({
+    id: `r${n}`,
+    type: 'Run',
+    start_date_local: `${daysAgo(n)}T08:00:00`,
+    start_date: `${daysAgo(n)}T08:00:00Z`,
+    distance,
+    moving_time: timeS,
+  });
+  // Atleta coherente: marcas generadas con Riegel exacto b = 1.08 desde 5K en 20:00.
+  const at = (d) => Math.round(1200 * (d / 5000) ** 1.08);
+  const athlete = [
+    race(20, 5000, 1200),
+    race(40, 10000, at(10000)),
+    race(60, 21097.5, at(21097.5)),
+  ];
+
+  it('devuelve las cuatro distancias con los tres modelos y no diverge del predictor', async () => {
+    seed('u-pred', { stravaData: athlete });
+    const out = await getRacePrediction('u-pred');
+    const ref = predictRaces(await getActivities('u-pred'));
+
+    expect(out.predictions.map((p) => p.distance)).toEqual(['5k', '10k', '21k', '42k']);
+    expect(out.predictions.map((p) => p.time_s)).toEqual(ref.items.map((i) => i.timeSeconds));
+    expect(out.window_months).toBe(12);
+    expect(out.anchor.age_days).toBeGreaterThanOrEqual(20);
+    expect(out.models.riegel.exponent).toBeCloseTo(1.08, 2);
+  });
+
+  it('marca la ventana de CS: el maratón no usa el modelo que lo sobreestima', async () => {
+    seed('u-pred-cs', { stravaData: athlete });
+    const out = await getRacePrediction('u-pred-cs');
+    const byKey = Object.fromEntries(out.predictions.map((p) => [p.distance, p]));
+    // CS solo entra donde el esfuerzo cae en 2-30 min; a 42K se descarta.
+    expect(byKey['42k'].models.cs).toBeUndefined();
+    expect(Object.keys(byKey['42k'].models)).toContain('vdot');
+    expect(byKey['42k'].models.riegel).toBeGreaterThan(0);
+  });
+
+  it('los ritmos son monótonos: no se corre más rápido al alargar', async () => {
+    seed('u-pred-mono', { stravaData: athlete });
+    const paces = (await getRacePrediction('u-pred-mono')).predictions.map((p) => p.pace_min_km);
+    for (let i = 1; i < paces.length; i++) expect(paces[i]).toBeGreaterThan(paces[i - 1]);
+  });
+
+  it('sin esfuerzos aprovechables devuelve error explicado, no una predicción vacía', async () => {
+    seed('u-pred-vacio', { stravaData: [race(10, 800, 200)] });
+    const out = await getRacePrediction('u-pred-vacio');
+    expect(out.error).toMatch(/No se pudo predecir/);
+    expect(out.predictions).toBeUndefined();
+  });
+
+  it('respeta la ventana pedida: con solo un mes queda una marca y Riegel cae al clásico', async () => {
+    seed('u-pred-ventana', { stravaData: athlete });
+    const out = await getRacePrediction('u-pred-ventana', { months: 1 });
+    // Dentro del último mes solo entra el 5K de hace 20 días: sin tres puntos no
+    // hay exponente individual, así que se usa el 1,06 de tabla.
+    expect(out.window_months).toBe(1);
+    expect(out.models.riegel).toMatchObject({ fitted: false, exponent: 1.06 });
+    expect(out.anchor.distance_m).toBe(5000);
   });
 });

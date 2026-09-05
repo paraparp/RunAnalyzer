@@ -18,7 +18,7 @@ import {
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
   listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace, setPrimaryTargetRace,
-  getCriticalSpeed,
+  getCriticalSpeed, getRacePrediction,
 } from './_lib/mcp-store.js';
 import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
@@ -396,7 +396,7 @@ const TOOLS = [
   },
   {
     name: 'critical_speed',
-    description: 'Ajusta el modelo de VELOCIDAD CRÍTICA (d = CS·t + D′) sobre los mejores esfuerzos del histórico: CS es el umbral MEDIDO del atleta (m/s y ritmo) y D′ su reserva anaeróbica en metros. Devuelve además la curva de mejores marcas por distancia y las predicciones de 5K/10K/21K/42K. El ajuste solo usa esfuerzos de 2-30 min; las predicciones con optimistic=true son cota inferior, no pronóstico. Con compare_previous compara con el periodo anterior de igual duración para ver si mejora la velocidad o la resistencia.',
+    description: 'Ajusta el modelo de VELOCIDAD CRÍTICA (d = CS·t + D′) sobre los mejores esfuerzos del histórico: CS es el umbral MEDIDO del atleta (m/s y ritmo) y D′ su reserva anaeróbica en metros. Devuelve además la curva de mejores marcas por distancia y las predicciones de 5K/10K/21K/42K. El ajuste solo usa esfuerzos de 2-30 min; las predicciones con optimistic=true son cota inferior, no pronóstico. Para responder qué tiempo puede hacer en una carrera —sobre todo media y maratón— usa `predict_races`, que combina este modelo con VDOT y Riegel; aquí las predicciones son solo la lectura cruda de CS. Con compare_previous compara con el periodo anterior de igual duración para ver si mejora la velocidad o la resistencia.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -406,6 +406,17 @@ const TOOLS = [
       },
     },
     run: (userId, args) => getCriticalSpeed(userId, args).then(text),
+  },
+  {
+    name: 'predict_races',
+    description: 'PREDICCIÓN CANÓNICA de marcas en 5K/10K/21K/42K: el mismo cálculo que enseña la app. Media de tres modelos ajustados sobre el histórico del atleta (VDOT, velocidad crítica SOLO dentro de su ventana 2-30 min, y Riegel con exponente individualizado), con la monotonía de la curva impuesta. Úsala para responder "¿qué tiempo puedo hacer?"; `critical_speed` sirve para leer CS y D′, pero sus predicciones a media y maratón son cota inferior y no un pronóstico. Devuelve cada modelo por separado, el desacuerdo entre ellos, la confianza y el esfuerzo ancla con su antigüedad.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        months: { type: 'number', description: 'Ventana de histórico que alimenta los modelos, en meses (por defecto 12)' },
+      },
+    },
+    run: (userId, args) => getRacePrediction(userId, args).then(text),
   },
   // ── Carreras objetivo y plan de entrenamiento (Supabase, mismo dato que la app) ──
   {
@@ -591,7 +602,7 @@ const TITLES = {
   get_garmin_workout: 'Leer entreno Garmin', create_garmin_workout: 'Crear entreno Garmin',
   update_garmin_workout: 'Modificar entreno Garmin', delete_garmin_workout: 'Borrar entreno Garmin',
   schedule_garmin_workout: 'Agendar entreno Garmin',
-  critical_speed: 'Velocidad crítica',
+  critical_speed: 'Velocidad crítica', predict_races: 'Predicción de marcas',
   list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
   upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
   set_primary_target_race: 'Fijar objetivo principal',
