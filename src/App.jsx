@@ -17,6 +17,7 @@ import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import VersionBadge from './components/VersionBadge';
 import ModelSelector from './components/ModelSelector';
+import UserMenu from './components/UserMenu';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
 import HRAnalysis from './components/HRAnalysis';
@@ -843,28 +844,13 @@ const Dashboard = ({ user, handleLogout }) => {
         </nav>
 
         {/* User section */}
-        <div className="mt-auto px-4 pb-6 border-t border-slate-200 pt-4">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-100 transition-colors">
-            <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full ring-2 ring-blue-100" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-slate-800 truncate">{user.name}</p>
-              <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
-            </div>
-          </div>
-          {/* Modelo IA — selector ÚNICO de la app: lo comparten el Coach,
-              el planner, el predictor y el chat (ver lib/aiModel). */}
-          <div className="mt-3 px-2">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{t('topbar.ai_model', 'Modelo IA')}</p>
-            <ModelSelector showLabel={false} />
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full mt-3 flex items-center gap-2.5 px-4 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-          >
-            <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-            {t('topbar.logout')}
-          </button>
-          <VersionBadge className="mt-3 px-4" />
+        <div className="mt-auto px-3 pb-5 border-t border-slate-200 dark:border-slate-800 pt-3">
+          <UserMenu
+            user={user}
+            handleLogout={handleLogout}
+            changeLanguage={changeLanguage}
+            placement="sidebar"
+          />
         </div>
       </>
     );
@@ -975,7 +961,12 @@ const Dashboard = ({ user, handleLogout }) => {
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? t('topbar.syncing') : t('topbar.sync')}
                 </button>
-                <img src={user.picture} alt={user.name} className="hidden sm:block w-8 h-8 rounded-full ring-2 ring-blue-100" />
+                <UserMenu
+                  user={user}
+                  handleLogout={handleLogout}
+                  changeLanguage={changeLanguage}
+                  placement="topbar"
+                />
               </div>
             </header>
           );

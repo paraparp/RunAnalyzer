@@ -38,6 +38,15 @@ const en = {
       sync: "Sync Data",
       logout: "Log Out"
     },
+    user_menu: {
+      title: "User profile and AI settings",
+      ai_model: "Artificial Intelligence Model",
+      ai_model_desc: "Powers answers for Coach, Predictor, Chat, and Insights.",
+      active: "Active",
+      strava_connected: "Strava Connected",
+      change_model: "Change",
+      close: "Close"
+    },
     auth: {
       connect_title: "Connect Strava",
       connect_desc: "Link your account to visualize and analyze your performance.",
@@ -772,6 +781,15 @@ const es = {
       syncing: "Sincronizando...",
       sync: "Sincronizar",
       logout: "Cerrar Sesión"
+    },
+    user_menu: {
+      title: "Perfil de usuario y configuración de IA",
+      ai_model: "Modelo de Inteligencia Artificial",
+      ai_model_desc: "Controla las respuestas del Coach, Predictor, Chat y Análisis.",
+      active: "Activo",
+      strava_connected: "Strava Conectado",
+      change_model: "Cambiar",
+      close: "Cerrar"
     },
     auth: {
       connect_title: "Conecta Strava",
