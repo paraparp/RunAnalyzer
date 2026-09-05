@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
+import { getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 
 export default function GlobalHeatmap({ activities }) {
   const { t } = useTranslation();
@@ -71,9 +72,9 @@ export default function GlobalHeatmap({ activities }) {
   };
 
   const getActiveBaseLayer = () => {
-    if (baseMap === 'dark') return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-    if (baseMap === 'light') return "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-    if (baseMap === 'satellite') return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    if (baseMap === 'dark') return getDarkMapTileUrl();
+    if (baseMap === 'light') return getLightMapTileUrl();
+    if (baseMap === 'satellite') return getSatelliteMapTileUrl();
   };
 
   const opacityConfig = {
@@ -130,7 +131,7 @@ export default function GlobalHeatmap({ activities }) {
             scrollWheelZoom={true}
           >
             <TileLayer
-              attribution='&copy; CARTO & ESA'
+              attribution={getMapAttribution(baseMap)}
               url={getActiveBaseLayer()}
             />
             {lines.map((a) => (

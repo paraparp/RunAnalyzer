@@ -6,6 +6,7 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import polyline from '@mapbox/polyline';
+import { getDarkMapTileUrl, getLightMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 import { Card, Select, SelectItem, Badge, Callout } from '@tremor/react';
 import {
   MapPinIcon, ArrowsPointingInIcon, ArrowUturnLeftIcon,
@@ -820,10 +821,8 @@ export default function GeoZones({ activities }) {
               <div className="h-[70vh] min-h-[360px] w-full">
                 <MapContainer key={mapZone.key} bounds={mapBounds} scrollWheelZoom className="z-0 h-full w-full">
                   <TileLayer
-                    attribution="&copy; OpenStreetMap &copy; CARTO"
-                    url={isDarkTheme()
-                      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
+                    attribution={getMapAttribution(isDarkTheme() ? 'dark' : 'light')}
+                    url={isDarkTheme() ? getDarkMapTileUrl() : getLightMapTileUrl()}
                   />
                   {/* Cada ruta distinta va de un color: el reparto de colores ES
                       el índice de rutina hecho imagen. Un mapa monocolor significa
