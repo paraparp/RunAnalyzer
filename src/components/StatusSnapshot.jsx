@@ -16,7 +16,7 @@ import {
   CalendarDaysIcon, ArrowUpIcon, ArrowDownIcon,
   XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
-import { computePMC } from '../lib/trainingLoad';
+import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { weekStartKey } from '../lib/isoWeek';
 import { monthKey, dayKey, activityDayKey } from '../lib/trainingLoad';
 import { formatPaceFromSpeed, formatDurationHm } from '../lib/timeFormat';
@@ -33,7 +33,7 @@ const timeStr = (seconds) => formatDurationHm(seconds, '—');
 const fmt1 = (n) => (n == null ? '—' : Number(n).toFixed(1));
 
 // ─── main computation ─────────────────────────────────────────────────────────
-function computeStats(activities) {
+function computeStats(activities, pmc) {
   if (!activities || activities.length === 0) return null;
 
   const now = new Date();
@@ -41,10 +41,10 @@ function computeStats(activities) {
   const todayStr = now.toISOString().split('T')[0];
   const thisYear = now.getFullYear();
 
-  // ── PMC: modelo de carga y series CTL/ATL/TSB desde lib/trainingLoad ──
-  // (fuente única compartida con FitnessFatigue, InjuryRisk, VitalsOverview y
-  // el coach IA; antes esta vista usaba su propia carga `(min/60)*0.5`).
-  const pmc = computePMC(activities);
+  // ── PMC: llega ya calibrado desde useCalibratedPMC (fuente única compartida
+  // con FitnessFatigue, InjuryRisk, VitalsOverview, el coach IA y el MCP; antes
+  // esta vista usaba su propia carga `(min/60)*0.5`, y después una calibración
+  // por defecto que ignoraba la FC de reposo real y los overrides manuales).
   if (!pmc) return null;
 
   let peakCTL = 0, peakCTLDate = '', peakCTLYear = 0;
@@ -533,7 +533,13 @@ function RangeSelector({ value, onChange, options }) {
 
 // ─── main component ───────────────────────────────────────────────────────────
 export default function StatusSnapshot({ activities }) {
-  const stats = useMemo(() => computeStats(activities), [activities]);
+  const { pmc } = useCalibratedPMC(activities);
+  const pmcSeries = pmc?.series ?? null;
+  const pmcCurrent = pmc?.current ?? null;
+  const stats = useMemo(
+    () => (pmcSeries && pmcCurrent ? computeStats(activities, { series: pmcSeries, current: pmcCurrent }) : null),
+    [activities, pmcSeries, pmcCurrent],
+  );
 
   // Load Garmin data from localStorage (same source as GarminCardiac component)
   const garmin = useMemo(() => {

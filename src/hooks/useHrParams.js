@@ -12,14 +12,10 @@ import { useMemo, useState, useEffect } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from './useGarminWearableData';
 import { resolveHrCalibration, parseOverride } from '../lib/loadCalibration';
+import { OVERRIDES_KEY, OVERRIDES_EVENT, loadOverrides } from '../lib/hrOverrides';
 
-export const OVERRIDES_KEY = 'hr_zone_overrides';
-
-export const loadOverrides = () => {
-  try { return JSON.parse(cloudStorage.getItem(OVERRIDES_KEY)) ?? {}; } catch { return {}; }
-};
-
-export { parseOverride };
+// Reexportados para no romper a quien ya los importaba de aquí.
+export { OVERRIDES_KEY, loadOverrides, parseOverride };
 
 export default function useHrParams(activities) {
   const [userMax,  setUserMax]  = useState(() => loadOverrides().max  ?? '');
@@ -36,7 +32,7 @@ export default function useHrParams(activities) {
     else cloudStorage.removeItem(OVERRIDES_KEY);
     // El PMC de las otras vistas también depende de estos overrides (useCalibratedPMC):
     // sin el aviso, ajustar el LTHR a mano no movía el CTL hasta recargar la página.
-    window.dispatchEvent(new Event('hr-overrides-updated'));
+    window.dispatchEvent(new Event(OVERRIDES_EVENT));
   }, [userMax, userRest, userLTHR]);
 
   // ── Garmin cardiac data (resting HR source) ──

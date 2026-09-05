@@ -12,7 +12,8 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { computePMC, activityDayKey, dayKey } from '../lib/trainingLoad';
+import { activityDayKey, dayKey } from '../lib/trainingLoad';
+import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { isoWeekKey } from '../lib/isoWeek';
 import { weeklyVolumeRamp } from '../lib/weeklyVolume';
 
@@ -25,6 +26,11 @@ function getRiskLevel(score, t) {
 
 export default function InjuryRisk({ activities }) {
   const { t } = useTranslation();
+  // Desestructurado fuera del useMemo: el compilador de React confunde
+  // `pmc.current` con el `.current` de una ref y deja de optimizar el componente.
+  const { pmc } = useCalibratedPMC(activities);
+  const pmcSeries = pmc?.series ?? null;
+  const pmcCurrent = pmc?.current ?? null;
   const { riskScore, factors, context, historyData, recommendations } = useMemo(() => {
     if (!activities || activities.length === 0) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
 
@@ -33,13 +39,13 @@ export default function InjuryRisk({ activities }) {
     // --- Carga diaria y ACWR desde lib/trainingLoad (fuente única) ---
     // Antes esta vista tenía su propio bucle CTL/ATL con una carga distinta a la
     // del resto de la app, y calculaba el ACWR como ATL/CTL(42). Ahora usa el
-    // modelo compartido y el ACWR por EWMA 7:28 (Williams 2017).
-    const pmc = computePMC(activities);
-    if (!pmc) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
+    // modelo compartido y el ACWR por EWMA 7:28 (Williams 2017). El PMC llega ya
+    // calibrado desde useCalibratedPMC: la misma FCmax/FCreposo/LTHR que el resto.
+    if (!pmcSeries || !pmcCurrent) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
 
     const dailyLoad = {};
     const allDates = [];
-    for (const p of pmc.series) {
+    for (const p of pmcSeries) {
       allDates.push(p.date);
       if (p.load > 0) dailyLoad[p.date] = p.load;
     }
@@ -54,12 +60,12 @@ export default function InjuryRisk({ activities }) {
     // del índice y sin lenguaje prescriptivo. Su 30 % pasa a la rampa de CTL,
     // que mide la misma progresión de carga sin dividir una media por otra que
     // la contiene.
-    const latestACWR = pmc.current.acwr ?? 0;
+    const latestACWR = pmcCurrent.acwr ?? 0;
 
     // --- Rampa de CTL (puntos TSS por semana) ---
     // Umbrales de Coggan/Friel: hasta +5/sem se asimila, +5..+8 es agresivo y
     // solo sostenible en bloques cortos, >+10 es sobrecarga.
-    const ctlRamp = pmc.current.ramp ?? 0;
+    const ctlRamp = pmcCurrent.ramp ?? 0;
     let rampRisk = 0;
     if (ctlRamp > 10) rampRisk = 85;
     else if (ctlRamp > 8) rampRisk = 60;
@@ -191,7 +197,7 @@ export default function InjuryRisk({ activities }) {
     });
 
     return { riskScore: finalScore, factors: factorsList, context: contextList, historyData: history, recommendations: recs };
-  }, [activities, t]);
+  }, [activities, pmcSeries, pmcCurrent, t]);
 
   const level = getRiskLevel(riskScore, t);
 

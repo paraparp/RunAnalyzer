@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import {
   HeartIcon, BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, ExclamationTriangleIcon, FireIcon,
 } from "@heroicons/react/24/outline";
-import { computePMC } from '../lib/trainingLoad';
+import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { vo2FromRun } from '../lib/physiology';
 import { efficiencyFactorRun } from '../lib/efficiencyFactor';
 import { decouplingPct } from '../lib/decoupling';
@@ -126,8 +126,7 @@ function buildBands(data, threshold) {
  * coach IA). Aquí solo se reindexa a milisegundos de medianoche local, que es la
  * base temporal que usan el resto de series de esta vista.
  */
-function computeCTLSeries(activities) {
-  const pmc = computePMC(activities);
+function computeCTLSeries(pmc) {
   if (!pmc) return [];
   return pmc.series.map((p) => ({
     ms: new Date(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))).getTime(),
@@ -361,7 +360,8 @@ export default function VitalsOverview({ activities = [] }) {
   const { hrmax, hrrest } = useHrParams(activities);
 
   // CTL runs over full history (EWMA needs the warm-up), filtered to the window below
-  const ctlSeries = useMemo(() => computeCTLSeries(activities), [activities]);
+  const { pmc } = useCalibratedPMC(activities);
+  const ctlSeries = useMemo(() => computeCTLSeries(pmc), [pmc]);
 
   const { hrvData, hrData, vo2Data, loadData, effData, decData, domain, summary, hasGarmin, goodBands, effThreshold, hasDecoupling } = useMemo(() => {
     const now = Date.now();

@@ -1,6 +1,7 @@
 import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT, LT_MONTHS } from './lactateThreshold';
-import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from './hrZones';
-import { computePMC as computePmcSeries, sessionLoad, buildLoadParams } from './trainingLoad';
+import { computePMC as computePmcSeries, sessionLoad } from './trainingLoad';
+import { resolveHrCalibration, computeCalibratedPMC } from './loadCalibration';
+import { loadOverrides } from './hrOverrides';
 import { DISTANCE_KM } from './raceDistances';
 import { formatPaceFromMinPerKm, formatPaceFromSecPerKm, formatDuration } from './timeFormat';
 
@@ -242,11 +243,18 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const withHR = recentRuns.filter(a => a.average_heartrate);
   const avgHR = withHR.length ? Math.round(withHR.reduce((s, a) => s + a.average_heartrate, 0) / withHR.length) : null;
 
-  // ── FCmax / FC reposo / LTHR — heurísticas centralizadas en src/lib/hrZones
-  // (mismas funciones que la pestaña de Zonas: un solo criterio en toda la app) ─
-  const fcmax   = detectMaxHR(activities).value;
-  const restDet = detectRestHR(garminData);
-  const fcRest  = restDet.value;
+  // ── FCmax / FC reposo / LTHR — resueltos por lib/loadCalibration ────────────
+  // Es LA calibración de la app: la misma que pinta las zonas, la que alimenta el
+  // CTL de las cuatro vistas y la que el MCP reproduce en el servidor, overrides
+  // manuales incluidos. Antes esto era una cuarta variante propia del coach, así
+  // que el prompt describía unas zonas y traía un CTL calculado con otras.
+  const calibration = resolveHrCalibration(activities, {
+    garminData,
+    overrides: loadOverrides(),
+  });
+  const fcmax  = calibration.hrmax;
+  const fcRest = calibration.hrrest;
+  const restDet = { value: fcRest, source: calibration.sources.hrrest };
 
   // ── Modelo de lactato (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold).
   // Se calcula ANTES que el LTHR porque su LT2 de campo (la FC medida al ritmo de
@@ -255,25 +263,30 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   // docs/AUDITORIA_DUPLICACION.md.
   const lt = computeLactateModel(activities, LT_MONTHS, { hrrest: fcRest });
 
-  // LTHR sobre los últimos 2 meses (estado de forma actual). minFieldRuns=2:
-  // para el prompt del coach aceptamos algo menos de evidencia que en la UI.
-  const ltDet = detectLTHR(twoMonthActs, fcmax, { minFieldRuns: 2, csLt2: lt?.fieldLt2 });
-  const lthr = ltDet.lthr ?? estimateLTHR(fcmax);
+  // LTHR: el de la calibración compartida (ventana de 2 meses y anclaje a la FC
+  // medida al ritmo de velocidad crítica). El coach ya no relaja la evidencia por
+  // su cuenta: si la app dice 181, el prompt dice 181.
+  const ltDet = calibration.lthrResult;
+  const lthr = calibration.lthr;
   const lthrMethod = {
+    manual: 'fijado a mano en la pestaña de Zonas',
     cs:      `FC medida a ritmo de velocidad crítica (${ltDet.n} tramos)`,
     segment: `segmentos (${ltDet.n} bloques umbral sostenidos en los parciales de tus carreras)`,
     field:   `campo (${ltDet.n} esfuerzos umbral detectados)`,
     race:    `competición (p75 de ${ltDet.n} carrera(s) × 0.97)`,
     formula: 'Friel approx (87.5% FCmax)',
     none:    'Friel approx (87.5% FCmax)',
-  }[ltDet.method];
-  const lthrIsEstimate = !['cs', 'segment', 'field'].includes(ltDet.method);
+  }[calibration.sources.lthr];
+  const lthrIsEstimate = !['cs', 'segment', 'field', 'manual'].includes(calibration.sources.lthr);
 
   // ── PMC de Banister sobre TODOS los deportes (la carga cardiovascular es global) ─
   // Se reutiliza la calibración ya detectada arriba: así el CTL del prompt sale
   // de la misma FCmax/FCreposo/LTHR que las zonas que se le describen al modelo.
-  const loadParams = buildLoadParams(activities, { hrmax: fcmax, hrrest: fcRest, lthr });
-  const pmc = computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo), loadParams);
+  const { pmc: pmcFull } = computeCalibratedPMC(activities, { garminData, overrides: loadOverrides() });
+  const loadParams = pmcFull?.params ?? null;
+  const pmc = loadParams
+    ? computePMC(activities.filter(a => new Date(a.start_date) >= yearAgo), loadParams)
+    : null;
 
   // ── Umbral aeróbico (LT1) sobre el modelo ya calculado arriba ─────────────
   // El LT1 en FC prioriza la MEDICIÓN por decoupling FC–ritmo

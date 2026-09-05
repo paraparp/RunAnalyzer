@@ -32,6 +32,12 @@ import { buildLoadParams, computePMC } from './trainingLoad.js';
 // pestaña de Zonas; separarlas fue una decisión deliberada, no un descuido.
 export const LTHR_WINDOW_MONTHS = 2;
 
+// Clave de los overrides manuales. Vive aquí, en el módulo puro, porque la lee
+// tanto el navegador (lib/hrOverrides, vía cloudStorage) como el servidor del MCP
+// (misma fila de `user_storage`). Duplicar la cadena en los dos lados era la
+// forma más fácil de que la app y el agente dejaran de mirar el mismo ajuste.
+export const OVERRIDES_KEY = 'hr_zone_overrides';
+
 /**
  * Lee un override manual. Devuelve el entero si cae dentro de [lo, hi], null si
  * está vacío y NaN si viene informado pero fuera de rango (→ se ignora y la UI lo

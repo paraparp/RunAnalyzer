@@ -9,10 +9,9 @@
 // la misma que reproduce el MCP en el servidor. Consumirlo es lo que garantiza
 // que el número de la app y el del agente coincidan.
 import { useMemo, useState, useEffect } from 'react';
-import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from './useGarminWearableData';
 import { computeCalibratedPMC } from '../lib/loadCalibration';
-import { OVERRIDES_KEY, loadOverrides } from './useHrParams';
+import { OVERRIDES_KEY, OVERRIDES_EVENT, loadOverrides } from '../lib/hrOverrides';
 
 export default function useCalibratedPMC(activities) {
   const { garmin } = useGarminWearableData();
@@ -27,10 +26,10 @@ export default function useCalibratedPMC(activities) {
       setOverrides(loadOverrides());
     };
     window.addEventListener('storage', onUpdate);
-    window.addEventListener('hr-overrides-updated', onUpdate);
+    window.addEventListener(OVERRIDES_EVENT, onUpdate);
     return () => {
       window.removeEventListener('storage', onUpdate);
-      window.removeEventListener('hr-overrides-updated', onUpdate);
+      window.removeEventListener(OVERRIDES_EVENT, onUpdate);
     };
   }, []);
 

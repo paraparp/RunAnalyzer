@@ -202,11 +202,34 @@ describe('get_training_load_model: calibracion real y versionado', () => {
     expect(res.model.note).toMatch(/estimado, no medido/);
   });
 
-  it('expone el metodo del LTHR para no confundir formula con medicion', async () => {
+  it('expone el origen de cada parametro para no confundir formula con medicion', async () => {
     put('stravaData', historial());
     const res = await getTrainingLoadModel(U, { summary_only: true });
-    expect(res.model).toHaveProperty('lthr_method');
+    expect(res.model.hrmax_source).toBe('detected');
+    expect(res.model.lthr_source).toBeTruthy();
     expect(res.model).toHaveProperty('lthr_confidence');
+  });
+
+  it('respeta los overrides manuales de la pestana de Zonas', async () => {
+    // hr_zone_overrides es la MISMA fila de user_storage que escribe la app. Antes
+    // el atleta fijaba su LTHR a mano y el modelo de carga seguia con la formula.
+    put('stravaData', historial());
+    put('hr_zone_overrides', { max: 191, rest: 52, lthr: 181 });
+    const res = await getTrainingLoadModel(U, { summary_only: true });
+    expect(res.model).toMatchObject({
+      hrmax: 191, hrmax_source: 'manual',
+      hrrest: 52, hrrest_source: 'manual',
+      lthr: 181, lthr_source: 'manual',
+    });
+    expect(res.model.version).toBe('tss-banister/hrmax=191/hrrest=52/lthr=181');
+  });
+
+  it('ignora un override fuera de rango en vez de aceptarlo a ciegas', async () => {
+    put('stravaData', historial());
+    put('hr_zone_overrides', { max: 400 }); // una FCmax imposible
+    const res = await getTrainingLoadModel(U, { summary_only: true });
+    expect(res.model.hrmax).not.toBe(400);
+    expect(res.model.hrmax_source).toBe('detected');
   });
 
   it('model.version distingue dos calibraciones, y el CTL se mueve con ellas', async () => {

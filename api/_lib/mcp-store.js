@@ -7,7 +7,7 @@
 // y ChatGPT reciban exactamente los datos que la app ya expone.
 // ============================================================================
 import { createClient } from '@supabase/supabase-js';
-import { detectMaxHR, detectRestHR, detectLTHR, estimateLTHR } from '../../src/lib/hrZones.js';
+import { detectMaxHR } from '../../src/lib/hrZones.js';
 import { parseTimeToMinutes, formatMinutes, daysUntil } from '../../src/lib/timeFormat.js';
 import { detectPlanFormat } from '../../src/lib/planFormat.js';
 import { DISTANCE_M, RACE_KEYS, RACE_DISTANCES } from '../../src/lib/raceDistances.js';
@@ -17,7 +17,8 @@ import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
 import { gapFactor } from '../../src/lib/gap.js';
 import { hasStreamGap } from '../../src/lib/streamGap.js';
 import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
-import { computePMC, buildLoadParams, dayKey } from '../../src/lib/trainingLoad.js';
+import { dayKey } from '../../src/lib/trainingLoad.js';
+import { computeCalibratedPMC, OVERRIDES_KEY as HR_OVERRIDES_KEY } from '../../src/lib/loadCalibration.js';
 import {
   heatPenaltyPct,
   heatIntensityFactor,
@@ -1488,26 +1489,25 @@ function toWeekly(series) {
  * - `granularity: 'weekly'` colapsa a semana; `summary_only` devuelve solo `current`.
  */
 export async function getTrainingLoadModel(userId, { from, to, granularity = 'daily', summary_only = false } = {}) {
-  const [acts, garminData] = await Promise.all([
+  const [acts, garminData, overrides] = await Promise.all([
     getActivities(userId),
     readKey(userId, 'garmin_cardiac_data'),
+    readKey(userId, HR_OVERRIDES_KEY),
   ]);
-  // La calibración se construye con los MISMOS criterios que athleteContext (el
-  // prompt del coach), no con los defaults de buildLoadParams. Llamar a
-  // `computePMC(acts)` a secas dejaba dos parámetros inventados:
-  //   · FC de reposo = DEFAULT_REST_HR (60), porque sin `opts.garmin` no se llega
-  //     a `detectRestHR` — y la FC de reposo real vive en `garmin_cardiac_data`,
-  //     que esta misma función ya podía leer.
-  //   · LTHR = 87,5 % de FCmax (aproximación de Friel), ignorando `detectLTHR`,
-  //     que lo mide sobre los esfuerzos umbral reales del historial.
-  // Ambos entran en el TRIMP por reserva de FC, así que sesgaban CTL, ATL y TSB
-  // enteros. Se mantiene el orden de athleteContext: FCmax → FC reposo → LTHR.
-  const hrmax = detectMaxHR(acts).value;
-  const restDet = detectRestHR(garminData);
-  const lthrDet = detectLTHR(acts, hrmax);
-  const lthr = lthrDet.lthr ?? estimateLTHR(hrmax);
-  const params = buildLoadParams(acts, { hrmax, hrrest: restDet.value, lthr });
-  const pmc = computePMC(acts, { params });
+  // La calibración NO se implementa aquí: se delega en src/lib/loadCalibration,
+  // el mismo módulo que usan las cuatro vistas de la app y el coach IA. Esa es la
+  // única forma de que el CTL del agente y el de la app sean el mismo número.
+  //
+  // Llamar a `computePMC(acts)` a secas —que es lo que había— dejaba dos
+  // parámetros inventados: FC de reposo 60 (sin `opts.garmin` nunca se llega a
+  // `detectRestHR`) y LTHR = 87,5 % de FCmax por fórmula, ignorando `detectLTHR`.
+  // Los dos entran en el TRIMP por reserva de FC, así que sesgaban CTL, ATL y TSB
+  // enteros. Y ninguno miraba los overrides manuales de la pestaña de Zonas, que
+  // viven en la misma tabla `user_storage` que se lee justo aquí arriba.
+  const { pmc, calibration } = computeCalibratedPMC(acts, {
+    garminData,
+    overrides: overrides && typeof overrides === 'object' ? overrides : {},
+  });
   if (!pmc) return { current: null, series: [], note: 'Sin datos de carga' };
 
   // Cada fila de trainingLoad trae el TSB de su propio día, así que la forma "de la
@@ -1536,16 +1536,18 @@ export async function getTrainingLoadModel(userId, { from, to, granularity = 'da
   // dos series NO son comparables aunque el rango de fechas sea el mismo.
   const model = {
     scale: 'TSS (100 = 1 h a umbral)',
-    version: `tss-banister/hrmax=${pmc.params.hrmax}/hrrest=${pmc.params.hrrest}/lthr=${pmc.params.lthr}`,
-    hrmax: pmc.params.hrmax,
-    hrrest: pmc.params.hrrest,
-    hrrest_source: restDet.source,      // 'garmin' | 'default'
-    lthr: pmc.params.lthr,
-    lthr_method: lthrDet.method,        // cs | segment | field | race | formula | none
-    lthr_confidence: lthrDet.confidence ?? null,
-    note: 'CTL/ATL/TSB dependen de esta calibración: compara series solo entre llamadas '
-      + 'con el mismo `version`. Un `hrrest_source` de "default" o un `lthr_method` de '
-      + '"formula" significan parámetro estimado, no medido.',
+    version: calibration.version,
+    hrmax: calibration.hrmax,
+    hrmax_source: calibration.sources.hrmax,    // manual | detected
+    hrrest: calibration.hrrest,
+    hrrest_source: calibration.sources.hrrest,  // manual | garmin | default
+    lthr: calibration.lthr,
+    lthr_source: calibration.sources.lthr,      // manual | cs | segment | field | race | formula | none
+    lthr_confidence: calibration.lthrResult?.confidence ?? null,
+    note: 'Misma calibración que la app (lib/loadCalibration): el CTL de aquí y el de la '
+      + 'pestaña Estado son el mismo número. CTL/ATL/TSB dependen de ella, así que compara '
+      + 'series solo entre llamadas con el mismo `version`. Un `hrrest_source` de "default" '
+      + 'o un `lthr_source` de "formula" significan parámetro estimado, no medido.',
   };
   if (summary_only) return { current, model, granularity: 'summary' };
   const out = granularity === 'weekly' ? toWeekly(daily) : daily;

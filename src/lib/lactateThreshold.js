@@ -18,13 +18,13 @@
 // FCmax — delegated to hrZones.detectMaxHR (median of the top 5% of observed
 //   max HRs), so this model shares ONE HRmax with the zones UI and the AI prompt.
 
-import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER, DEFAULT_REST_HR } from './hrZones';
-import { formatPaceFromMinPerKm, paceMinPerKm } from './timeFormat';
+import { LTHR_FROM_HRMAX, detectMaxHR, HRMAX_FILTER, DEFAULT_REST_HR } from './hrZones.js';
+import { formatPaceFromMinPerKm, paceMinPerKm } from './timeFormat.js';
 import {
   buildMeanMaxCurve, fitCriticalSpeed, hasNonMaximalPoints, monthsAgoISO,
   activityWithinMonths, FIT_MIN_S, FIT_MAX_S,
-} from './criticalSpeed';
-import { segmentRatio } from './decoupling';
+} from './criticalSpeed.js';
+import { segmentRatio } from './decoupling.js';
 
 // ── Threshold HR anchors ─────────────────────────────────────────────────────
 // PRIMARY: %HRR (Karvonen). LT2/anaerobic ≈ 85% HRR, LT1/aerobic ≈ 65% HRR.

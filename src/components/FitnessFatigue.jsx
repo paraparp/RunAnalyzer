@@ -10,7 +10,8 @@ import {
   ArrowTrendingUpIcon, FireIcon, SparklesIcon, BoltIcon,
   AdjustmentsHorizontalIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { computePMC, dayKey, activityDayKey } from '../lib/trainingLoad';
+import { dayKey, activityDayKey } from '../lib/trainingLoad';
+import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
 
@@ -132,18 +133,23 @@ export default function FitnessFatigue({ activities }) {
   const es = i18n.language.startsWith('es');
   const [timeRange, setTimeRange] = useState('12');
   const [offsetMonths, setOffsetMonths] = useState(0);
+  // Se desestructura aquí y no dentro del useMemo: el compilador de React lee
+  // `pmc.current` como el `.current` de una ref y se salta la optimización del
+  // componente entero si `pmc` entra como dependencia en bloque.
+  const { pmc } = useCalibratedPMC(activities);
+  const pmcSeries = pmc?.series ?? null;
+  const pmcCurrent = pmc?.current ?? null;
 
   // ── 1. Aggregate per-day data ────────────────────────────────────────────────
   const { chartData, maxLoad, current, weeklyLoad, rampRate, topEfforts } = useMemo(() => {
     if (!activities?.length) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
-    // El modelo de carga y el PMC viven en lib/trainingLoad (fuente única
-    // compartida con StatusSnapshot, InjuryRisk, VitalsOverview y el coach IA).
-    const pmc = computePMC(activities);
-    if (!pmc) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
+    // El PMC llega ya calibrado desde useCalibratedPMC (fuente única compartida
+    // con StatusSnapshot, InjuryRisk, VitalsOverview, el coach IA y el MCP).
+    if (!pmcSeries || !pmcCurrent) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     const weeklyBuckets = {};
-    const data = pmc.series.map((p) => {
+    const data = pmcSeries.map((p) => {
       // Cubo semanal con el lunes como inicio.
       const d = new Date(p.date.slice(0, 4), +p.date.slice(5, 7) - 1, +p.date.slice(8, 10));
       const mon = new Date(d);
@@ -173,7 +179,7 @@ export default function FitnessFatigue({ activities }) {
 
     const { ctl, atl, peak: peakCTL, peakDate: peakCTLDate, lowestTsb: lowestTSB,
             maxDayLoad: globalMaxLoad, ramp: rampPerWeek,
-            ctlTrend7, ctlTrend28, pctPeak } = pmc.current;
+            ctlTrend7, ctlTrend28, pctPeak } = pmcCurrent;
 
     // ── 3. Derived stats ────────────────────────────────────────────────────────
     const wl = Object.values(weeklyBuckets)
@@ -214,7 +220,7 @@ export default function FitnessFatigue({ activities }) {
         fatigue:        Math.round(atl),
         form:           Math.round(ctl - atl),
         // ACWR por EWMA 7:28 (Williams 2017), no ATL/CTL(42).
-        acwr:           pmc.current.acwr != null ? Math.round(pmc.current.acwr * 100) / 100 : 0,
+        acwr:           pmcCurrent.acwr != null ? Math.round(pmcCurrent.acwr * 100) / 100 : 0,
         peakFitness:    Math.round(peakCTL),
         peakFitnessDate: peakCTLDate,
         lowestTSB:      Math.round(lowestTSB),
@@ -226,7 +232,7 @@ export default function FitnessFatigue({ activities }) {
       rampRate:   Math.round(rampPerWeek * 10) / 10,
       topEfforts: efforts,
     };
-  }, [activities]);
+  }, [activities, pmcSeries, pmcCurrent]);
 
   // ── 4. Filter visible range ──────────────────────────────────────────────────
   const filteredData = useMemo(() => {
