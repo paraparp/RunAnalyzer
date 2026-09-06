@@ -6,12 +6,15 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import polyline from '@mapbox/polyline';
-import { getDarkMapTileUrl, getLightMapTileUrl, getMapAttribution } from '../lib/mapTiles';
-import { Card, Select, SelectItem, Badge, Callout } from '@tremor/react';
+import {
+  getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution,
+} from '../lib/mapTiles';
+import { Card, Badge, Callout } from '@tremor/react';
 import {
   MapPinIcon, ArrowsPointingInIcon, ArrowUturnLeftIcon,
   ArrowTopRightOnSquareIcon, InformationCircleIcon, SparklesIcon, ArrowPathIcon,
   MapIcon, XMarkIcon, ChevronDownIcon, PencilIcon, CheckIcon,
+  MagnifyingGlassIcon, EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline';
 import cloudStorage from '../lib/cloudStorage';
 import {
@@ -27,10 +30,11 @@ import { formatDurationHm } from '../lib/timeFormat';
 // El cálculo entero vive en lib/geoZones.js y lib/routeSimilarity.js (puros y
 // testeados); aquí solo está la UI y el estado que edita el atleta.
 //
-// La pantalla se organiza alrededor de UN objeto: la lista de lugares. Todo lo
-// demás (estacionalidad, exploración, sitios dormidos) es lectura secundaria y
-// va plegado, porque son preguntas que uno se hace de vez en cuando y no cada
-// vez que abre la pestaña.
+// La pantalla se organiza alrededor de UN objeto: la lista de lugares. Se lee
+// como una tabla — la cabecera nombra las columnas UNA vez, en vez de repetir
+// una etiqueta por celda y fila — y todo lo secundario (estacionalidad,
+// exploración, sitios dormidos) vive en un único panel con pestañas, porque son
+// preguntas que uno se hace de vez en cuando y no cada vez que abre la pestaña.
 
 const STORE_KEY = 'geo_zones';
 
@@ -42,10 +46,10 @@ const PALETTE = [
 ];
 
 // El color sale de un hash de la CLAVE del sitio, nunca de su posición en la
-// lista. Si dependiera del orden, mover el radio o fusionar dos zonas repintaría
-// media pantalla, y el mismo sitio aparecería de un color en la lista, de otro
-// en la rejilla de estacionalidad y de un tercero en el mapa. Con el hash, un
-// sitio tiene su color para siempre y en todas las vistas.
+// lista. Si dependiera del orden, mover el radio, reordenar la lista o fusionar
+// dos zonas repintaría media pantalla, y el mismo sitio aparecería de un color
+// en la lista, de otro en la rejilla de estacionalidad y de un tercero en el
+// mapa. Con el hash, un sitio tiene su color para siempre y en todas las vistas.
 const hashKey = (s) => {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -78,10 +82,43 @@ const actLabel = (a, lang) => [
   a.distanceKm ? `${a.distanceKm.toFixed(1)} km` : null,
 ].filter(Boolean).join(' · ');
 
-// Teselas CARTO, las mismas del heatmap global. El tema se lee del <html> porque
-// Tailwind va en modo 'class': un mapa claro dentro de la app en oscuro deslumbra.
-const isDarkTheme = () => typeof document !== 'undefined'
-  && document.documentElement.classList.contains('dark');
+// Normalización para el buscador: minúsculas y sin tildes, que un sitio llamado
+// "Alcalá" tiene que salir escribiendo "alcala".
+const norm = (s) => String(s ?? '')
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+// Capa base del mapa. La versión anterior la deducía de la clase `dark` del
+// <html>, y esa clase no la pone nadie en esta app: el mapa salía SIEMPRE claro,
+// sin manera de cambiarlo. Ahora es una elección explícita, con las mismas tres
+// opciones y el mismo defecto oscuro que el heatmap global, para que las dos
+// pantallas de mapa no se contradigan.
+const BASEMAPS = ['dark', 'light', 'satellite'];
+const DEFAULT_BASEMAP = 'dark';
+
+const basemapUrl = (id) => (id === 'light' ? getLightMapTileUrl()
+  : id === 'satellite' ? getSatelliteMapTileUrl()
+  : getDarkMapTileUrl());
+
+// El punto de la opción, para reconocerla sin leer: gris oscuro, gris claro,
+// verde de imagen aérea.
+const BASEMAP_DOT = {
+  dark: 'bg-slate-800',
+  light: 'bg-slate-200 border border-slate-400',
+  satellite: 'bg-emerald-600',
+};
+
+// Grosor y opacidad de una traza según lo repetida que sea su ruta. El grupo 0
+// es el más repetido (groupRoutes ordena por tamaño): la vuelta de siempre se
+// dibuja gruesa y las excursiones sueltas se apagan, así el mapa dice de un
+// vistazo lo mismo que el índice de rutina.
+const routeStyle = (groupIdx) => ({
+  color: PALETTE[groupIdx % PALETTE.length],
+  weight: groupIdx === 0 ? 3.5 : 2,
+  opacity: groupIdx === 0 ? 0.85 : 0.45,
+  className: 'cursor-pointer',
+});
 
 /** Encuadre [[minLat,minLng],[maxLat,maxLng]] de un puñado de trazas. */
 function boundsOf(routes) {
@@ -113,24 +150,28 @@ const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 p
 const ICON_BTN = 'rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 ' +
                  `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
 
-/** Etiqueta de dato: la palabra en pequeño y el valor a su lado. */
-function Metric({ label, children }) {
+const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500';
+
+// Una sola rejilla para la cabecera y para cada fila: es lo que alinea las
+// columnas entre filas. Por debajo de lg la fila se deshace en un flex que
+// envuelve, y ahí cada dato recupera su etiqueta.
+const ROW_GRID = 'lg:grid lg:grid-cols-[minmax(0,1fr)_8.5rem_4rem_5rem_5rem_4.5rem_9.5rem_5.5rem] ' +
+                 'lg:items-center lg:gap-x-3';
+
+/** Celda de dato: en columna estrecha lleva su etiqueta delante; en tabla, no. */
+function Cell({ label, align = 'left', children }) {
   return (
-    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-        {label}
-      </span>
+    <div className={`flex items-baseline gap-1.5 whitespace-nowrap lg:block ${align === 'right' ? 'lg:text-right' : ''}`}>
+      <span className={`${LABEL} lg:hidden`}>{label}</span>
       <span className="tabular-nums text-slate-600 dark:text-slate-300">{children}</span>
-    </span>
+    </div>
   );
 }
 
 function Kpi({ label, value, hint }) {
   return (
-    <div>
-      <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-        {label}
-      </div>
+    <div className="bg-white p-4 dark:bg-slate-900">
+      <div className={LABEL}>{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
         {value}
       </div>
@@ -139,25 +180,123 @@ function Kpi({ label, value, hint }) {
   );
 }
 
-/** Sección plegable nativa: sin JS, con teclado y foco visible de serie. */
-function Section({ title, subtitle, defaultOpen = false, children }) {
+/**
+ * Radio del cúmulo como control segmentado: son seis valores fijos y la pregunta
+ * ("¿más ancho o más estrecho?") es de grado. Un desplegable esconde la escala y
+ * obliga a dos clics para probar el siguiente valor; aquí se ve entera y se
+ * recorre con las flechas del teclado.
+ */
+function RadiusPicker({ value, onChange, label }) {
+  const idx = RADIUS_OPTIONS.indexOf(value);
+  const onKeyDown = (e) => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const from = idx < 0 ? 0 : idx;
+    onChange(RADIUS_OPTIONS[Math.min(RADIUS_OPTIONS.length - 1, Math.max(0, from + d))]);
+  };
   return (
-    <Card className="overflow-hidden p-0">
-      <details open={defaultOpen} className="group">
-        <summary
-          className={`flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4
-                      transition hover:bg-slate-50 motion-reduce:transition-none
-                      dark:hover:bg-slate-800/60 ${FOCUS}`}
+    <div
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60"
+    >
+      {RADIUS_OPTIONS.map((r) => {
+        const on = r === value;
+        return (
+          <button
+            key={r}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onChange(r)}
+            className={`min-w-[2.5rem] rounded-md px-2 py-1 text-xs font-medium tabular-nums transition
+                        motion-reduce:transition-none ${FOCUS}
+                        ${on
+                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+          >
+            {r}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Menú de acciones poco frecuentes: se cierra al pulsar fuera o con Escape. */
+function Menu({ label, children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        className={`rounded-lg border border-slate-300 p-1.5 text-slate-500 transition hover:bg-slate-100
+                    motion-reduce:transition-none dark:border-slate-600 dark:text-slate-400
+                    dark:hover:bg-slate-800 ${FOCUS}`}
+      >
+        <EllipsisHorizontalIcon className="h-5 w-5" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-xl border border-slate-200
+                     bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-            {subtitle && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
-          </div>
-          <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180 motion-reduce:transition-none" />
-        </summary>
-        <div className="border-t border-slate-200 px-5 py-4 dark:border-slate-800">{children}</div>
-      </details>
-    </Card>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MENU_ITEM = 'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 ' +
+                  'transition enabled:hover:bg-slate-100 disabled:opacity-40 motion-reduce:transition-none ' +
+                  `dark:text-slate-200 dark:enabled:hover:bg-slate-800 ${FOCUS}`;
+
+/** Interruptor de capa del mapa: pulsado = capa visible. */
+function LayerToggle({ on, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition motion-reduce:transition-none ${FOCUS}
+                  ${on
+                    ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+                    : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Texto secundario de una entrada de menú: qué hace, en una línea. */
+function MenuHint({ children }) {
+  return (
+    <span className="mt-0.5 block text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+      {children}
+    </span>
   );
 }
 
@@ -200,6 +339,9 @@ export default function GeoZones({ activities }) {
     [activities, radiusKm],
   );
 
+  // `zones` es la lista canónica y va SIEMPRE ordenada por km desc: de ahí sale
+  // el destino de una fusión y la escala de las barras. Lo que se ve en pantalla
+  // (`visible`) es una vista filtrada y reordenada encima, nunca la fuente.
   const zones = useMemo(
     () => shareOfKm(applyZoneEdits(raw, { labels, mergeInto })),
     [raw, labels, mergeInto],
@@ -207,6 +349,11 @@ export default function GeoZones({ activities }) {
 
   const totalKm = zones.reduce((s, z) => s + z.distanceKm, 0);
   const maxKm = zones.length ? zones[0].distanceKm : 0;
+
+  const zoneLabel = useCallback(
+    (z) => z.name || contexts[z.key] || t('geozones.name_placeholder'),
+    [contexts, t],
+  );
 
   const rename = (key, value) => {
     const next = { ...labels };
@@ -246,11 +393,32 @@ export default function GeoZones({ activities }) {
     patchStore({ mergeInto: next });
   };
 
+  // ── Buscar y ordenar ───────────────────────────────────────────────────────
+  // Con veinte o treinta sitios, recorrer la lista con el ojo deja de valer: el
+  // buscador es la manera de llegar a UNO, y el orden la de responder "¿dónde
+  // más corro?" o "¿qué he dejado de pisar?" sin cambiar de vista.
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('km');
+
+  const visible = useMemo(() => {
+    const q = norm(query.trim());
+    const list = q
+      ? zones.filter(z => norm(zoneLabel(z)).includes(q) || norm(contexts[z.key]).includes(q))
+      : zones.slice();
+    const by = {
+      km: (a, b) => b.distanceKm - a.distanceKm,
+      runs: (a, b) => b.count - a.count,
+      recent: (a, b) => String(b.lastDate ?? '').localeCompare(String(a.lastDate ?? '')),
+      name: (a, b) => zoneLabel(a).localeCompare(zoneLabel(b), lang),
+    };
+    return list.sort(by[sort] ?? by.km);
+  }, [zones, query, sort, contexts, zoneLabel, lang]);
+
   // ── Nombres automáticos ────────────────────────────────────────────────────
   // Se dispara SOLO en cuanto hay zonas sin nombrar, así que la lista llega ya
   // nombrada sin que el atleta tenga que pedirlo. Contrapartida, dicha en claro:
   // esto envía tus coordenadas a un tercero (nominatim.openstreetmap.org) sin que
-  // medie un clic. El botón sigue ahí para pararlo en seco.
+  // medie un clic. El aviso de progreso deja pararlo en seco.
   const unnamed = zones.filter(z => !z.name);
   const attempted = useRef(new Set());
 
@@ -303,8 +471,9 @@ export default function GeoZones({ activities }) {
     return () => clearTimeout(id);
   }, [pendingKeys, detectNames]);
 
-  const toggleDetect = () => {
-    if (geo) { geoAbort.current?.abort(); return; }
+  const stopDetect = () => geoAbort.current?.abort();
+  const retryDetect = () => {
+    if (geo) return;
     attempted.current = new Set();
     detectNames(zones.filter(z => !z.name));
   };
@@ -381,10 +550,35 @@ export default function GeoZones({ activities }) {
     click: () => window.open(`https://www.strava.com/activities/${id}`, '_blank', 'noopener,noreferrer'),
   }), []);
 
-  // Cerrar con Escape y bloquear el scroll de detrás, que si no la rueda del
-  // ratón mueve la página en vez de hacer zoom en el mapa.
+  // Sobre una maraña de veinte trazas superpuestas, apuntar a una y no saber
+  // cuál se va a abrir es lo que hace inútil el clic. Al pasar por encima, esa
+  // traza se engorda, sube al frente y se opaca: se ve entera y se ve cuál es.
+  const routeHandlers = useCallback((id, base) => ({
+    ...stravaHandlers(id),
+    mouseover: (e) => {
+      e.target.setStyle({ weight: base.weight + 2, opacity: 1 });
+      e.target.bringToFront();
+    },
+    mouseout: (e) => e.target.setStyle(base),
+  }), [stravaHandlers]);
+
+  // Capas que se pueden apagar: con cien salidas encima, los puntos tapan las
+  // trazas, y el círculo del radio solo hace falta mientras se ajusta.
+  const [showStarts, setShowStarts] = useState(true);
+  const [showRadius, setShowRadius] = useState(true);
+
+  // La capa base es una preferencia, no un estado de sesión: se guarda con el
+  // resto para no reelegirla cada vez que se abre un sitio.
+  const basemap = BASEMAPS.includes(store.basemap) ? store.basemap : DEFAULT_BASEMAP;
+  // Sobre teselas oscuras o una foto aérea, un borde casi negro desaparece.
+  const markerStroke = basemap === 'light' ? '#0f172a' : '#f8fafc';
+
+  // Cerrar con Escape, bloquear el scroll de detrás (que si no la rueda del
+  // ratón mueve la página en vez de hacer zoom) y devolver el foco a la fila
+  // desde la que se abrió, que si no se queda huérfano en el <body>.
   useEffect(() => {
     if (!mapKey) return;
+    const opener = document.activeElement;
     const onKey = (e) => { if (e.key === 'Escape') setMapKey(null); };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -392,6 +586,7 @@ export default function GeoZones({ activities }) {
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      opener?.focus?.();
     };
   }, [mapKey]);
 
@@ -411,7 +606,28 @@ export default function GeoZones({ activities }) {
   const monthNames = useMemo(() => Array.from({ length: 12 }, (_, m) =>
     new Date(2026, m, 1).toLocaleDateString(lang, { month: 'long' })), [lang]);
 
-  const zoneLabel = (z) => z.name || contexts[z.key] || t('geozones.name_placeholder');
+  // Un solo panel con pestañas en vez de tres acordeones apilados: las tres
+  // responden a la misma pregunta ("¿cómo se reparte esto en el tiempo?") vista
+  // de tres maneras, y solo se mira una a la vez.
+  const tabs = useMemo(() => [
+    seasonMax > 0 && { id: 'season', label: t('geozones.season_title'), sub: t('geozones.season_sub') },
+    exploration.length > 0 && {
+      id: 'explore',
+      label: t('geozones.explore_title'),
+      sub: t('geozones.explore_sub', {
+        home: zones.length ? zoneLabel(zones[0]) : t('geozones.explore_home_fallback'),
+      }),
+    },
+    dormant.length > 0 && {
+      id: 'dormant',
+      label: t('geozones.dormant_title'),
+      sub: t('geozones.dormant_sub', { months: DORMANT_MONTHS }),
+      count: dormant.length,
+    },
+  ].filter(Boolean), [seasonMax, exploration.length, dormant, zones, zoneLabel, t]);
+
+  const [tab, setTab] = useState('season');
+  const activeTab = tabs.find(x => x.id === tab) ?? tabs[0] ?? null;
 
   if (!zones.length) {
     return (
@@ -430,8 +646,8 @@ export default function GeoZones({ activities }) {
     <div className="space-y-4">
       {/* ── Cabecera y cifras ───────────────────────────────────────────── */}
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+          <div className="max-w-xl">
             <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
               <MapPinIcon className="h-5 w-5 text-slate-400" />
               {t('geozones.title')}
@@ -440,19 +656,24 @@ export default function GeoZones({ activities }) {
               {t('geozones.subtitle')}
             </p>
           </div>
-          <div className="w-52">
-            <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              {t('geozones.radius')}
-            </label>
-            <Select value={String(radiusKm)} onValueChange={(v) => patchStore({ radiusKm: Number(v) })} enableClear={false}>
-              {RADIUS_OPTIONS.map(r => (
-                <SelectItem key={r} value={String(r)}>{t('geozones.radius_value', { km: r })}</SelectItem>
-              ))}
-            </Select>
+
+          <div>
+            <div className="mb-1 flex items-baseline gap-1.5">
+              <span className={LABEL}>{t('geozones.radius')}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">km</span>
+            </div>
+            <RadiusPicker
+              value={radiusKm}
+              onChange={(v) => patchStore({ radiusKm: v })}
+              label={t('geozones.radius')}
+            />
+            <p className="mt-1.5 max-w-[17rem] text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+              {t('geozones.radius_hint', { km: fmtKm(radiusKm, lang) })}
+            </p>
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-6 border-t border-slate-200 pt-5 sm:grid-cols-4 dark:border-slate-800">
+        <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-slate-200 sm:grid-cols-4 dark:bg-slate-800">
           <Kpi label={t('geozones.kpi_zones')} value={zones.length} />
           <Kpi label={t('geozones.kpi_km')} value={`${fmtKm(totalKm, lang)} km`} />
           <Kpi label={t('geozones.kpi_runs')} value={zones.reduce((s, z) => s + z.count, 0)} />
@@ -461,321 +682,460 @@ export default function GeoZones({ activities }) {
             value={unlocated.count ? `${fmtKm(unlocated.distanceKm, lang)} km` : '—'}
             hint={unlocated.count ? t('geozones.kpi_unlocated_hint', { count: unlocated.count }) : null}
           />
-        </div>
+        </dl>
 
-        <p className="mt-4 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          {t('geozones.caveat')}
-        </p>
+        {/* El matiz importa, pero no todos los días: plegado, no un párrafo fijo. */}
+        <details className="group mt-3">
+          <summary
+            className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded text-xs font-medium
+                        text-slate-500 transition hover:text-slate-800 motion-reduce:transition-none
+                        dark:text-slate-400 dark:hover:text-slate-100 ${FOCUS}`}
+          >
+            <InformationCircleIcon className="h-4 w-4" />
+            {t('geozones.caveat_title')}
+            <ChevronDownIcon className="h-3.5 w-3.5 transition group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
+          <p className="mt-2 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            {t('geozones.caveat')}
+          </p>
+        </details>
       </Card>
 
       {/* ── Lista de lugares: el objeto principal de la pantalla ────────── */}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <Card className="overflow-visible p-0">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               {t('geozones.table_title')}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {mergeMode ? t('geozones.merge_mode_hint') : t('geozones.table_sub')}
+              {t('geozones.table_sub')}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {mergeMode ? (
-              <>
-                <button type="button" onClick={() => { setMergeMode(false); setSelected(new Set()); }} className={BTN}>
-                  {t('geozones.cancel')}
-                </button>
-                <button type="button" onClick={mergeSelected} disabled={selected.size < 2} className={BTN}>
-                  <CheckIcon className="h-4 w-4" />
-                  {t('geozones.merge', { count: selected.size })}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={toggleDetect}
-                  disabled={!geo && !unnamed.length}
-                  title={t('geozones.detect_hint')}
-                  className={BTN}
-                >
-                  <SparklesIcon className={`h-4 w-4 ${geo ? 'animate-pulse motion-reduce:animate-none' : ''}`} />
-                  {geo
-                    ? t('geozones.detect_running', { done: geo.done, total: geo.total })
-                    : t('geozones.detect', { count: unnamed.length })}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetNames}
-                  disabled={!Object.keys(labels).length && !Object.keys(contexts).length}
-                  title={t('geozones.reset_hint')}
-                  className={confirmReset
-                    ? `${BTN} !border-rose-400 !text-rose-600 dark:!border-rose-500 dark:!text-rose-400`
-                    : BTN}
-                >
-                  <ArrowPathIcon className="h-4 w-4" />
-                  {confirmReset ? t('geozones.reset_confirm') : t('geozones.reset')}
-                </button>
-                <button type="button" onClick={() => setMergeMode(true)} disabled={zones.length < 2} className={BTN}>
-                  <ArrowsPointingInIcon className="h-4 w-4" />
-                  {t('geozones.merge_start')}
-                </button>
-              </>
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('geozones.search_placeholder')}
+                aria-label={t('geozones.search_placeholder')}
+                className={`w-44 rounded-lg border border-slate-300 bg-transparent py-1.5 pl-8 pr-2 text-sm
+                            text-slate-700 placeholder:text-slate-400 dark:border-slate-600
+                            dark:text-slate-200 ${FOCUS}`}
+              />
+            </div>
+
+            <label className="sr-only" htmlFor="geozones-sort">{t('geozones.sort_label')}</label>
+            <select
+              id="geozones-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className={`rounded-lg border border-slate-300 bg-transparent py-1.5 pl-2.5 pr-7 text-sm
+                          font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900
+                          dark:text-slate-200 ${FOCUS}`}
+            >
+              <option value="km">{t('geozones.sort_km')}</option>
+              <option value="runs">{t('geozones.sort_runs')}</option>
+              <option value="recent">{t('geozones.sort_recent')}</option>
+              <option value="name">{t('geozones.sort_name')}</option>
+            </select>
+
+            {!mergeMode && (
+              <button type="button" onClick={() => setMergeMode(true)} disabled={zones.length < 2} className={BTN}>
+                <ArrowsPointingInIcon className="h-4 w-4" />
+                {t('geozones.merge_start')}
+              </button>
             )}
+
+            {/* Reintentar y reiniciar nombres se usan una vez al año: fuera de la
+                barra, que si no compiten con lo que sí se toca a diario. */}
+            <Menu label={t('geozones.more_actions')}>
+              <button
+                type="button"
+                onClick={retryDetect}
+                disabled={!!geo || !unnamed.length}
+                className={MENU_ITEM}
+              >
+                <SparklesIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <span>
+                  {t('geozones.detect', { count: unnamed.length })}
+                  <MenuHint>{t('geozones.detect_hint')}</MenuHint>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={resetNames}
+                disabled={!Object.keys(labels).length && !Object.keys(contexts).length}
+                className={confirmReset ? `${MENU_ITEM} !text-rose-600 dark:!text-rose-400` : MENU_ITEM}
+              >
+                <ArrowPathIcon className={`mt-0.5 h-4 w-4 shrink-0 ${confirmReset ? 'text-rose-500' : 'text-slate-400'}`} />
+                <span>
+                  {confirmReset ? t('geozones.reset_confirm') : t('geozones.reset')}
+                  <MenuHint>{t('geozones.reset_hint')}</MenuHint>
+                </span>
+              </button>
+            </Menu>
           </div>
         </div>
 
-        <ul className="mt-4 space-y-1.5">
-          {zones.map((z) => {
-            const color = colorForKey(z.key);
-            const picked = selected.has(z.key);
-            const pending = !z.name && !!geo;
-            return (
-              <li
-                key={z.key}
-                className={`relative overflow-hidden rounded-xl border transition motion-reduce:transition-none
-                            ${picked
-                              ? 'border-slate-400 dark:border-slate-500'
-                              : 'border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700'}`}
-              >
-                {/* La barra de km ES la fila: proporción sobre el sitio con más
-                    kilómetros. Absorbe el gráfico de barras que antes vivía en su
-                    propia tarjeta diciendo exactamente lo mismo que esta lista. */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-y-0 left-0"
-                  style={{ width: `${maxKm > 0 ? (z.distanceKm / maxKm) * 100 : 0}%`, background: tint(color, 9) }}
-                />
-                <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
-
-                <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 py-3 pl-4 pr-3">
-                  {mergeMode && (
-                    <input
-                      type="checkbox"
-                      checked={picked}
-                      onChange={() => toggle(z.key)}
-                      aria-label={t('geozones.select_zone')}
-                      className={`h-4 w-4 shrink-0 rounded border-slate-300 dark:border-slate-600 ${FOCUS}`}
-                    />
-                  )}
-
-                  <div className="min-w-[12rem] flex-1">
-                    <div className="group/name flex items-center gap-1.5">
-                      {pending ? (
-                        <span className="h-5 w-32 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
-                      ) : (
-                        <>
-                          <input
-                            value={z.name ?? ''}
-                            onChange={(e) => rename(z.key, e.target.value)}
-                            placeholder={t('geozones.name_placeholder')}
-                            aria-label={t('geozones.name_label')}
-                            className={`w-full max-w-[16rem] rounded border border-transparent bg-transparent px-1 py-0.5
-                                        text-sm font-semibold text-slate-900 placeholder:font-normal
-                                        placeholder:text-slate-400 hover:border-slate-300 dark:text-slate-100
-                                        dark:hover:border-slate-600 ${FOCUS}`}
-                          />
-                          <PencilIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover/name:opacity-100 motion-reduce:transition-none dark:text-slate-600" />
-                        </>
-                      )}
-                      {z.mergedFrom && (
-                        <Badge size="xs" color="slate">{t('geozones.merged', { count: z.mergedFrom.length })}</Badge>
-                      )}
-                      {dormantKeys.has(z.key) && (
-                        <Badge size="xs" color="amber">{t('geozones.dormant_badge')}</Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 truncate pl-1 text-xs text-slate-400 dark:text-slate-500">
-                      {contexts[z.key] || `${z.centroid[0].toFixed(3)}, ${z.centroid[1].toFixed(3)}`}
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline gap-2 tabular-nums">
-                    <span className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-                      {fmtKm(z.distanceKm, lang)}
-                    </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">km · {z.pct.toFixed(1)}%</span>
-                  </div>
-
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
-                    <Metric label={t('geozones.col_runs')}>{z.count}</Metric>
-                    <Metric label={t('geozones.col_avg')}>{fmtKm(z.distanceKm / z.count, lang)} km</Metric>
-                    <Metric label={t('geozones.col_time')}>{formatDurationHm(z.movingSec)}</Metric>
-                    <Metric label={t('geozones.col_slope')}>{z.elevPct.toFixed(1)} %</Metric>
-                    <Metric label={t('geozones.col_period')}>
-                      {fmtDate(z.firstDate, lang)} → {fmtDate(z.lastDate, lang)}
-                    </Metric>
-                  </div>
-
-                  <div className="ml-auto flex items-center gap-0.5">
-                    {z.mergedFrom && (
-                      <button type="button" onClick={() => unmerge(z.key)} title={t('geozones.unmerge')} className={ICON_BTN}>
-                        <ArrowUturnLeftIcon className="h-4 w-4" />
-                      </button>
-                    )}
-                    <a
-                      href={osmUrl(z.centroid)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={t('geozones.open_map')}
-                      className={ICON_BTN}
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                    </a>
-                    <button type="button" onClick={() => setMapKey(z.key)} title={t('geozones.show_routes')} className={ICON_BTN}>
-                      <MapIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-
-        {unlocated.count > 0 && (
-          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-            {t('geozones.unlocated_note', { count: unlocated.count, km: fmtKm(unlocated.distanceKm, lang) })}
-          </p>
+        {/* Estado de la geocodificación: un aviso que informa y deja parar, en vez
+            de un botón que cambia de significado a mitad de faena. */}
+        {geo && (
+          <div className="mx-5 mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <SparklesIcon className="h-4 w-4 shrink-0 animate-pulse text-slate-400 motion-reduce:animate-none" />
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {t('geozones.detect_progress', { done: geo.done, total: geo.total })}
+            </span>
+            <span className="h-1 min-w-[3rem] flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <span
+                className="block h-full rounded-full bg-slate-400 transition-[width] motion-reduce:transition-none dark:bg-slate-500"
+                style={{ width: `${geo.total ? (geo.done / geo.total) * 100 : 0}%` }}
+              />
+            </span>
+            <button
+              type="button"
+              onClick={stopDetect}
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium text-slate-500 transition
+                          hover:text-slate-900 motion-reduce:transition-none dark:text-slate-400
+                          dark:hover:text-slate-100 ${FOCUS}`}
+            >
+              {t('geozones.detect_stop')}
+            </button>
+          </div>
         )}
+
+        {/* Modo fusión: barra propia, para que se vea que la lista ha cambiado de
+            modo y por dónde se sale. */}
+        {mergeMode && (
+          <div className="mx-5 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 dark:border-sky-800 dark:bg-sky-950/40">
+            <ArrowsPointingInIcon className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+            <span className="flex-1 text-xs text-sky-900 dark:text-sky-200">
+              {t('geozones.merge_mode_hint')}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setMergeMode(false); setSelected(new Set()); }}
+              className={`rounded-lg px-2.5 py-1 text-sm font-medium text-sky-800 transition hover:bg-sky-100
+                          motion-reduce:transition-none dark:text-sky-200 dark:hover:bg-sky-900/60 ${FOCUS}`}
+            >
+              {t('geozones.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={mergeSelected}
+              disabled={selected.size < 2}
+              className={`inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1 text-sm font-medium
+                          text-white transition enabled:hover:bg-sky-700 disabled:opacity-40
+                          motion-reduce:transition-none ${FOCUS}`}
+            >
+              <CheckIcon className="h-4 w-4" />
+              {t('geozones.merge', { count: selected.size })}
+            </button>
+          </div>
+        )}
+
+        <div className="px-5 pb-5">
+          {/* Cabecera de columnas: las etiquetas se dicen UNA vez y no una por
+              celda y fila, que era lo que llenaba la lista de letra pequeña. */}
+          <div className={`mt-4 hidden border-b border-slate-200 px-4 pb-2 dark:border-slate-800 ${ROW_GRID}`}>
+            <span className={LABEL}>{t('geozones.col_zone')}</span>
+            <span className={`${LABEL} lg:text-right`}>{t('geozones.col_km')}</span>
+            <span className={`${LABEL} lg:text-right`}>{t('geozones.col_runs')}</span>
+            <span className={`${LABEL} lg:text-right`}>{t('geozones.col_avg')}</span>
+            <span className={`${LABEL} lg:text-right`}>{t('geozones.col_time')}</span>
+            <span className={`${LABEL} lg:text-right`} title={t('geozones.col_slope_hint')}>
+              {t('geozones.col_slope')}
+            </span>
+            <span className={`${LABEL} lg:text-right`}>{t('geozones.col_period')}</span>
+            <span className="sr-only">{t('geozones.col_actions')}</span>
+          </div>
+
+          <ul className="mt-2 space-y-1">
+            {visible.map((z) => {
+              const color = colorForKey(z.key);
+              const picked = selected.has(z.key);
+              const pending = !z.name && !!geo;
+              return (
+                <li
+                  key={z.key}
+                  className={`group relative overflow-hidden rounded-xl border transition motion-reduce:transition-none
+                              ${picked
+                                ? 'border-sky-400 bg-sky-50/60 dark:border-sky-600 dark:bg-sky-950/20'
+                                : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'}`}
+                >
+                  {/* La barra de km ES la fila: proporción sobre el sitio con más
+                      kilómetros. Absorbe el gráfico de barras que antes vivía en su
+                      propia tarjeta diciendo exactamente lo mismo que esta lista. */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0"
+                    style={{ width: `${maxKm > 0 ? (z.distanceKm / maxKm) * 100 : 0}%`, background: tint(color, 8) }}
+                  />
+                  <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
+
+                  <div className={`relative flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pl-4 pr-2 ${ROW_GRID}`}>
+                    {/* Lugar */}
+                    <div className="flex min-w-[12rem] flex-1 items-center gap-2 lg:min-w-0">
+                      {mergeMode && (
+                        <input
+                          type="checkbox"
+                          checked={picked}
+                          onChange={() => toggle(z.key)}
+                          aria-label={t('geozones.select_zone')}
+                          className={`h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 dark:border-slate-600 ${FOCUS}`}
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {pending ? (
+                            <span className="h-5 w-32 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                          ) : (
+                            <>
+                              <input
+                                value={z.name ?? ''}
+                                onChange={(e) => rename(z.key, e.target.value)}
+                                placeholder={t('geozones.name_placeholder')}
+                                aria-label={t('geozones.name_label')}
+                                className={`w-full max-w-[16rem] rounded border border-transparent bg-transparent px-1 py-0.5
+                                            text-sm font-semibold text-slate-900 placeholder:font-normal
+                                            placeholder:text-slate-400 hover:border-slate-300 hover:bg-white
+                                            dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-900 ${FOCUS}`}
+                              />
+                              <PencilIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover:opacity-100 motion-reduce:transition-none dark:text-slate-600" />
+                            </>
+                          )}
+                          {z.mergedFrom && (
+                            <Badge size="xs" color="slate">{t('geozones.merged', { count: z.mergedFrom.length })}</Badge>
+                          )}
+                          {dormantKeys.has(z.key) && (
+                            <Badge size="xs" color="amber">{t('geozones.dormant_badge')}</Badge>
+                          )}
+                        </div>
+                        <div className="mt-0.5 truncate pl-1 text-xs text-slate-400 dark:text-slate-500">
+                          {contexts[z.key] || `${z.centroid[0].toFixed(3)}, ${z.centroid[1].toFixed(3)}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Km: el dato principal, con su cuota al lado. */}
+                    <div className="whitespace-nowrap lg:text-right">
+                      <span className="text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
+                        {fmtKm(z.distanceKm, lang)}
+                      </span>
+                      <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">km</span>
+                      <span className="ml-2 text-xs tabular-nums text-slate-400 dark:text-slate-500">
+                        {z.pct.toFixed(1)} %
+                      </span>
+                    </div>
+
+                    <Cell label={t('geozones.col_runs')} align="right">{z.count}</Cell>
+                    <Cell label={t('geozones.col_avg')} align="right">{fmtKm(z.distanceKm / z.count, lang)}</Cell>
+                    <Cell label={t('geozones.col_time')} align="right">{formatDurationHm(z.movingSec)}</Cell>
+                    <Cell label={t('geozones.col_slope')} align="right">{z.elevPct.toFixed(1)} %</Cell>
+                    <Cell label={t('geozones.col_period')} align="right">
+                      <span className="text-xs">{fmtDate(z.firstDate, lang)} → {fmtDate(z.lastDate, lang)}</span>
+                    </Cell>
+
+                    {/* Acciones: aparecen al pasar por encima o al tabular. En
+                        táctil y en columna estrecha siguen siempre visibles. */}
+                    <div
+                      className="ml-auto flex items-center justify-end gap-0.5 transition motion-reduce:transition-none
+                                 lg:ml-0 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
+                    >
+                      {z.mergedFrom && (
+                        <button type="button" onClick={() => unmerge(z.key)} title={t('geozones.unmerge')} className={ICON_BTN}>
+                          <ArrowUturnLeftIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      <a
+                        href={osmUrl(z.centroid)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={t('geozones.open_map')}
+                        className={ICON_BTN}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      </a>
+                      <button type="button" onClick={() => setMapKey(z.key)} title={t('geozones.show_routes')} className={ICON_BTN}>
+                        <MapIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {!visible.length && (
+            <p className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+              {t('geozones.no_matches', { query: query.trim() })}
+            </p>
+          )}
+        </div>
       </Card>
 
-      {/* ── Lecturas secundarias, plegadas ──────────────────────────────── */}
-      {seasonMax > 0 && (
-        <Section title={t('geozones.season_title')} subtitle={t('geozones.season_sub')}>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[32rem] border-separate border-spacing-y-1 text-sm">
-              <caption className="sr-only">{t('geozones.season_title')}</caption>
-              <thead>
-                <tr>
-                  <th scope="col" className="pb-1 pr-3 text-left text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                    {t('geozones.col_zone')}
-                  </th>
-                  {monthLabels.map((m, i) => (
-                    <th key={i} scope="col" className="pb-1 text-center text-[10px] font-medium uppercase text-slate-400">
-                      {m}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {seasonality.map((z) => {
-                  const color = colorForKey(z.key);
-                  return (
-                    <tr key={z.key}>
-                      <th scope="row" className="w-44 max-w-[11rem] truncate pr-3 text-left text-xs font-medium">
-                        <span className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-                          <span className="truncate text-slate-700 dark:text-slate-200">
-                            {z.name || contexts[z.key] || t('geozones.name_placeholder')}
-                          </span>
-                        </span>
-                      </th>
-                      {z.months.map((km, m) => (
-                        <td key={m} className="px-0.5">
-                          {/* Sin cifras dentro: a partir de 100 km no caben en la
-                              celda. El color da la lectura y el tooltip el dato. */}
-                          <div
-                            title={`${monthNames[m]} · ${fmtKm(km, lang)} km`}
-                            className="h-6 rounded-[3px]"
-                            style={{ background: km > 0 ? tint(color, 15 + (km / seasonMax) * 85) : tint('#94a3b8', 8) }}
-                          />
-                        </td>
+      {/* ── Lecturas secundarias: un panel, tres pestañas ───────────────── */}
+      {activeTab && (
+        <Card className="overflow-hidden p-0">
+          <div className="border-b border-slate-200 px-5 pt-4 dark:border-slate-800">
+            <div role="tablist" aria-label={t('geozones.patterns_title')} className="-mb-px flex flex-wrap gap-1">
+              {tabs.map((x) => {
+                const on = x.id === activeTab.id;
+                return (
+                  <button
+                    key={x.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setTab(x.id)}
+                    className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition
+                                motion-reduce:transition-none ${FOCUS}
+                                ${on
+                                  ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-50'
+                                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+                  >
+                    {x.label}
+                    {x.count != null && (
+                      <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        {x.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="px-5 py-4">
+            <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{activeTab.sub}</p>
+
+            {activeTab.id === 'season' && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[32rem] border-separate border-spacing-y-1 text-sm">
+                    <caption className="sr-only">{t('geozones.season_title')}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col" className={`pb-1 pr-3 text-left ${LABEL}`}>{t('geozones.col_zone')}</th>
+                        {monthLabels.map((m, i) => (
+                          <th key={i} scope="col" className={`pb-1 text-center ${LABEL}`}>{m}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {seasonality.map((z) => {
+                        const color = colorForKey(z.key);
+                        return (
+                          <tr key={z.key}>
+                            <th scope="row" className="w-44 max-w-[11rem] truncate pr-3 text-left text-xs font-medium">
+                              <span className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+                                <span className="truncate text-slate-700 dark:text-slate-200">{zoneLabel(z)}</span>
+                              </span>
+                            </th>
+                            {z.months.map((km, m) => (
+                              <td key={m} className="px-0.5">
+                                {/* Sin cifras dentro: a partir de 100 km no caben en la
+                                    celda. El color da la lectura y el tooltip el dato. */}
+                                <div
+                                  title={`${monthNames[m]} · ${fmtKm(km, lang)} km`}
+                                  className="h-6 rounded-[3px]"
+                                  style={{ background: km > 0 ? tint(color, 15 + (km / seasonMax) * 85) : tint('#94a3b8', 8) }}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className={`mt-3 flex items-center gap-2 ${LABEL}`}>
+                  <span>{t('geozones.season_less')}</span>
+                  <span className="flex gap-0.5">
+                    {[8, 30, 55, 80, 100].map(p => (
+                      <span key={p} className="h-3 w-5 rounded-[2px]" style={{ background: tint('#64748b', p) }} />
+                    ))}
+                  </span>
+                  <span>{t('geozones.season_more', { km: fmtKm(seasonMax, lang) })}</span>
+                </div>
+
+                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  {t('geozones.season_note')}
+                </p>
+              </>
+            )}
+
+            {activeTab.id === 'explore' && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={`border-b border-slate-200 text-left dark:border-slate-700 ${LABEL}`}>
+                        <th scope="col" className="py-2 pr-3">{t('geozones.col_year')}</th>
+                        <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_radius')}</th>
+                        <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_places')}</th>
+                        <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_area')}</th>
+                        <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_runs')}</th>
+                        <th scope="col" className="py-2 text-right">{t('geozones.col_km')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exploration.map(y => (
+                        <tr key={y.year} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                          <td className="py-2 pr-3 font-medium tabular-nums">{y.year}</td>
+                          <td className="py-2 pr-3 text-right font-semibold tabular-nums">{fmtKm(y.radiusKm, lang)} km</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">{y.places}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                            {y.areaKm2 >= 1 ? `${Math.round(y.areaKm2).toLocaleString(lang)} km²` : '—'}
+                          </td>
+                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500">{y.runs}</td>
+                          <td className="py-2 text-right tabular-nums text-slate-500">{fmtKm(y.distanceKm, lang)}</td>
+                        </tr>
                       ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  {t('geozones.explore_note')}
+                </p>
+              </>
+            )}
 
-          <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-wider text-slate-400">
-            <span>{t('geozones.season_less')}</span>
-            <span className="flex gap-0.5">
-              {[8, 30, 55, 80, 100].map(p => (
-                <span key={p} className="h-3 w-5 rounded-[2px]" style={{ background: tint('#64748b', p) }} />
-              ))}
-            </span>
-            <span>{t('geozones.season_more', { km: fmtKm(seasonMax, lang) })}</span>
-          </div>
-
-          <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-            {t('geozones.season_note')}
-          </p>
-        </Section>
-      )}
-
-      {exploration.length > 0 && (
-        <Section
-          title={t('geozones.explore_title')}
-          subtitle={t('geozones.explore_sub', { home: zoneLabel(zones[0]) })}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-[10px] uppercase tracking-wider text-slate-400 dark:border-slate-700">
-                  <th scope="col" className="py-2 pr-3 font-medium">{t('geozones.col_year')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right font-medium">{t('geozones.col_radius')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right font-medium">{t('geozones.col_places')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right font-medium">{t('geozones.col_area')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right font-medium">{t('geozones.col_runs')}</th>
-                  <th scope="col" className="py-2 text-right font-medium">{t('geozones.col_km')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exploration.map(y => (
-                  <tr key={y.year} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                    <td className="py-2 pr-3 font-medium tabular-nums">{y.year}</td>
-                    <td className="py-2 pr-3 text-right font-semibold tabular-nums">{fmtKm(y.radiusKm, lang)} km</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{y.places}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
-                      {y.areaKm2 >= 1 ? `${Math.round(y.areaKm2).toLocaleString(lang)} km²` : '—'}
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-slate-500">{y.runs}</td>
-                    <td className="py-2 text-right tabular-nums text-slate-500">{fmtKm(y.distanceKm, lang)}</td>
-                  </tr>
+            {activeTab.id === 'dormant' && (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {dormant.slice(0, 24).map(z => (
+                  <button
+                    key={z.key}
+                    type="button"
+                    onClick={() => setMapKey(z.key)}
+                    className={`flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition
+                                hover:bg-slate-50 motion-reduce:transition-none dark:border-slate-700
+                                dark:hover:bg-slate-800 ${FOCUS}`}
+                  >
+                    <span className="h-8 w-1 shrink-0 rounded" style={{ background: colorForKey(z.key) }} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {zoneLabel(z)}
+                      </span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                        {t('geozones.dormant_since', {
+                          months: z.monthsSince,
+                          km: fmtKm(z.distanceKm, lang),
+                          date: fmtDate(z.lastDate, lang),
+                        })}
+                      </span>
+                    </span>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-            {t('geozones.explore_note')}
-          </p>
-        </Section>
-      )}
-
-      {dormant.length > 0 && (
-        <Section
-          title={t('geozones.dormant_title')}
-          subtitle={t('geozones.dormant_sub', { months: DORMANT_MONTHS })}
-        >
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {dormant.slice(0, 24).map(z => (
-              <button
-                key={z.key}
-                type="button"
-                onClick={() => setMapKey(z.key)}
-                className={`flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition
-                            hover:bg-slate-50 motion-reduce:transition-none dark:border-slate-700
-                            dark:hover:bg-slate-800 ${FOCUS}`}
-              >
-                <span className="h-8 w-1 shrink-0 rounded" style={{ background: colorForKey(z.key) }} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {zoneLabel(z)}
-                  </span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
-                    {t('geozones.dormant_since', {
-                      months: z.monthsSince,
-                      km: fmtKm(z.distanceKm, lang),
-                      date: fmtDate(z.lastDate, lang),
-                    })}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </Section>
+        </Card>
       )}
 
       {/* ── Mapa de un lugar ────────────────────────────────────────────── */}
@@ -802,16 +1162,38 @@ export default function GeoZones({ activities }) {
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {t('geozones.map_sub', { routes: routes.length, count: mapZone.count })}
                   {contexts[mapZone.key] ? ` · ${contexts[mapZone.key]}` : ''}
+                  {routine.total > 1
+                    ? ` · ${t('geozones.routine', { distinct: routine.distinct, top: Math.round(routine.topShare) })}`
+                    : ''}
                 </p>
-                {routine.total > 1 && (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {t('geozones.routine', { distinct: routine.distinct, top: Math.round(routine.topShare) })}
-                  </p>
-                )}
               </div>
-              <button type="button" onClick={() => setMapKey(null)} title={t('geozones.close')} className={ICON_BTN} autoFocus>
-                <XMarkIcon className="h-5 w-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <label className="sr-only" htmlFor="geozones-basemap">{t('maps.base_map')}</label>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${BASEMAP_DOT[basemap]}`} aria-hidden="true" />
+                <select
+                  id="geozones-basemap"
+                  value={basemap}
+                  onChange={(e) => patchStore({ basemap: e.target.value })}
+                  className={`mr-1 rounded-lg border border-slate-300 bg-transparent py-1 pl-1.5 pr-6 text-xs
+                              font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-900
+                              dark:text-slate-300 ${FOCUS}`}
+                >
+                  <option value="dark">{t('maps.dark')}</option>
+                  <option value="light">{t('maps.light')}</option>
+                  <option value="satellite">{t('maps.satellite')}</option>
+                </select>
+                {mapStarts.length > 0 && (
+                  <LayerToggle on={showStarts} onClick={() => setShowStarts(v => !v)}>
+                    {t('geozones.layer_starts', { count: mapStarts.length })}
+                  </LayerToggle>
+                )}
+                <LayerToggle on={showRadius} onClick={() => setShowRadius(v => !v)}>
+                  {t('geozones.layer_radius')}
+                </LayerToggle>
+                <button type="button" onClick={() => setMapKey(null)} title={t('geozones.close')} className={ICON_BTN} autoFocus>
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {mapBounds ? (
@@ -820,44 +1202,47 @@ export default function GeoZones({ activities }) {
               // encuadre del sitio anterior.
               <div className="h-[70vh] min-h-[360px] w-full">
                 <MapContainer key={mapZone.key} bounds={mapBounds} scrollWheelZoom className="z-0 h-full w-full">
+                  {/* `key` fuerza el cambio de teselas al elegir otra capa. */}
                   <TileLayer
-                    attribution={getMapAttribution(isDarkTheme() ? 'dark' : 'light')}
-                    url={isDarkTheme() ? getDarkMapTileUrl() : getLightMapTileUrl()}
+                    key={basemap}
+                    attribution={getMapAttribution(basemap)}
+                    url={basemapUrl(basemap)}
                   />
                   {/* Cada ruta distinta va de un color: el reparto de colores ES
                       el índice de rutina hecho imagen. Un mapa monocolor significa
-                      que siempre haces la misma vuelta. */}
-                  {routes.map(r => (
-                    <Polyline
-                      key={r.id}
-                      positions={r.positions}
-                      pathOptions={{
-                        color: PALETTE[(groupOf.get(r.id) ?? 0) % PALETTE.length],
-                        weight: 2,
-                        opacity: 0.6,
-                        className: 'cursor-pointer',
-                      }}
-                      eventHandlers={stravaHandlers(r.id)}
-                    >
-                      <LeafletTooltip sticky>{actLabel(r, lang)}</LeafletTooltip>
-                    </Polyline>
-                  ))}
+                      que siempre haces la misma vuelta. La más repetida va gruesa
+                      y las excursiones sueltas apagadas, para no leer todo a la vez. */}
+                  {routes.map(r => {
+                    const style = routeStyle(groupOf.get(r.id) ?? 0);
+                    return (
+                      <Polyline
+                        key={r.id}
+                        positions={r.positions}
+                        pathOptions={style}
+                        eventHandlers={routeHandlers(r.id, style)}
+                      >
+                        <LeafletTooltip sticky>{actLabel(r, lang)}</LeafletTooltip>
+                      </Polyline>
+                    );
+                  })}
 
                   {/* El radio del cúmulo, para ver qué está capturando. Si las
                       salidas rozan el borde, probablemente estés juntando dos sitios. */}
-                  <Circle
-                    center={mapZone.seed}
-                    radius={radiusKm * 1000}
-                    interactive={false}
-                    pathOptions={{ color: '#94a3b8', weight: 1, dashArray: '4 4', fill: false }}
-                  />
-                  {mapStarts.map(s => (
+                  {showRadius && (
+                    <Circle
+                      center={mapZone.seed}
+                      radius={radiusKm * 1000}
+                      interactive={false}
+                      pathOptions={{ color: '#94a3b8', weight: 1, dashArray: '4 4', fill: false }}
+                    />
+                  )}
+                  {showStarts && mapStarts.map(s => (
                     <CircleMarker
                       key={s.id}
                       center={s.point}
                       radius={4}
                       pathOptions={{
-                        color: '#0f172a', weight: 1, fillColor: '#fff', fillOpacity: 0.9,
+                        color: markerStroke, weight: 1, fillColor: '#fff', fillOpacity: 0.9,
                         className: 'cursor-pointer',
                       }}
                       eventHandlers={stravaHandlers(s.id)}
@@ -871,7 +1256,7 @@ export default function GeoZones({ activities }) {
                     radius={7}
                     interactive={false}
                     pathOptions={{
-                      color: '#0f172a', weight: 2,
+                      color: markerStroke, weight: 2,
                       fillColor: colorForKey(mapZone.key), fillOpacity: 1,
                     }}
                   />
@@ -885,9 +1270,39 @@ export default function GeoZones({ activities }) {
               </div>
             )}
 
-            <p className="border-t border-slate-200 px-4 py-2 text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
-              {t('geozones.map_footer')}
-            </p>
+            {/* Leyenda: sin ella hay que adivinar qué es el círculo de puntos y
+                por qué las trazas cambian de color. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-slate-900 dark:border-slate-200"
+                  style={{ background: colorForKey(mapZone.key) }}
+                />
+                {t('geozones.legend_center')}
+              </span>
+              {showStarts && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full border border-slate-900 bg-white dark:border-slate-200" />
+                  {t('geozones.legend_start')}
+                </span>
+              )}
+              {showRadius && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-0 w-4 shrink-0 border-t border-dashed border-slate-400" />
+                  {t('geozones.legend_radius', { km: fmtKm(radiusKm, lang) })}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-0.5">
+                  <span className="h-1 w-4 shrink-0 rounded" style={{ background: PALETTE[0] }} />
+                  {PALETTE.slice(1, 3).map(c => (
+                    <span key={c} className="h-px w-3 shrink-0 rounded opacity-60" style={{ background: c }} />
+                  ))}
+                </span>
+                {t('geozones.legend_routes')}
+              </span>
+              <span className="ml-auto hidden sm:inline">{t('geozones.map_footer')}</span>
+            </div>
           </div>
         </div>
       )}

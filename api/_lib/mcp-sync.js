@@ -108,6 +108,12 @@ const HEAVY_DETAIL_FIELDS = [
   'description', 'photos', 'stats_visibility', 'available_zones', 'laps_raw',
 ];
 
+// El blob de Strava tiene dos formas vivas: el objeto `{ activities, tokens… }` de
+// hoy y el ARRAY pelado del formato viejo, que la lectura sigue aceptando. Sin este
+// normalizado, escribir sobre el array lo esparcía como `{"0":…, "1":…}` y dejaba el
+// blob en una tercera forma que no lee nadie.
+const asBlobObject = (blob) => (blob && !Array.isArray(blob) && typeof blob === 'object' ? blob : {});
+
 function slimActivity(act, fallback = {}) {
   const slim = { ...act };
   for (const k of HEAVY_DETAIL_FIELDS) delete slim[k];
@@ -264,7 +270,7 @@ async function syncStrava(userId, { token, detailBudget = 3, perPage = 30, maxPa
     return { added: 0, changed: 0, enriched: 0, wrote: false, after, full: true };
   }
   await writeKey(userId, 'stravaData', {
-    ...blob,
+    ...asBlobObject(blob),
     accessToken: tok.access, refreshToken: tok.refresh, expiresAt: tok.expires,
     activities, lastFetchDate: new Date().toDateString(),
   });
@@ -359,7 +365,7 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
     const patched = byId.get(a.id);
     return patched ? { ...a, ...patched } : a;
   });
-  await writeKey(userId, 'stravaData', { ...(latest || blob), activities: merged });
+  await writeKey(userId, 'stravaData', { ...asBlobObject(latest || blob), activities: merged });
   return { splits, flat, wrote: true };
 }
 
