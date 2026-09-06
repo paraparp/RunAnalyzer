@@ -162,6 +162,66 @@ describe('compare_similar_sessions: no mezclar peras y manzanas', () => {
     expect(res.homogeneity.mixed_hr_sources).toBe(false);
   });
 
+  it('marca trend.comparable=false cuando el desnivel de las dos mitades no es equiparable', async () => {
+    // El caso real (referencia 20057091159): las dos antiguas a 3,8 y 8,3 m/km, las dos
+    // recientes a 18,5 y 16,5. Salia change_pct -5 % con comparable true y caveat null,
+    // y esa caida era la cuesta. Comparando solo las dos de perfil igual, SUBIA un 1,3 %.
+    put('stravaData', [
+      act({ id: 1, date: '2026-03-28T07:00:00Z', distance: 18514, elev: 71, hr: 148 }),
+      act({ id: 2, date: '2026-07-25T07:00:00Z', distance: 21390, elev: 178, hr: 148 }),
+      act({ id: 3, date: '2026-08-29T07:00:00Z', distance: 20202, elev: 373, hr: 148 }),
+      act({ id: 4, date: '2026-09-06T07:00:00Z', distance: 21907, elev: 361, hr: 148 }),
+    ]);
+    put('hr_strap_since', '2026-01-01');
+    const res = await compareSimilarSessions(U, { distance_km: 21, distance_tolerance_pct: 20 });
+    expect(res.trend.older_elevation_per_km).toBeCloseTo(6.1, 0);
+    expect(res.trend.recent_elevation_per_km).toBeCloseTo(17.5, 0);
+    expect(res.trend.comparable).toBe(false);
+    expect(res.trend.caveat).toMatch(/terreno/i);
+    // El sensor es el mismo en las dos mitades: el aviso es SOLO del terreno.
+    expect(res.trend.caveat).not.toMatch(/sensor/);
+  });
+
+  it('mismo perfil de terreno no dispara el aviso', async () => {
+    // Las dos mitades a ~17-18 m/km: ahi el cambio de eficiencia si es del atleta.
+    put('stravaData', [
+      act({ id: 1, date: '2026-03-28T07:00:00Z', distance: 20000, elev: 350, hr: 148 }),
+      act({ id: 2, date: '2026-07-25T07:00:00Z', distance: 21000, elev: 355, hr: 148 }),
+      act({ id: 3, date: '2026-08-29T07:00:00Z', distance: 20202, elev: 373, hr: 148 }),
+      act({ id: 4, date: '2026-09-06T07:00:00Z', distance: 21907, elev: 361, hr: 148 }),
+    ]);
+    put('hr_strap_since', '2026-01-01');
+    const res = await compareSimilarSessions(U, { distance_km: 21, distance_tolerance_pct: 20 });
+    expect(res.trend.comparable).toBe(true);
+    expect(res.trend.caveat).toBeNull();
+  });
+
+  it('dos perfiles llanos no se marcan aunque el porcentaje entre ellos sea alto', async () => {
+    // 1 m/km contra 3 m/km es un +200 % que no mueve la eficiencia: seria un aviso
+    // falso, y un aviso que salta siempre deja de leerse.
+    put('stravaData', [
+      act({ id: 1, date: '2026-03-28T07:00:00Z', distance: 20000, elev: 20, hr: 148 }),
+      act({ id: 2, date: '2026-07-25T07:00:00Z', distance: 20000, elev: 20, hr: 148 }),
+      act({ id: 3, date: '2026-08-29T07:00:00Z', distance: 20000, elev: 60, hr: 148 }),
+      act({ id: 4, date: '2026-09-06T07:00:00Z', distance: 20000, elev: 60, hr: 148 }),
+    ]);
+    put('hr_strap_since', '2026-01-01');
+    const res = await compareSimilarSessions(U, { distance_km: 20, distance_tolerance_pct: 20 });
+    expect(res.trend.comparable).toBe(true);
+    expect(res.trend.caveat).toBeNull();
+  });
+
+  it('expone elevation_per_km en cada fila y en los agregados', async () => {
+    put('stravaData', [
+      act({ id: 1, date: '2026-08-29T07:00:00Z', distance: 20202, elev: 373 }),
+      act({ id: 2, date: '2026-09-06T07:00:00Z', distance: 21907, elev: 361 }),
+    ]);
+    const res = await compareSimilarSessions(U, { distance_km: 21, distance_tolerance_pct: 20 });
+    expect(res.sessions.find((x) => x.id === 1).elevation_per_km).toBeCloseTo(18.5, 1);
+    expect(res.sessions.find((x) => x.id === 2).elevation_per_km).toBeCloseTo(16.5, 1);
+    expect(res.aggregates.median_elevation_per_km).toBeCloseTo(17.5, 1);
+  });
+
   it('hr_source acota el grupo a un solo origen', async () => {
     put('stravaData', [
       act({ id: 1, date: '2024-01-01T07:00:00Z' }),
@@ -222,6 +282,45 @@ describe('get_training_load_model: calibracion real y versionado', () => {
       lthr: 181, lthr_source: 'manual',
     });
     expect(res.model.version).toBe('tss-banister/hrmax=191/hrrest=52/lthr=181');
+  });
+
+  it('ensena el valor detectado al lado del manual y avisa cuando el manual esta viejo', async () => {
+    // El manual sigue mandando (es su funcion), pero deja de ser opaco: antes un
+    // source "manual" tapaba lo que decian los datos y el override envejecia solo.
+    put('stravaData', historial());                         // FCmax detectada 190
+    put('garmin_cardiac_data', [{ date: '2025-08-01', restingHR: 52 }]);
+    put('hr_zone_overrides', { max: 200, rest: 60 });       // 10 y 8 ppm de deriva
+    const res = await getTrainingLoadModel(U, { summary_only: true });
+
+    expect(res.model.hrmax).toBe(200);                      // el manual sigue mandando
+    expect(res.model.hrmax_detected).toBe(190);
+    expect(res.model.hrrest_detected).toBe(52);
+
+    const params = res.model.stale_overrides.map((o) => o.param).sort();
+    expect(params).toEqual(['hrmax', 'hrrest']);
+    expect(res.model.stale_overrides.find((o) => o.param === 'hrmax')).toMatchObject({
+      manual: 200, detected: 190, delta_bpm: -10,
+    });
+    expect(res.model.note).toMatch(/AVISO/);
+  });
+
+  it('un manual que coincide con los datos no se marca como viejo', async () => {
+    put('stravaData', historial());
+    put('garmin_cardiac_data', [{ date: '2025-08-01', restingHR: 52 }]);
+    put('hr_zone_overrides', { max: 191, rest: 53 });       // 1 ppm de diferencia
+    const res = await getTrainingLoadModel(U, { summary_only: true });
+    expect(res.model.stale_overrides).toEqual([]);
+    expect(res.model.note).not.toMatch(/AVISO/);
+  });
+
+  it('sin medicion detras no inventa un valor detectado que comparar', async () => {
+    // Sin Garmin, la FC de reposo es el respaldo de 60: no es una medicion, asi que
+    // no puede acusar de obsoleto a un override que quiza sea el bueno.
+    put('stravaData', historial());
+    put('hr_zone_overrides', { rest: 45 });
+    const res = await getTrainingLoadModel(U, { summary_only: true });
+    expect(res.model.hrrest_detected).toBeNull();
+    expect(res.model.stale_overrides.map((o) => o.param)).not.toContain('hrrest');
   });
 
   it('ignora un override fuera de rango en vez de aceptarlo a ciegas', async () => {

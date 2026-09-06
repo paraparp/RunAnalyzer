@@ -6,7 +6,7 @@
 > tras verificarlos uno a uno contra el código el **2026-08-31**; su registro queda en el
 > historial de git (commit `261ca35` y anteriores).
 >
-> Estado de la suite en la última verificación (**2026-09-06**): **745 tests / 38 ficheros en
+> Estado de la suite en la última verificación (**2026-09-06**): **800 tests / 40 ficheros en
 > verde**, comprobada además bajo `TZ=America/New_York` (los husos al oeste de Greenwich son los que destapan las
 > claves de día en UTC).
 >
@@ -19,7 +19,7 @@
 | # | Bloque | Impacto | Coste | Estado |
 |---|---|---|---|---|
 | **G** | [Segunda pasada: arreglos que no llegaron a las vistas hermanas](#g-segunda-pasada-arreglos-que-no-llegaron-a-las-vistas-hermanas) | | | ⬜ Abierto |
-| G6 | [`api/_lib` sin tests: solo queda `garmin-helpers`](#g6-apilib-sin-tests-solo-queda-garmin-helpers) | 🟠 Medio | Medio | 🟨 Parcial |
+| G6 | [Módulos sin tests: cerrado salvo la capa de UI de `useHrParams`](#g6-módulos-sin-tests-cerrado-salvo-la-capa-de-ui-de-usehrparams) | 🟠 Medio | Bajo | 🟨 Parcial |
 | G8 | [Superficie de export excesiva (heredado del bloque `D`)](#g8-superficie-de-export-excesiva-heredado-de-d) | 🟡 Bajo | Bajo | ⬜ |
 
 ---
@@ -69,7 +69,7 @@
 > estuvieron arreglados— pero sí el mismo defecto vivo en la pestaña de al lado, que es
 > exactamente lo que estas auditorías vienen cerrando.
 
-## G6. `api/_lib` sin tests: solo queda `garmin-helpers`
+## G6. Módulos sin tests: cerrado salvo la capa de UI de `useHrParams`
 
 **Cerrado el 2026-08-31 para `mcp-store.js`.** `api/_lib/mcp-store.test.js` (46 casos) cubre su
 capa propia —la que no heredaba nada de los tests de `src/lib/`— por la puerta pública, sin ampliar
@@ -92,14 +92,14 @@ mismo patrón que `hr_source: null`: confundir "no lo sé" con "cumple". El filt
 nunca tuvo el problema (`null >= 100` es `false`), así que la asimetría vivía dentro de la misma
 función. Ahora, con cualquiera de las dos cotas puesta, una sesión sin FC media queda fuera.
 
-### Lo que sigue abierto
+### Estado por módulo
 
 | Módulo | Líneas | Qué alimenta | Tests |
 |---|---|---|---|
 | `api/_lib/mcp-store.js` | 2.369 | **todas** las herramientas MCP que lee el coach | ✅ 46 casos |
 | `api/_lib/garmin-write.js` | 273 | **escribe** entrenos en la cuenta del atleta | ✅ 26 casos |
 | `api/_lib/mcp-sync.js` | 618 | el enriquecido y el backlog de streams | ✅ 19 casos |
-| `api/_lib/garmin-helpers.js` | 599 | normalización de Garmin, calor, dinámica | ❌ (de rebote, vía `shapeFull`) |
+| `api/_lib/garmin-helpers.js` | 599 | normalización de Garmin, calor, dinámica | ✅ 29 casos (+ calor vía `shapeFull`) |
 
 **Cerrado el 2026-09-06 para `garmin-write.js`**, que era el que más pesaba pese a ser el más
 corto: es el único que **escribe** en la cuenta del atleta. `api/_lib/garmin-write.test.js` (26
@@ -142,15 +142,55 @@ pase aborta antes por `sin-token`, que es justo lo que lo mantenía escondido). 
 escrituras normalizan con `asBlobObject`. Mismo patrón que el `avg_hr_max` de `mcp-store`: leer una
 forma que luego no se sabe escribir.
 
-Queda `garmin-helpers.js`, cubierto de rebote en su parte de
-calor (`normalizeWeatherTemps`, `wbgtFromCelsius`, `heatPenaltyPct`, `heatIntensityFactor`) por los
-casos de `shapeFull`, pero no en la normalización de laps ni de dinámica.
+**Cerrado el 2026-09-06 para `garmin-helpers.js`**, y con él **todo `api/_lib`**. Su parte de calor
+(`normalizeWeatherTemps`, `wbgtFromCelsius`, `heatPenaltyPct`, `heatIntensityFactor`) ya venía
+cubierta de rebote por los casos de `shapeFull`; `api/_lib/garmin-helpers.test.js` (29 casos) cubre
+lo que no: la normalización de actividades y laps —el `startTimeGMT` de Garmin convertido a ISO con
+Z sin duplicarla ni arrastrar fracciones, y que un string o un `NaN` se guarden como null en vez de
+colarse como dato—, el origen de la FC (banda por cualquiera de los dos buses y sin depender de
+mayúsculas, muñeca, y `unknown` en vez de null), y los tres rellenos de dinámica que hacen que una
+actividad antigua no salga vacía: desde el `summaryDTO` con sus claves alternativas sin pisar lo
+que ya venía, y desde los laps como media ponderada por duración, cada uno marcando su
+`gct_balance_source` (`activity` / `summary` / `laps`) para que no se confunda un agregado de
+Garmin con una reconstrucción. Del enriquecido se fija además que los tres endpoints están
+aislados: uno caído no arrastra a los otros dos.
 
-En `src/` quedan tres módulos sin test directo: `src/hooks/useHrParams.js` (resuelve FCmax,
-FCreposo y LTHR para cinco vistas: es en hooks lo que `hrZones` es en `lib/`; probarlo pide un
-renderer de hooks, que hoy no es dependencia del proyecto, o extraer la resolución a una función
-pura), `src/lib/streamProfile.js` (cubierto de rebote por `flatEfforts` y `streamGap`) y
-`src/lib/cloudStorage.js`.
+De `fetchGarminActivities` se fija justo lo que ya costó dos regresiones: que un fallo al listar
+**lanza** en vez de devolver `[]` (que borraba el histórico), que las bicis también se enriquecen
+—si no, su `hr_source` quedaba `unknown` para siempre—, y el reparto del presupuesto entre las 10
+plazas de las más recientes y el resto por el extremo antiguo, saltando las ya enriquecidas: es lo
+que hace que el histórico se complete sync a sync en vez de quedarse en una ventana móvil. No
+apareció ningún defecto nuevo al escribirlos.
+
+**Cerrado el 2026-09-06 para `src/lib/cloudStorage.js`**, por donde pasan TODAS las escrituras de
+datos del usuario. `src/lib/cloudStorage.test.js` (22 casos) mockea Supabase y `localStorage` y fija
+lo que se puso ahí para proteger la base de datos y para sobrevivir a una caída: el coalescing —25
+`setItem` seguidos del blob de Strava salen como UN único upsert con el último valor—, el
+dirty-check por clave (lo que ya está en la nube no se reescribe; una ida y vuelta dentro de la
+ventana no gasta escritura), `flush()` forzando lo pendiente, el borrado cancelando el upsert
+programado, las claves de dispositivo que nunca salen hacia la nube, el reintento con backoff y la
+caída al espejo local con `isDegraded()`/`onDegradedChange`, y que un `localStorage` que lanza
+(modo privado) no rompa nada.
+
+**Dos defectos destapados al escribirlos**, los dos de cambio de cuenta y los dos ya corregidos:
+
+1. `hydrate` vaciaba la caché pero NO el dirty-check ni los timers de escritura. Si el listener de
+   auth pasa de un usuario a otro sin `reset()` por medio, lo que el anterior dejara programado se
+   disparaba con la caché ya vacía —y se perdía—, y su `lastPersisted` podía **tragarse en silencio
+   la primera escritura del nuevo** si coincidía en valor. Ahora `hydrate` cierra antes las
+   escrituras pendientes (con el `user_id` que aún es el vigente) y luego olvida lo del anterior.
+2. Más serio: **el espejo local no tenía dueño**. Se escribió como red de seguridad ante caídas de
+   Supabase, pero convirtió la migración inicial —que sube lo que hay en `localStorage` y no está
+   en la nube— en un canal entre cuentas: entrar con una segunda cuenta en el mismo navegador le
+   servía los datos de la primera y **se los subía a su fila**, `garmin_creds` incluido. Ahora el
+   espejo lleva marcado su dueño (`cs_mirror_owner`) y se limpia al cambiar; sin dueño —restos
+   anteriores a la nube— se migra, que es justo para lo que se escribió la migración.
+
+Lo único que queda de `G6` es la capa de UI de `src/hooks/useHrParams.js`: el estado de los
+overrides, su persistencia y el evento que despierta al PMC. La RESOLUCIÓN que antes justificaba
+este punto ya no vive ahí —está en `src/lib/loadCalibration.js`, con sus propios tests—, así que lo
+pendiente es solo lo que pide un renderer de hooks, que hoy no es dependencia del proyecto.
+`src/lib/streamProfile.js` sigue cubierto de rebote por `flatEfforts` y `streamGap`.
 
 ## G8. Superficie de export excesiva (heredado de `D`)
 
@@ -165,7 +205,8 @@ auditorías cierran. Conviene tratarlo cuando se toque cada módulo, no como tar
 
 | Paso | Qué | Por qué en ese orden | Coste |
 |---|---|---|---|
-| 1 | **G6** — lo que queda: la normalización de laps y dinámica de `garmin-helpers`, y `useHrParams` | Sin ellos, el lado servidor se toca a ciegas | Bajo |
+| 1 | **G6** — lo que queda: la capa de UI de `useHrParams` (pide un renderer de hooks como dependencia nueva) | Todo lo demás ya está cubierto; esto es lo último y lo menos crítico | Bajo |
 | 2 | **G8** | Limpieza, sin prisa: se trata al tocar cada módulo | Bajo |
 
-> Los dos pasos son independientes entre sí: ninguno bloquea a otro.
+> Los dos pasos son independientes entre sí: ninguno bloquea a otro. Con `api/_lib` cerrado, el
+> bloque `G` ya no tiene nada de coste medio.

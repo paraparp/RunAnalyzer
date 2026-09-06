@@ -95,6 +95,22 @@ function readLocal(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
+// El espejo vive en el DISPOSITIVO, pero su contenido es de UN usuario. Sin dueño
+// marcado, entrar con una segunda cuenta en el mismo navegador se llevaba los restos
+// de la primera por dos vías: la caída a modo degradado servía sus datos, y la
+// migración inicial —que sube lo que hay en localStorage y no está en la nube— los
+// SUBÍA a la cuenta nueva (`stravaData`, `garmin_creds`…). Al cambiar de dueño se
+// limpia el espejo; sin dueño (restos anteriores a la nube) se migran, que es
+// justo para lo que se escribió la migración.
+const MIRROR_OWNER_KEY = 'cs_mirror_owner';
+
+function claimMirror(userId) {
+  const owner = readLocal(MIRROR_OWNER_KEY);
+  if (owner === userId) return;
+  if (owner != null) for (const key of MIGRATED_KEYS) mirrorRemoveLocal(key);
+  mirrorLocal(MIRROR_OWNER_KEY, userId);
+}
+
 // Escrituras en vuelo, para poder esperarlas con flush() antes de recargar/navegar.
 const pending = new Set();
 function track(promise) {
@@ -169,8 +185,18 @@ async function removeRemote(key) {
  * datos en localStorage (primer arranque tras la migración), los sube una vez.
  */
 export async function hydrate(userId) {
+  // El listener de auth puede pasar de un usuario a otro SIN un reset() por medio
+  // (login de otra cuenta con sesión abierta). Antes solo se vaciaba la caché, así
+  // que sobrevivían dos cosas del anterior: sus timers de escritura —que al dispararse
+  // ya no encontraban su valor en la caché recién vaciada y se perdían— y su
+  // dirty-check, que podía tragarse EN SILENCIO la primera escritura del nuevo usuario
+  // si coincidía en valor. Primero se cierran las escrituras del anterior (con su
+  // user_id, que aún es el vigente), y solo después se olvida lo suyo.
+  await flush();
+  lastPersisted.clear();   // el dirty-check es por usuario, no global
   currentUserId = userId;
   cache.clear();
+  claimMirror(userId);
   setDegraded(false);
 
   const { data, error } = await withRetry(() =>

@@ -950,6 +950,11 @@ export async function compareSimilarSessions(userId, {
         avg_hr: a.average_heartrate ?? null,
         hr_source: hrOf(a).hr_source,
         elevation_gain_m: a.total_elevation_gain ?? null,
+        // Desnivel POR KILÓMETRO, no el total: las distancias del grupo ya varían
+        // entre sí, así que el total no dice si el terreno era comparable.
+        elevation_per_km: a.distance > 0 && a.total_elevation_gain != null
+          ? round(a.total_elevation_gain / (a.distance / 1000), 1)
+          : null,
         // m/latido: sube cuando corres más rápido al mismo pulso, o igual de rápido con
         // menos pulso. Es la cifra que hay que mirar para juzgar la serie.
         efficiency_m_per_beat: eff != null ? round(eff, 3) : null,
@@ -974,6 +979,25 @@ export async function compareSimilarSessions(userId, {
     return top && top[1] / rows.length >= 0.6 ? top[0] : 'mixed';
   };
 
+  // Desnivel medio de un grupo de filas, en m/km.
+  const elevOf = (rows) => median(
+    rows.map((s) => s.elevation_per_km).filter((v) => typeof v === 'number'),
+  );
+
+  // Cuánto se parecen dos perfiles de terreno, en % sobre el más llano de los dos.
+  // El terreno mueve la eficiencia tanto como la forma: comparar rodajes de 4 m/km
+  // contra otros de 18 m/km mide la cuesta, no al atleta.
+  const ELEV_MIX_PCT = 50;
+  const elevGap = (a, b) => {
+    if (a == null || b == null) return null;
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    // Dos perfiles llanos: la diferencia entre 1 y 3 m/km no mueve la eficiencia.
+    if (hi < 5) return 0;
+    // Uno llano de verdad y el otro no: la relación se dispara y el % no dice nada.
+    if (lo < 0.5) return Infinity;
+    return round((hi / lo - 1) * 100, 0);
+  };
+
   // Tendencia: mitad reciente vs mitad antigua. Con menos de 4 sesiones no se informa;
   // dos puntos no son una tendencia y darla invitaría a leer ruido como progreso.
   let trend = null;
@@ -985,10 +1009,30 @@ export async function compareSimilarSessions(userId, {
     const older = median(olderRows.map((s) => s.efficiency_m_per_beat));
     const recent = median(recentRows.map((s) => s.efficiency_m_per_beat));
     if (older && recent) {
-      // El cambio solo es atribuible al atleta si las dos mitades se midieron igual.
+      // El cambio solo es atribuible al atleta si las dos mitades se midieron igual
+      // Y sobre el mismo tipo de terreno. Cualquiera de las dos cosas que cambie
+      // basta para que el número no signifique lo que parece.
       const olderSrc = dominant(olderRows);
       const recentSrc = dominant(recentRows);
-      const comparable = olderSrc === recentSrc && olderSrc !== 'mixed' && olderSrc !== 'unknown';
+      const sameSensor = olderSrc === recentSrc && olderSrc !== 'mixed' && olderSrc !== 'unknown';
+
+      const olderElev = elevOf(olderRows);
+      const recentElev = elevOf(recentRows);
+      const gap = elevGap(olderElev, recentElev);
+      const sameTerrain = gap == null || gap <= ELEV_MIX_PCT;
+
+      const caveats = [
+        sameSensor ? null
+          : `Las dos mitades no se midieron con el mismo sensor (${olderSrc} → ${recentSrc}): `
+            + 'la eficiencia es m/latido, así que este cambio incluye el sesgo del sensor y '
+            + 'no es atribuible a la forma. Filtra con hr_source para una comparación limpia.',
+        sameTerrain ? null
+          : `El terreno no es equiparable: ${olderElev} m/km de desnivel en la mitad antigua `
+            + `contra ${recentElev} en la reciente. Subir por kilómetro hunde los metros por `
+            + 'latido, así que buena parte de este cambio es la cuesta y no la forma. Compara '
+            + 'sesiones de perfil parecido, o lee el gap_pace_per_km de cada fila.',
+      ].filter(Boolean);
+
       trend = {
         older_median_m_per_beat: round(older, 3),
         recent_median_m_per_beat: round(recent, 3),
@@ -996,11 +1040,10 @@ export async function compareSimilarSessions(userId, {
         window: `${half} sesiones más antiguas vs ${half} más recientes`,
         older_hr_source: olderSrc,
         recent_hr_source: recentSrc,
-        comparable,
-        caveat: comparable ? null
-          : `Las dos mitades no se midieron con el mismo sensor (${olderSrc} → ${recentSrc}): `
-            + 'la eficiencia es m/latido, así que este cambio incluye el sesgo del sensor y '
-            + 'no es atribuible a la forma. Filtra con hr_source para una comparación limpia.',
+        older_elevation_per_km: olderElev,
+        recent_elevation_per_km: recentElev,
+        comparable: sameSensor && sameTerrain,
+        caveat: caveats.join(' ') || null,
       };
     }
   }
@@ -1037,6 +1080,7 @@ export async function compareSimilarSessions(userId, {
       slowest_pace_per_km: speeds.length ? calcPace(Math.min(...speeds)) : null,
       median_efficiency_m_per_beat: effs.length ? round(median(effs), 3) : null,
       best_efficiency_m_per_beat: effs.length ? round(Math.max(...effs), 3) : null,
+      median_elevation_per_km: elevOf(sessions),
     },
     trend,
     sessions: sessions.slice(0, Math.min(100, Math.max(1, limit))),
@@ -1534,20 +1578,64 @@ export async function getTrainingLoadModel(userId, { from, to, granularity = 'da
   // CTL sin que cambie nada en la petición. Ha pasado: 61,7 → 27,3 el mismo día.
   // `version` resume de qué depende la serie; si cambia entre dos consultas, esas
   // dos series NO son comparables aunque el rango de fechas sea el mismo.
+  // Los tres parámetros se derivan SIEMPRE del historial, gane o no un override
+  // manual. Lo que faltaba era enseñar el valor derivado AL LADO del vigente: un
+  // `source: "manual"` tapaba por completo lo que decían los datos, así que un
+  // override se quedaba viejo en silencio y nadie se enteraba de la divergencia.
+  // El manual sigue mandando —es su función—, pero ya no es opaco.
+  const detected = {
+    // 'default' no es una medición: es el respaldo de cuando no hay datos de Garmin.
+    hrmax: calibration.autoMax?.value ?? null,
+    hrrest: calibration.autoRest?.source === 'default' ? null : (calibration.autoRest?.value ?? null),
+    // Igual con la fórmula: si el método no midió nada, no hay valor derivado que comparar.
+    lthr: calibration.lthrResult?.method && calibration.lthrResult.method !== 'formula'
+      ? (calibration.lthrResult.lthr ?? null)
+      : null,
+  };
+
+  // Umbral de obsolescencia. Por debajo de 3 ppm es ruido de medición; por encima,
+  // el atleta ha cambiado y el override es de otra época.
+  const STALE_BPM = 3;
+  const stale_overrides = ['hrmax', 'hrrest', 'lthr']
+    .filter((k) => calibration.sources[k] === 'manual'
+      && detected[k] != null
+      && Math.abs(detected[k] - calibration[k]) > STALE_BPM)
+    .map((k) => ({
+      param: k,
+      manual: calibration[k],
+      detected: detected[k],
+      delta_bpm: round(detected[k] - calibration[k], 0),
+    }));
+
   const model = {
     scale: 'TSS (100 = 1 h a umbral)',
     version: calibration.version,
     hrmax: calibration.hrmax,
     hrmax_source: calibration.sources.hrmax,    // manual | detected
+    hrmax_detected: detected.hrmax,
     hrrest: calibration.hrrest,
     hrrest_source: calibration.sources.hrrest,  // manual | garmin | default
+    hrrest_detected: detected.hrrest,
     lthr: calibration.lthr,
     lthr_source: calibration.sources.lthr,      // manual | cs | segment | field | race | formula | none
+    lthr_detected: detected.lthr,
     lthr_confidence: calibration.lthrResult?.confidence ?? null,
+    // Qué overrides manuales se han quedado atrás respecto a los datos. Vacío es
+    // la respuesta normal; con contenido, el CTL sale de un parámetro caducado.
+    stale_overrides,
     note: 'Misma calibración que la app (lib/loadCalibration): el CTL de aquí y el de la '
       + 'pestaña Estado son el mismo número. CTL/ATL/TSB dependen de ella, así que compara '
       + 'series solo entre llamadas con el mismo `version`. Un `hrrest_source` de "default" '
-      + 'o un `lthr_source` de "formula" significan parámetro estimado, no medido.',
+      + 'o un `lthr_source` de "formula" significan parámetro estimado, no medido. '
+      + 'Los campos `*_detected` son lo que dicen los datos del atleta hoy: si un '
+      + '`*_source` es "manual" y difiere del detectado, sale en `stale_overrides`.'
+      + (stale_overrides.length
+        ? ' AVISO: ' + stale_overrides
+          .map((o) => `${o.param} manual ${o.manual} contra ${o.detected} detectado `
+            + `(${o.delta_bpm > 0 ? '+' : ''}${o.delta_bpm} ppm)`)
+          .join('; ')
+          + '. El CTL de esta respuesta usa el valor manual; revisa el override en la pestaña de Zonas.'
+        : ''),
   };
   if (summary_only) return { current, model, granularity: 'summary' };
   const out = granularity === 'weekly' ? toWeekly(daily) : daily;

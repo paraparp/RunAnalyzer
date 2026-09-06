@@ -148,7 +148,7 @@ const TOOLS = [
   },
   {
     name: 'compare_similar_sessions',
-    description: 'Compara sesiones EQUIVALENTES entre sí ("todas mis salidas llanas de 10 km con FC media entre 142 y 152"). Define el grupo con distance_km + tolerancia y banda de FC media, o pasa `reference_id` y toma los criterios de esa actividad. Devuelve cada sesión con ritmo, GAP, FC, WBGT y el índice de eficiencia (metros por latido), más agregados y `trend` (mediana de eficiencia de la mitad reciente vs la antigua). La eficiencia es lo que hay que mirar: el ritmo solo no distingue mejorar de haber ido más enchufado ese día. Las COMPETICIONES se excluyen por defecto (no son sesiones equivalentes a un rodaje aunque midan lo mismo): mira `homogeneity.races`. Antes de leer `trend` comprueba `trend.comparable`: si las dos mitades se midieron con sensores distintos (banda vs muñeca) el cambio es del sensor, no del atleta.',
+    description: 'Compara sesiones EQUIVALENTES entre sí ("todas mis salidas llanas de 10 km con FC media entre 142 y 152"). Define el grupo con distance_km + tolerancia y banda de FC media, o pasa `reference_id` y toma los criterios de esa actividad. Devuelve cada sesión con ritmo, GAP, FC, WBGT y el índice de eficiencia (metros por latido), más agregados y `trend` (mediana de eficiencia de la mitad reciente vs la antigua). La eficiencia es lo que hay que mirar: el ritmo solo no distingue mejorar de haber ido más enchufado ese día. Las COMPETICIONES se excluyen por defecto (no son sesiones equivalentes a un rodaje aunque midan lo mismo): mira `homogeneity.races`. Antes de leer `trend` comprueba `trend.comparable`: es false si las dos mitades se midieron con sensores distintos (banda vs muñeca) o si el terreno no es equiparable (compara `trend.older_elevation_per_km` con `trend.recent_elevation_per_km`), y en los dos casos el cambio no es del atleta. Cada sesión trae `elevation_per_km`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -254,7 +254,7 @@ const TOOLS = [
   },
   {
     name: 'get_training_load_model',
-    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal. La carga es TSS (100 = 1 h a umbral, TRIMP sobre HRR) del mismo modelo que pinta la pestaña Estado de la app, así que las cifras coinciden. Usa granularity=weekly o summary_only para no saturar el contexto. CTL/ATL/TSB dependen de la calibración que va en `model` (FCmax, FC de reposo y LTHR, re-detectados del historial en cada llamada): compara series entre llamadas SOLO si coincide `model.version`. Si `model.hrrest_source` es "default" o `model.lthr_method` es "formula", ese parámetro está estimado y no medido.',
+    description: 'Modelo de Banister: carga crónica (CTL), aguda (ATL) y forma (TSB/tsb_today) con la rampa semanal. La carga es TSS (100 = 1 h a umbral, TRIMP sobre HRR) del mismo modelo que pinta la pestaña Estado de la app, así que las cifras coinciden. Usa granularity=weekly o summary_only para no saturar el contexto. CTL/ATL/TSB dependen de la calibración que va en `model` (FCmax, FC de reposo y LTHR, re-detectados del historial en cada llamada): compara series entre llamadas SOLO si coincide `model.version`. Si `model.hrrest_source` es "default" o `model.lthr_source` es "formula", ese parámetro está estimado y no medido. Un `*_source` de "manual" es un override del atleta: `model.*_detected` dice lo que sacan los datos hoy, y `model.stale_overrides` lista los manuales que ya se han quedado atrás.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -717,7 +717,7 @@ const INSTRUCTIONS = [
   'la calibración se re-detecta en cada llamada y puede mover la serie entera.',
   'Comparaciones: compare_similar_sessions excluye competiciones por defecto y avisa en',
   '`homogeneity` si el grupo mezcla FC de banda y de muñeca; `trend.comparable` dice si el',
-  'cambio es del atleta o del sensor.',
+  'cambio es del atleta, del sensor o del terreno (desnivel por km de cada mitad).',
   'CS: `fit.r2` no vale nada sin `fit.n_activities` — con esfuerzos de una sola sesión el',
   'ajuste es perfecto por construcción (`fit.concentrated`).',
 ].join(' ');
