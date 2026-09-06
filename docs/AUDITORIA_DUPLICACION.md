@@ -1,212 +1,63 @@
 # Auditoría de duplicación, código muerto y cálculos
 
-> Documento **vivo**: solo contiene lo que sigue abierto. Los bloques `A`–`F` de la revisión del
-> 2026-08-30 (cálculos incorrectos, duplicación viva, ventanas temporales, código muerto,
-> cobertura de tests y fórmulas mejorables) quedaron **todos cerrados** y se han borrado de aquí
-> tras verificarlos uno a uno contra el código el **2026-08-31**; su registro queda en el
-> historial de git (commit `261ca35` y anteriores).
+> Documento **vivo**: solo contiene lo que sigue abierto. **A fecha de 2026-09-06 no queda nada.**
 >
-> Estado de la suite en la última verificación (**2026-09-06**): **800 tests / 40 ficheros en
-> verde**, comprobada además bajo `TZ=America/New_York` (los husos al oeste de Greenwich son los que destapan las
-> claves de día en UTC).
+> Los bloques `A`–`F` de la revisión del 2026-08-30 (cálculos incorrectos, duplicación viva,
+> ventanas temporales, código muerto, cobertura de tests y fórmulas mejorables) se cerraron y
+> verificaron uno a uno contra el código el 2026-08-31. El bloque `G` —la segunda pasada, la de los
+> arreglos que se habían aplicado donde se detectó el síntoma pero no en las vistas hermanas que
+> hacían el mismo cálculo— se cerró entre el 2026-08-31 y el **2026-09-06** con `G6` y `G8`, sus dos
+> últimos puntos. El detalle de cada uno queda en el historial de git (este fichero, commits
+> `261ca35` y posteriores).
 >
-> Lo que queda abierto es el bloque `G` (menos `G1`–`G5`, `G7` y `G9`, ya cerrados y borrados): varios de aquellos
-> arreglos se hicieron en el componente donde se detectó el síntoma y no en sus hermanos, que
-> hacen el mismo cálculo con el mismo defecto.
+> Estado de la suite en la verificación de cierre (**2026-09-06**): **821 tests / 41 ficheros en
+> verde**, comprobada además bajo `TZ=America/New_York` (los husos al oeste de Greenwich son los
+> que destapan las claves de día en UTC). `eslint` sin problemas nuevos y `vite build` correcto.
 
-## Índice
+## Cierre de los dos últimos puntos
 
-| # | Bloque | Impacto | Coste | Estado |
-|---|---|---|---|---|
-| **G** | [Segunda pasada: arreglos que no llegaron a las vistas hermanas](#g-segunda-pasada-arreglos-que-no-llegaron-a-las-vistas-hermanas) | | | ⬜ Abierto |
-| G6 | [Módulos sin tests: cerrado salvo la capa de UI de `useHrParams`](#g6-módulos-sin-tests-cerrado-salvo-la-capa-de-ui-de-usehrparams) | 🟠 Medio | Bajo | 🟨 Parcial |
-| G8 | [Superficie de export excesiva (heredado del bloque `D`)](#g8-superficie-de-export-excesiva-heredado-de-d) | 🟡 Bajo | Bajo | ⬜ |
+**`G8` — superficie de export excesiva (heredado de `D`).** Los **50 símbolos** que se exportaban
+teniendo su único consumidor dentro de su propio módulo han dejado de ser públicos: los 14 de
+`src/lib/lactateThreshold.js` (porcentajes y sigmas de LT1/LT2, la lambda del EWMA, los mínimos de
+duración y de lap, `thresholdHRs`, `robustHRmax`, `computeLTMonthly`, los umbrales de desacople y
+`computeDecouplingLT1`), los 5 de `api/_lib/mcp-store.js` (`invalidateKey`,
+`getGarminActivitiesRaw`, `shapeDynamicsFromGarmin`, `computePersonalBests`,
+`detectThresholdEffort`) y los 31 restantes, casi todos constantes de calibración repartidas por
+`src/lib/` (`trainingLoad`, `physiology`, `criticalSpeed`, `efficiencyFactor`, `racePrediction`,
+`decoupling`, `flatEfforts`, `hrZones`, `loadCalibration`, `reverseGeocode`, `routeSimilarity`,
+`targetRaces`, `timeFormat`, `aiModel`) y por `api/_lib` (`auth.getUserFromReq`,
+`garmin-helpers.dewPointC` y `computeWbgt`). Ninguno era código muerto —todos tienen consumidor
+interno— y ningún test los importaba, así que la superficie pública quedó igual para quien la usa.
+Un barrido sobre `src/lib/*.js` y `api/_lib/*.js` ya no encuentra ningún export sin consumidor
+fuera de su fichero.
 
----
+**`G6` — módulos sin tests.** Cerrado del todo con `src/hooks/useHrParams.test.js` (18 casos), que
+era lo único que faltaba y lo que exigía la dependencia nueva: `@testing-library/react` + `jsdom`
+como devDependencies, con el entorno declarado por fichero (`// @vitest-environment jsdom`) para no
+mover del entorno de node los otros 40. Lo que fija es la capa que de verdad es del hook —la
+RESOLUCIÓN vive en `src/lib/loadCalibration.js` y ya tenía los suyos—: que el estado arranca sembrado
+de lo guardado (y que un JSON roto no rompe el montaje), que se persisten solo las claves con valor
+y que borrar el último override **borra la clave** en vez de dejar un `{}`, la ida y vuelta a través
+de un montaje nuevo, y sobre todo el `OVERRIDES_EVENT`, que es el que despierta al PMC de las otras
+vistas: sin él, ajustar el LTHR a mano no movía el CTL hasta recargar la página. Del lado de la
+validación: que un valor fuera de rango se marca inválido y **no contamina el número resuelto** —el
+mismo patrón de "no lo sé" ≠ "cumple" que ya apareció en `filterActivities` y en `hr_source`—, que
+el campo vacío no es un valor inválido, y que la FC de reposo de Garmin llega al resultado pero
+cede ante el override manual. No apareció ningún defecto nuevo al escribirlos.
 
-# G. Segunda pasada: arreglos que no llegaron a las vistas hermanas
+## Criterios que deja la auditoría
 
-> Revisión del **2026-08-31** sobre el árbol de trabajo (112 ficheros: los 106 de la pasada
-> anterior más `geoZones`, `routeSimilarity`, `reverseGeocode`, `streamProfile`, `shoeLife` y
-> `GeoZones.jsx`). Suite en verde: **657 tests / 32 ficheros**. Los bloques `A`–`F` se han
-> comprobado uno a uno contra el código y **todos siguen cerrados**; `G1`–`G5`, `G7` y `G9` también, y por eso
-> ya no aparecen aquí (`VitalsOverview` consume `useHrParams` y su panel se titula ya
-> "VO₂max submáximo"; `WeeklyProgression` marca la semana en curso como parcial y comparte con
-> `InjuryRisk` la regla del 10 % de `src/lib/weeklyVolume.js`; las claves de día y de semana de
-> `ConsistencyHeatmap`, `StatusSnapshot`, `VDOTEstimator`, `WeeklyProgression` y `VO2MaxTracker`
-> salen ya de `activityDayKey`/`dayKey` + `isoWeek`, y estos resuelven en LOCAL las claves
-> "YYYY-MM-DD" que antes reinterpretaban como medianoche UTC; y `activityGapSpeed` es ya el
-> punto de entrada único al GAP en `trainingLoad.js`, `HRAnalysis`, `VO2MaxTracker` y la
-> tarjeta de cabecera del dashboard, de modo que ninguna vista puede dar dos GAP de la misma
-> sesión).
->
-> `G7` se cerró el **2026-09-05**: la app y la superficie MCP ya predicen con el MISMO modelo.
-> `predictRaces` está expuesta como herramienta `predict_races` (`getRacePrediction` en
-> `api/_lib/mcp-store.js` es solo presentación: redondeos, tiempos formateados y cada modelo por
-> separado), y `critical_speed` —descripción de la tool y `note` de la respuesta— remite a ella
-> para media y maratón, donde el CS a secas es cota inferior y no pronóstico. Cinco casos nuevos
-> en `mcp-store.test.js` fijan justo lo que puede volver a divergir: que los tiempos de la tool
-> son los de `predictRaces` sobre las mismas actividades, que CS no entra en el maratón, que los
-> ritmos salen monótonos, que sin esfuerzos aprovechables hay error explicado y no una predicción
-> vacía, y que la ventana pedida se respeta.
->
-> `G9` se cerró el **2026-09-05**: los trece tooltips que `CardiacDecoupling`, `FitnessFatigue`,
-> `TechniqueAnalysis`, `VDOTEstimator`, `VO2MaxTracker` y `WeeklyProgression` declaraban dentro
-> del cuerpo del componente están ya a nivel de módulo (los que necesitaban `t`/`i18n` llaman a
-> `useTranslation` por su cuenta en vez de cerrar sobre el del padre), y las dos memoizaciones
-> que el compilador no podía preservar dependían del mismo `MONTH_SHORT` recreado en cada
-> render: ahora sale de `src/lib/monthLabels.js`, que devuelve la misma referencia por idioma y
-> es por tanto estable como dependencia de `useMemo`. De paso desaparece la tercera copia de las
-> abreviaturas de mes, la de `FitnessFatigue`, que además estaba sin traducir. El React Compiler
-> ya no reporta ningún `Cannot create components during render` ni `Compilation Skipped` en
-> `src/`.
->
-> El patrón de lo que queda es uno solo, y merece nombrarse: cada arreglo se aplicó **donde se
-> detectó el síntoma**, no en todos los sitios que hacen ese cálculo. `B6` unificó las claves de
-> semana y dejó las de DÍA (eso era `G3`, ya cerrado); `C` migró las
-> ventanas de `lactateThreshold` y dejó cuatro fuera (eso era `G4`, cerrado el 2026-08-31 con
-> `activityWithinMonths` y con `daysAgoISO` para las móviles). No son regresiones —nunca
-> estuvieron arreglados— pero sí el mismo defecto vivo en la pestaña de al lado, que es
-> exactamente lo que estas auditorías vienen cerrando.
+Lo que conviene no volver a perder, que es el patrón común de casi todo lo que se cerró aquí:
 
-## G6. Módulos sin tests: cerrado salvo la capa de UI de `useHrParams`
-
-**Cerrado el 2026-08-31 para `mcp-store.js`.** `api/_lib/mcp-store.test.js` (46 casos) cubre su
-capa propia —la que no heredaba nada de los tests de `src/lib/`— por la puerta pública, sin ampliar
-la superficie de export (ver `G8`): `calcPace`, `isRunning`, `shapeSummary`, `filterActivities`,
-`summarizeActivities`, `computeDecoupling` y `shapeFull`; `shapeWeather` y `lapConsistency` se
-ejercitan a través de `shapeFull`, y `attachGarmin` / `resolveHrSource` a través de `getActivities`
-con `@supabase/supabase-js` sustituido por un almacén en memoria.
-
-Lo que queda pinchado es justo el contrato que un LLM lee sin poder verificar: `hr_source` nunca
-null (`unknown`/`missing` en vez de null), `hr_source_origin` con sus tres orígenes y la política
-`hr_strap_since` en sus dos formas; las dos cifras de calor (tabla vs sesión) y la renormalización
-de unidades de las filas viejas del cache; los límites de `from`/`to` como fechas de calendario
-—verificados también bajo `TZ=America/New_York`—; y los alias `hr_min`/`hr_max` de
-`list_activities`.
-
-**Un defecto destapado al escribirlos**, ya corregido en `filterActivities`: `avg_hr_max` dejaba
-pasar las sesiones **sin** FC media, porque `null <= 200` es `true` por coerción. Es decir,
-"sesiones con FC media por debajo de X" devolvía también aquellas de las que no se sabe la FC —
-mismo patrón que `hr_source: null`: confundir "no lo sé" con "cumple". El filtro por cota inferior
-nunca tuvo el problema (`null >= 100` es `false`), así que la asimetría vivía dentro de la misma
-función. Ahora, con cualquiera de las dos cotas puesta, una sesión sin FC media queda fuera.
-
-### Estado por módulo
-
-| Módulo | Líneas | Qué alimenta | Tests |
-|---|---|---|---|
-| `api/_lib/mcp-store.js` | 2.369 | **todas** las herramientas MCP que lee el coach | ✅ 46 casos |
-| `api/_lib/garmin-write.js` | 273 | **escribe** entrenos en la cuenta del atleta | ✅ 26 casos |
-| `api/_lib/mcp-sync.js` | 618 | el enriquecido y el backlog de streams | ✅ 19 casos |
-| `api/_lib/garmin-helpers.js` | 599 | normalización de Garmin, calor, dinámica | ✅ 29 casos (+ calor vía `shapeFull`) |
-
-**Cerrado el 2026-09-06 para `garmin-write.js`**, que era el que más pesaba pese a ser el más
-corto: es el único que **escribe** en la cuenta del atleta. `api/_lib/garmin-write.test.js` (26
-casos) sustituye `getGarminClientFor` por un doble que registra las llamadas y fija justo lo que
-solo se veía llegando al reloj: los enums del workout-service (`heart.rate` → `heart.rate.zone`,
-no el `heart.rate` a secas que caía a `no.target` y dejaba los objetivos de FC sin efecto), las
-unidades (km → metros con `unitKey: 'kilometer'`, min → segundos), la conversión ritmo↔velocidad
-en los dos sentidos con el orden `one ≤ two` que exige Garmin, los `stepId` locales a cada build
-(el contador global hacía que dos builds concurrentes en el mismo proceso caliente se pisaran los
-ids), el anidado de los `repeat`, y las validaciones que deben cortar ANTES de tocar la cuenta
-(sin `workout_id`, con `date` que no sea YYYY-MM-DD). Del lado de las operaciones: que un fallo al
-agendar no invalida la creación, que sin `workoutId` devuelto no se intenta agendar, que el update
-manda el id dentro del cuerpo además de en la URL, que el `limit` se acota a [1, 100], y que el
-427 —lanzado o empaquetado en el cuerpo como `{ error: { 'status-code' } }`— se traduce a un
-mensaje accionable en vez de pasar por lista vacía. El ida y vuelta `buildRunningWorkout` →
-`getWorkout` se prueba sobre la misma spec, que es donde reaparecería la divergencia.
-
-**Cerrado el 2026-09-06 para `mcp-sync.js`.** `api/_lib/mcp-sync.test.js` (19 casos) lo ejercita
-por la puerta pública —`ensureFresh`, `runFullSync`, `listSyncableUsers`, sin ampliar exports— con
-`user_storage` en un Map, Garmin en un doble y Strava en un router de `fetch`. Fija las tres
-garantías que el módulo promete en su cabecera y que hasta ahora nadie comprobaba: que el carril de
-request cuesta **0 I/O** cuando no toca (segunda llamada dentro del TTL: ni una lectura, ni una
-escritura, ni una petición) y que sin novedades el sondeo no llega a abrir el blob multi-MB; que
-**ningún proveedor caído sobrescribe un histórico bueno** (respuesta vacía de Garmin con histórico
-guardado, 429/500 de Strava, login de Garmin fallido —que no impide que el pase de Strava guarde lo
-suyo—); y que **las mezclas por id no pierden el enriquecido** (`hr_source`, `laps`, `weather` y
-`dynamics` previos sobreviven a una respuesta que trae esos campos a null). Además: el corte de
-paginación al primer solape, que una actividad sin cambios de resumen no ensucie el blob y una
-renombrada sí, que el detalle se pida solo a las carreras nuevas con distancia, la rotación de
-token persistida en el blob y en el estado, el lock entre instancias (y su liberación aunque falle
-todo), los días de salud calculados desde el último registro en vez de 30 fijos, y el backlog
-guardando `flat_efforts` versionado para no volver a pedir esos streams.
-
-**Un defecto destapado al escribirlos**, ya corregido: el blob de Strava tiene **dos formas vivas**
-—el objeto `{ activities, tokens… }` de hoy y el ARRAY pelado del formato viejo, que `syncStrava`
-sigue aceptando al leer— pero la escritura hacía `{ ...blob, activities }`. Sobre un array eso lo
-esparce como `{ "0": …, "1": …, activities }`: una tercera forma que no lee nadie, con el histórico
-duplicado dentro. Es alcanzable en cuanto el token viene cacheado en el estado del sync (si no, el
-pase aborta antes por `sin-token`, que es justo lo que lo mantenía escondido). Ahora las dos
-escrituras normalizan con `asBlobObject`. Mismo patrón que el `avg_hr_max` de `mcp-store`: leer una
-forma que luego no se sabe escribir.
-
-**Cerrado el 2026-09-06 para `garmin-helpers.js`**, y con él **todo `api/_lib`**. Su parte de calor
-(`normalizeWeatherTemps`, `wbgtFromCelsius`, `heatPenaltyPct`, `heatIntensityFactor`) ya venía
-cubierta de rebote por los casos de `shapeFull`; `api/_lib/garmin-helpers.test.js` (29 casos) cubre
-lo que no: la normalización de actividades y laps —el `startTimeGMT` de Garmin convertido a ISO con
-Z sin duplicarla ni arrastrar fracciones, y que un string o un `NaN` se guarden como null en vez de
-colarse como dato—, el origen de la FC (banda por cualquiera de los dos buses y sin depender de
-mayúsculas, muñeca, y `unknown` en vez de null), y los tres rellenos de dinámica que hacen que una
-actividad antigua no salga vacía: desde el `summaryDTO` con sus claves alternativas sin pisar lo
-que ya venía, y desde los laps como media ponderada por duración, cada uno marcando su
-`gct_balance_source` (`activity` / `summary` / `laps`) para que no se confunda un agregado de
-Garmin con una reconstrucción. Del enriquecido se fija además que los tres endpoints están
-aislados: uno caído no arrastra a los otros dos.
-
-De `fetchGarminActivities` se fija justo lo que ya costó dos regresiones: que un fallo al listar
-**lanza** en vez de devolver `[]` (que borraba el histórico), que las bicis también se enriquecen
-—si no, su `hr_source` quedaba `unknown` para siempre—, y el reparto del presupuesto entre las 10
-plazas de las más recientes y el resto por el extremo antiguo, saltando las ya enriquecidas: es lo
-que hace que el histórico se complete sync a sync en vez de quedarse en una ventana móvil. No
-apareció ningún defecto nuevo al escribirlos.
-
-**Cerrado el 2026-09-06 para `src/lib/cloudStorage.js`**, por donde pasan TODAS las escrituras de
-datos del usuario. `src/lib/cloudStorage.test.js` (22 casos) mockea Supabase y `localStorage` y fija
-lo que se puso ahí para proteger la base de datos y para sobrevivir a una caída: el coalescing —25
-`setItem` seguidos del blob de Strava salen como UN único upsert con el último valor—, el
-dirty-check por clave (lo que ya está en la nube no se reescribe; una ida y vuelta dentro de la
-ventana no gasta escritura), `flush()` forzando lo pendiente, el borrado cancelando el upsert
-programado, las claves de dispositivo que nunca salen hacia la nube, el reintento con backoff y la
-caída al espejo local con `isDegraded()`/`onDegradedChange`, y que un `localStorage` que lanza
-(modo privado) no rompa nada.
-
-**Dos defectos destapados al escribirlos**, los dos de cambio de cuenta y los dos ya corregidos:
-
-1. `hydrate` vaciaba la caché pero NO el dirty-check ni los timers de escritura. Si el listener de
-   auth pasa de un usuario a otro sin `reset()` por medio, lo que el anterior dejara programado se
-   disparaba con la caché ya vacía —y se perdía—, y su `lastPersisted` podía **tragarse en silencio
-   la primera escritura del nuevo** si coincidía en valor. Ahora `hydrate` cierra antes las
-   escrituras pendientes (con el `user_id` que aún es el vigente) y luego olvida lo del anterior.
-2. Más serio: **el espejo local no tenía dueño**. Se escribió como red de seguridad ante caídas de
-   Supabase, pero convirtió la migración inicial —que sube lo que hay en `localStorage` y no está
-   en la nube— en un canal entre cuentas: entrar con una segunda cuenta en el mismo navegador le
-   servía los datos de la primera y **se los subía a su fila**, `garmin_creds` incluido. Ahora el
-   espejo lleva marcado su dueño (`cs_mirror_owner`) y se limpia al cambiar; sin dueño —restos
-   anteriores a la nube— se migra, que es justo para lo que se escribió la migración.
-
-Lo único que queda de `G6` es la capa de UI de `src/hooks/useHrParams.js`: el estado de los
-overrides, su persistencia y el evento que despierta al PMC. La RESOLUCIÓN que antes justificaba
-este punto ya no vive ahí —está en `src/lib/loadCalibration.js`, con sus propios tests—, así que lo
-pendiente es solo lo que pide un renderer de hooks, que hoy no es dependencia del proyecto.
-`src/lib/streamProfile.js` sigue cubierto de rebote por `flatEfforts` y `streamGap`.
-
-## G8. Superficie de export excesiva (heredado de `D`)
-
-Los dos últimos párrafos de `D` siguen abiertos y sin cambios: ~30 símbolos exportados con un único
-consumidor dentro de su propio módulo, el grueso en `lactateThreshold.js` y `mcp-store.js`. No es
-código muerto y no rompe nada hoy; es la puerta por la que vuelve a entrar la divergencia que estas
-auditorías cierran. Conviene tratarlo cuando se toque cada módulo, no como tarea propia.
-
----
-
-# Orden de ataque sugerido
-
-| Paso | Qué | Por qué en ese orden | Coste |
-|---|---|---|---|
-| 1 | **G6** — lo que queda: la capa de UI de `useHrParams` (pide un renderer de hooks como dependencia nueva) | Todo lo demás ya está cubierto; esto es lo último y lo menos crítico | Bajo |
-| 2 | **G8** | Limpieza, sin prisa: se trata al tocar cada módulo | Bajo |
-
-> Los dos pasos son independientes entre sí: ninguno bloquea a otro. Con `api/_lib` cerrado, el
-> bloque `G` ya no tiene nada de coste medio.
+1. **Un cálculo, un punto de entrada.** GAP (`activityGapSpeed`), claves de día y semana
+   (`activityDayKey` / `dayKey` / `isoWeek`), la regla del 10 % semanal (`weeklyVolume`), la
+   calibración de FC (`loadCalibration`) y la predicción de carreras (`predictRaces`, también
+   detrás de la tool MCP). Si una vista necesita el número, lo pide; no lo recalcula.
+2. **"No lo sé" no es "cumple".** Un filtro con cota no debe dejar pasar los registros sin dato
+   (`null <= 200` es `true`), y un campo que el agente lee debe decir `unknown` en vez de `null`.
+3. **Exportar solo lo que otro módulo consume de verdad.** La superficie de más es la puerta por
+   la que vuelve a entrar la divergencia.
+4. **Un arreglo se aplica en todos los sitios que hacen ese cálculo**, no solo donde se detectó el
+   síntoma: ese fue, literalmente, todo el bloque `G`.
+5. **Leer una forma obliga a saber escribirla.** El blob de Strava con sus dos formas vivas y el
+   `{ ...blob, activities }` sobre un array es el ejemplo caro.
