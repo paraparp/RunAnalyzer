@@ -173,6 +173,22 @@ const SELECT_ARROW = {
 };
 
 // ── Main component ───────────────────────────────────────────────────────────
+// Mini-botón por sección: abre el chat con esa sección como foco y una pregunta
+// de ampliación ya lanzada. Vive a nivel de módulo, no dentro de AIInsights:
+// declararlo en el cuerpo lo recreaba en cada render (componente nuevo, subárbol
+// remontado) y además arrastraba a `openInChat` —que escribe la semilla con un
+// `Date.now()`— al análisis de render.
+const AskChatBtn = ({ open, focus }) => open ? (
+  <button
+    onClick={() => open(focus)}
+    title="Ampliar este análisis en el chat de IA"
+    className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide text-blue-500 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/30 transition-colors"
+  >
+    <ChatBubbleLeftRightIcon className="w-3 h-3" />
+    <span>Ampliar</span>
+  </button>
+) : null;
+
 const AIInsights = ({ activities, onOpenChat }) => {
   const {
     cur, trend, nextWork, lastWork, meta, sci, warnings, lastPrompt,
@@ -272,19 +288,8 @@ const AIInsights = ({ activities, onOpenChat }) => {
     } catch { /* ignore quota/serialization errors */ }
     onOpenChat?.();
   };
-
-  // Mini-botón por sección: abre el chat con esa sección como foco y una
-  // pregunta de ampliación ya lanzada.
-  const AskChatBtn = ({ focus }) => onOpenChat ? (
-    <button
-      onClick={() => openInChat(focus)}
-      title="Ampliar este análisis en el chat de IA"
-      className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide text-blue-500 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/70 dark:hover:bg-blue-900/30 transition-colors"
-    >
-      <ChatBubbleLeftRightIcon className="w-3 h-3" />
-      <span>Ampliar</span>
-    </button>
-  ) : null;
+  // Solo se ofrece el botón si hay chat al que abrir.
+  const askChat = onOpenChat ? openInChat : null;
 
   const curBadge = CUR_BADGES[deriveStatusKey(cur, meta)] ?? null;
   const trendBadge = trend ? (TREND_BADGES[deriveTrendKey(trend, meta)] ?? null) : null;
@@ -440,7 +445,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
                 {curBadge
                   ? <Badge badge={curBadge} />
                   : <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Diagnóstico IA</span>}
-                <span className="ml-auto">{cur && <AskChatBtn focus="cur" />}</span>
+                <span className="ml-auto">{cur && <AskChatBtn open={askChat} focus="cur" />}</span>
               </div>
               <div className="min-h-[84px]">
                 {loading && !cur ? <Pulse /> : <MD text={cur} accent="text-blue-500" lg />}
@@ -516,7 +521,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
           right={nextWork ? (
             <span className="flex items-center gap-2">
               <ScopePill>Próximas 48 h</ScopePill>
-              <AskChatBtn focus="nextWork" />
+              <AskChatBtn open={askChat} focus="nextWork" />
             </span>
           ) : null}
         />
@@ -661,7 +666,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
             right={(trendBadge || trend) ? (
               <span className="flex items-center gap-2">
                 {trendBadge && <Badge badge={trendBadge} className="shrink-0" />}
-                {trend && <AskChatBtn focus="trend" />}
+                {trend && <AskChatBtn open={askChat} focus="trend" />}
               </span>
             ) : null}
           />
@@ -701,7 +706,7 @@ const AIInsights = ({ activities, onOpenChat }) => {
                 right={lastWork ? (
                   <span className="flex items-center gap-2">
                     <ScopePill>Última sesión</ScopePill>
-                    <AskChatBtn focus="lastWork" />
+                    <AskChatBtn open={askChat} focus="lastWork" />
                   </span>
                 ) : null}
               />

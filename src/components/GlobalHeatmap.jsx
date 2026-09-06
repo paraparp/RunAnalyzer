@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { Card, Text, Select, SelectItem } from '@tremor/react';
 import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
 import { getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';

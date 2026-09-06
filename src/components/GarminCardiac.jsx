@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import cloudStorage from '../lib/cloudStorage';
 import { syncGarminActivities } from '../lib/garminActivitiesSync';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush
 } from "recharts";
 import { motion } from "framer-motion";
@@ -12,8 +12,7 @@ import {
   HeartIcon, ArrowPathIcon, TrashIcon, LockClosedIcon,
   CheckCircleIcon, ExclamationTriangleIcon,
   ArrowDownTrayIcon, ArrowUpTrayIcon, MoonIcon,
-  UserIcon, KeyIcon, SparklesIcon, BoltIcon, ClockIcon,
-  ArrowTrendingUpIcon
+  UserIcon, KeyIcon, SparklesIcon, BoltIcon
 } from "@heroicons/react/24/outline";
 
 
@@ -237,10 +236,6 @@ const PERIOD_PRESETS = [
   { label: '5 años',   days: 1825 },
 ];
 
-function periodLabel(days) {
-  return PERIOD_PRESETS.find(p => p.days === days)?.label ?? `${days}d`;
-}
-
 function estMinutes(days) {
   return Math.max(1, Math.ceil(days * 0.25 / 60));
 }
@@ -380,6 +375,37 @@ export default function GarminCardiac() {
     return () => window.removeEventListener('garmin_sync_complete', handleGarminSync);
   }, []);
 
+  const saveData = useCallback((newData, mergeExisting, usr, pwd, newSleepData = null) => {
+    let final = newData;
+    if (mergeExisting && data) {
+      const byDate = {};
+      [...data, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
+      final = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+    }
+    setData(final);
+    cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
+    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
+    if (newSleepData?.length) {
+      const merged = (() => {
+        const byWeek = {};
+        [...(sleepData || []), ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
+        return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+      })();
+      setSleepData(merged);
+      cloudStorage.setItem('garmin_sleep_data', JSON.stringify(merged));
+    }
+    const syncTime = new Date().toLocaleString('es-ES');
+    setLastSync(syncTime);
+    cloudStorage.setItem('garmin_last_sync', syncTime);
+    if (usr) {
+      cloudStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
+      setCreds({ username: usr, password: pwd });
+      // Fase 2: traer también las actividades con running dynamics (banda) para el MCP.
+      // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
+      syncGarminActivities(usr, pwd);
+    }
+  }, [data, sleepData]);
+
   // ---- Streaming fetch ----
   const fetchHealth = useCallback(async (usr, pwd, days, mergeExisting = false) => {
     setLoading(true);
@@ -453,38 +479,7 @@ export default function GarminCardiac() {
       setLoading(false);
       setProgress(null);
     }
-  }, [data]);
-
-  const saveData = (newData, mergeExisting, usr, pwd, newSleepData = null) => {
-    let final = newData;
-    if (mergeExisting && data) {
-      const byDate = {};
-      [...data, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-      final = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-    }
-    setData(final);
-    cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
-    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
-    if (newSleepData?.length) {
-      const merged = (() => {
-        const byWeek = {};
-        [...(sleepData || []), ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
-        return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-      })();
-      setSleepData(merged);
-      cloudStorage.setItem('garmin_sleep_data', JSON.stringify(merged));
-    }
-    const syncTime = new Date().toLocaleString('es-ES');
-    setLastSync(syncTime);
-    cloudStorage.setItem('garmin_last_sync', syncTime);
-    if (usr) {
-      cloudStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
-      setCreds({ username: usr, password: pwd });
-      // Fase 2: traer también las actividades con running dynamics (banda) para el MCP.
-      // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
-      syncGarminActivities(usr, pwd);
-    }
-  };
+  }, [data, saveData]);
 
   // ---- Export JSON ----
   const handleExport = () => {
@@ -935,7 +930,6 @@ export default function GarminCardiac() {
   const trendHRVSign   = stats?.trendHRV > 0 ? "+"     : "";
 
   const hrAxisOnly = stats?.hasHR && !(stats?.hasHRV && showHRV);
-  const bothVisible = stats?.hasHR && showHR && stats?.hasHRV && showHRV;
   const anyCardiacVisible = (stats?.hasHR && showHR) || (stats?.hasHRV && showHRV);
   const useNorm = normalizeChart && anyCardiacVisible;
 
@@ -2214,12 +2208,6 @@ export default function GarminCardiac() {
 // ---------------------------------------------------------------------------
 // Sleep section component
 // ---------------------------------------------------------------------------
-const QUALITY_COLOR = {
-  EXCELLENT: 'text-emerald-600',
-  GOOD:      'text-blue-600',
-  FAIR:      'text-amber-600',
-  POOR:      'text-red-500',
-};
 const QUALITY_LABEL = {
   EXCELLENT: 'Excelente',
   GOOD:      'Buena',

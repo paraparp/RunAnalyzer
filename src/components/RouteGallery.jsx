@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, Text, Select, SelectItem } from '@tremor/react';
 import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';

@@ -450,7 +450,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             },
             missingDetails: missingDetails.map(r => r.id)
         };
-    }, [filteredActivities, hrrest]);
+    }, [filteredActivities, hrrest, i18n.language]);
 
     if (!processedData) {
         return (

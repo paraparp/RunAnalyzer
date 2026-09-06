@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   SparklesIcon,
   BoltIcon,
@@ -14,7 +14,6 @@ import {
   fetchModelGroups,
   buildModelGroups,
   parseModelValue,
-  PROVIDER_LABELS,
   DEFAULT_GEMINI_MODEL,
   FALLBACK_GEMINI,
 } from '../services/ai';
@@ -112,11 +111,12 @@ const ModelSelector = ({
   const [groups, setGroups] = useState(() => buildModelGroups({ gemini: FALLBACK_GEMINI }));
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  // Arranca en true: la carga se lanza en el montaje, así que ya se está cargando
+  // en el primer render. Ponerlo a true dentro del efecto solo añadía un render.
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    setIsLoading(true);
     fetchModelGroups(ctrl.signal)
       .then((g) => {
         if (g.length) setGroups(g);

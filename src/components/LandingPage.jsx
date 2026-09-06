@@ -1,12 +1,11 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
     CpuChipIcon, BoltIcon, GlobeAmericasIcon, ArrowTrendingUpIcon,
     SparklesIcon, ChartBarIcon, HeartIcon, ShieldExclamationIcon,
     FireIcon, SignalIcon, MapIcon, CalendarDaysIcon, BeakerIcon,
-    StarIcon, ChatBubbleLeftRightIcon, ArrowDownTrayIcon,
-    CheckCircleIcon, LinkIcon
+    StarIcon, ChatBubbleLeftRightIcon, ArrowDownTrayIcon, LinkIcon
 } from "@heroicons/react/24/outline";
 import Logo from './Logo';
 import { useTranslation } from 'react-i18next';

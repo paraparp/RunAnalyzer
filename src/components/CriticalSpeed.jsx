@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectItem } from '@tremor/react';
 import { BoltIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
+    Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
     Tooltip as RechartsTooltip, Scatter, ComposedChart, ReferenceLine,
 } from 'recharts';
 import {

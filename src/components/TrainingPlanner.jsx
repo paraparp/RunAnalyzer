@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { useTranslation } from 'react-i18next';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
-import { Card, Grid, Title, Text, Metric, Button, NumberInput, Select, SelectItem, Badge, Callout, Divider, CategoryBar, DonutChart, Legend } from "@tremor/react";
-import { PlayCircleIcon, FireIcon, HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
-import { BoltIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { Select, SelectItem } from "@tremor/react";
+import { HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import useAIModel from '../hooks/useAIModel';
 import AIToolHeader from './AIToolHeader';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
+import { pushPlanDays } from '../services/garminWorkouts';
 
 // Prompt del plan — vive en código y siempre en español (antes estaba duplicado
 // en i18n en dos idiomas que podían divergir y mezclaba idioma con el
@@ -83,6 +84,13 @@ const TrainingPlanner = ({ activities }) => {
     const [plan, setPlan] = useState(null);
     const [error, setError] = useState('');
 
+    // Envío del plan al reloj. `pushingKey` es 'week' o el índice del día en curso
+    // (bloquea el resto de botones mientras Garmin responde) y `pushResults` guarda
+    // el resultado por día tal cual lo devuelve el servidor.
+    const [pushingKey, setPushingKey] = useState(null);
+    const [pushResults, setPushResults] = useState({});
+    const [pushError, setPushError] = useState('');
+
     // Wearable context (HRV / sleep), same sources as the AI suggestion panel.
     const { garmin, sleep } = useGarminWearableData();
 
@@ -120,6 +128,8 @@ const TrainingPlanner = ({ activities }) => {
         setLoading(true);
         setError('');
         setPlan(null);
+        setPushResults({});
+        setPushError('');
         try {
             const daysCount = selectedDays.length;
             const daysStr = selectedDays.join(', ');
@@ -147,6 +157,47 @@ const TrainingPlanner = ({ activities }) => {
             setLoading(false);
         }
     };
+
+    // Manda al reloj los días indicados (índices de plan.schedule). El servidor
+    // convierte cada sesión al formato de Garmin, la crea y la agenda en su fecha;
+    // devuelve un resultado por día en el mismo orden, así que un fallo en uno no se
+    // lleva por delante los demás.
+    const sendToGarmin = async (indexes, key) => {
+        if (!plan || !indexes.length) return;
+        setPushingKey(key);
+        setPushError('');
+        try {
+            const { results } = await pushPlanDays(indexes.map(i => plan.schedule[i]));
+            setPushResults(prev => {
+                const next = { ...prev };
+                indexes.forEach((i, k) => { next[i] = results?.[k] ?? null; });
+                return next;
+            });
+        } catch (err) {
+            setPushError(err.message || 'Error enviando a Garmin');
+        } finally {
+            setPushingKey(null);
+        }
+    };
+
+    const pushStatus = (res) => {
+        if (!res) return null;
+        if (res.skipped) return { tone: 'text-slate-400', text: t('planner.garmin.rest') };
+        if (res.ok) {
+            return {
+                tone: 'text-emerald-600',
+                text: res.scheduled ? t('planner.garmin.scheduled', { date: res.date }) : t('planner.garmin.created'),
+            };
+        }
+        return { tone: 'text-rose-600', text: res.error || t('planner.garmin.rest') };
+    };
+
+    // Solo se pueden mandar las sesiones con estructura: un resumen en prosa no es un
+    // entreno que el reloj sepa ejecutar.
+    const sendableIndexes = (plan?.schedule || [])
+        .map((d, i) => (d.structured_workout?.length ? i : -1))
+        .filter(i => i >= 0);
+    const pushedCount = Object.values(pushResults).filter(r => r?.ok).length;
 
     const exportToPDF = (plan) => {
         const doc = new jsPDF();
@@ -286,11 +337,31 @@ const TrainingPlanner = ({ activities }) => {
                                     </div>
                                 ))}
                             </div>
-                            <button onClick={() => exportToPDF(plan)} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
-                                {t('planner.export_pdf')}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {sendableIndexes.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => sendToGarmin(sendableIndexes, 'week')}
+                                        disabled={pushingKey !== null}
+                                        title={t('planner.garmin.hint')}
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        <PaperAirplaneIcon className="w-4 h-4" />
+                                        {pushingKey === 'week' ? t('planner.garmin.pushing') : t('planner.garmin.push_week')}
+                                    </button>
+                                )}
+                                <button onClick={() => exportToPDF(plan)} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                                    {t('planner.export_pdf')}
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    {(pushError || pushedCount > 0) && (
+                        <div className={`rounded-2xl p-4 border text-sm font-semibold ${pushError ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                            {pushError || t('planner.garmin.done', { n: pushedCount })}
+                        </div>
+                    )}
 
                     {plan.hrv_guidance && (
                         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-3">
@@ -369,6 +440,25 @@ const TrainingPlanner = ({ activities }) => {
                                                     );
                                                 })}
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {day.structured_workout && day.structured_workout.length > 0 && (
+                                        <div className="mt-4 flex items-center justify-end gap-3">
+                                            {(() => {
+                                                const st = pushStatus(pushResults[idx]);
+                                                return st ? <span className={`text-[11px] font-black ${st.tone}`}>{st.text}</span> : null;
+                                            })()}
+                                            <button
+                                                type="button"
+                                                onClick={() => sendToGarmin([idx], idx)}
+                                                disabled={pushingKey !== null}
+                                                title={t('planner.garmin.hint')}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 border-slate-100 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                                                {pushingKey === idx ? t('planner.garmin.pushing') : t('planner.garmin.push_day')}
+                                            </button>
                                         </div>
                                     )}
                                 </div>

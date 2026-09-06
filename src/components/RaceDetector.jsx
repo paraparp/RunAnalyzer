@@ -5,7 +5,7 @@ import { TrophyIcon } from '@heroicons/react/24/outline';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell
+  Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
 
 // Palabras que identifican una carrera de verdad. Se quitaron términos que solo
@@ -102,7 +102,7 @@ function computeGapThresholds(activities) {
 export default function RaceDetector({ activities }) {
   const { t } = useTranslation();
   const [filterDist, setFilterDist] = useState('all');
-  const [page, setPage] = useState(1);
+  const [rawPage, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
   // Build distance categories with translated labels
@@ -182,12 +182,15 @@ export default function RaceDetector({ activities }) {
   }, [activities, t]);
 
   const filteredRaces = useMemo(() => {
-    setPage(1); // reset to first page when filter changes
     if (filterDist === 'all') return races;
     return races.filter(r => r.categoryId === filterDist);
   }, [races, filterDist]);
 
-  const totalPages = Math.ceil(filteredRaces.length / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredRaces.length / PAGE_SIZE));
+  // La página se ACOTA al derivar en vez de reajustarse con un setState desde el
+  // useMemo (que reentraba en el propio memo). Con esto, cambiar de filtro o que
+  // lleguen menos carreras no puede dejar la vista en una página que ya no existe.
+  const page = Math.min(rawPage, totalPages);
   const pagedRaces = filteredRaces.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const header = (
@@ -284,7 +287,7 @@ export default function RaceDetector({ activities }) {
             <Text className="text-slate-500 text-sm">{t('races.all_races_subtitle')}</Text>
             <Text className="text-slate-400 text-xs mt-0.5">{t('races.detection_note')}</Text>
           </div>
-          <Select value={filterDist} onValueChange={setFilterDist} className="w-40">
+          <Select value={filterDist} onValueChange={(v) => { setFilterDist(v); setPage(1); }} className="w-40">
             <SelectItem value="all">{t('races.all')}</SelectItem>
             {DISTANCE_CATEGORIES.filter(c => c.id !== 'other').map(c => (
               <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
@@ -339,7 +342,7 @@ export default function RaceDetector({ activities }) {
             </span>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
@@ -371,7 +374,7 @@ export default function RaceDetector({ activities }) {
                 )
               }
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
                 className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >

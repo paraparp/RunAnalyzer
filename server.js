@@ -9,6 +9,7 @@ import aiModels from './api/ai/models.js';
 import garminLogin from './api/garmin/login.js';
 import garminHealthStream from './api/garmin/health/stream.js';
 import garminHealthRecent from './api/garmin/health/recent.js';
+import garminWorkouts from './api/garmin/workouts.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
 
@@ -77,6 +78,9 @@ app.get('/api/ai/models', aiModels);
 app.post('/api/garmin/login', withCachedSession(garminLogin));
 app.post('/api/garmin/health/stream', withCachedSession(garminHealthStream));
 app.post('/api/garmin/health/recent', withCachedSession(garminHealthRecent));
+// Escritura de entrenos: no usa la sesión cacheada de dev — `garmin-write` abre la
+// suya con las credenciales guardadas del usuario (igual que en producción).
+app.all('/api/garmin/workouts', garminWorkouts);
 
 // POST /api/garmin/debug — inspecciona la respuesta cruda de Garmin para una
 // fecha. Solo desarrollo: no existe como función serverless.

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
@@ -27,11 +27,6 @@ const LEVEL_COLORS = {
   very_high: '#ef4444',
 };
 
-function getDecouplingColor(pct) {
-  const key = getDecouplingLevelKey(pct);
-  return key ? LEVEL_COLORS[key] : '#94a3b8';
-}
-
 // Definido fuera del componente: si se declara dentro del render, cada render crea un
 // tipo nuevo y Recharts remonta el subárbol del tooltip entero.
 function CustomTooltip({ active, payload }) {
@@ -50,7 +45,7 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function CardiacDecoupling({ activities, onEnrichActivity }) {
+export default function CardiacDecoupling({ activities }) {
   const { t } = useTranslation();
   const [monthsToShow, setMonthsToShow] = useState('6');
   const [minDuration, setMinDuration] = useState('30');

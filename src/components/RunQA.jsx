@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { streamAI, buildProviderChain, parseModelValue } from '../services/ai';
-import { Card, Text, Button, Select, SelectItem, Badge } from "@tremor/react";
+import { Card, Text, Button, Select, SelectItem } from "@tremor/react";
 import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
 import useAIModel from '../hooks/useAIModel';
 import MarkdownText from './MarkdownText';
@@ -103,7 +103,7 @@ const RunQA = ({ activities }) => {
                 }
                 cloudStorage.removeItem('runqa_seed');
             }
-        } catch {}
+        } catch { /* semilla ilegible: se abre el chat vacío */ }
     }, []);
 
 
@@ -319,7 +319,7 @@ INSTRUCCIONES:
             await navigator.clipboard.writeText(text);
             setCopiedIdx(idx);
             setTimeout(() => setCopiedIdx(c => (c === idx ? null : c)), 1500);
-        } catch {}
+        } catch { /* el portapapeles puede estar bloqueado */ }
     };
 
     const clearConversation = () => {

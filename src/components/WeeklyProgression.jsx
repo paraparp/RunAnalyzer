@@ -8,7 +8,7 @@ import { monthsAgoISO } from '../lib/criticalSpeed';
 import { monthShort } from '../lib/monthLabels';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell
+  Tooltip as RechartsTooltip, ResponsiveContainer, Cell
 } from 'recharts';
 
 // Definido fuera del componente: dentro del render sería un tipo nuevo en cada

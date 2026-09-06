@@ -3,10 +3,9 @@ import {
   SignalIcon, 
   ArrowsPointingOutIcon, 
   StopIcon,
-  SparklesIcon,
-  AdjustmentsHorizontalIcon
+  SparklesIcon
 } from '@heroicons/react/24/outline';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 
 // Definido fuera del componente: dentro del render sería un tipo nuevo en cada
@@ -77,15 +76,14 @@ export default function TechniqueAnalysis({ activities }) {
     return Array.from(new Set(baseData.map(d => d.year))).sort((a,b) => b - a);
   }, [baseData]);
 
-  const [deselectedYears, setDeselectedYears] = useState(new Set());
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (uniqueYears.length > 0 && !initialized) {
-      setDeselectedYears(new Set(uniqueYears.slice(3)));
-      setInitialized(true);
-    }
-  }, [uniqueYears, initialized]);
+  // La selección por defecto —los tres años más recientes— se DERIVA de los datos
+  // en vez de sembrarse con un efecto: `null` significa "el atleta todavía no ha
+  // tocado los años", y en cuanto toca uno manda su elección. Sembrarlo con un
+  // setState dentro del efecto obligaba a un render extra por cada cambio de los
+  // años disponibles (y hacía falta el flag `initialized` para no repetirlo).
+  const [pickedYears, setDeselectedYears] = useState(null);
+  const defaultDeselected = useMemo(() => new Set(uniqueYears.slice(3)), [uniqueYears]);
+  const deselectedYears = pickedYears ?? defaultDeselected;
 
   const chartData = useMemo(() => {
     return baseData.filter(d => !deselectedYears.has(d.year));

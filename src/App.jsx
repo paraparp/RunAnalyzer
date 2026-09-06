@@ -15,8 +15,6 @@ import DataExporter from './components/DataExporter';
 import StatusSnapshot from './components/StatusSnapshot';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
-import VersionBadge from './components/VersionBadge';
-import ModelSelector from './components/ModelSelector';
 import UserMenu from './components/UserMenu';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
@@ -55,7 +53,6 @@ import {
   ArrowTrendingUpIcon,
   ChatBubbleLeftRightIcon,
   ArrowDownTrayIcon,
-  ArrowRightStartOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
   MagnifyingGlassIcon,
@@ -162,7 +159,6 @@ const Dashboard = ({ user, handleLogout }) => {
   const [stravaData, setStravaData] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -336,7 +332,7 @@ const Dashboard = ({ user, handleLogout }) => {
           }
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch { /* cache ilegible: se usa el mes por defecto */ }
     return 30; // último mes por defecto
   };
 
@@ -360,7 +356,7 @@ const Dashboard = ({ user, handleLogout }) => {
       const existingDataStr = cloudStorage.getItem('garmin_cardiac_data');
       let existingData = [];
       if (existingDataStr) {
-        try { existingData = JSON.parse(existingDataStr); } catch (e) {}
+        try { existingData = JSON.parse(existingDataStr); } catch { /* cache corrupta: se parte de vacío */ }
       }
 
       const newData = json.data || [];
@@ -376,7 +372,7 @@ const Dashboard = ({ user, handleLogout }) => {
       const existingSleepStr = cloudStorage.getItem('garmin_sleep_data');
       let existingSleepData = [];
       if (existingSleepStr) {
-        try { existingSleepData = JSON.parse(existingSleepStr); } catch(e) {}
+        try { existingSleepData = JSON.parse(existingSleepStr); } catch { /* cache corrupta: se parte de vacío */ }
       }
 
       if (newSleepData.length > 0) {
@@ -522,6 +518,11 @@ const Dashboard = ({ user, handleLogout }) => {
 
       checkAndRefreshData();
     }
+    // Deliberadamente SOLO al montar: es el refresco de entrada a la app. Meter
+    // `syncGarminData` en las dependencias lo relanzaría cada vez que cambia su
+    // identidad, es decir, en cada render — que es justo lo contrario de lo que
+    // hace falta contra el rate-limit de Strava y de Garmin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectToStrava = () => {
@@ -1536,7 +1537,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 predictor:   <RacePredictor activities={runningActivities} />,
                 qa:          <RunQA activities={runningActivities} />,
                 fitness:     <FitnessHub activities={runningActivities} />,
-                health:      <HealthHub activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
+                health:      <HealthHub activities={runningActivities} />,
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
               };
               const view = viewMap[currentView];
@@ -1585,7 +1586,10 @@ const StatCard = ({ label, value, unit, icon: Icon, color = 'indigo' }) => {
 function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [storageReady, setStorageReady] = useState(false);
+  // Qué usuario tiene la caché ya hidratada. Se guarda el ID, no un booleano: así
+  // "listo" se DERIVA de si ese ID es el vigente, y cambiar de cuenta lo invalida
+  // solo (antes hacía falta un setState síncrono dentro del efecto para bajarlo).
+  const [hydratedFor, setHydratedFor] = useState(null);
   const navigate = useNavigate();
 
   // Sesión de Supabase Auth (Google).
@@ -1605,15 +1609,11 @@ function App() {
 
   // Hidratar la caché de cloudStorage cuando hay usuario.
   const userId = session?.user?.id ?? null;
+  const storageReady = userId !== null && hydratedFor === userId;
   useEffect(() => {
     let active = true;
-    if (userId) {
-      setStorageReady(false);
-      hydrate(userId).finally(() => { if (active) setStorageReady(true); });
-    } else {
-      resetCloudStorage();
-      setStorageReady(false);
-    }
+    if (userId) hydrate(userId).finally(() => { if (active) setHydratedFor(userId); });
+    else resetCloudStorage();
     return () => { active = false; };
   }, [userId]);
 

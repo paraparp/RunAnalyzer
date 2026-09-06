@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { daysUntil } from '../lib/targetRaces';
 

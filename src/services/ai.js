@@ -54,7 +54,7 @@ const STATIC_PROVIDER_MODELS = {
   groq: [{ id: GROQ_MODEL, label: 'Llama 3.3 70B · gratis' }],
 };
 
-export const PROVIDER_LABELS = {
+const PROVIDER_LABELS = {
   gemini: 'Google Gemini',
   zai: 'Z.ai (GLM)',
   groq: 'Groq',
@@ -132,7 +132,7 @@ export function buildProviderChain({ provider = 'gemini', model } = {}) {
   return [primary, ...fallback.filter(s => !(s.provider === provider && s.model === model))];
 }
 
-async function authHeaders(extra = {}) {
+export async function authHeaders(extra = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
   return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;

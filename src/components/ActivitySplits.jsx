@@ -48,13 +48,13 @@ const OverviewChart = ({ rows, avgPaceS }) => {
     const INNER = H - PAD_T - PAD_B;
 
     const totalDist = rows.reduce((s, r) => s + (r.distance || 0), 0) || 1;
-    let xCursor = 0;
-    const barRects = rows.map(r => {
-        const w = W * (r.distance || 0) / totalDist;
-        const rect = { x: xCursor, w };
-        xCursor += w;
-        return rect;
-    });
+    // Offset acumulado sin variable mutable de render: cada barra arranca donde
+    // termina la anterior.
+    const barRects = rows.reduce((acc, r) => {
+        const prev = acc[acc.length - 1];
+        acc.push({ x: prev ? prev.x + prev.w : 0, w: W * (r.distance || 0) / totalDist });
+        return acc;
+    }, []);
 
     const paces = rows.map(r => r.paceS);
     const minP = Math.min(...paces);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import {

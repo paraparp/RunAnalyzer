@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import cloudStorage from '../lib/cloudStorage';
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from "recharts";
 import { motion } from "framer-motion";
@@ -335,6 +335,9 @@ export default function VitalsOverview({ activities = [] }) {
   const [days, setDays] = useState(180);
   const [gran, setGran] = useState("day"); // day | week | month | year
   const [gapAdjust, setGapAdjust] = useState(false); // ajustar eficiencia por desnivel (GAP)
+  // Extremo derecho de la ventana, estable por montaje: leerlo en cada render
+  // movía el corte y hacía entrar y salir puntos según cuántas veces se repintara.
+  const [nowMs] = useState(() => Date.now());
 
   const readGarmin = () => {
     try { return JSON.parse(cloudStorage.getItem("garmin_cardiac_data") || "null") || []; }
@@ -364,7 +367,7 @@ export default function VitalsOverview({ activities = [] }) {
   const ctlSeries = useMemo(() => computeCTLSeries(pmc), [pmc]);
 
   const { hrvData, hrData, vo2Data, loadData, effData, decData, domain, summary, hasGarmin, goodBands, effThreshold, hasDecoupling } = useMemo(() => {
-    const now = Date.now();
+    const now = nowMs;
     const cutoff = now - days * MS_DAY;
     const isDay = gran === "day";
 
@@ -480,7 +483,7 @@ export default function VitalsOverview({ activities = [] }) {
         dec: { current: lastOf(decData), trend: deltaOf(decData) },
       },
     };
-  }, [garmin, activities, ctlSeries, days, gran, gapAdjust, hrmax, hrrest]);
+  }, [garmin, activities, ctlSeries, days, gran, gapAdjust, hrmax, hrrest, nowMs]);
 
   // X-axis label format depends on granularity
   const xFmt = useMemo(() => {

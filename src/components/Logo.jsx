@@ -1,4 +1,3 @@
-import React from 'react';
 import logoImage from '../assets/logo.png';
 
 const Logo = ({ className = "w-10 h-10", style = {} }) => (

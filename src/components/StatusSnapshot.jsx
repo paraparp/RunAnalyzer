@@ -10,7 +10,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import {
-  ArrowTrendingUpIcon, ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
   BoltIcon, FireIcon, HeartIcon,
   ExclamationTriangleIcon, CheckCircleIcon,
   CalendarDaysIcon, ArrowUpIcon, ArrowDownIcon,
@@ -38,7 +38,6 @@ function computeStats(activities, pmc) {
 
   const now = new Date();
   const nowMs = now.getTime();
-  const todayStr = now.toISOString().split('T')[0];
   const thisYear = now.getFullYear();
 
   // ── PMC: llega ya calibrado desde useCalibratedPMC (fuente única compartida
@@ -546,11 +545,23 @@ export default function StatusSnapshot({ activities }) {
     try {
       const raw = cloudStorage.getItem('garmin_cardiac_data');
       if (raw) return computeGarminStats(JSON.parse(raw));
-    } catch {}
+    } catch { /* cache de Garmin ilegible: se sigue sin ella */ }
     return null;
   }, []);
 
+  // TODOS los hooks van antes del corte por falta de datos: `stats` es null
+  // mientras el PMC no ha resuelto o `activities` llega vacío, así que declararlos
+  // más abajo hacía que el mismo componente pasara de 4 hooks a 9 en cuanto los
+  // datos entraban — "Rendered more hooks than during the previous render".
   const [tab, setTab] = useState('estado');
+  const [timeRange, setTimeRange] = useState('90d'); // '90d' | '6m' | '1y' | 'all'
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [showGarminHR, setShowGarminHR] = useState(true);
+  const [showGarminRec, setShowGarminRec] = useState(true);
+  const [garminGranularity, setGarminGranularity] = useState('day'); // 'day', 'week', 'month'
+  // "Ahora" estable por montaje: leer el reloj en cada render hace que el mismo
+  // dato entre y salga de la ventana según cuántas veces se repinte la vista.
+  const [nowMs2] = useState(() => Date.now());
 
   if (!stats) {
     return (
@@ -565,7 +576,7 @@ export default function StatusSnapshot({ activities }) {
     peakCTL, peakCTLYear, ctl7ago,
     last7daysKm, avgWeekKmYear, peakWeekKm, peakWeekKmYear,
     bestPace10kRecent, bestPace10kYear, bestPace10kAll,
-    bestPace5kRecent, bestPace5kYear, bestPace5kAll,
+    bestPace5kRecent,
     hrEffRecent, hrEffYear, hrEffAll,
     activeLast7, activeLast28, streak,
     elevLast28, avgMonthlyElevYear, peakMonthlyElev,
@@ -720,15 +731,7 @@ export default function StatusSnapshot({ activities }) {
     ] : []),
   ];
 
-  const [timeRange, setTimeRange] = useState('90d'); // '90d' | '6m' | '1y' | 'all'
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [showGarminHR, setShowGarminHR] = useState(true);
-  const [showGarminRec, setShowGarminRec] = useState(true);
-  const [garminGranularity, setGarminGranularity] = useState('day'); // 'day', 'week', 'month'
-
   const rangeMs = { '90d': 90*86400000, '6m': 183*86400000, '1y': 365*86400000, 'all': Infinity };
-
-  const nowMs2 = Date.now();
 
   const sampledChart = chartDataFull
     .filter(d => rangeMs[timeRange] === Infinity || new Date(d.date).getTime() >= nowMs2 - rangeMs[timeRange]);
@@ -1112,7 +1115,7 @@ export default function StatusSnapshot({ activities }) {
             </div>
             {(() => {
               const cutoff = rangeMs[timeRange] === Infinity ? null
-                : new Date(Date.now() - rangeMs[timeRange]).toISOString().split('T')[0];
+                : new Date(nowMs2 - rangeMs[timeRange]).toISOString().split('T')[0];
               const filteredGarminData = cutoff
                 ? garmin.chartData.filter(d => d.date >= cutoff)
                 : garmin.chartData;

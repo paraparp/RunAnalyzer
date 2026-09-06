@@ -341,7 +341,7 @@ export default function VDOTEstimator({ activities }) {
                 <Legend 
                   wrapperStyle={{ fontSize: '11px', paddingTop: '10px', cursor: 'pointer', userSelect: 'none' }} 
                   onClick={handleLegendClick}
-                  formatter={(value, entry) => {
+                  formatter={(value) => {
                     const isHidden = hiddenSeries[value];
                     return (
                       <span style={{ 

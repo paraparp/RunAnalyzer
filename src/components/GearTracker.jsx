@@ -6,11 +6,7 @@ import {
   SparklesIcon, 
   ClockIcon, 
   MapPinIcon, 
-  BoltIcon, 
   ArrowsRightLeftIcon,
-  CheckBadgeIcon,
-  ExclamationCircleIcon,
-  ExclamationTriangleIcon,
   CalendarDaysIcon,
   PencilSquareIcon,
   CheckIcon,
@@ -37,7 +33,17 @@ function readLifeOverrides() {
 
 export default function GearTracker({ activities, stravaData, setStravaData }) {
   const { t, i18n } = useTranslation();
-  const [shoeNames, setShoeNames] = useState({});
+  // Los nombres que ya vienen en la caché del perfil se DERIVAN de `stravaData`;
+  // el estado guarda solo lo que se pide a la red (el perfil refrescado), que es
+  // lo único que React no puede recalcular. Sembrarlos con un setState dentro del
+  // efecto duplicaba el dato y costaba un render en cada montaje.
+  const [fetchedShoeNames, setShoeNames] = useState({});
+  const cachedShoes = stravaData?.athlete?.shoes;
+  const shoeNames = useMemo(() => {
+    const names = {};
+    (cachedShoes || []).forEach(s => { names[s.id] = s.name; });
+    return { ...names, ...fetchedShoeNames };
+  }, [cachedShoes, fetchedShoeNames]);
   // Vida útil por par: la que fija el atleta gana; si no, se deduce del tipo.
   const [lifeOverrides, setLifeOverrides] = useState(readLifeOverrides);
   const [editingId, setEditingId] = useState(null);
@@ -72,24 +78,13 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
   const refreshedRef = useRef(false);
 
   useEffect(() => {
-    const cachedShoes = stravaData?.athlete?.shoes;
-
-    // 1) Siembra instantánea desde la caché del perfil (sin esperar red).
-    if (cachedShoes?.length) {
-      setShoeNames(prev => {
-        const names = { ...prev };
-        cachedShoes.forEach(s => { names[s.id] = s.name; });
-        return names;
-      });
-    }
-
-    // 2) ¿Hay alguna zapatilla usada en actividades cuyo nombre NO tengamos?
-    //    (p. ej. una zapatilla nueva añadida a Strava tras cachear el perfil.)
+    // ¿Hay alguna zapatilla usada en actividades cuyo nombre NO tengamos?
+    // (p. ej. una zapatilla nueva añadida a Strava tras cachear el perfil.)
     const knownIds = new Set((cachedShoes || []).map(s => s.id));
     const hasMissing = (activities || []).some(a => a.gear_id && !knownIds.has(a.gear_id));
 
-    // 3) Refresca el perfil SOLO si falta algún nombre (o no hay caché) y hay token,
-    //    y como máximo una vez por montaje para no golpear el rate-limit ni ciclar.
+    // Refresca el perfil SOLO si falta algún nombre (o no hay caché) y hay token,
+    // y como máximo una vez por montaje para no golpear el rate-limit ni ciclar.
     if (!refreshedRef.current && (hasMissing || !cachedShoes?.length) && stravaData?.accessToken) {
       refreshedRef.current = true;
       (async () => {
@@ -116,7 +111,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         }
       })();
     }
-  }, [stravaData, setStravaData, activities]);
+  }, [stravaData, setStravaData, activities, cachedShoes]);
 
   const gearStats = useMemo(() => {
     if (!activities) return [];
@@ -233,7 +228,6 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
             let textColor = "text-emerald-600";
             let bgColor = "bg-emerald-50";
             let borderColor = "border-emerald-100";
-            let icon = CheckBadgeIcon;
             let statusText = t('gear.status.good');
 
             if (pct > 60) {
@@ -241,7 +235,6 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
               textColor = "text-amber-600";
               bgColor = "bg-amber-50";
               borderColor = "border-amber-100";
-              icon = ExclamationTriangleIcon;
               statusText = t('gear.status.medium');
             }
             if (pct > 85) {
@@ -249,7 +242,6 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
               textColor = "text-rose-600";
               bgColor = "bg-rose-50";
               borderColor = "border-rose-100";
-              icon = ExclamationCircleIcon;
               statusText = t('gear.status.replacement');
             }
 

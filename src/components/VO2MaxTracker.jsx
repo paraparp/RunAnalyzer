@@ -89,7 +89,7 @@ import {
  * Fit VO2_theoretical vs HR across splits using weighted linear regression.
  * Extrapolate to HRmax for VO2max estimate.
  */
-function firstbeatRegression(splits, hrMax, hrRest) {
+function firstbeatRegression(splits, hrMax) {
   const points = [];
 
   for (const sp of splits) {

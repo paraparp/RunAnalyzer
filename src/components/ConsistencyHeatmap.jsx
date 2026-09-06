@@ -5,8 +5,7 @@ import {
   FireIcon,
   TrophyIcon,
   CheckBadgeIcon,
-  SparklesIcon,
-  CalendarIcon
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { dayKey, activityDayKey } from '../lib/trainingLoad';
@@ -35,6 +34,9 @@ export default function ConsistencyHeatmap({ activities }) {
   const DAY_LABELS = t('consistency.days', { returnObjects: true });
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [metric, setMetric] = useState('distance');
+  // "Hoy" estable por montaje: la racha viva se mide contra un único instante, no
+  // contra el reloj leído en mitad de un render.
+  const [nowMs] = useState(() => Date.now());
 
   const availableYears = useMemo(() => {
     if (!activities || activities.length === 0) return [new Date().getFullYear()];
@@ -154,8 +156,8 @@ export default function ConsistencyHeatmap({ activities }) {
     }
 
     // Check if current streak is alive (includes today or yesterday)
-    const today = dayKey(new Date());
-    const yesterday = dayKey(new Date(Date.now() - 86400000));
+    const today = dayKey(new Date(nowMs));
+    const yesterday = dayKey(new Date(nowMs - 86400000));
     if (sortedDays.length > 0) {
       const lastDay = sortedDays[sortedDays.length - 1];
       if (lastDay === today || lastDay === yesterday) {
@@ -182,7 +184,7 @@ export default function ConsistencyHeatmap({ activities }) {
     const weeksWith3 = Object.values(weekCounts).filter(c => c >= 3).length;
 
     return { currentStreak, longestStreak, totalDays, weeksWith3, totalWeeks };
-  }, [activities, selectedYear]);
+  }, [activities, selectedYear, nowMs]);
 
   const metricUnit = metric === 'distance' ? 'km' : metric === 'time' ? 'min' : 'pts';
 

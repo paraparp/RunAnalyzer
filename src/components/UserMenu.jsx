@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,13 +7,12 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   GlobeAltIcon,
-  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import ModelSelector from './ModelSelector';
 import VersionBadge from './VersionBadge';
 import useAIModel from '../hooks/useAIModel';
 import cloudStorage from '../lib/cloudStorage';
-import { parseModelValue, PROVIDER_LABELS } from '../services/ai';
+import { parseModelValue } from '../services/ai';
 
 /**
  * Comprueba si el usuario tiene credenciales o datos guardados de Garmin Connect.
@@ -96,8 +95,7 @@ export default function UserMenu({
   }, [isOpen]);
 
   // Formato del modelo activo para preview rápido
-  const { provider, model } = parseModelValue(selectedModel);
-  const providerName = PROVIDER_LABELS[provider] || provider;
+  const { model } = parseModelValue(selectedModel);
   const cleanModelName = model
     .replace(/^gemini-/, '')
     .replace(/^openai\//, '')

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Title, Text } from '@tremor/react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ReferenceArea
+  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceArea
 } from 'recharts';
 import { 
   ShieldExclamationIcon, 

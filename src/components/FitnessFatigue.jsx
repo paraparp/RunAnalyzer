@@ -141,12 +141,12 @@ export default function FitnessFatigue({ activities }) {
   const pmcCurrent = pmc?.current ?? null;
 
   // ── 1. Aggregate per-day data ────────────────────────────────────────────────
-  const { chartData, maxLoad, current, weeklyLoad, rampRate, topEfforts } = useMemo(() => {
-    if (!activities?.length) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
+  const { chartData, current, weeklyLoad, rampRate, topEfforts } = useMemo(() => {
+    if (!activities?.length) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     // El PMC llega ya calibrado desde useCalibratedPMC (fuente única compartida
     // con StatusSnapshot, InjuryRisk, VitalsOverview, el coach IA y el MCP).
-    if (!pmcSeries || !pmcCurrent) return { chartData: [], maxLoad: 0, current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
+    if (!pmcSeries || !pmcCurrent) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     const weeklyBuckets = {};
     const data = pmcSeries.map((p) => {
@@ -178,7 +178,7 @@ export default function FitnessFatigue({ activities }) {
     });
 
     const { ctl, atl, peak: peakCTL, peakDate: peakCTLDate, lowestTsb: lowestTSB,
-            maxDayLoad: globalMaxLoad, ramp: rampPerWeek,
+            ramp: rampPerWeek,
             ctlTrend7, ctlTrend28, pctPeak } = pmcCurrent;
 
     // ── 3. Derived stats ────────────────────────────────────────────────────────
@@ -214,7 +214,6 @@ export default function FitnessFatigue({ activities }) {
 
     return {
       chartData:  data,
-      maxLoad:    globalMaxLoad,
       current: {
         fitness:        Math.round(ctl),
         fatigue:        Math.round(atl),

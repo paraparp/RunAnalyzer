@@ -340,6 +340,16 @@ const en = {
       empty_state_title: "Elite AI Training",
       empty_state_desc: "Set your next big goal and let our AI design your path to success.",
       structure: "Session Structure",
+      garmin: {
+        push_week: "Schedule week on Garmin",
+        push_day: "Send to watch",
+        pushing: "Sending...",
+        scheduled: "On your watch · {{date}}",
+        created: "Created on Garmin (not scheduled)",
+        rest: "Rest day",
+        done: "{{n}} session(s) scheduled on Garmin",
+        hint: "Creates the workout in Garmin Connect and puts it on that day of your calendar."
+      },
       distances: {
         "5k": "5K",
         "10k": "10K",
@@ -1383,6 +1393,16 @@ const es = {
       empty_state_title: "Entrenamiento AI de Élite",
       empty_state_desc: "Configura tu próximo gran objetivo y deja que nuestra IA diseñe tu camino al éxito.",
       structure: "Estructura de la Sesión",
+      garmin: {
+        push_week: "Programar semana en Garmin",
+        push_day: "Enviar al reloj",
+        pushing: "Enviando...",
+        scheduled: "En tu reloj · {{date}}",
+        created: "Creado en Garmin (sin agendar)",
+        rest: "Día de descanso",
+        done: "{{n}} sesión(es) programadas en Garmin",
+        hint: "Crea el entreno en Garmin Connect y lo deja en ese día de tu calendario."
+      },
       distances: {
         "5k": "5K",
         "10k": "10K",
