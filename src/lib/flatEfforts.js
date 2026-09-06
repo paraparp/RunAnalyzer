@@ -39,7 +39,7 @@ export const FLAT_EFFORTS_VERSION = 3;
 //   maxGross — D+ y D− acumulados por separado: el tramo es llano POR DENTRO.
 // El bruto es el que manda (implica |neto| ≤ maxGross); el neto se conserva como
 // filtro más estricto para el caso de la rampa sostenida compensada.
-export const FLAT_TARGETS = [
+const FLAT_TARGETS = [
   { id: '1k', dist: 1000, maxNet: 5, maxGross: 10 },
   { id: '2k', dist: 2000, maxNet: 10, maxGross: 20 },
 ];

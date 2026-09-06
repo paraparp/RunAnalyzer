@@ -10,12 +10,12 @@
 import cloudStorage from './cloudStorage';
 import { DEFAULT_GEMINI_MODEL, normalizeModelValue, toModelValue } from '../services/ai';
 
-export const AI_MODEL_KEY = 'ai_model';
+const AI_MODEL_KEY = 'ai_model';
 // Evento de ventana para que todas las pantallas montadas reaccionen al cambio
 // (mismo patrón que TARGET_RACES_EVENT).
 export const AI_MODEL_EVENT = 'runanalyzer:ai-model';
 
-export const DEFAULT_AI_MODEL = toModelValue('gemini', DEFAULT_GEMINI_MODEL);
+const DEFAULT_AI_MODEL = toModelValue('gemini', DEFAULT_GEMINI_MODEL);
 
 /** Modelo elegido por el usuario, ya normalizado a "provider|model". */
 export function getAIModel() {

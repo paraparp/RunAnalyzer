@@ -69,7 +69,7 @@ export function daysUntil(dateStr) {
 /** Marcador para ritmo sin dato. Antes convivían '0:00', '--:--', '—', '-'. */
 export const PACE_PLACEHOLDER = '--:--';
 /** Marcador para duración sin dato. */
-export const TIME_PLACEHOLDER = '—';
+const TIME_PLACEHOLDER = '—';
 
 // Ventana de ritmo fisiológicamente plausible (min/km). Fuera de ella el dato es
 // ruido (velocidad GPS disparada, actividad mal tipada) y se pinta el marcador.

@@ -34,17 +34,17 @@ export const LT1_HRR_PCT = 0.65;
 // %HRmax fallback (only when resting HR is unavailable). LT2 shares the single
 // project-wide LTHR anchor (0.875·HRmax, see hrZones); LT1 recalibrated down to
 // 0.75·HRmax (the old 0.77 sat too high for an aerobic threshold).
-export const LT2_TARGET_PCT = LTHR_FROM_HRMAX; // 0.875
-export const LT1_TARGET_PCT = 0.75;
-export const LT2_SIGMA_PCT  = 0.025;
-export const LT1_SIGMA_PCT  = 0.025;
-export const EWMA_LAMBDA    = 0.3;
+const LT2_TARGET_PCT = LTHR_FROM_HRMAX; // 0.875
+const LT1_TARGET_PCT = 0.75;
+const LT2_SIGMA_PCT  = 0.025;
+const LT1_SIGMA_PCT  = 0.025;
+const EWMA_LAMBDA    = 0.3;
 // Ventana de histórico del modelo (meses). Única para CS, cross-check por FC y
 // para el LTHR anclado a CS que consume useHrParams: si se cambia, cambia en todo.
 export const LT_MONTHS = 12;
-export const MIN_DURATION_S = 20 * 60;
-export const MIN_LAP_TIME_S = 4 * 60;
-export const MIN_LAP_DIST_M = 400;
+const MIN_DURATION_S = 20 * 60;
+const MIN_LAP_TIME_S = 4 * 60;
+const MIN_LAP_DIST_M = 400;
 
 export const paceFromSpeed = paceMinPerKm; // m/s → min/km (definición única en timeFormat)
 
@@ -53,7 +53,7 @@ export const paceFromSpeed = paceMinPerKm; // m/s → min/km (definición única
  * plausible resting HR is supplied (modern standard, individualized); otherwise
  * falls back to bare %HRmax.
  */
-export function thresholdHRs(hrmax, hrrest) {
+function thresholdHRs(hrmax, hrrest) {
   const validRest = hrrest && hrrest > 30 && hrrest < hrmax - 40;
   if (validRest) {
     const hrr = hrmax - hrrest;
@@ -97,7 +97,7 @@ function weightedMedian(pairs) {
  * Returns null when there is no usable HR history (never the 185 default), so
  * callers can tell "unknown" from "measured".
  */
-export function robustHRmax(activities) {
+function robustHRmax(activities) {
   const { value, n } = detectMaxHR(activities ?? []);
   if (!n) return null;
   const raw = (activities ?? [])
@@ -191,7 +191,7 @@ function extractSamples(a) {
  * HR cross-check: monthly LT1/LT2 pace estimate by gaussian-weighting samples
  * around the LT1/LT2 target %HRmax bands, plus an EWMA-smoothed LT2 trend.
  */
-export function computeLTMonthly(activities, months, hrmax, hrrest) {
+function computeLTMonthly(activities, months, hrmax, hrrest) {
   const inWindow = activityWithinMonths(months);
   const { lt1: lt1Target, lt2: lt2Target } = thresholdHRs(hrmax, hrrest);
   const lt2Sigma  = hrmax * LT2_SIGMA_PCT;
@@ -252,8 +252,8 @@ export function computeLTMonthly(activities, months, hrmax, hrrest) {
 // MEASURED LT1 — not an assumed %HRmax/%HRR. This is the field method Strava data
 // actually supports (DFA-α1, the HRV gold standard, needs beat-to-beat R-R).
 //   Refs: Coggan (Pw:HR / aerobic decoupling); Friel, The Triathlete's Bible.
-export const DECOUPLE_PCT = 5;                 // % drift marking loss of aerobic coupling
-export const MIN_DECOUPLE_TIME_S = 35 * 60;    // drift needs time to develop
+const DECOUPLE_PCT = 5;                 // % drift marking loss of aerobic coupling
+const MIN_DECOUPLE_TIME_S = 35 * 60;    // drift needs time to develop
 
 // The ratio itself (FC/velocidad, ponderado por tiempo) comes from `decoupling.js`:
 // one definition and one sign for the whole repo. What differs here is only the
@@ -306,7 +306,7 @@ export function runDecoupling(a) {
   };
 }
 
-export function computeDecouplingLT1(activities, months, hrmax) {
+function computeDecouplingLT1(activities, months, hrmax) {
   const inWindow = activityWithinMonths(months);
   const pts = [];
   for (const a of activities) {

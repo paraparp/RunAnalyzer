@@ -28,7 +28,7 @@
 export const CELL_M = 100;
 
 /** Cobertura mutua a partir de la cual dos trazas son la misma ruta. */
-export const SAME_ROUTE = 0.6;
+const SAME_ROUTE = 0.6;
 
 const M_PER_DEG_LAT = 110574;
 const M_PER_DEG_LNG = 111320;

@@ -30,7 +30,7 @@ import { buildLoadParams, computePMC } from './trainingLoad.js';
 // La FCmax es un rasgo estable → se detecta sobre TODO el historial. El LTHR se
 // mueve con la forma → se lee de los dos últimos meses. Misma ventana que la
 // pestaña de Zonas; separarlas fue una decisión deliberada, no un descuido.
-export const LTHR_WINDOW_MONTHS = 2;
+const LTHR_WINDOW_MONTHS = 2;
 
 // Clave de los overrides manuales. Vive aquí, en el módulo puro, porque la lee
 // tanto el navegador (lib/hrOverrides, vía cloudStorage) como el servidor del MCP

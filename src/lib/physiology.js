@@ -66,8 +66,8 @@ export function velocityFromVO2(vo2) {
  * día. Fuera de 70–88 % HRR la relación se curva y lo que se mide es la
  * intensidad de la sesión, no la forma.
  */
-export const HRR_VALID_MIN = 0.70;
-export const HRR_VALID_MAX = 0.88;
+const HRR_VALID_MIN = 0.70;
+const HRR_VALID_MAX = 0.88;
 
 /**
  * Método HRR (Swain-Leutholtz 1997): %HRR = %VO2R.
@@ -91,8 +91,8 @@ export function vo2maxFromHRR(vo2Running, hr, hrRest, hrMax) {
  * para no dejar fuera perfiles con FC en reposo más alta. Sin esta banda el
  * fallback reintroducía por la puerta de atrás justo el sesgo que HRR filtra.
  */
-export const HRMAX_PCT_VALID_MIN = 0.78;
-export const HRMAX_PCT_VALID_MAX = 0.92;
+const HRMAX_PCT_VALID_MIN = 0.78;
+const HRMAX_PCT_VALID_MAX = 0.92;
 
 /**
  * Fallback %FCmax (Swain 1994): %VO2max = 1.5286 × %FCmax − 0.5286.

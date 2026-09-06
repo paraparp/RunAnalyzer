@@ -133,7 +133,7 @@ function nextUpcomingOf(list) {
 }
 
 /** La próxima carrera objetivo (hoy o futura, la más cercana). null si no hay. */
-export function getNextTargetRace() {
+function getNextTargetRace() {
   return nextUpcomingOf(getTargetRaces());
 }
 

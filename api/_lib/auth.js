@@ -9,7 +9,7 @@ const anon = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const supabase = (url && anon) ? createClient(url, anon) : null;
 
 /** Devuelve el usuario autenticado del request, o null si no hay token válido. */
-export async function getUserFromReq(req) {
+async function getUserFromReq(req) {
   if (!supabase) return null;
   const header = req.headers?.authorization || req.headers?.Authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;

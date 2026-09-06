@@ -34,13 +34,13 @@ export const EF_HR_BAND = { lo: 0.70, hi: 0.85 };
 export const EF_HRMAX_FLOOR = 185;
 
 /** Tope de desnivel medio (%) permitido: 1 % en crudo, 4 % si se ajusta por GAP. */
-export const EF_GRADE_CAP = { raw: 1, gap: 4 };
+const EF_GRADE_CAP = { raw: 1, gap: 4 };
 
 /** Ventana desde el inicio (s) más allá de la cual manda la deriva cardiaca. */
-export const EF_DRIFT_WINDOW_S = 4500; // 75 min
+const EF_DRIFT_WINDOW_S = 4500; // 75 min
 
 /** Mínimo de kilómetros aeróbicos válidos para que la sesión sea representativa. */
-export const EF_MIN_SPLITS = 3;
+const EF_MIN_SPLITS = 3;
 
 /** Metros por latido a partir de velocidad (m/s) y FC media (ppm). Más = mejor. */
 export function efficiencyMPerBeat(speedMs, hr) {

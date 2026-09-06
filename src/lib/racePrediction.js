@@ -53,8 +53,8 @@ export const ANCHOR_FRESH_DAYS = 120;
 
 // Ritmos fuera de esta banda no son una predicción (los mismos límites que
 // aplicaba el saneador de la respuesta del LLM), en s/km.
-export const PACE_MIN_S_KM = 150;
-export const PACE_MAX_S_KM = 720;
+const PACE_MIN_S_KM = 150;
+const PACE_MAX_S_KM = 720;
 
 /**
  * Exponente de Riegel del atleta: regresión de log(t) sobre log(d) en la curva

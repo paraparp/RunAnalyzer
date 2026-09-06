@@ -85,12 +85,12 @@ import { activityGapSpeed } from './streamGap.js';
 // ── Constantes del modelo ────────────────────────────────────────────────────
 
 /** Constantes de tiempo (días) del PMC de Banister/Coggan. */
-export const TAU_CTL = 42;
-export const TAU_ATL = 7;
+const TAU_CTL = 42;
+const TAU_ATL = 7;
 
 /** Ventanas del ACWR de Gabbett en formulación EWMA (Williams 2017). */
-export const TAU_ACWR_ACUTE = 7;
-export const TAU_ACWR_CHRONIC = 28;
+const TAU_ACWR_ACUTE = 7;
+const TAU_ACWR_CHRONIC = 28;
 
 /**
  * Coeficientes del TRIMP de Banister. k₁ se cancela al normalizar; k₂ solo pesa

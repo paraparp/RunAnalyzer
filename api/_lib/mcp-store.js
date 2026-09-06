@@ -81,7 +81,7 @@ export async function readKey(userId, key) {
 }
 
 /** Invalida la entrada cacheada de una clave (tras escribirla desde otro sitio). */
-export function invalidateKey(userId, key) {
+function invalidateKey(userId, key) {
   _cache.delete(`${userId}:${key}`);
 }
 
@@ -633,7 +633,7 @@ export async function getActivities(userId) {
 }
 
 /** Lista cruda de actividades de Garmin (garmin_activities) sin correlacionar. */
-export async function getGarminActivitiesRaw(userId) {
+async function getGarminActivitiesRaw(userId) {
   const [raw, policy] = await Promise.all([
     readKey(userId, 'garmin_activities'),
     getHrSourcePolicy(userId),
@@ -643,7 +643,7 @@ export async function getGarminActivitiesRaw(userId) {
 }
 
 /** Fila de running dynamics tomando Garmin como fuente (Strava opcional). */
-export function shapeDynamicsFromGarmin(g, strava = null) {
+function shapeDynamicsFromGarmin(g, strava = null) {
   const d = g?.dynamics;
   if (!d) return null;
   const speed = g.duration_s && g.distance_m ? g.distance_m / g.duration_s : null;
@@ -1169,7 +1169,7 @@ function pbFlatCandidate(a, range) {
  * Orden por tiempo real: para esfuerzos sobre-distancia, ese tiempo es una cota
  * superior honesta del tiempo a la distancia estándar (nunca inventa uno más rápido).
  */
-export function computePersonalBests(activities) {
+function computePersonalBests(activities) {
   const build = (ranges, candFn) => ranges.map((range) => {
     const top = activities
       .map((a) => candFn(a, range))
@@ -1700,7 +1700,7 @@ export async function getHealthAlerts(userId, { from, to } = {}) {
 // ── Detección automática de esfuerzos de test (umbral) ───────────────────────
 // Bloque continuo de 20–45 min por encima del 88% de FCmax → estimación de LTHR
 // y ritmo umbral, con bandera de si la FC se estabilizó (deriva <3%).
-export function detectThresholdEffort(a, hrMax) {
+function detectThresholdEffort(a, hrMax) {
   const splits = a.splits_metric;
   if (!Array.isArray(splits) || !hrMax) return null;
   const thr = hrMax * 0.88;

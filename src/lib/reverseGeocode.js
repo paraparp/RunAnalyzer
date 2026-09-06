@@ -13,10 +13,10 @@
 // Y el aviso que importa: esto MANDA TUS COORDENADAS a un servidor de terceros.
 // Por eso es explícito y opcional, nunca automático.
 
-export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
 
 /** Mínimo entre peticiones (política de uso: 1 req/s; damos margen). */
-export const MIN_INTERVAL_MS = 1100;
+const MIN_INTERVAL_MS = 1100;
 
 // zoom=14 ≈ barrio / pueblo: el nivel al que se reconoce una "zona de
 // entrenamiento". Más fino devuelve nombres de calle; más grueso, la provincia.

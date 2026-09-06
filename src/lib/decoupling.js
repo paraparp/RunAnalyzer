@@ -54,7 +54,7 @@ export function segmentRatio(splits) {
  *                deriva de forma artificial, así que solo vale en tiradas largas.
  *                Es el corte que mejor predice el maratón.
  */
-export const DECOUPLING_WINDOWS = {
+const DECOUPLING_WINDOWS = {
   halves: {
     minSplits: 4,
     split(valid) {

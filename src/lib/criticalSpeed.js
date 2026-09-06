@@ -123,8 +123,8 @@ export const FIT_MAX_S = 1800;
 // Banda de plausibilidad fisiológica de CS en carrera a pie (m/s): 1.4 ≈ 11:54/km
 // y 6.5 ≈ 2:34/km. Una pendiente fuera de aquí no describe a un corredor, sino a
 // una regresión sobre datos incoherentes.
-export const CS_MIN_M_S = 1.4;
-export const CS_MAX_M_S = 6.5;
+const CS_MIN_M_S = 1.4;
+const CS_MAX_M_S = 6.5;
 
 /** Fecha ISO (YYYY-MM-DD) de hace N meses; `null` = sin límite inferior. Única
  *  definición de la ventana temporal, para que todas las vistas ajusten el
@@ -308,8 +308,8 @@ export const fmtPace = (paceMin) => formatPaceFromMinPerKm(paceMin, '—');
 // Ventana del ajuste de tres parámetros: baja hasta donde el 2P ya no vale
 // (400 m, ½ milla) porque es ahí donde el tercer parámetro aporta. El techo es
 // el mismo: más allá de 30 min falta la fatiga, que este modelo tampoco tiene.
-export const FIT3P_MIN_S = 40;
-export const FIT3P_MAX_S = FIT_MAX_S;
+const FIT3P_MIN_S = 40;
+const FIT3P_MAX_S = FIT_MAX_S;
 
 // Banda de plausibilidad de la velocidad máxima instantánea (m/s): 5.5 ≈ 3:02/km
 // y 12.5 ≈ récord del mundo de 100 m. Un vMax fuera de aquí significa que la

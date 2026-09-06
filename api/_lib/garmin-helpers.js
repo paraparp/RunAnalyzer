@@ -253,7 +253,7 @@ const MAGNUS_B = 17.27;
 const MAGNUS_C = 237.7;
 
 /** Punto de rocío (°C) a partir de temperatura (°C) y humedad relativa (%). */
-export function dewPointC(ta, rh) {
+function dewPointC(ta, rh) {
   if (!Number.isFinite(ta) || !Number.isFinite(rh) || rh <= 0) return null;
   const g = Math.log(rh / 100) + (MAGNUS_B * ta) / (MAGNUS_C + ta);
   return (MAGNUS_C * g) / (MAGNUS_B - g);
@@ -359,7 +359,7 @@ export function heatIntensityFactor(pctHrMax) {
 }
 
 /** WBGT (aprox. sombra, fórmula BoM) y penalización de ritmo estimada por calor. */
-export function computeWbgt(weather) {
+function computeWbgt(weather) {
   if (!weather || weather.temp == null || weather.relativeHumidity == null) return null;
   const rh = weather.relativeHumidity;
   const { temp_c: ta, dew_point_c: td } = normalizeWeatherTemps(weather.temp, weather.dewPoint, rh);

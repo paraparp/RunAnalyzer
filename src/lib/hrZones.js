@@ -82,7 +82,7 @@ export function thresholdBlocks(splits, maxHR) {
 // Plausibility band for a threshold HR expressed as a fraction of HRmax. LT2
 // sits ~80–92% HRmax between individuals (Faude et al. 2009); the band is widened
 // slightly so a genuine outlier is kept and only nonsense is rejected.
-export const LTHR_PLAUSIBLE = { lo: 0.75, hi: 0.98 };
+const LTHR_PLAUSIBLE = { lo: 0.75, hi: 0.98 };
 
 // LTHR detection from training data.
 // Strategy -1 (cs, highest confidence): HR measured AT critical-speed pace, passed
