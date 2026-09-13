@@ -4,8 +4,10 @@
 // Es el CARRIL CARO de mcp-sync: login en Garmin, actividades con running
 // dynamics, salud/sueño y el backlog de enriquecido de Strava. Son decenas de
 // peticiones a terceros: no pueden colgar de una tool del MCP, así que viven aquí
-// y las dispara el cron (ver `crons` en vercel.json). Con esto corriendo, el
-// carril barato del MCP encuentra el cache ya fresco y no hace trabajo extra.
+// y las dispara el cron (.github/workflows/sync.yml, cada 30 min: NO `crons` de
+// vercel.json, que en plan Hobby solo permite una ejecución diaria). Con esto
+// corriendo, el carril barato del MCP encuentra el cache ya fresco y no hace
+// trabajo extra.
 //
 // Auth: cabecera `Authorization: Bearer $CRON_SECRET` (Vercel Cron la manda sola
 // si la variable existe). Sin CRON_SECRET configurado se rechaza todo: este
