@@ -10,7 +10,8 @@ import {
   CalendarDaysIcon,
   PencilSquareIcon,
   CheckIcon,
-  ArrowUturnLeftIcon
+  ArrowUturnLeftIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { formatPaceFromSpeed } from '../lib/timeFormat';
@@ -18,6 +19,8 @@ import {
   shoeLifeKm, sanitizeLifeOverrides, isValidLifeKm,
   MIN_SHOE_LIFE_KM, MAX_SHOE_LIFE_KM,
 } from '../lib/shoeLife';
+import { readShoePhotos, SHOE_PHOTOS_KEY, getBrandInfo, normalizeShoePhoto } from '../lib/shoePhotos';
+import ShoePhotoModal from './ShoePhotoModal';
 
 // Vidas útiles fijadas a mano por el atleta, { gear_id: km }. Persisten como el
 // resto de preferencias (cloudStorage), no en el estado de la vista.
@@ -48,6 +51,31 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
   const [lifeOverrides, setLifeOverrides] = useState(readLifeOverrides);
   const [editingId, setEditingId] = useState(null);
   const [draftLife, setDraftLife] = useState('');
+
+  // Fotos personalizadas de zapatillas { [gear_id]: urlOrDataUrl }
+  const [shoePhotos, setShoePhotos] = useState(readShoePhotos);
+  const [photoModalGear, setPhotoModalGear] = useState(null);
+
+  const saveShoePhoto = (gearId, photoUrl) => {
+    const next = { ...shoePhotos, [gearId]: photoUrl };
+    setShoePhotos(next);
+    try {
+      cloudStorage.setItem(SHOE_PHOTOS_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.warn('No se pudo guardar la foto de la zapatilla; se mantiene en memoria.', e);
+    }
+  };
+
+  const removeShoePhoto = (gearId) => {
+    const next = { ...shoePhotos };
+    delete next[gearId];
+    setShoePhotos(next);
+    try {
+      cloudStorage.setItem(SHOE_PHOTOS_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.warn('No se pudo eliminar la foto de la zapatilla; se mantiene en memoria.', e);
+    }
+  };
 
   const persistLifeOverrides = (next) => {
     setLifeOverrides(next);
@@ -245,6 +273,9 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
               statusText = t('gear.status.replacement');
             }
 
+            const brand = getBrandInfo(gear.name);
+            const photoData = normalizeShoePhoto(shoePhotos[gear.id]);
+
             return (
               <motion.div 
                 key={gear.id}
@@ -254,22 +285,64 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                 className="group bg-white rounded-2xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-lg transition-all"
               >
                 <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
-                  {/* Shoe Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                       <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
-                       <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${bgColor} ${textColor} border ${borderColor}`}>
-                          {statusText}
-                       </div>
-                    </div>
-                    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                       <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
-                       <span>•</span>
-                       <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
-                       <span>•</span>
-                       <span className="flex items-center gap-1 normal-case tracking-normal">
-                          <CalendarDaysIcon className="w-3 h-3" /> {gear.firstUsedDate} → {gear.lastUsedDate}
-                       </span>
+                  {/* Shoe Thumbnail & Info */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0 w-full lg:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setPhotoModalGear(gear)}
+                      title={photoData ? t('gear.photos.change') : t('gear.photos.add')}
+                      className="group/thumb relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50 overflow-hidden cursor-pointer shadow-xs hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-center text-left"
+                    >
+                      {photoData ? (
+                        <div className="w-full h-full overflow-hidden flex items-center justify-center pointer-events-none">
+                          <img 
+                            src={photoData.url} 
+                            alt={gear.name}
+                            referrerPolicy="no-referrer"
+                            style={{
+                              transform: `scale(${photoData.zoom}) translate(${photoData.x}%, ${photoData.y}%) scaleX(${photoData.flipH ? -1 : 1})`,
+                              transformOrigin: 'center center'
+                            }}
+                            className="w-full h-full object-contain p-1.5 transition-transform duration-75 select-none"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-1 text-center select-none w-full">
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${brand.bg} ${brand.text} border ${brand.border}`}>
+                            {brand.short}
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-400 mt-1 truncate max-w-[56px]">
+                            {brand.brand}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
+                        <CameraIcon className="w-5 h-5 drop-shadow-sm" />
+                        <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 text-center px-1">
+                          {photoData ? t('gear.photos.change') : t('gear.photos.add')}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Shoe Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1">
+                         <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
+                         <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${bgColor} ${textColor} border ${borderColor}`}>
+                            {statusText}
+                         </div>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                         <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
+                         <span>•</span>
+                         <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
+                         <span>•</span>
+                         <span className="flex items-center gap-1 normal-case tracking-normal">
+                            <CalendarDaysIcon className="w-3 h-3" /> {gear.firstUsedDate} → {gear.lastUsedDate}
+                         </span>
+                      </div>
                     </div>
                   </div>
 
@@ -365,6 +438,15 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
           })}
         </div>
       </div>
+
+      <ShoePhotoModal
+        isOpen={Boolean(photoModalGear)}
+        onClose={() => setPhotoModalGear(null)}
+        gear={photoModalGear}
+        currentPhoto={photoModalGear ? shoePhotos[photoModalGear.id] : null}
+        onSavePhoto={(photoUrl) => saveShoePhoto(photoModalGear.id, photoUrl)}
+        onRemovePhoto={() => removeShoePhoto(photoModalGear.id)}
+      />
     </div>
   );
 }

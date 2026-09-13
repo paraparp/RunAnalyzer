@@ -7,7 +7,7 @@ const en = {
     nav: {
       dashboard: "Dashboard",
       hranalysis: "HR Analysis",
-      fitness: "Aerobic Engine",
+      fitness: "Aerobic Capacity",
       technique: "Technique",
       zones: "HR Zones",
       heatmap: "Global Heatmap",
@@ -24,14 +24,14 @@ const en = {
       health: "Vitals & Recovery",
       export: "Export",
       status: "My Status",
+      calibration: "HR Calibration",
+      connections: "Connections",
       categories: {
         today: "Today",
-        training: "Training",
+        sessions: "Sessions",
         load: "Training Load",
-        physiology: "Physiology",
-        performance: "Performance",
-        goals: "Goals",
-        health: "Health",
+        engine: "Engine",
+        racing: "Racing",
         settings: "Settings"
       }
     },
@@ -320,6 +320,29 @@ const en = {
           trail: "Trail",
           daily_trainer: "Daily trainer"
         }
+      },
+      photos: {
+        add: "Add photo",
+        change: "Change photo",
+        remove: "Remove photo",
+        modal_title: "Shoe Photo",
+        upload_tab: "Upload from device",
+        url_tab: "Image URL",
+        url_placeholder: "https://example.com/shoe.jpg",
+        url_hint: "Paste a direct web link to an image of this shoe.",
+        drop_hint: "Drag & drop an image or click to browse",
+        drop_subhint: "PNG, JPG, WebP (auto-optimized to ~25 KB)",
+        optimizing: "Optimizing image...",
+        optimized_badge: "Optimized ({{kb}} KB) for cloud sync",
+        preview: "Live Preview",
+        save: "Save Photo",
+        cancel: "Cancel",
+        url_invalid: "Please enter a valid HTTP or HTTPS image URL.",
+        load_failed: "Failed to load image preview from this URL.",
+        zoom: "Zoom",
+        drag_hint: "Drag image to adjust frame",
+        reset_frame: "Reset frame",
+        flip: "Flip horizontally"
       }
     },
     planner: {
@@ -427,8 +450,12 @@ const en = {
       empty_title: "No target races yet",
       empty_desc: "Add your goal events to track them and feed them into the AI planner."
     },
+    calibration: {
+      scope: "These three numbers drive the whole app: the training load model (CTL/ATL/TSB), the LT1/LT2 thresholds, the zone badge on every lap and the prescription the AI coach writes. A manual override wins over detection and applies everywhere at once."
+    },
     zones: {
       title: "Heart Rate Zones",
+      edit_calibration: "Edit calibration",
       subtitle: "Calibration of individual physiological parameters · {{count}} activities with HR data",
       fc_max: "Max HR",
       fc_rest: "Rest HR",
@@ -776,7 +803,7 @@ const es = {
     nav: {
       dashboard: "Resumen",
       hranalysis: "Análisis FC",
-      fitness: "Motor Aeróbico",
+      fitness: "Capacidad Aeróbica",
       technique: "Técnica",
       zones: "Zonas FC",
       heatmap: "Heatmap Global",
@@ -793,14 +820,14 @@ const es = {
       health: "Vitales y Recuperación",
       export: "Exportar",
       status: "Mi Estado",
+      calibration: "Calibración FC",
+      connections: "Conexiones",
       categories: {
         today: "Hoy",
-        training: "Entrenamientos",
+        sessions: "Sesiones",
         load: "Carga",
-        physiology: "Fisiología",
-        performance: "Rendimiento",
-        goals: "Objetivos",
-        health: "Salud",
+        engine: "Motor",
+        racing: "Competición",
         settings: "Ajustes"
       }
     },
@@ -1210,6 +1237,29 @@ const es = {
           trail: "Trail",
           daily_trainer: "Rodaje diario"
         }
+      },
+      photos: {
+        add: "Añadir foto",
+        change: "Cambiar foto",
+        remove: "Eliminar foto",
+        modal_title: "Foto de la Zapatilla",
+        upload_tab: "Subir desde equipo",
+        url_tab: "Pegar URL",
+        url_placeholder: "https://ejemplo.com/zapatilla.jpg",
+        url_hint: "Pega el enlace directo a una imagen de la zapatilla.",
+        drop_hint: "Arrastra una imagen o pulsa para seleccionarla",
+        drop_subhint: "PNG, JPG, WebP (auto-optimizada a ~25 KB)",
+        optimizing: "Optimizando imagen...",
+        optimized_badge: "Optimizada ({{kb}} KB) para sincronizar",
+        preview: "Vista previa",
+        save: "Guardar Foto",
+        cancel: "Cancelar",
+        url_invalid: "Introduce una URL de imagen válida (http o https).",
+        load_failed: "No se pudo cargar la previsualización desde esta URL.",
+        zoom: "Zoom",
+        drag_hint: "Arrastra la foto para encuadrarla",
+        reset_frame: "Restablecer encuadre",
+        flip: "Voltear horizontalmente"
       }
     },
 
@@ -1483,8 +1533,12 @@ const es = {
       empty_title: "Aún no hay carreras objetivo",
       empty_desc: "Añade tus eventos meta para seguirlos y usarlos en el planificador con IA."
     },
+    calibration: {
+      scope: "Estos tres números mueven la app entera: el modelo de carga (CTL/ATL/TSB), los umbrales LT1/LT2, la zona de cada parcial y la prescripción que escribe el coach de IA. Un valor manual gana a la detección y se aplica en todas las vistas a la vez."
+    },
     zones: {
       title: "Zonas de Frecuencia Cardíaca",
+      edit_calibration: "Editar calibración",
       subtitle: "Calibración de parámetros fisiológicos individuales · {{count}} actividades con datos de FC",
       fc_max: "FC Máxima",
       fc_rest: "FC Reposo",

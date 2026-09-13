@@ -36,6 +36,8 @@ import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
+import HrCalibration from './components/HrCalibration';
+import Connections from './components/Connections';
 import { getActivity, getActivityStreams, getStravaAuthUrl } from './services/strava';
 import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
 import { computeStreamGap, needsStreamGap, activityGapSpeed } from './lib/streamGap';
@@ -72,6 +74,8 @@ import {
   RectangleGroupIcon,
   TrophyIcon,
   FlagIcon,
+  Cog6ToothIcon,
+  LinkIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -86,31 +90,36 @@ const NAV_ITEMS = [
   { id: 'consistency', icon: CalendarDaysIcon },
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
-  { id: 'racehistory', icon: TrophyIcon },
+  { id: 'racehistory', icon: ClockIcon },
   { id: 'criticalspeed', icon: BoltIcon },
   { id: 'planner', icon: SparklesIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
-  { id: 'qa', icon: ChatBubbleLeftRightIcon },
   { id: 'fitness', icon: BeakerIcon },
   { id: 'health', icon: HeartIcon },
+  { id: 'calibration', icon: AdjustmentsHorizontalIcon },
+  { id: 'connections', icon: LinkIcon },
   { id: 'export', icon: ArrowDownTrayIcon },
 ];
 
-// Las categorías agrupan por la PREGUNTA que responde cada vista y van ordenadas
-// por horizonte temporal (hoy → pasado → semanas → meses → futuro), no por tipo de
-// artefacto: "mapas" o "ia" juntaban cosas que no se consultan en el mismo momento
-// y dejaban `analytics` como cajón de sastre con 7 de los 19 ítems.
+// Las categorías agrupan por la PREGUNTA que responde cada vista. Cinco, y
+// ninguna con un solo ítem: una categoría que al abrirla da una sola cosa es un
+// clic de peaje, no jerarquía. Las dos fronteras que antes se discutían están
+// resueltas a propósito: las predicciones y el historial son de COMPETICIÓN (son
+// sobre correr una carrera, no sobre fisiología), y todo lo que mide el motor
+// —capacidad y adaptación— vive junto en MOTOR en vez de repartido entre
+// "fisiología" y "rendimiento".
 // El plan completo, con el inventario de cada sección, está en
 // docs/REESTRUCTURACION_SECCIONES.md.
 const NAV_CATEGORIES = [
-  { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard', 'qa'] },
-  { id: 'training', icon: ChartBarIcon, itemIds: ['consistency', 'heatmap', 'gallery', 'geozones', 'gear'] },
-  { id: 'load', icon: ChartPieIcon, itemIds: ['status'] },
-  { id: 'physiology', icon: BeakerIcon, itemIds: ['zones', 'hranalysis', 'technique', 'fitness'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['criticalspeed', 'predictor', 'racehistory'] },
-  { id: 'goals', icon: FlagIcon, itemIds: ['targets', 'planner'] },
-  { id: 'health', icon: HeartIcon, itemIds: ['health'] },
-  { id: 'settings', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
+  { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard'] },
+  { id: 'sessions', icon: ChartBarIcon, itemIds: ['heatmap', 'gallery', 'geozones', 'gear'] },
+  { id: 'load', icon: ChartPieIcon, itemIds: ['status', 'consistency'] },
+  // Capacidad primero (el techo: curva, VDOT/VO2, umbrales), adaptación después
+  // (la tendencia: respuesta cardíaca, técnica, vitales). Son los dos ejes en
+  // los que las fases 3-5 van a fundir estos seis ítems.
+  { id: 'engine', icon: BeakerIcon, itemIds: ['criticalspeed', 'fitness', 'zones', 'hranalysis', 'technique', 'health'] },
+  { id: 'racing', icon: TrophyIcon, itemIds: ['targets', 'planner', 'predictor', 'racehistory'] },
+  { id: 'settings', icon: Cog6ToothIcon, itemIds: ['calibration', 'connections', 'export'] },
 ];
 
 const Dashboard = ({ user, handleLogout }) => {
@@ -132,6 +141,23 @@ const Dashboard = ({ user, handleLogout }) => {
   const [paceRange, setPaceRange] = useState({ min: '', max: '' });
   const [activitiesPage, setActivitiesPage] = useState(1);
   const ACTIVITIES_PAGE_SIZE = 10;
+
+  // ── Chat: panel transversal, no sección ─────────────────────────────────────
+  // Preguntar es algo que se hace DESDE donde estés (mirando el PMC, un entreno
+  // o una predicción), no un sitio al que ir: como ítem del menú obligaba a salir
+  // de la vista sobre la que ibas a preguntar, y su layout a pantalla completa
+  // metía un caso especial en cuatro sitios del shell.
+  // Se monta una vez abierto y se oculta al cerrar (así la conversación
+  // sobrevive); `chatSeedKey` lo REMONTA cuando llega semilla nueva desde el
+  // panel de IA, que es lo que relanza la lectura de `runqa_seed`.
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMounted, setChatMounted] = useState(false);
+  const [chatSeedKey, setChatSeedKey] = useState(0);
+  const openChat = useCallback(({ withSeed = false } = {}) => {
+    setChatMounted(true);
+    if (withSeed) setChatSeedKey(k => k + 1);
+    setChatOpen(true);
+  }, []);
   // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
   const { view: viewParam, raceId } = useParams();
   const navigate = useNavigate();
@@ -326,6 +352,15 @@ const Dashboard = ({ user, handleLogout }) => {
     // hace falta contra el rate-limit de Strava y de Garmin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // `/qa` era una sección y puede estar en un marcador: ahora abre el panel y
+  // deja la URL limpia, en vez de caer en silencio al dashboard.
+  useEffect(() => {
+    if (viewParam === 'qa') {
+      openChat();
+      navigate('/', { replace: true });
+    }
+  }, [viewParam, openChat, navigate]);
 
   const connectToStrava = () => {
     window.location.href = getStravaAuthUrl();
@@ -718,9 +753,9 @@ const Dashboard = ({ user, handleLogout }) => {
                 {/* Section title */}
                 <h2 className="text-lg font-bold text-slate-900 tracking-tight shrink-0">{activeCat ? t(`nav.categories.${activeCat.id}`) : pageTitle}</h2>
 
-                {/* Sub-navigation tabs */}
+                {/* Sub-navigation tabs — con un solo ítem no hay nada que elegir */}
                 <nav className="hidden md:flex items-center space-x-6">
-                  {subItems.map(item => (
+                  {(subItems.length > 1 ? subItems : []).map(item => (
                     <button
                       key={item.id}
                       onClick={() => setCurrentView(item.id)}
@@ -776,8 +811,8 @@ const Dashboard = ({ user, handleLogout }) => {
         })()}
 
         {/* Scrollable Content */}
-        <main className={`flex-1 min-h-0 ${currentView === 'qa' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
-          <div className={`mx-auto w-full p-4 ${currentView === 'qa' ? 'max-w-[1800px] lg:px-6 flex-1 min-h-0 flex flex-col' : 'max-w-[1400px] lg:p-8 space-y-6'}`}>
+        <main className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto w-full p-4 max-w-[1400px] lg:p-8 space-y-6">
 
             {currentView === 'dashboard' && (
               <div className="fade-in space-y-6">
@@ -849,7 +884,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 {stravaData.activities && stravaData.activities.length > 0 && (
                   <div className="space-y-6">
                     {/* Section 1: AI Insights (full width) */}
-                    <AIInsights activities={stravaData.activities || []} onOpenChat={() => setCurrentView('qa')} />
+                    <AIInsights activities={stravaData.activities || []} onOpenChat={() => openChat({ withSeed: true })} />
 
                     {/* Section 2: Personal Bests — horizontal row below the diagnosis */}
                     <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
@@ -1326,7 +1361,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 status:      <StatusSnapshot activities={allActivities} />,
                 hranalysis:  <HRAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
                 technique:   <TechniqueAnalysis activities={runningActivities} />,
-                zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} />,
+                zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} onOpenCalibration={() => setCurrentView('calibration')} />,
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,
                 gallery:     <RouteGallery activities={runningActivities} />,
                 geozones:    <GeoZones activities={runningActivities} />,
@@ -1337,15 +1372,16 @@ const Dashboard = ({ user, handleLogout }) => {
                 criticalspeed: <CriticalSpeed activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
-                qa:          <RunQA activities={runningActivities} />,
                 fitness:     <FitnessHub activities={runningActivities} />,
-                health:      <HealthHub activities={runningActivities} />,
+                health:      <HealthHub activities={runningActivities} onOpenConnections={() => setCurrentView('connections')} />,
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
+                calibration: <HrCalibration hrParams={hrParams} />,
+                connections: <Connections stravaData={stravaData} onConnectStrava={connectToStrava} />,
               };
               const view = viewMap[currentView];
               if (!view) return null;
               return (
-                <div className={currentView === 'qa' ? 'fade-in flex-1 min-h-0 flex flex-col' : 'fade-in'}>
+                <div className="fade-in">
                   {view}
                 </div>
               );
@@ -1353,6 +1389,51 @@ const Dashboard = ({ user, handleLogout }) => {
           </div>
         </main>
       </div>
+
+      {/* ── Chat: lanzador flotante ─────────────────────────────────────────── */}
+      {!chatOpen && (
+        <button
+          onClick={() => openChat()}
+          title={t('nav.qa')}
+          aria-label={t('nav.qa')}
+          className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 flex items-center justify-center transition-colors"
+        >
+          <ChatBubbleLeftRightIcon className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* ── Chat: panel ────────────────────────────────────────────────────── */}
+      {chatMounted && (
+        <div className={chatOpen ? '' : 'hidden'}>
+          <div
+            onClick={() => setChatOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
+          />
+          <aside className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-xl lg:max-w-3xl bg-slate-100 border-l border-slate-200 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 bg-white border-b border-slate-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <ChatBubbleLeftRightIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                <h2 className="text-sm font-bold text-slate-900 truncate">{t('nav.qa')}</h2>
+                {currentNavItem && (
+                  <span className="hidden sm:inline text-xs text-slate-400 truncate">
+                    · {t(`nav.${currentNavItem.id}`)}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setChatOpen(false)}
+                aria-label={t('topbar.close', 'Cerrar')}
+                className="p-1.5 -mr-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col p-3">
+              <RunQA key={chatSeedKey} activities={runningActivities} />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 };

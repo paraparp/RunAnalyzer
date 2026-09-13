@@ -8,7 +8,9 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado:** fase 1 (reagrupación del menú) aplicada. Fases 2-5 pendientes.
+> **Estado:** fases 1 y 2 completas. La estructura de 8 categorías de la primera pasada se
+> **revisó a 5** el mismo día (§5, fase 1b) por lo que se veía al usarla. Pendientes: fases 3-5 y
+> las dos que salieron de la segunda revisión (§6): el scope temporal único y la vista de sesión.
 
 ---
 
@@ -23,7 +25,7 @@ Lo que de verdad contiene cada ítem, no lo que promete su nombre.
 | `dashboard` | Inline en [App.jsx:989-1528](../src/App.jsx#L989). Filtro de año **duplicado** ([:957](../src/App.jsx#L957) en la topbar y [:1001](../src/App.jsx#L1001) en el cuerpo, mismo `selectedYear`) · 6 StatCards (km, nº, tiempo, ritmo, GAP, desnivel) · `NextRaceBanner` · **`AIInsights` entero** (807 líneas, 4 zonas) · `PersonalBests` horizontal · `MonthlyChart` (km/tiempo/desnivel/carga × semana/mes/año) · tabla paginada de actividades con `ActivitySplits` desplegables |
 | `status` | [StatusSnapshot.jsx](../src/components/StatusSnapshot.jsx), 1256 l. **Ya es un hub de 4 tabs**: *Estado* (4 hero cards + tabla comparativa ahora/año/histórico de 8 métricas + gráfico CTL/ATL + panel del día + **bloque Garmin de FC reposo / HRV / Body Battery**, [:1025](../src/components/StatusSnapshot.jsx#L1025)), *PMC* → `FitnessFatigue`, *Semanal* → `WeeklyProgression`, *Riesgo Lesión* → `InjuryRisk` |
 | `hranalysis` | [HRAnalysis.jsx](../src/components/HRAnalysis.jsx), 1323 l., **5 tabs propios**: *overview* (FC media por sesión + **Volumen Mensual km** + **Carga Acumulada**, [:731-747](../src/components/HRAnalysis.jsx#L731)), *scatter* (FC vs GAP), *drift* (dinámica intra-sesión), *efficiency* (eficiencia cardíaca + ritmo a 150 bpm), *diagnosis* |
-| `zones` | [TrainingZones.jsx](../src/components/TrainingZones.jsx). **1. Calibración: los inputs de FCmax / FCreposo / LTHR** ([:230](../src/components/TrainingZones.jsx#L230)) · 2. selector de modelo (`seiler` / `karvonen`) + tabla de zonas · 3. tiempo en zonas · 4. evolución · 5. polarización Seiler |
+| `zones` | [TrainingZones.jsx](../src/components/TrainingZones.jsx). ~~**1. Calibración: los inputs de FCmax / FCreposo / LTHR**~~ (movidos a Ajustes en la fase 2; queda en solo lectura) · 2. selector de modelo (`seiler` / `karvonen`) + tabla de zonas · 3. tiempo en zonas · 4. evolución · 5. polarización Seiler |
 | `technique` | Un solo gráfico: ritmo vs cadencia, con filtro de llano y de años |
 | `consistency` | Heatmap anual por métrica |
 | `gear` | Garaje de zapatillas: km por par + vida útil con override manual |
@@ -49,7 +51,7 @@ repartidos por `App.jsx`).
 | `racehistory` | Carreras detectadas + progresión por distancia |
 | `criticalspeed` | Curva mean-max + CS/D′/r² + **predicciones** ([:241](../src/components/CriticalSpeed.jsx#L241)) + esfuerzos usados |
 | `fitness` | Hub de 3 tabs: *VDOT* (VDOT + evolución + **ritmos de entrenamiento** + **predicciones**) · *VO2max* (1064 l.: hero + 6 tiles + **historial de FC reposo Garmin** + VO2 submáximo + semanal + **Eficiencia Aeróbica** + ACSM) · *Umbrales* (LT1/LT2 + **bloque Critical Speed completo**, [:215](../src/components/LactateThreshold.jsx#L215) + **ritmos de entrenamiento** + cruce con FC) |
-| `health` | Hub de 3 tabs: *Resumen Vital* (6 tiles: HRV, FC reposo, VO2 submáx, carga, eficiencia, desacople) · *Monitor Cardíaco* (2356 l., incluye **el login y el sync de Garmin, el import/export de JSON**, readiness, tendencias cardíacas, índice de adaptación **y la sección de Sueño**) · *Desacople* |
+| `health` | Hub de 3 tabs: *Resumen Vital* (6 tiles: HRV, FC reposo, VO2 submáx, carga, eficiencia, desacople) · *Monitor Cardíaco* (2356 l., incluye ~~**el login y el sync de Garmin, el import/export de JSON**~~ (movidos a Ajustes en la fase 2), readiness, tendencias cardíacas, índice de adaptación **y la sección de Sueño**) · *Desacople* |
 
 ### Categoría `system` — 1 ítem
 
@@ -81,10 +83,13 @@ eso hace que la misma verdad parezca cuatro temas distintos.
    ([TrainingZones.jsx:230](../src/components/TrainingZones.jsx#L230)), pero mueven el PMC, los
    umbrales, las zonas y el prompt del coach de toda la app a través de `OVERRIDES_EVENT`. Es el
    ajuste más global de la aplicación, escondido en la cuarta subsección de una categoría.
+   **✅ Resuelto en la fase 2**: los inputs viven en Ajustes › Calibración FC y Zonas los muestra en
+   solo lectura.
 2. **El login y el sync de Garmin viven dentro de `health › Monitor Cardíaco`**, y
    [UserMenu.jsx:240](../src/components/UserMenu.jsx#L240) dice literalmente *"Garmin no conectado ·
    Haz clic para vincular en Salud Cardiaca"*: el menú de configuración manda al usuario a una vista
    de análisis para configurar una conexión.
+   **✅ Resuelto en la fase 2**: la conexión es de Ajustes › Conexiones y el chip del menú lleva ahí.
 3. **Dos sistemas de zonas distintos y ambos llamados "polarizado"**: `HRZonesCard` deriva 3 zonas
    de LT1/LT2 (lo que ve el coach IA), `TrainingZones` usa `seilerBounds` desde LTHR o
    `karvonenBounds` desde FCmax/FCreposo. Dan cortes distintos para el mismo concepto.
@@ -101,31 +106,32 @@ eso hace que la misma verdad parezca cuatro temas distintos.
 
 ## 3. Estructura objetivo
 
-El criterio que sale del inventario: **agrupar por la pregunta que responde, con un horizonte
-temporal por área**. La navegación ya es de dos niveles (categoría en el sidebar → ítems en la
-topbar, [App.jsx:912-942](../src/App.jsx#L912)), así que esto no necesita UI nueva.
+El criterio que sale del inventario: **agrupar por la pregunta que responde**, con un horizonte
+temporal por área y **ninguna área con un solo ítem**. La navegación ya es de dos niveles (categoría
+en el sidebar → ítems en la topbar, [App.jsx](../src/App.jsx)), así que esto no necesita UI nueva.
 
 ```
-HOY             hoy              · una vista: AIInsights (01-04) + NextRaceBanner
-                                   + 4 hero cards (CTL/TSB/vol. semanal/mejor ritmo) + readiness
-ENTRENAMIENTOS  pasado           · Sesiones (tabla + splits)  · Volumen (MonthlyChart)
-                                 · Consistencia  · Mapas (global | galería | lugares)  · Material
-CARGA           4-12 semanas     · PMC  · Semanal (regla del 10 %)  · Riesgo de lesión
-FISIOLOGÍA      meses            · Umbrales y zonas  · Respuesta cardíaca  · Eficiencia
-                                 · VO2max  · Técnica
-RENDIMIENTO     qué puedo dar    · Curva y capacidad (mean-max → CS + D′ + VDOT)
-                                 · Predicciones  · Marcas  · Carreras
-OBJETIVOS       futuro           · Carreras objetivo + calendario  · Plan
-SALUD           día a día        · Vitales (HRV / FC reposo / Body Battery)  · Sueño  · Adaptación
+HOY          hoy            · una vista: AIInsights (01-04) + próxima carrera
+                              + 4 hero cards (CTL/TSB/vol. semanal/mejor ritmo) + readiness
+SESIONES     pasado         · Bitácora (tabla + filtros)  · Detalle de sesión*
+                            · Volumen  · Mapas (global | galería | lugares)  · Material
+CARGA        4-12 semanas   · PMC  · Semanal (regla del 10 %)  · Consistencia  · Riesgo de lesión
+MOTOR        meses          · Capacidad   (curva mean-max → CS + D′, VDOT, VO2max, umbrales y zonas)
+                            · Adaptación  (eficiencia, desacople, FC a ritmo fijo, técnica, vitales)
+COMPETICIÓN  futuro/pasado  · Carrera objetivo + calendario  · Plan  · Predicciones
+                            · Marcas e historial
+─────────────
+AJUSTES                     · Calibración FC  · Conexiones  · Exportar
+CHAT                        · panel transversal, no sección
+
+* vista nueva: hoy no existe (§6.2)
 ```
 
-Fuera del menú de análisis:
-
-- **Chat** (`RunQA`) como panel transversal abrible desde cualquier vista —el gesto ya existe en
-  [AIInsights.jsx:184](../src/components/AIInsights.jsx#L184)—, lo que elimina los cinco
-  `currentView === 'qa'` del layout.
-- **Ajustes** con lo que hoy está disperso: calibración de FC, conexiones Strava/Garmin + sync +
-  import/export, exportador de datos, y el modelo de IA e idioma que ya están en `UserMenu`.
+Los dos cortes que deshacen las fronteras discutibles de la primera pasada: **las predicciones y el
+historial son de Competición** —hablan de correr una carrera, no de fisiología— y **el motor no se
+parte en "fisiología" y "rendimiento"** sino en *capacidad* (el techo de hoy) y *adaptación* (cómo
+responde en el tiempo), que es el corte que los datos sí soportan: CS, VDOT y VO2max son lo mismo
+medido de tres maneras, y eficiencia, desacople y FC a ritmo fijo son tendencias, no techos.
 
 ## 4. Dueño único por número
 
@@ -152,34 +158,86 @@ enlazan o lo muestran como valor suelto etiquetado, nunca con su propio gráfico
 
 ### Fase 1 — reagrupar el menú ✅ HECHO (2026-09-13)
 
-Sólo `NAV_CATEGORIES` en [App.jsx:104](../src/App.jsx#L104) y las claves `nav.categories.*` de
+Sólo `NAV_CATEGORIES` en [App.jsx](../src/App.jsx) y las claves `nav.categories.*` de
 [i18n.js](../src/i18n.js) (en + es). Cero cambios en componentes, cero cambios en rutas —las
-categorías no viajan en la URL, el `view` sí—. Las 8 categorías nuevas, en orden temporal:
+categorías no viajan en la URL, el `view` sí—.
+
+La primera pasada hizo 8 categorías en orden temporal. Al usarla salieron tres defectos, y **las
+tres los arregla la misma revisión**:
+
+1. **Dos categorías con un solo ítem** (*Carga* → `status`, *Salud* → `health`). Una categoría que
+   al abrirse da una sola cosa es un clic de peaje, no jerarquía.
+2. **Los nombres prometían una lógica que los componentes aún no cumplen**: *Hoy* contenía el
+   dashboard, que es KPIs + IA + marcas + gráfico + tabla paginada. Se renombraron las estanterías
+   antes de mover los libros.
+3. **La frontera Fisiología / Rendimiento era del desarrollador, no del atleta**: CS, VDOT y VO2max
+   caían a ambos lados (de ahí que hubiera que partir el hub `fitness`), y *Fisiología* con 5
+   subsecciones volvía a ser un cajón.
+
+### Fase 1b — bajar a 5 áreas ✅ HECHO (2026-09-13)
 
 | Categoría | Ítems |
 |---|---|
-| `today` Hoy | `dashboard`, `qa` |
-| `training` Entrenamientos | `consistency`, `heatmap`, `gallery`, `geozones`, `gear` |
-| `load` Carga | `status` |
-| `physiology` Fisiología | `zones`, `hranalysis`, `technique`, `fitness` |
-| `performance` Rendimiento | `criticalspeed`, `predictor`, `racehistory` |
-| `goals` Objetivos | `targets`, `planner` |
-| `health` Salud | `health` |
-| `settings` Ajustes | `export` |
+| `today` Hoy | `dashboard` |
+| `sessions` Sesiones | `heatmap`, `gallery`, `geozones`, `gear` |
+| `load` Carga | `status`, `consistency` |
+| `engine` Motor | `criticalspeed`, `fitness`, `zones` · `hranalysis`, `technique`, `health` |
+| `racing` Competición | `targets`, `planner`, `predictor`, `racehistory` |
+| `settings` Ajustes | `calibration`, `connections`, `export` |
 
-Dos decisiones de nombre tomadas aquí para evitar que una categoría y su único ítem se llamen casi
-igual: la categoría de fisiología se llama **Fisiología** (no "Motor", que choca con el ítem
-`fitness` = "Motor Aeróbico") y el ítem `health` pasa a llamarse **Vitales y recuperación**, que es
-lo que contiene, dentro de la categoría **Salud**.
+Las dos fronteras se resuelven a propósito: **las predicciones y el historial son de Competición**
+(hablan de correr una carrera, no de fisiología) y **todo lo que mide el motor vive junto**, ordenado
+por los dos ejes en los que las fases 3-5 lo van a fundir: *capacidad* (el techo: curva → CS/D′,
+VDOT, VO2max, umbrales) y *adaptación* (la tendencia: respuesta cardíaca, técnica, vitales). *Salud*
+desaparece como área: el readiness del día es de Hoy y sus tendencias son adaptación.
 
-`qa` se queda provisionalmente en *Hoy* —es donde lo lanza `AIInsights`— hasta que la fase 2 lo
-convierta en panel. `status` es el único ítem de *Carga* hasta que la fase 3 lo parta en tres.
+Dos renombrados para que ninguna categoría compita con su propio ítem: el ítem `fitness` pasa de
+"Motor Aeróbico" a **Capacidad Aeróbica** (que es lo que contiene: VDOT, VO2max y umbrales) y el
+ítem `health`, ya renombrado en la fase 1, se queda como **Vitales y Recuperación**.
+
+*Sesiones* todavía no tiene la bitácora ni el volumen: viven dentro del dashboard hasta la fase 4.
+*Hoy* queda con un solo ítem **a propósito** —es la portada, la entrada del sidebar ES la vista—, y
+la sub-navegación de la topbar ya no se pinta cuando la categoría tiene un solo ítem: con una sola
+pestaña no hay nada que elegir.
 
 ### Fase 2 — sacar lo que no es análisis
 
-- Chat → panel transversal; fuera los cinco `currentView === 'qa'`.
-- Calibración de FC y login/sync de Garmin → Ajustes. **Es el paso más rentable de todos**: son los
-  dos sitios donde hoy el usuario no puede encontrar lo que busca.
+**Ajustes ✅ HECHO (2026-09-13).** Ajustes pasa de una categoría con un solo ítem a tres, y las dos
+colocaciones imposibles de §2.2 desaparecen:
+
+- **Ajustes › Calibración FC** — [HrCalibration.jsx](../src/components/HrCalibration.jsx), los
+  inputs de FCmax / FCreposo / LTHR extraídos de la vista de Zonas. `TrainingZones` conserva un
+  bloque de **solo lectura** con los tres valores, su origen (manual / detectado / Garmin) y un
+  botón a Ajustes: sigue diciendo con qué está calibrado lo que pinta, pero ya no es quien lo edita.
+- **Ajustes › Conexiones** — [Connections.jsx](../src/components/Connections.jsx): estado de Strava
+  y, de Garmin, el formulario de vinculación, el sync con período, el import/export del JSON y la
+  desconexión. La lógica vive en [useGarminConnection.js](../src/hooks/useGarminConnection.js), un
+  hook nuevo que es el dueño único de la conexión y que reaprovecha `garminHealthStore` (la misma
+  mezcla, la misma marca de `garmin_last_sync`) que usa el sync global de `syncAll`.
+- **`GarminCardiac` pasa de 2353 a 1898 líneas** y solo LEE lo guardado: sin credenciales, sin
+  fetch, sin import/export. Sin datos enseña un estado vacío que lleva a Conexiones; con datos, un
+  botón *Gestionar conexión*. Se repinta con `SYNC_COMPLETE_EVENT`, que ahora también emite la
+  escritura manual y la desconexión (antes solo `syncAll`), y de ahí que el listener ya no guarde el
+  valor nuevo antes de aplicarlo: al desconectar, `null` es exactamente lo que hay que reflejar.
+- El chip de Garmin del menú de usuario, cuando **no** está conectado, lleva a Ajustes › Conexiones
+  en vez de a una pantalla de métricas.
+- Humo nuevo de las dos vistas en
+  [SettingsViews.test.jsx](../src/components/SettingsViews.test.jsx) (6 casos): los tres números
+  resueltos y sus derivados, manual vs detectado, fuera de rango que no contamina el resuelto, y los
+  dos estados de cada conexión. Suite en verde: **883 tests / 46 ficheros**.
+
+**Chat ✅ HECHO (2026-09-13).** `RunQA` deja de ser una sección y pasa a panel transversal:
+lanzador flotante, panel lateral y la conversación viva mientras no se recargue. Preguntar se hace
+DESDE donde estés —mirando el PMC, un entreno, una predicción—, no yéndote a otro sitio; como ítem
+del menú obligaba a abandonar justo la vista sobre la que ibas a preguntar.
+
+- Fuera los cuatro `currentView === 'qa'` del shell: el `<main>` y su contenedor vuelven a tener un
+  solo layout en vez de uno especial para el chat.
+- El panel se monta al abrirlo y se **oculta** al cerrar, así la conversación sobrevive a cerrarlo.
+  `chatSeedKey` lo remonta cuando llega semilla nueva desde `AIInsights`, que es lo que relanza la
+  lectura de `runqa_seed` —un `useEffect` de montaje— y con ella el "Ampliar en el chat".
+- `/qa` estaba en la URL y puede estar en un marcador: ahora abre el panel y limpia la ruta, en vez
+  de caer en silencio al dashboard.
 
 ### Fase 3 — partir los ficheros mezclados
 
@@ -201,18 +259,70 @@ y carga de datos.
 Una vista, una curva, tres lecturas. Es el paso con más código y el que más duplicación mata;
 va al final, cuando el sitio donde vive ya existe.
 
-La suite (851 tests / 43 ficheros, en verde tras la fase 1) debe correr entre fase y fase a partir de la 3.
+### Fase 6 — un solo scope temporal
+
+Sustituir los **18 controles de período** de §6.1 por un control compartido con un vocabulario y un
+default coherente. Es, de todo lo que queda, lo que más cambia la sensación de que la app está
+descosida.
+
+### Fase 7 — vista de sesión
+
+`/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
+clima y la comparación con sesiones similares. Hoy no existe (§6.2).
+
+La suite (883 tests / 46 ficheros, en verde tras la fase 2) debe correr entre fase y fase a partir de la 3.
 
 ---
 
-## 6. Decisiones abiertas
+## 6. Segunda revisión: lo que pesa más que el menú
+
+Reagrupar era la parte barata. Al recorrer las vistas ya colocadas salieron tres problemas que
+ninguna reagrupación arregla, y que explican mejor la sensación de incoherencia: el tiempo se mide
+con seis varas distintas, la pregunta más frecuente no tiene página, y ninguna área concluye nada.
+
+### 6.1 Dieciocho controles de período, seis vocabularios
+
+| Vocabulario | Dónde |
+|---|---|
+| meses como string `'6'` / `'12'` | `CardiacDecoupling:50`, `LactateThreshold:35`, `VO2MaxTracker:324`, `WeeklyProgression:42`, `FitnessFatigue:134` (+ `offsetMonths`) |
+| días `'365'` | `CriticalSpeed:40` (`windowId`) |
+| etiquetas `90d/6m/1y/all` | `StatusSnapshot:557` |
+| `'all'` | `VDOTEstimator:106` |
+| año natural | `App:350`, `ConsistencyHeatmap:35`, `HRAnalysis:139`, `TechniqueAnalysis:84` (`pickedYears`) |
+| últimas N sesiones | `HRAnalysis:138` (`lastNRuns`) |
+| granularidad `day/week/month/year` | `VitalsOverview:336`, `GarminCardiac:244`, `StatusSnapshot:561`, `TrainingZones:89`, `App:150` |
+
+Y los **defaults no coinciden**: el desacople mira 6 meses, el VO2max 12, la velocidad crítica 365
+días, el PMC 12 meses, Mi Estado 90 días y el VDOT todo el histórico. El mismo atleta recibe dos
+veredictos distintos sobre el mismo cuerpo según la pestaña en la que esté, y nada en pantalla lo
+avisa. Es el mismo error que §2.1 pero en el eje del tiempo: no es que se pinte dos veces, es que se
+pinta sobre ventanas distintas sin decirlo.
+
+### 6.2 No hay vista de sesión
+
+La ruta es `/:view?/:raceId?` y el único detalle de una actividad es la fila que se despliega en la
+tabla del dashboard (`ActivitySplits`). La pregunta más frecuente de un corredor —*¿qué pasó en este
+entreno?*— no tiene página: hay que cruzar a mano la tabla, Zonas, Desacople y Eficiencia. Es el
+hueco más grande de la app, y es de contenido, no de navegación.
+
+### 6.3 Cada vista da gráficos, no conclusiones
+
+`AIInsights` concluye, pero sólo para hoy. En Carga o en Motor el veredicto lo tiene que sacar el
+usuario cruzando cuatro pestañas. Una frase de estado por área —derivada, no generada— valdría más
+que varios gráficos nuevos.
+
+---
+
+## 7. Decisiones abiertas
 
 1. **¿Qué sistema de zonas gana?** Recomendación: el de LT1/LT2 (`HRZonesCard` / el del coach),
    porque es el que ya se usa para prescribir y no depende de estimar LTHR desde FCmax.
    `seilerBounds` / `karvonenBounds` se quedan como vista alternativa dentro de Umbrales, no como
    modelo paralelo.
-2. **¿Mapas es área propia o subsección de Entrenamientos?** Aplicado como subsección ("dónde he
-   corrido" es una pregunta sobre el pasado), aunque `GeoZones` aguantaría como área por volumen
-   (1311 l. con tabs propios).
-3. **¿Material es Entrenamientos o Ajustes?** Aplicado en Entrenamientos: los km por zapatilla se
-   derivan del registro. Su override de vida útil es lo único que tira hacia Ajustes.
+2. **¿Mapas es área propia o subsección de Sesiones?** Aplicado como subsección ("dónde he corrido"
+   es una pregunta sobre el pasado), aunque `GeoZones` aguantaría como área por volumen (1311 l. con
+   tabs propios).
+3. **¿Material es Sesiones o Ajustes?** Aplicado en Sesiones: los km por zapatilla se derivan del
+   registro. Su override de vida útil es lo único que tira hacia Ajustes.
+4. **¿Cuál es el scope temporal por defecto?** La fase 6 necesita elegir uno —y justificarlo— para
+   las ventanas que hoy van de 90 días a "todo el histórico" (§6.1).

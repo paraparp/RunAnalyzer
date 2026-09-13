@@ -36,6 +36,7 @@ const MIGRATED_KEYS = [
   'ai_insights_backup',
   'runqa_seed',
   'shoe_life_km',     // vida útil del calzado fijada a mano, por par
+  'shoe_photos',      // fotos personalizadas de zapatillas (URL o base64 webp)
   'target_races',     // carreras objetivo + plan de entrenamiento (las lee y escribe el MCP)
 ];
 

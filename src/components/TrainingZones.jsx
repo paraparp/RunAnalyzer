@@ -6,8 +6,7 @@ import {
 } from 'recharts';
 import { Card, Title, Text, Badge, Callout } from '@tremor/react';
 import {
-  seilerBounds, karvonenBounds, estimateLTHR, classifyHR,
-  SEILER_TARGETS, HR_LIMITS,
+  seilerBounds, karvonenBounds, classifyHR, SEILER_TARGETS,
 } from '../lib/hrZones';
 import { weekStartKey } from '../lib/isoWeek';
 import { monthKey } from '../lib/trainingLoad';
@@ -84,19 +83,19 @@ const MODELS = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function TrainingZones({ activities, hrParams }) {
+export default function TrainingZones({ activities, hrParams, onOpenCalibration }) {
   const { t, i18n } = useTranslation();
   const [modelKey,  setModelKey]  = useState('seiler');
   const [groupBy,   setGroupBy]   = useState('month');
   const [evoMode,   setEvoMode]   = useState('hours');
 
   // ── Calibration (FCmax / FCreposo / LTHR) comes from useHrParams, shared with
-  //    the splits table so no view can drift into its own idea of the zones. ──
+  //    the splits table so no view can drift into its own idea of the zones. Se
+  //    EDITA en Ajustes › Calibración (`HrCalibration`); aquí solo se lee. ──
   const {
     hrmax, hrrest, lthr, hrr,
-    autoMax, autoRest, lthrResult, recentActivities,
-    userMax, setUserMax, userRest, setUserRest, userLTHR, setUserLTHR,
-    maxOv, restOv, lthrOv, invalidMax, invalidRest, invalidLTHR,
+    autoRest, lthrResult, recentActivities,
+    maxOv, restOv, lthrOv,
   } = hrParams;
 
   const translatedModels = useMemo(() => ({
@@ -227,80 +226,61 @@ export default function TrainingZones({ activities, hrParams }) {
   return (
     <div className="space-y-5">
 
-      {/* ── 1. Calibration ──────────────────────────────────────────────────── */}
+      {/* ── 1. Calibración (solo lectura) ───────────────────────────────────
+          Los inputs viven en Ajustes › Calibración: son los tres números que
+          mueven el PMC, los umbrales, las zonas de cada lap y el prompt del
+          coach, no un ajuste de esta vista. Aquí se muestra con qué está
+          calibrado lo que se pinta debajo. ─────────────────────────────────── */}
       <Card className="shadow-lg border-slate-200">
-        <div className="mb-5">
-          <Title className="text-slate-800 font-bold">{t('zones.title')}</Title>
-          <Text className="text-slate-500 text-sm mt-0.5">
-            {t('zones.subtitle', { count: activitiesWithHR })}
-          </Text>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Title className="text-slate-800 font-bold">{t('zones.title')}</Title>
+            <Text className="text-slate-500 text-sm mt-0.5">
+              {t('zones.subtitle', { count: activitiesWithHR })}
+            </Text>
+          </div>
+          {onOpenCalibration && (
+            <button
+              onClick={onOpenCalibration}
+              className="h-8 px-3 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 text-xs font-semibold transition-colors shrink-0"
+            >
+              {t('zones.edit_calibration')}
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* HRmax */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <div className="flex items-center justify-between mb-2">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+            <div className="flex items-center justify-between mb-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_max')}</p>
               <Badge color={maxOv ? 'violet' : 'sky'} size="xs">{maxOv ? t('zones.manual') : t('zones.auto')}</Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} · {maxOv ? t('zones.manual').toLowerCase() : t('zones.detected').toLowerCase()}</p>
-            <input
-              type="number" placeholder={`${autoMax.value} (auto)`} value={userMax}
-              onChange={e => setUserMax(e.target.value)}
-              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
-                invalidMax ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
-              }`}
-            />
-            {invalidMax && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: HR_LIMITS.maxLo, hi: HR_LIMITS.maxHi })}</p>}
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.hrmax_desc')}</p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
           </div>
 
-          {/* HRrest */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+            <div className="flex items-center justify-between mb-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_rest')}</p>
               <Badge color={restOv ? 'violet' : autoRest.source === 'garmin' ? 'sky' : 'slate'} size="xs">
                 {restOv ? t('zones.manual') : autoRest.source === 'garmin' ? 'Garmin' : t('zones.default_val')}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('zones.bpm')} · {restOv ? t('zones.manual').toLowerCase() : autoRest.source === 'garmin' ? t('zones.detected').toLowerCase() : t('zones.default_val').toLowerCase()}</p>
-            <input
-              type="number" placeholder={`${autoRest.value}`} value={userRest}
-              onChange={e => setUserRest(e.target.value)}
-              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
-                invalidRest ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
-              }`}
-            />
-            {invalidRest && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: HR_LIMITS.restLo, hi: Math.min(HR_LIMITS.restHi, hrmax - 20) })}</p>}
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.hrrest_desc')}</p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
           </div>
 
-          {/* LTHR */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+            <div className="flex items-center justify-between mb-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.lthr')}</p>
               <Badge color={lthrOv ? 'violet' : confColor} size="xs">
                 {lthrOv ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{lthrOv ? t('zones.manual') : methodText}</p>
-            <input
-              type="number" placeholder={`${lthrResult.lthr ?? estimateLTHR(hrmax)} (auto)`} value={userLTHR}
-              onChange={e => setUserLTHR(e.target.value)}
-              className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
-                invalidLTHR ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400' : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
-              }`}
-            />
-            {invalidLTHR && <p className="text-[9px] text-rose-500 mt-1">{t('zones.out_of_range', { lo: hrrest + 10, hi: hrmax })}</p>}
-            <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{t('zones.lthr_desc')}</p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
+            <p className="text-[10px] text-slate-400 mt-0.5 truncate">{lthrOv ? t('zones.manual') : methodText}</p>
           </div>
         </div>
 
-        {/* Derived stats row */}
-        <div className="mt-4 flex gap-2.5 flex-wrap">
+        <div className="mt-3 flex gap-2.5 flex-wrap">
           <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">HRR</span>
             <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} {t('zones.bpm')}</span>
@@ -309,10 +289,6 @@ export default function TrainingZones({ activities, hrParams }) {
           <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-3 py-1.5">
             <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">LTHR / FCmax</span>
             <span className="text-sm font-bold text-violet-700 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1.5">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">LTHR / HRR</span>
-            <span className="text-sm font-bold text-emerald-700 tabular-nums">{hrr > 0 ? (((lthr - hrrest) / hrr) * 100).toFixed(1) : '–'}%</span>
           </div>
         </div>
       </Card>

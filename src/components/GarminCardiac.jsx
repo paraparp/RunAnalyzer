@@ -1,9 +1,7 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import cloudStorage from '../lib/cloudStorage';
-import { syncGarminActivities } from '../lib/garminActivitiesSync';
 import {
-  saveGarminHealth, readCardiac, readSleep, readGarminCreds,
-  CARDIAC_KEY, SLEEP_KEY, LAST_SYNC_KEY, CREDS_KEY, SYNC_COMPLETE_EVENT,
+  readCardiac, readSleep, readGarminCreds, LAST_SYNC_KEY, SYNC_COMPLETE_EVENT,
 } from '../lib/garminHealthStore';
 import {
   Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,10 +11,8 @@ import { motion } from "framer-motion";
 import { formatMinutesHm } from '../lib/timeFormat';
 import { weekStartKey } from '../lib/isoWeek';
 import {
-  HeartIcon, ArrowPathIcon, TrashIcon, LockClosedIcon,
-  CheckCircleIcon, ExclamationTriangleIcon,
-  ArrowDownTrayIcon, ArrowUpTrayIcon, MoonIcon,
-  UserIcon, KeyIcon, SparklesIcon, BoltIcon
+  HeartIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon,
+  MoonIcon, SparklesIcon, BoltIcon
 } from "@heroicons/react/24/outline";
 
 
@@ -222,133 +218,21 @@ const HrvStatusBadge = ({ status }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Period presets
-// ---------------------------------------------------------------------------
-const PERIOD_PRESETS = [
-  { label: '1 día',    days: 1    },
-  { label: '2 días',   days: 2    },
-  { label: '3 días',   days: 3    },
-  { label: '5 días',   days: 5    },
-  { label: '7 días',   days: 7    },
-  { label: '10 días',  days: 10   },
-  { label: '2 sem',    days: 14   },
-  { label: '1 mes',    days: 30   },
-  { label: '3 meses',  days: 90   },
-  { label: '6 meses',  days: 180  },
-  { label: '1 año',    days: 365  },
-  { label: '2 años',   days: 730  },
-  { label: '5 años',   days: 1825 },
-];
-
-function estMinutes(days) {
-  return Math.max(1, Math.ceil(days * 0.25 / 60));
-}
-
-const PeriodSelector = ({ value, onChange, label }) => {
-  const presets = [
-    { label: '7D', days: 7 },
-    { label: '1M', days: 30 },
-    { label: '3M', days: 90 },
-    { label: '6M', days: 180 },
-    { label: '1A', days: 365 },
-    { label: '2A', days: 730 },
-    { label: '3A', days: 1095 },
-    { label: '5A', days: 1825 },
-  ];
-
-  const isPreset = presets.some(p => p.days === value);
-  const [customDays, setCustomDays] = useState(isPreset ? '' : value.toString());
-
-  const handleCustomChange = (e) => {
-    const valStr = e.target.value;
-    setCustomDays(valStr);
-    const val = parseInt(valStr, 10);
-    if (!isNaN(val) && val > 0) {
-      onChange(val);
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
-        <span className="text-xs text-slate-400 flex items-center gap-1.5">
-          <span className="font-semibold text-slate-700">{value} días</span>
-          {value > 30 && <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md font-medium">~{estMinutes(value)} min</span>}
-        </span>
-      </div>
-      
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        {/* Presets Group */}
-        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
-          {presets.map(p => {
-            const selected = value === p.days;
-            return (
-              <button
-                key={p.days}
-                type="button"
-                onClick={() => {
-                  setCustomDays('');
-                  onChange(p.days);
-                }}
-                className={`flex-1 min-w-[40px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
-                  selected
-                    ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200/50'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                }`}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Custom Input */}
-        <div className="relative flex-shrink-0">
-          <input
-            type="number"
-            min="1"
-            max="3650"
-            value={!isPreset ? customDays : ''}
-            onChange={handleCustomChange}
-            placeholder="Personalizado..."
-            className={`w-full sm:w-32 bg-slate-50 border rounded-xl px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all h-full ${
-              !isPreset ? 'border-blue-400 bg-white ring-2 ring-blue-50' : 'border-slate-200'
-            }`}
-          />
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-            <span className="text-xs text-slate-400 font-medium">días</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 // `null` aquí significa "nunca se ha sincronizado" y es lo que decide si se
 // pinta la pantalla de conexión; el almacén devuelve `[]` tanto en ese caso como
 // en "sincronizado pero sin registros", y `[]` es truthy. Sin esto, conectar por
 // primera vez dejaba de ofrecer el formulario.
 const nonEmpty = (arr) => (arr?.length ? arr : null);
 
-export default function GarminCardiac() {
-  // Persisted state
+export default function GarminCardiac({ onOpenConnections }) {
+  // Espejo de lo guardado. La CONEXIÓN (credenciales, descarga, import/export y
+  // desconexión) es de Ajustes › Conexiones (`useGarminConnection`): esta vista
+  // solo lee y se repinta con `SYNC_COMPLETE_EVENT`.
   const [creds, setCreds] = useState(readGarminCreds);
   const [data, setData] = useState(() => nonEmpty(readCardiac()));
   const [sleepData, setSleepData] = useState(() => nonEmpty(readSleep()));
 
-  // Form state
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [daysToFetch, setDaysToFetch] = useState(365);
-
   // UI state
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [error, setError] = useState(null);
   const [showHRV, setShowHRV] = useState(true);
   const [showHR, setShowHR] = useState(true);
   const [showBBHigh, setShowBBHigh] = useState(false);
@@ -359,18 +243,19 @@ export default function GarminCardiac() {
   const [normalizeChart, setNormalizeChart] = useState(true);
   const [chartGranularity, setChartGranularity] = useState('day'); // changed default to day for better readiness view
   const [lastSync, setLastSync] = useState(() => cloudStorage.getItem(LAST_SYNC_KEY) || null);
-  const [syncDays, setSyncDays] = useState(30);
-  const importRef = useRef(null);
+  // "Ahora" estable por montaje: leer el reloj en cada render mete y saca el
+  // mismo día de las ventanas de 7/21/365 días según cuántas veces se repinte.
+  const [nowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const handleGarminSync = () => {
       try {
-        const newData = nonEmpty(readCardiac());
-        const newSleep = nonEmpty(readSleep());
-        const newSync = cloudStorage.getItem(LAST_SYNC_KEY);
-        if (newData) setData(newData);
-        if (newSleep) setSleepData(newSleep);
-        if (newSync) setLastSync(newSync);
+        // Sin guardas sobre el valor nuevo: este evento también lo emite la
+        // desconexión, y entonces `null` es exactamente lo que hay que reflejar.
+        setData(nonEmpty(readCardiac()));
+        setSleepData(nonEmpty(readSleep()));
+        setCreds(readGarminCreds());
+        setLastSync(cloudStorage.getItem(LAST_SYNC_KEY) || null);
       } catch (e) {
         console.error("Failed to reload garmin data on sync complete", e);
       }
@@ -379,165 +264,10 @@ export default function GarminCardiac() {
     return () => window.removeEventListener(SYNC_COMPLETE_EVENT, handleGarminSync);
   }, []);
 
-  // Persistir es exactamente lo mismo que hace el sync automático, así que lo
-  // hace el MISMO código (`garminHealthStore`): una sola mezcla por día/semana,
-  // una sola marca de `garmin_last_sync` y el mismo criterio con las respuestas
-  // vacías. Lee de lo GUARDADO, no del estado del componente, que es un espejo:
-  // por eso ya no depende de `data`/`sleepData` y no arrastra cierres viejos.
-  const saveData = useCallback((newData, mergeExisting, usr, pwd, newSleepData = null) => {
-    const saved = saveGarminHealth(
-      { cardiac: newData, sleep: newSleepData },
-      { replace: !mergeExisting },
-    );
-    setData(nonEmpty(saved.cardiac));
-    setSleepData(nonEmpty(saved.sleep));
-    setLastSync(saved.lastSync);
-    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
-    if (usr) {
-      cloudStorage.setItem(CREDS_KEY, JSON.stringify({ username: usr, password: pwd }));
-      setCreds({ username: usr, password: pwd });
-      // Fase 2: traer también las actividades con running dynamics (banda) para el MCP.
-      // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
-      syncGarminActivities(usr, pwd);
-    }
-  }, []);
-
-  // ---- Streaming fetch ----
-  const fetchHealth = useCallback(async (usr, pwd, days, mergeExisting = false) => {
-    setLoading(true);
-    setError(null);
-    setProgress({ value: 0, period: 'Iniciando…', chunks: [] });
-
-    if (days <= 30) {
-      try {
-        const res = await fetch('/api/garmin/health/recent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: usr, password: pwd, days }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Error del servidor');
-        saveData(json.data, mergeExisting, usr, pwd, json.sleepData);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-        setProgress(null);
-      }
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/garmin/health/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usr, password: pwd, days }),
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error || 'Error del servidor');
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let accumulated = mergeExisting && data ? [...data] : [];
-      const completedChunks = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const msg = JSON.parse(line);
-
-          if (msg.type === 'chunk') {
-            const byDate = {};
-            [...accumulated, ...msg.data].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-            accumulated = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-            completedChunks.push({ period: msg.period, count: msg.data.length });
-            setProgress({ value: msg.progress, period: msg.period, chunks: [...completedChunks] });
-            setData([...accumulated]);
-          } else if (msg.type === 'done') {
-            saveData(accumulated, false, usr, pwd, msg.sleepData);
-          } else if (msg.type === 'error') {
-            throw new Error(msg.error);
-          }
-        }
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setProgress(null);
-    }
-  }, [data, saveData]);
-
-  // ---- Export JSON ----
-  const handleExport = () => {
-    if (!data) return;
-    const blob = new Blob(
-      [JSON.stringify({ lastSync: new Date().toISOString(), data }, null, 2)],
-      { type: 'application/json' }
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `garmin_data_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ---- Import JSON ----
-  const handleImportFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target.result);
-        const rows = Array.isArray(parsed) ? parsed : (parsed.data ?? []);
-        if (!rows.length) { setError('El archivo no contiene datos válidos'); return; }
-        saveData(rows, true, null, null);
-        setError(null);
-      } catch {
-        setError('Error al leer el archivo JSON');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const handleLogin = async e => {
-    e.preventDefault();
-    if (!username || !password) return;
-    await fetchHealth(username, password, daysToFetch);
-  };
-
-  const handleSync = () => {
-    if (!creds) return;
-    fetchHealth(creds.username, creds.password, syncDays, true);
-  };
-
-  const handleLogout = () => {
-    setData(null);
-    setCreds(null);
-    setLastSync(null);
-    cloudStorage.removeItem(CARDIAC_KEY);
-    cloudStorage.removeItem(SLEEP_KEY);
-    cloudStorage.removeItem(CREDS_KEY);
-    cloudStorage.removeItem(LAST_SYNC_KEY);
-    window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
-  };
-
   // ---- Derived stats ----
   const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
-    const now = Date.now();
+    const now = nowMs;
     const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
     
     // Use only last 365 days for historical averages/trends
@@ -671,7 +401,7 @@ export default function GarminCardiac() {
       maxHRVAll, minHRVAll, maxHRVYear, minHRVYear,
       maxHRAll, minHRAll, maxHRYear, minHRYear,
     };
-  }, [data]);
+  }, [data, nowMs]);
 
   const chartData = useMemo(() => {
     if (!data) return [];
@@ -778,11 +508,10 @@ export default function GarminCardiac() {
     };
   }, [chartData]);
 
-  // ---- Login form ----
+  // ---- Sin datos: la conexión se gestiona en Ajustes › Conexiones ----
   if (!data) {
     return (
       <div className="max-w-lg space-y-5">
-        {/* Title */}
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-rose-50 rounded-xl flex items-center justify-center">
             <HeartIcon className="w-4 h-4 text-rose-500" />
@@ -793,129 +522,22 @@ export default function GarminCardiac() {
           </div>
         </div>
 
-        {/* Security note */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-1">
-          <p className="flex items-center gap-1.5 font-semibold text-amber-900">
-            <LockClosedIcon className="w-4 h-4 shrink-0" />
-            Tus credenciales no salen del servidor local
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Todavía no hay datos de salud de Garmin. Vincula la cuenta y elige el período a importar
+            en <strong className="text-slate-800">Ajustes › Conexiones</strong>; en cuanto haya
+            descarga, esta vista se rellena sola.
           </p>
-          <p className="text-amber-700 text-xs leading-relaxed">
-            Se usan para autenticarte en Garmin Connect y descargar FC reposo + HRV.
-            Las credenciales se usan únicamente para autenticarte en Garmin Connect — nada más va a internet.
-          </p>
-        </div>
-
-        {/* Form */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-200/60 p-6 space-y-6">
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">
-                  Email de Garmin Connect
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <UserIcon className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                  </div>
-                  <input
-                    type="email"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder="tu@email.com"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">
-                  Contraseña
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <KeyIcon className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100 pt-5">
-              <PeriodSelector value={daysToFetch} onChange={setDaysToFetch} label="Período a importar" />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-start gap-2">
-                <ExclamationTriangleIcon className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-                <span>
-                  {error}
-                  {error.includes('3001') && (
-                    <span className="block mt-1 text-red-500 text-xs">
-                      ¿Arrancaste el servidor? <code className="bg-red-100 rounded px-1">npm run server</code>
-                    </span>
-                  )}
-                </span>
-              </div>
-            )}
-
-            {loading && progress && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5">
-                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                    {progress.period}
-                  </span>
-                  <span className="font-semibold text-slate-700">{Math.round(progress.value * 100)}%</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.round(progress.value * 100)}%` }}
-                  />
-                </div>
-                {progress.chunks.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {progress.chunks.map((c, i) => (
-                      <span key={i} className="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded-md px-1.5 py-0.5">
-                        {c.period} <span className="text-blue-400">({c.count}d)</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+          {onOpenConnections && (
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+              onClick={onOpenConnections}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
             >
-              {loading ? (
-                <>
-                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                  Descargando…
-                </>
-              ) : (
-                <>
-                  <HeartIcon className="w-4 h-4" />
-                  Conectar con Garmin y descargar datos
-                </>
-              )}
+              <HeartIcon className="w-4 h-4" />
+              Ir a Ajustes › Conexiones
             </button>
-          </form>
+          )}
         </div>
-
-        <p className="text-xs text-slate-400 text-center">
-          Servidor proxy requerido:{' '}
-          <code className="bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">npm run server</code>
-        </p>
       </div>
     );
   }
@@ -947,94 +569,17 @@ export default function GarminCardiac() {
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Sync with period selector */}
-          <div className="flex items-center">
-            <select
-              value={syncDays}
-              onChange={e => setSyncDays(+e.target.value)}
-              disabled={loading}
-              className="bg-white border border-slate-200 border-r-0 text-slate-600 text-xs rounded-l-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 disabled:opacity-50 h-8"
-            >
-              {PERIOD_PRESETS.map(p => (
-                <option key={p.days} value={p.days}>{p.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleSync}
-              disabled={loading}
-              className="h-8 px-2.5 rounded-r-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
-              {loading ? 'Sync…' : 'Sync'}
-            </button>
-          </div>
-
+        {onOpenConnections && (
           <button
-            onClick={handleExport}
-            disabled={!data}
-            title="Exportar datos como JSON"
-            className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-30"
+            onClick={onOpenConnections}
+            title="Sincronizar, importar o desconectar la cuenta de Garmin"
+            className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1.5 text-xs font-medium transition-colors"
           >
-            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exportar</span>
+            <ArrowPathIcon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Gestionar conexión</span>
           </button>
-
-          <label
-            title="Importar JSON de datos"
-            className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
-          >
-            <ArrowUpTrayIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Importar</span>
-            <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
-          </label>
-
-          <button
-            onClick={handleLogout}
-            className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 flex items-center gap-1.5 text-xs font-medium transition-colors"
-          >
-            <TrashIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Desconectar</span>
-          </button>
-        </div>
+        )}
       </div>
-
-      {/* Progress bar */}
-      {loading && progress && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
-          <div className="flex items-center justify-between text-sm text-blue-700">
-            <span className="flex items-center gap-2 font-medium">
-              <ArrowPathIcon className="w-4 h-4 animate-spin shrink-0" />
-              {progress.period}
-            </span>
-            <span className="font-bold">{Math.round(progress.value * 100)}%</span>
-          </div>
-          <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.round(progress.value * 100)}%` }}
-            />
-          </div>
-          {progress.chunks.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {progress.chunks.map((c, i) => (
-                <span key={i} className="text-xs bg-white text-blue-600 border border-blue-100 rounded-md px-1.5 py-0.5">
-                  {c.period} <span className="text-blue-400">({c.count}d)</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-start gap-2">
-          <ExclamationTriangleIcon className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-          {error}
-        </div>
-      )}
 
       {/* Connected badge */}
       <div className="flex items-center gap-2 flex-wrap text-xs">
