@@ -67,9 +67,25 @@ export function parsePaceRange(raw, windowSec = PACE_WINDOW_SEC) {
   return { low: round(Math.min(a, b)), high: round(Math.max(a, b)) };
 }
 
-/** Rango de FC del plan ("150-160", "155 ppm") → { low, high } en ppm. */
+/**
+ * Un porcentaje NO es una FC: "70-85% FCmax" son ppm solo después de multiplicar
+ * por la FCmax del atleta, que aquí no se conoce, y 70-85 cae dentro del rango
+ * fisiológico, así que el filtro de cordura no lo detecta — al reloj le llegaba un
+ * objetivo de 70-85 ppm. Se borran los números que lleven `%` pegado (el rango
+ * entero cuando el signo cierra un "70-85%") y se parsea lo que quede: así un
+ * "150-160 ppm (80% FCmax)" sigue dando sus ppm de verdad.
+ */
+const stripPercents = (s) => s
+  .replace(/\d{1,3}\s*(?:[-–—/]|\ba\b)\s*\d{1,3}\s*%/g, ' ')
+  .replace(/\d{1,3}(?:[.,]\d+)?\s*%/g, ' ');
+
+/**
+ * Rango de FC del plan ("150-160", "155 ppm") → { low, high } en ppm. Devuelve
+ * null si lo único que hay es un porcentaje: mejor el step sin objetivo de FC que
+ * con uno inventado.
+ */
 export function parseHrRange(raw, windowBpm = HR_WINDOW_BPM) {
-  const found = String(raw ?? '').match(/\d{2,3}/g);
+  const found = stripPercents(String(raw ?? '')).match(/\d{2,3}/g);
   if (!found?.length) return null;
   const vals = found.slice(0, 2).map(Number).filter((v) => v >= 60 && v <= 240);
   if (!vals.length) return null;
@@ -78,9 +94,15 @@ export function parseHrRange(raw, windowBpm = HR_WINDOW_BPM) {
 }
 
 /**
- * Recuperación entre repeticiones en texto libre (90 segundos, 2 minutos,
+ * Recuperación entre repeticiones en texto libre (90 segundos, 2 minutos, 1:30,
  * 400 m, 1 km) → duración de un step. Sin nada reconocible devuelve null y el
  * grupo se queda solo con el intervalo de trabajo (mejor eso que inventar).
+ *
+ * Ese null NO es gratis: el grupo se manda al reloj sin descanso y el atleta
+ * enchufa las series seguidas, así que cada forma que el plan escribe de verdad
+ * tiene que entrar aquí. "90 segundos" entraba y "2 minutos" no —el `\b` de
+ * `min\b` no llega a "minutos"—, y "1:30" tampoco, pese a ser la notación que ya
+ * lee `parsePaceRange`.
  */
 export function parseRecoveryDuration(raw) {
   const s = norm(raw).replace(',', '.');
@@ -89,6 +111,8 @@ export function parseRecoveryDuration(raw) {
   if (km) return { type: 'distance', value: parseFloat(km[1]), unit: 'km' };
   const m = s.match(/(\d+)\s*m(?!in|\w)/);                 // "400 m", pero no "2 min"
   if (m) return { type: 'distance', value: parseInt(m[1], 10), unit: 'm' };
+  const colon = s.match(/(\d+):(\d{2})\b/);                // 1:30 = 90"
+  if (colon) return { type: 'time', value: parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10), unit: 's' };
   const mmss = s.match(/(\d+)\s*[\u0027\u2032]\s*(\d{1,2})?/); // 2' / 1'30
   if (mmss) {
     const mins = parseInt(mmss[1], 10);
@@ -97,7 +121,7 @@ export function parseRecoveryDuration(raw) {
   }
   const sec = s.match(/(\d+)\s*(?:[\u0022\u2033]|s\b|seg|sec)/); // 90" / 90 s
   if (sec) return { type: 'time', value: parseInt(sec[1], 10), unit: 's' };
-  const min = s.match(/(\d+(?:\.\d+)?)\s*min\b/);
+  const min = s.match(/(\d+(?:\.\d+)?)\s*min(?:s|uto|utos)?\b/); // min / mins / minutos
   if (min) return { type: 'time', value: parseFloat(min[1]), unit: 'min' };
   const bare = s.match(/^(\d+)$/);                          // "90" a secas = segundos
   if (bare) return { type: 'time', value: parseInt(bare[1], 10), unit: 's' };

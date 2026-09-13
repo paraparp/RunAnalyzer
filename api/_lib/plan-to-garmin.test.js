@@ -47,6 +47,14 @@ describe('parseHrRange', () => {
     expect(parseHrRange('155')).toEqual({ low: 150, high: 160 });
     expect(parseHrRange('12')).toBeNull();
   });
+  it('no confunde un porcentaje de FCmax con ppm', () => {
+    // 70-85 cae dentro del rango fisiológico, así que sin mirar el '%' esto llegaba
+    // al reloj como un objetivo de 70-85 ppm.
+    expect(parseHrRange('70-85% FCmax')).toBeNull();
+    expect(parseHrRange('80 % de la FC máxima')).toBeNull();
+    // Pero si el plan da las ppm Y el porcentaje, las ppm son válidas.
+    expect(parseHrRange('150-160 ppm (80% FCmax)')).toEqual({ low: 150, high: 160 });
+  });
 });
 
 describe('parseRecoveryDuration', () => {
@@ -58,6 +66,14 @@ describe('parseRecoveryDuration', () => {
     expect(parseRecoveryDuration('400 m')).toEqual({ type: 'distance', value: 400, unit: 'm' });
     expect(parseRecoveryDuration('1 km')).toEqual({ type: 'distance', value: 1, unit: 'km' });
     expect(parseRecoveryDuration('90')).toEqual({ type: 'time', value: 90, unit: 's' });
+  });
+  it('entiende las formas largas de minuto y la notación M:SS', () => {
+    // Un null aquí deja el grupo de series SIN descanso, así que las formas que el
+    // plan escribe de verdad tienen que entrar todas.
+    expect(parseRecoveryDuration('2 minutos')).toEqual({ type: 'time', value: 2, unit: 'min' });
+    expect(parseRecoveryDuration('3 mins trote')).toEqual({ type: 'time', value: 3, unit: 'min' });
+    expect(parseRecoveryDuration('1:30')).toEqual({ type: 'time', value: 90, unit: 's' });
+    expect(parseRecoveryDuration('2:00 caminando')).toEqual({ type: 'time', value: 120, unit: 's' });
   });
   it('no inventa una recuperación que no reconoce', () => {
     expect(parseRecoveryDuration('trote suave')).toBeNull();

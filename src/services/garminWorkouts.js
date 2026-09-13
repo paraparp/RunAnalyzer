@@ -9,7 +9,7 @@ import { authHeaders } from './ai';
 import { nextDateForDay } from '../lib/planSchedule';
 
 /** Un día del plan → payload del endpoint (con la fecha en la que agendarlo). */
-export function toPayloadDay(day) {
+function toPayloadDay(day) {
   return {
     day: day?.day ?? null,
     type: day?.type ?? null,
@@ -35,16 +35,5 @@ export async function pushPlanDays(days, { signal } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Error ${res.status} al hablar con Garmin.`);
-  return data;
-}
-
-/** Borra un entreno de Garmin (deshacer un envío). */
-export async function deletePlanWorkout(workoutId) {
-  const res = await fetch(`/api/garmin/workouts?workout_id=${encodeURIComponent(workoutId)}`, {
-    method: 'DELETE',
-    headers: await authHeaders(),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Error ${res.status} al borrar en Garmin.`);
   return data;
 }
