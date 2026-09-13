@@ -21,15 +21,18 @@ const en = {
       planner: "AI Coach",
       predictor: "AI Predictor",
       qa: "AI Q&A",
-      health: "Cardiac Health",
+      health: "Vitals & Recovery",
       export: "Export",
       status: "My Status",
       categories: {
-        analytics: "Analytics",
-        maps: "Maps",
-        ai: "AI Tools",
+        today: "Today",
+        training: "Training",
+        load: "Training Load",
+        physiology: "Physiology",
         performance: "Performance",
-        system: "System"
+        goals: "Goals",
+        health: "Health",
+        settings: "Settings"
       }
     },
     topbar: {
@@ -787,15 +790,18 @@ const es = {
       planner: "Entrenador AI",
       predictor: "Predictor AI",
       qa: "Preguntas AI",
-      health: "Salud Cardiaca",
+      health: "Vitales y Recuperación",
       export: "Exportar",
       status: "Mi Estado",
       categories: {
-        analytics: "Analítica",
-        maps: "Mapas",
-        ai: "Herramientas AI",
+        today: "Hoy",
+        training: "Entrenamientos",
+        load: "Carga",
+        physiology: "Fisiología",
         performance: "Rendimiento",
-        system: "Sistema"
+        goals: "Objetivos",
+        health: "Salud",
+        settings: "Ajustes"
       }
     },
     topbar: {

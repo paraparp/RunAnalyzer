@@ -36,10 +36,11 @@ import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
 import FitnessHub from './components/FitnessHub';
 import HealthHub from './components/HealthHub';
-import { getActivities, getActivity, getActivityStreams, getStravaAuthUrl, refreshAccessToken } from './services/strava';
+import { getActivity, getActivityStreams, getStravaAuthUrl } from './services/strava';
 import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
 import { computeStreamGap, needsStreamGap, activityGapSpeed } from './lib/streamGap';
-import { syncGarminActivities } from './lib/garminActivitiesSync';
+import { slimActivity, persistStravaData, readStravaData } from './lib/stravaStore';
+import syncAll from './lib/syncAll';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import { formatPaceFromSpeed, formatPaceFromMinPerKm } from './lib/timeFormat';
 import { activityEmoji } from './lib/aiInsights';
@@ -95,64 +96,22 @@ const NAV_ITEMS = [
   { id: 'export', icon: ArrowDownTrayIcon },
 ];
 
+// Las categorías agrupan por la PREGUNTA que responde cada vista y van ordenadas
+// por horizonte temporal (hoy → pasado → semanas → meses → futuro), no por tipo de
+// artefacto: "mapas" o "ia" juntaban cosas que no se consultan en el mismo momento
+// y dejaban `analytics` como cajón de sastre con 7 de los 19 ítems.
+// El plan completo, con el inventario de cada sección, está en
+// docs/REESTRUCTURACION_SECCIONES.md.
 const NAV_CATEGORIES = [
-  { id: 'analytics', icon: ChartPieIcon, itemIds: ['dashboard', 'status', 'hranalysis', 'technique', 'zones', 'consistency', 'gear'] },
-  { id: 'maps', icon: MapIcon, itemIds: ['heatmap', 'gallery', 'geozones'] },
-  { id: 'ai', icon: SparklesIcon, itemIds: ['planner', 'predictor', 'qa'] },
-  { id: 'performance', icon: BoltIcon, itemIds: ['targets', 'racehistory', 'criticalspeed', 'fitness', 'health'] },
-  { id: 'system', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
+  { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard', 'qa'] },
+  { id: 'training', icon: ChartBarIcon, itemIds: ['consistency', 'heatmap', 'gallery', 'geozones', 'gear'] },
+  { id: 'load', icon: ChartPieIcon, itemIds: ['status'] },
+  { id: 'physiology', icon: BeakerIcon, itemIds: ['zones', 'hranalysis', 'technique', 'fitness'] },
+  { id: 'performance', icon: BoltIcon, itemIds: ['criticalspeed', 'predictor', 'racehistory'] },
+  { id: 'goals', icon: FlagIcon, itemIds: ['targets', 'planner'] },
+  { id: 'health', icon: HeartIcon, itemIds: ['health'] },
+  { id: 'settings', icon: AdjustmentsHorizontalIcon, itemIds: ['export'] },
 ];
-
-// Los "detailed activity" de Strava traen campos muy pesados que no usamos
-// (polyline completa del mapa, esfuerzos por segmento, splits estándar…).
-// Guardarlos por cada actividad enriquecida revienta la cuota de localStorage,
-// así que los recortamos y conservamos solo lo que la app consume
-// (laps, splits_metric, best_efforts y el summary_polyline del mapa).
-const HEAVY_DETAIL_FIELDS = [
-  'segment_efforts', 'splits_standard', 'similar_activities',
-  'description', 'photos', 'stats_visibility', 'available_zones', 'laps_raw',
-];
-
-const slimActivity = (act, fallback = {}) => {
-  const slim = { ...act };
-  for (const k of HEAVY_DETAIL_FIELDS) delete slim[k];
-  // Conservar solo el summary_polyline (heatmap/galería), descartar la polyline completa
-  const summaryPolyline = act.map?.summary_polyline || fallback.map?.summary_polyline;
-  if (act.map || summaryPolyline) {
-    slim.map = { id: act.map?.id ?? fallback.map?.id, summary_polyline: summaryPolyline };
-  }
-  return slim;
-};
-
-// Al refrescar desde el listado, Strava devuelve SUMMARIES sin detalle (sin
-// splits_metric, laps ni best_efforts). Este merge conserva el detalle ya
-// enriquecido y persistido de cada actividad, de modo que el sync NO borre los
-// parciales que costó traer. Clave para que el dato viva de forma estable en Supabase.
-const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts', 'stream_gap'];
-const mergeEnrichedActivities = (fresh, existing) => {
-  const byId = new Map((existing || []).map(a => [a.id, a]));
-  return (fresh || []).map(f => {
-    const old = byId.get(f.id);
-    if (!old) return f;
-    const merged = { ...f };
-    for (const k of ENRICHED_FIELDS) {
-      if (old[k] != null && merged[k] == null) merged[k] = old[k];
-    }
-    if (!merged.map?.summary_polyline && old.map?.summary_polyline) {
-      merged.map = { ...(merged.map || {}), summary_polyline: old.map.summary_polyline };
-    }
-    return merged;
-  });
-};
-
-// Guardado tolerante: si se excede la cuota, la app sigue con el dato en memoria
-const persistStravaData = (data) => {
-  try {
-    cloudStorage.setItem('stravaData', JSON.stringify(data));
-  } catch (e) {
-    console.warn('No se pudo guardar stravaData en localStorage (cuota excedida). Se mantiene en memoria.', e);
-  }
-};
 
 const Dashboard = ({ user, handleLogout }) => {
   const { t, i18n } = useTranslation();
@@ -316,210 +275,53 @@ const Dashboard = ({ user, handleLogout }) => {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Calcula cuántos días sincronizar de Garmin: desde el último registro que
-  // tenemos guardado, o el último mes (30 días) por defecto si no hay ninguno.
-  const computeGarminSyncDays = () => {
-    try {
-      const existingStr = cloudStorage.getItem('garmin_cardiac_data');
-      if (existingStr) {
-        const existing = JSON.parse(existingStr);
-        if (Array.isArray(existing) && existing.length > 0) {
-          const lastDate = existing.reduce((max, r) => (r.date > max ? r.date : max), existing[0].date);
-          const last = new Date(lastDate);
-          if (!isNaN(last.getTime())) {
-            const diffDays = Math.ceil((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-            return Math.max(1, Math.min(diffDays, 90));
-          }
-        }
-      }
-    } catch { /* cache ilegible: se usa el mes por defecto */ }
-    return 30; // último mes por defecto
-  };
-
-  // Sincroniza datos de Garmin en segundo plano, fusionando con lo existente.
-  const syncGarminData = async () => {
-    try {
-      const garminCredsStr = cloudStorage.getItem('garmin_creds');
-      if (!garminCredsStr) return;
-      const creds = JSON.parse(garminCredsStr);
-      if (!creds || !creds.username || !creds.password) return;
-
-      const days = computeGarminSyncDays();
-      const res = await fetch('/api/garmin/health/recent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: creds.username, password: creds.password, days }),
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-
-      const existingDataStr = cloudStorage.getItem('garmin_cardiac_data');
-      let existingData = [];
-      if (existingDataStr) {
-        try { existingData = JSON.parse(existingDataStr); } catch { /* cache corrupta: se parte de vacío */ }
-      }
-
-      const newData = json.data || [];
-      let finalData = newData;
-      if (existingData && existingData.length > 0) {
-        const byDate = {};
-        [...existingData, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-        finalData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-      }
-      cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(finalData));
-
-      const newSleepData = json.sleepData || [];
-      const existingSleepStr = cloudStorage.getItem('garmin_sleep_data');
-      let existingSleepData = [];
-      if (existingSleepStr) {
-        try { existingSleepData = JSON.parse(existingSleepStr); } catch { /* cache corrupta: se parte de vacío */ }
-      }
-
-      if (newSleepData.length > 0) {
-        const mergedSleep = (() => {
-          const byWeek = {};
-          [...existingSleepData, ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
-          return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-        })();
-        cloudStorage.setItem('garmin_sleep_data', JSON.stringify(mergedSleep));
-      }
-
-      const syncTime = new Date().toLocaleString('es-ES');
-      cloudStorage.setItem('garmin_last_sync', syncTime);
-
-      // Actividades con running dynamics (banda) para el MCP. El sync de fondo solo
-      // bajaba salud+sueño; sin esto, `garmin_activities` quedaba vacío aunque la
-      // banda grabara la dinámica. Best-effort: si falla, no rompe el sync de salud
-      // y (a diferencia de antes) no borra el histórico ya guardado.
-      await syncGarminActivities(creds.username, creds.password);
-
-      window.dispatchEvent(new Event('garmin_sync_complete'));
-    } catch (err) {
-      console.error("Failed to sync Garmin data in background", err);
-    }
-  };
-
-  const syncData = async () => {
-    if (!stravaData) return;
+  // Todo el sync vive en `lib/syncAll`: Strava, la salud y el sueño de Garmin y
+  // las actividades con dinámica, en ese orden y con un solo aviso al final. Aquí
+  // solo queda lo que es de la UI: el espejo en el estado de React, el spinner y
+  // el enriquecido en segundo plano (que necesita los streams y setStravaData).
+  //
+  // `force` es la ÚNICA diferencia entre entrar a la app y pulsar el botón: al
+  // entrar no se vuelve a bajar el listado de Strava si ya se bajó hoy (el
+  // rate-limit no aguanta un refresco por navegación); el botón sí, porque el
+  // usuario lo está pidiendo. Los carriles son independientes: sin Strava
+  // conectado, Garmin se sincroniza igual.
+  const runSync = async (force = false) => {
+    if (isSyncing) return;
     setIsSyncing(true);
     try {
-      let currentData = { ...stravaData };
-      const now = Date.now() / 1000;
-      let accessToken = currentData.accessToken;
-
-      if (currentData.expiresAt && now >= currentData.expiresAt) {
-        if (currentData.refreshToken) {
-          const newTokens = await refreshAccessToken(currentData.refreshToken);
-          currentData.accessToken = newTokens.access_token;
-          currentData.refreshToken = newTokens.refresh_token;
-          currentData.expiresAt = newTokens.expires_at;
-          accessToken = newTokens.access_token;
-          persistStravaData(currentData);
-        }
-      }
-
-      const fresh = await getActivities(accessToken, 1000);
-      const activities = mergeEnrichedActivities(fresh, currentData.activities);
-      const updated = {
-        ...currentData,
-        activities,
-        lastFetchDate: new Date().toDateString()
-      };
-      setStravaData(updated);
-      persistStravaData(updated);
-
-      // Rellenar parciales que falten (en segundo plano, sin bloquear el sync)
-      enrichMissingSplits(activities, accessToken);
-      // Rellenar tramos llanos (flat_efforts) que falten (en segundo plano)
-      enrichMissingFlatEfforts(activities, accessToken);
-
-      // Sincronizar datos de Garmin en segundo plano
-      await syncGarminData();
-
-    } catch (err) {
-      console.error("Sync failed", err);
-      if (err.message.includes('401') || err.message.includes('refresh')) {
-        setStravaData(null);
-        cloudStorage.removeItem('stravaData');
-      }
+      await syncAll({
+        force,
+        onStravaData: setStravaData,
+        onStravaDisconnected: () => setStravaData(null),
+        onActivities: (activities, accessToken) => {
+          // Sin await a propósito: rellenan el backlog en segundo plano con su
+          // propio throttle y tope por sync, sin retrasar el carril de Garmin.
+          enrichMissingSplits(activities, accessToken);
+          enrichMissingFlatEfforts(activities, accessToken);
+        },
+      });
     } finally {
       setIsSyncing(false);
     }
   };
 
   useEffect(() => {
-    const savedStrava = cloudStorage.getItem('stravaData');
-    if (savedStrava) {
-      const parsed = JSON.parse(savedStrava);
-      // Saneo retroactivo: recorta payloads inflados guardados por versiones
-      // anteriores (segment_efforts, polylines completas…) y libera cuota.
-      if (Array.isArray(parsed.activities)) {
-        parsed.activities = parsed.activities.map(a => slimActivity(a, a));
-        persistStravaData(parsed);
+    // Primero se pinta lo guardado (la app arranca con datos, no en blanco) y
+    // luego se sincroniza. El saneo retroactivo recorta payloads inflados por
+    // versiones anteriores (segment_efforts, polylines completas…) y libera cuota.
+    const saved = readStravaData();
+    if (saved) {
+      if (Array.isArray(saved.activities)) {
+        saved.activities = saved.activities.map(a => slimActivity(a, a));
+        persistStravaData(saved);
       }
-      setStravaData(parsed);
-
-      const checkAndRefreshData = async () => {
-        try {
-          const now = Date.now() / 1000;
-          let accessToken = parsed.accessToken;
-          let needsRefresh = false;
-
-          if (parsed.expiresAt && now >= parsed.expiresAt) {
-            if (parsed.refreshToken) {
-              const newTokens = await refreshAccessToken(parsed.refreshToken);
-              parsed.accessToken = newTokens.access_token;
-              parsed.refreshToken = newTokens.refresh_token;
-              parsed.expiresAt = newTokens.expires_at;
-              accessToken = newTokens.access_token;
-
-              const updatedTokens = {
-                ...parsed,
-                accessToken: newTokens.access_token,
-                refreshToken: newTokens.refresh_token,
-                expiresAt: newTokens.expires_at
-              };
-              setStravaData(updatedTokens);
-              persistStravaData(updatedTokens);
-              needsRefresh = true;
-            } else {
-              setStravaData(null);
-              cloudStorage.removeItem('stravaData');
-              return;
-            }
-          }
-
-          const lastFetchDate = parsed.lastFetchDate;
-          const today = new Date().toDateString();
-
-          if (!lastFetchDate || lastFetchDate !== today || needsRefresh) {
-            const fresh = await getActivities(accessToken, 1000);
-            const activities = mergeEnrichedActivities(fresh, parsed.activities);
-            const updated = { ...parsed, activities, lastFetchDate: today };
-            setStravaData(updated);
-            persistStravaData(updated);
-            // Rellenar parciales que falten (en segundo plano)
-            enrichMissingSplits(activities, accessToken);
-            // Rellenar tramos llanos (flat_efforts) que falten (en segundo plano)
-            enrichMissingFlatEfforts(activities, accessToken);
-          }
-        } catch (err) {
-          console.error("Failed to refresh Strava data:", err);
-          if (err.message.includes('refresh') || err.message.includes('401')) {
-            setStravaData(null);
-            cloudStorage.removeItem('stravaData');
-          }
-        }
-
-        // Sincronizar Garmin automáticamente al entrar (incremental desde el
-        // último registro guardado, o el último mes por defecto).
-        syncGarminData();
-      };
-
-      checkAndRefreshData();
+      setStravaData(saved);
     }
+    // Fuera del `if`: antes este sync entero colgaba de que hubiera `stravaData`
+    // guardado, así que quien solo tenía Garmin conectado no sincronizaba nada.
+    runSync(false);
     // Deliberadamente SOLO al montar: es el refresco de entrada a la app. Meter
-    // `syncGarminData` en las dependencias lo relanzaría cada vez que cambia su
+    // `runSync` en las dependencias lo relanzaría cada vez que cambia su
     // identidad, es decir, en cada render — que es justo lo contrario de lo que
     // hace falta contra el rate-limit de Strava y de Garmin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -954,7 +756,7 @@ const Dashboard = ({ user, handleLogout }) => {
                   </div>
                 )}
                 <button
-                  onClick={syncData}
+                  onClick={() => runSync(true)}
                   disabled={isSyncing}
                   className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
                     }`}

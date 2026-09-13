@@ -2,6 +2,10 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import cloudStorage from '../lib/cloudStorage';
 import { syncGarminActivities } from '../lib/garminActivitiesSync';
 import {
+  saveGarminHealth, readCardiac, readSleep, readGarminCreds,
+  CARDIAC_KEY, SLEEP_KEY, LAST_SYNC_KEY, CREDS_KEY, SYNC_COMPLETE_EVENT,
+} from '../lib/garminHealthStore';
+import {
   Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush
 } from "recharts";
@@ -324,17 +328,17 @@ const PeriodSelector = ({ value, onChange, label }) => {
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
+// `null` aquí significa "nunca se ha sincronizado" y es lo que decide si se
+// pinta la pantalla de conexión; el almacén devuelve `[]` tanto en ese caso como
+// en "sincronizado pero sin registros", y `[]` es truthy. Sin esto, conectar por
+// primera vez dejaba de ofrecer el formulario.
+const nonEmpty = (arr) => (arr?.length ? arr : null);
+
 export default function GarminCardiac() {
   // Persisted state
-  const [creds, setCreds] = useState(() => {
-    try { return JSON.parse(cloudStorage.getItem('garmin_creds') || 'null'); } catch { return null; }
-  });
-  const [data, setData] = useState(() => {
-    try { return JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null'); } catch { return null; }
-  });
-  const [sleepData, setSleepData] = useState(() => {
-    try { return JSON.parse(cloudStorage.getItem('garmin_sleep_data') || 'null'); } catch { return null; }
-  });
+  const [creds, setCreds] = useState(readGarminCreds);
+  const [data, setData] = useState(() => nonEmpty(readCardiac()));
+  const [sleepData, setSleepData] = useState(() => nonEmpty(readSleep()));
 
   // Form state
   const [username, setUsername] = useState('');
@@ -354,16 +358,16 @@ export default function GarminCardiac() {
   const [showBaseline, setShowBaseline] = useState(false);
   const [normalizeChart, setNormalizeChart] = useState(true);
   const [chartGranularity, setChartGranularity] = useState('day'); // changed default to day for better readiness view
-  const [lastSync, setLastSync] = useState(() => cloudStorage.getItem('garmin_last_sync') || null);
+  const [lastSync, setLastSync] = useState(() => cloudStorage.getItem(LAST_SYNC_KEY) || null);
   const [syncDays, setSyncDays] = useState(30);
   const importRef = useRef(null);
 
   useEffect(() => {
     const handleGarminSync = () => {
       try {
-        const newData = JSON.parse(cloudStorage.getItem('garmin_cardiac_data') || 'null');
-        const newSleep = JSON.parse(cloudStorage.getItem('garmin_sleep_data') || 'null');
-        const newSync = cloudStorage.getItem('garmin_last_sync');
+        const newData = nonEmpty(readCardiac());
+        const newSleep = nonEmpty(readSleep());
+        const newSync = cloudStorage.getItem(LAST_SYNC_KEY);
         if (newData) setData(newData);
         if (newSleep) setSleepData(newSleep);
         if (newSync) setLastSync(newSync);
@@ -371,40 +375,32 @@ export default function GarminCardiac() {
         console.error("Failed to reload garmin data on sync complete", e);
       }
     };
-    window.addEventListener('garmin_sync_complete', handleGarminSync);
-    return () => window.removeEventListener('garmin_sync_complete', handleGarminSync);
+    window.addEventListener(SYNC_COMPLETE_EVENT, handleGarminSync);
+    return () => window.removeEventListener(SYNC_COMPLETE_EVENT, handleGarminSync);
   }, []);
 
+  // Persistir es exactamente lo mismo que hace el sync automático, así que lo
+  // hace el MISMO código (`garminHealthStore`): una sola mezcla por día/semana,
+  // una sola marca de `garmin_last_sync` y el mismo criterio con las respuestas
+  // vacías. Lee de lo GUARDADO, no del estado del componente, que es un espejo:
+  // por eso ya no depende de `data`/`sleepData` y no arrastra cierres viejos.
   const saveData = useCallback((newData, mergeExisting, usr, pwd, newSleepData = null) => {
-    let final = newData;
-    if (mergeExisting && data) {
-      const byDate = {};
-      [...data, ...newData].forEach(r => { byDate[r.date] = { ...byDate[r.date], ...r }; });
-      final = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-    }
-    setData(final);
-    cloudStorage.setItem('garmin_cardiac_data', JSON.stringify(final));
+    const saved = saveGarminHealth(
+      { cardiac: newData, sleep: newSleepData },
+      { replace: !mergeExisting },
+    );
+    setData(nonEmpty(saved.cardiac));
+    setSleepData(nonEmpty(saved.sleep));
+    setLastSync(saved.lastSync);
     window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
-    if (newSleepData?.length) {
-      const merged = (() => {
-        const byWeek = {};
-        [...(sleepData || []), ...newSleepData].forEach(r => { byWeek[r.weekStart] = r; });
-        return Object.values(byWeek).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-      })();
-      setSleepData(merged);
-      cloudStorage.setItem('garmin_sleep_data', JSON.stringify(merged));
-    }
-    const syncTime = new Date().toLocaleString('es-ES');
-    setLastSync(syncTime);
-    cloudStorage.setItem('garmin_last_sync', syncTime);
     if (usr) {
-      cloudStorage.setItem('garmin_creds', JSON.stringify({ username: usr, password: pwd }));
+      cloudStorage.setItem(CREDS_KEY, JSON.stringify({ username: usr, password: pwd }));
       setCreds({ username: usr, password: pwd });
       // Fase 2: traer también las actividades con running dynamics (banda) para el MCP.
       // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
       syncGarminActivities(usr, pwd);
     }
-  }, [data, sleepData]);
+  }, []);
 
   // ---- Streaming fetch ----
   const fetchHealth = useCallback(async (usr, pwd, days, mergeExisting = false) => {
@@ -531,9 +527,10 @@ export default function GarminCardiac() {
     setData(null);
     setCreds(null);
     setLastSync(null);
-    cloudStorage.removeItem('garmin_cardiac_data');
-    cloudStorage.removeItem('garmin_creds');
-    cloudStorage.removeItem('garmin_last_sync');
+    cloudStorage.removeItem(CARDIAC_KEY);
+    cloudStorage.removeItem(SLEEP_KEY);
+    cloudStorage.removeItem(CREDS_KEY);
+    cloudStorage.removeItem(LAST_SYNC_KEY);
     window.dispatchEvent(new CustomEvent('garmin-cardiac-updated'));
   };
 

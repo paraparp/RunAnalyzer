@@ -223,7 +223,7 @@ export default function UserMenu({
                         navigate('/health');
                       }}
                       className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-xs transition-colors cursor-pointer"
-                      title="Garmin Connect conectado · Haz clic para ver métricas en Salud Cardiaca"
+                      title="Garmin Connect conectado · Haz clic para ver métricas en Salud › Vitales y Recuperación"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-[#007cc3]" />
                       Garmin
@@ -237,7 +237,7 @@ export default function UserMenu({
                         navigate('/health');
                       }}
                       className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
-                      title="Garmin no conectado · Haz clic para vincular en Salud Cardiaca"
+                      title="Garmin no conectado · Haz clic para vincular en Salud › Vitales y Recuperación"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                       Garmin
