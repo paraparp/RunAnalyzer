@@ -335,3 +335,22 @@ export function computeGarminStats(rawData, { now: nowInput = Date.now() } = {})
     lastDate: lastWithHR?.date ?? lastWithRec?.date ?? null,
   };
 }
+
+// ── Fase de entrenamiento a partir del TSB ───────────────────────────────────
+// Los cortes estaban escritos dentro de `PhaseBanner`, o sea dentro de un JSX.
+// La portada necesita el MISMO veredicto en formato pastilla, y copiarlo habría
+// dejado dos escalas para la misma palabra ("Cargando" a -8 en una vista y a -12
+// en otra). Devuelve clave + texto; el color lo pone quien pinta.
+export const PHASES = {
+  fit:    { key: 'fit',    label: 'En forma',    description: 'Forma positiva — listo para competir o atacar una sesión clave' },
+  build:  { key: 'build',  label: 'Acumulando',  description: 'Cargando trabajo, ligera fatiga acumulada' },
+  load:   { key: 'load',   label: 'Cargando',    description: 'Bloque de carga activo — monitorizar recuperación' },
+  redRisk:{ key: 'redRisk',label: 'Fatiga alta', description: 'Fatiga elevada — considerar recuperación activa o descanso' },
+};
+
+export function loadPhase(tsb) {
+  if (tsb > 5) return PHASES.fit;
+  if (tsb >= 0) return PHASES.build;
+  if (tsb >= -10) return PHASES.load;
+  return PHASES.redRisk;
+}

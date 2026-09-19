@@ -15,7 +15,7 @@ export const estimateLTHR = (hrmax) => Math.round(hrmax * LTHR_FROM_HRMAX);
 // Seiler 80/20 distribution targets (% of training time per zone). Single source
 // for the zone table markers, the polarization cards AND the status thresholds,
 // so the three never disagree on what "polarized" means.
-export const SEILER_TARGETS = { z1: 75, z2: 10, z3: 20 };
+export const POLARIZED_TARGETS = { low: 75, mod: 10, high: 20 };
 
 // Physiological sanity limits for user-entered calibration values.
 export const HR_LIMITS = { maxLo: 120, maxHi: 230, restLo: 30, restHi: 100 };
@@ -156,11 +156,6 @@ export function detectLTHR(activities, maxHR, { minFieldRuns = 3, csLt2 = null }
 // Ranges are non-overlapping: zone N's `hi` is one below zone N+1's `lo`.
 // The last zone's `hi` is 999 (open-ended).
 
-export const seilerBounds = ({ lthr }) => [
-  { lo: 0,                        hi: Math.round(lthr * 0.925) - 1 },
-  { lo: Math.round(lthr * 0.925), hi: lthr - 1                     },
-  { lo: lthr,                     hi: 999                          },
-];
 
 // Standard 10%-step HRR zones (de facto standard: Garmin, Polar, USA Triathlon):
 // 60/70/80/90% HRR boundaries. Z1 is open-ended below 60% so recovery work

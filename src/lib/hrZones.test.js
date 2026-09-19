@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LTHR_FROM_HRMAX, estimateLTHR, DEFAULT_REST_HR, HRMAX_FILTER,
   detectMaxHR, detectRestHR, thresholdBlocks, detectLTHR,
-  seilerBounds, karvonenBounds, classifyHR,
+  karvonenBounds, classifyHR,
 } from './hrZones';
 
 // hrZones es la fuente única de FCmax / FCreposo / LTHR: un cambio aquí mueve
@@ -208,14 +208,6 @@ describe('detectLTHR', () => {
 });
 
 describe('límites de zona', () => {
-  it('seilerBounds parte en 92.5 % del LTHR y en el propio LTHR', () => {
-    expect(seilerBounds({ lthr: 170 })).toEqual([
-      { lo: 0,   hi: 156 },
-      { lo: 157, hi: 169 },
-      { lo: 170, hi: 999 },
-    ]);
-  });
-
   it('karvonenBounds usa escalones del 10 % de la reserva', () => {
     // hrmax 190, hrrest 50 → HRR 140 → 134 / 148 / 162 / 176
     expect(karvonenBounds({ hrmax: 190, hrrest: 50 })).toEqual([
@@ -228,7 +220,7 @@ describe('límites de zona', () => {
   });
 
   it('los rangos no se solapan ni dejan huecos', () => {
-    for (const bounds of [seilerBounds({ lthr: 170 }), karvonenBounds({ hrmax: 190, hrrest: 50 })]) {
+    for (const bounds of [karvonenBounds({ hrmax: 190, hrrest: 50 })]) {
       for (let i = 1; i < bounds.length; i++) {
         expect(bounds[i].lo).toBe(bounds[i - 1].hi + 1);
       }

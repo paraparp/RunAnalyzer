@@ -4,7 +4,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { Card, Text } from '@tremor/react';
-import { fmt1 } from '../lib/statusStats';
+import { fmt1, loadPhase } from '../lib/statusStats';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Átomos del estado del atleta, compartidos por el hero de Hoy (`StatusHero`) y
@@ -17,25 +17,16 @@ import { fmt1 } from '../lib/statusStats';
 // ─── sub-components ───────────────────────────────────────────────────────────
 
 export function PhaseBanner({ tsb, acwr, garmin }) {
-  let phase, color, borderColor, bg, Icon, description;
-
-  if (tsb > 5) {
-    phase = 'En forma'; color = 'text-emerald-700'; borderColor = 'border-emerald-500';
-    bg = 'bg-emerald-50'; Icon = CheckCircleIcon;
-    description = 'Forma positiva — listo para competir o atacar una sesión clave';
-  } else if (tsb >= 0) {
-    phase = 'Acumulando'; color = 'text-amber-700'; borderColor = 'border-amber-400';
-    bg = 'bg-amber-50'; Icon = ArrowTrendingUpIcon;
-    description = 'Cargando trabajo, ligera fatiga acumulada';
-  } else if (tsb >= -10) {
-    phase = 'Cargando'; color = 'text-orange-700'; borderColor = 'border-orange-500';
-    bg = 'bg-orange-50'; Icon = FireIcon;
-    description = 'Bloque de carga activo — monitorizar recuperación';
-  } else {
-    phase = 'Fatiga alta'; color = 'text-rose-700'; borderColor = 'border-rose-500';
-    bg = 'bg-rose-50'; Icon = ExclamationTriangleIcon;
-    description = 'Fatiga elevada — considerar recuperación activa o descanso';
-  }
+  // Los cortes del TSB viven en lib/statusStats (los comparte con la portada);
+  // aquí solo queda cómo se pinta cada fase.
+  const { key, label: phase, description } = loadPhase(tsb);
+  const STYLE = {
+    fit:     { color: 'text-emerald-700', borderColor: 'border-emerald-500', bg: 'bg-emerald-50', Icon: CheckCircleIcon },
+    build:   { color: 'text-amber-700',   borderColor: 'border-amber-400',   bg: 'bg-amber-50',   Icon: ArrowTrendingUpIcon },
+    load:    { color: 'text-orange-700',  borderColor: 'border-orange-500',  bg: 'bg-orange-50',  Icon: FireIcon },
+    redRisk: { color: 'text-rose-700',    borderColor: 'border-rose-500',    bg: 'bg-rose-50',    Icon: ExclamationTriangleIcon },
+  };
+  const { color, borderColor, bg, Icon } = STYLE[key];
 
   return (
     <div className={`rounded-xl border-l-4 ${borderColor} ${bg} p-4 flex items-center justify-between gap-4 flex-wrap`}>

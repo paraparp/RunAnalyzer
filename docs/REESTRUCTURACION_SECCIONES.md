@@ -8,7 +8,7 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado:** fases 1, 2 y 3 (a y b) completas. La estructura de 8 categorías de la primera pasada se
+> **Estado:** fases 1 a 4 completas. La estructura de 8 categorías de la primera pasada se
 > **revisó a 5** el mismo día (§5, fase 1b) por lo que se veía al usarla. Pendientes: fases 3-5 y
 > las dos que salieron de la segunda revisión (§6): el scope temporal único y la vista de sesión.
 
@@ -68,10 +68,10 @@ eso hace que la misma verdad parezca cuatro temas distintos.
 
 | Número | Veces | Dónde |
 |---|---|---|
-| Eficiencia aeróbica | **4** | `HRAnalysis` *efficiency* · `VitalsOverview:662` · `VO2MaxTracker:934` · `StatusSnapshot:695` |
+| Eficiencia aeróbica | **4** → 2 | `HRAnalysis` *efficiency* · `VitalsOverview:662` · `VO2MaxTracker:934` · `StatusSnapshot:695` |
 | FC reposo / HRV histórico | **4** → 3 | ~~`StatusSnapshot:1025`~~ (fundido en Vitales, fase 3b) · `GarminCardiac:1637` · `VO2MaxTracker:775` · `VitalsOverview:600-615` |
 | Deriva / desacople | **4** | `HRAnalysis` *drift* · `CardiacDecoupling` · `VO2MaxTracker` (`driftRatePerHour`) · `VitalsOverview:680` |
-| Volumen / carga agregada | **5** | `MonthlyChart` · `HRAnalysis:731-747` · `FitnessFatigue` *weekly_load* · `WeeklyProgression` · `VitalsOverview:647` |
+| Volumen / carga agregada | **5** → 3 | `MonthlyChart` · `HRAnalysis:731-747` · `FitnessFatigue` *weekly_load* · `WeeklyProgression` · `VitalsOverview:647` |
 | Curva mean-max + CS | **3** | `CriticalSpeed` · `LactateThreshold:215` · `VO2MaxTracker` (`buildMeanMaxCurve` + `vdotFromCurve`) |
 | Predicciones de carrera | **3** | `CriticalSpeed:241` · `VDOTEstimator:444` · `RacePredictor` |
 | Ritmos de entrenamiento | **3** | `VDOTEstimator:388` · `LactateThreshold:265` · `TrainingZones` (tabla de zonas) |
@@ -100,7 +100,7 @@ eso hace que la misma verdad parezca cuatro temas distintos.
 `GarminCardiac` (2356 l.) mezcla integración, readiness, tendencias cardíacas, adaptación y sueño ·
 `HRAnalysis` (1323 l.) mezcla volumen, respuesta cardíaca y eficiencia ·
 `VO2MaxTracker` (1064 l.) mezcla VO2, curva mean-max, VDOT, deriva y FC reposo ·
-`App.jsx` (89 KB) lleva el dashboard entero inline.
+~~`App.jsx` (89 KB) lleva el dashboard entero inline.~~ (fase 4)
 
 ---
 
@@ -179,7 +179,7 @@ tres los arregla la misma revisión**:
 | Categoría | Ítems |
 |---|---|
 | `today` Hoy | `dashboard` |
-| `sessions` Sesiones | `heatmap`, `gallery`, `geozones`, `gear` |
+| `sessions` Sesiones | `heatmap`, `gallery`, `geozones`, `gear` → con la fase 4: `log` primero |
 | `load` Carga | tras las fases 3a/3b: `pmc`, `weekly`, `injury`, `consistency` |
 | `engine` Motor | `criticalspeed`, `fitness`, `zones` · `hranalysis`, `technique`, `health` |
 | `racing` Competición | `targets`, `planner`, `predictor`, `racehistory` |
@@ -296,16 +296,52 @@ histórico no puede cambiar porque estés mirando los últimos tres meses.
 Carga queda en **PMC · Semanal · Riesgo · Consistencia**, y el ítem `status` desaparece del menú y
 de las traducciones.
 
-**3c — el resto de los ficheros mezclados.**
+**3c — el resto de los ficheros mezclados ✅ HECHO (2026-09-19).** Aquí lo que había que hacer era
+sobre todo **borrar**, no mover: los bloques ya tenían dueño en otra vista.
 
-- `GarminCardiac` → *Sueño* + *Adaptación y tendencias*, con el login/sync ya fuera (fase 2).
-- `HRAnalysis` → *Respuesta cardíaca* + *Eficiencia*; el volumen se tira (ya está en Sesiones).
-- `VO2MaxTracker` cede curva, VDOT, FC reposo y eficiencia; se queda en VO2.
+| Fichero | Qué sale | A dónde |
+|---|---|---|
+| `HRAnalysis` 1323 → **1240** | *Volumen Mensual (km)* y *Carga Acumulada* — con su `monthlyMap`, su `monthlyVolume` y su tooltip | **Borrados**: el volumen es del gráfico de Sesiones y la carga, del PMC |
+| `VO2MaxTracker` 1064 → **948** | *Historial de FC Reposo (Garmin)* y *Eficiencia Aeróbica*, con sus dos cálculos | **Borrados**: FC reposo es de Salud › Vitales y la eficiencia, de la pestaña de Eficiencia |
+| `GarminCardiac` 1898 → **1713** | la sección de sueño entera | **Movida** a [GarminSleep.jsx](../src/components/GarminSleep.jsx), nueva pestaña *Sueño* de Salud |
 
-### Fase 4 — vaciar `App.jsx`
+`GarminSleep` lee del almacén y se repinta con `SYNC_COMPLETE_EVENT`, igual que sus hermanas desde
+la fase 2, y enseña a dónde ir cuando no hay datos (Ajustes › Conexiones) en vez de quedarse vacía.
 
-El dashboard sale a `TodayView.jsx` + `ActivityLog.jsx`. `App.jsx` se queda como shell, navegación
-y carga de datos.
+**`react/jsx-no-undef` se ganó el sueldo a la primera**: al mover el sueño, `StatCard` se quedó en
+el fichero de origen y el lint lo marcó en las cuatro etiquetas antes de tocar el navegador. Es
+exactamente el error que en la fase 3a llegó a producción.
+
+**Lo que NO se hizo, y por qué.** El plan pedía además partir `HRAnalysis` en dos vistas de menú
+(*Respuesta cardíaca* y *Eficiencia*). Sus cinco pestañas ya separan bien los temas y funcionan;
+convertirlas en dos entradas de menú añade un clic sin añadir claridad. Se queda como una vista con
+pestañas, y §2.1 pierde igualmente sus filas de volumen y eficiencia.
+
+### Fase 4 — vaciar `App.jsx` ✅ HECHO (2026-09-19)
+
+`App.jsx` pasa de **1585 a 741 líneas** y vuelve a ser lo que dice su nombre: shell, navegación,
+carga de datos y el panel del chat.
+
+| Sale a | Qué se lleva |
+|---|---|
+| [TodayView.jsx](../src/components/TodayView.jsx) (74 l.) → **Hoy** | carrera objetivo, `StatusHero`, `TodayBalance`, el análisis de la IA y las marcas |
+| [ActivityLog.jsx](../src/components/ActivityLog.jsx) (821 l.) → **Sesiones › Bitácora** | filtros de año y deporte, los seis totales del período, el gráfico de volumen y la tabla con parciales — con su estado (orden, búsqueda, rangos, paginación, filas abiertas) y sus derivaciones |
+
+Con esto *Sesiones* deja de ser "mapas y zapatillas" y tiene por fin su listado, que es lo que la
+fase 1b dejó pendiente.
+
+Dos cambios de comportamiento que van con la mudanza:
+
+- **El filtro de año sale de la barra superior.** Estaba en el shell de TODA la app pero solo
+  gobernaba el dashboard (aparecía y desaparecía con `currentView === 'dashboard'`, y encima
+  duplicado con el selector móvil del cuerpo). Ahora vive dentro de la bitácora, que es lo único que
+  filtra.
+- **Las marcas de Hoy son de todo el histórico.** Antes colgaban de ese filtro de año: con el
+  selector puesto en 2024, "marcas personales" enseñaba las marcas de 2024. Un récord personal es
+  histórico por definición; la vista filtrable es la bitácora.
+
+`TodayView` va en el bundle inicial (es la portada) y `ActivityLog` bajo demanda, como el resto de
+vistas secundarias.
 
 ### Fase 5 — fusionar curva + CS + VDOT
 
@@ -323,7 +359,7 @@ descosida.
 `/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
 clima y la comparación con sesiones similares. Hoy no existe (§6.2).
 
-La suite (915 tests / 49 ficheros, en verde tras la fase 3b) debe correr entre fase y fase a partir de la 3.
+La suite (930 tests / 51 ficheros, en verde tras la fase 4) debe correr entre fase y fase a partir de la 3.
 
 ---
 

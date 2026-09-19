@@ -10,6 +10,7 @@ const en = {
       fitness: "Aerobic Capacity",
       technique: "Technique",
       zones: "HR Zones",
+      log: "Training Log",
       heatmap: "Global Heatmap",
       gallery: "Route Gallery",
       geozones: "Places",
@@ -265,11 +266,11 @@ const en = {
         sessions: "{{count}} sessions analyzed",
         limit: "Limit registered"
       },
-      polarized_tip: "{{z1}}% Z1 / {{z2}}% Z2 / {{z3}}% Z3 — Excellent adherence to the 80/20 model. Stöggl & Sperlich (2014) showed that polarized distribution outperforms threshold training in VO2max gains and racing performance. Keep your easy days truly easy (<{{hi}} bpm).",
-      low_intensity_tip: "Only {{z3}}% in Z3. High intensity stimuli (intervals, repeats) are essential to progress VO2max and running economy. Add 1-2 sessions/week above {{lo}} bpm.",
-      moderate_tip: "Current distribution {{z1}} / {{z2}} / {{z3}} % (Z1/Z2/Z3). The polarized goal is ~75 / 10 / 20. Try shifting Z2 time towards Z1 (slower recovery days) or Z3 (specific quality sessions).",
+      polarized_tip: "{{z1}}% easy (Z1–Z2) / {{z2}}% grey (Z3) / {{z3}}% hard (Z4–Z5) — Excellent adherence to the 80/20 model. Stöggl & Sperlich (2014) showed that polarized distribution outperforms threshold training in VO2max gains and racing performance. Keep your easy days truly easy (<{{hi}} bpm).",
+      gray_zone_tip: "{{z2}}% of your time sits in Z3, the grey zone: hard enough to accumulate fatigue, too soft for a threshold or VO2max stimulus. Push the easy days below {{hi}} bpm and keep the quality above {{lo}} bpm.",
+      low_intensity_tip: "Only {{z3}}% above threshold (Z4–Z5). High intensity stimuli (intervals, repeats) are essential to progress VO2max and running economy. Add 1-2 sessions/week above {{lo}} bpm.",
+      moderate_tip: "Current distribution {{z1}} / {{z2}} / {{z3}} % (easy Z1–Z2 / grey Z3 / hard Z4–Z5). The polarized goal is ~75 / 10 / 20. Try shifting Z3 time towards the easy days or towards specific quality sessions.",
       seiler_scientific_base: "Seiler & Kjerland (2006) analyzed elite skiers and found 75–80% of volume in Z1. Stöggl & Sperlich (2014) compared 4 models (HIT, threshold, HVT, polarized) and concluded that polarized training produced the greatest improvements in VO2max and race performance.",
-      bars_obj_8020: "Vertical bars indicate the 80/20 model target",
       z1_desc: "Conversational, fat oxidation, mitochondrial development.",
       z2_desc: "'Gray zone' — physiologically costly but without the adaptations of Z1 or Z3.",
       z3_desc: "Intervals, VO2max, anaerobic. Neuromuscular and cardiac adaptations.",
@@ -487,8 +488,6 @@ const en = {
       monthly: "Monthly",
       weekly: "Weekly",
       polarization_title: "Polarization Analysis — Seiler 80/20 Model",
-      seiler_name: "Seiler 3-Zones · Polarized Model",
-      seiler_desc: "The most science-backed model for endurance athletes. Divide into easy / threshold / intense. 80/20 base.",
       karvonen_name: "Karvonen 5-Zones · Heart Rate Reserve",
       karvonen_desc: "Uses Heart Rate Reserve (MaxHR − RestHR) with the standard 10% HRR steps (Garmin/Polar). More precise than %MaxHR as it incorporates baseline fitness.",
       karvonen_zones: {
@@ -506,9 +505,9 @@ const en = {
         mod: "Moderate Distribution 📊"
       },
       polar_labels: {
-        z1: "Z1 · Aerobic Base",
-        z2: "Z2 · Gray Zone",
-        z3: "Z3 · High Intensity"
+        z1: "Easy · Z1–Z2",
+        z2: "Grey · Z3",
+        z3: "Hard · Z4–Z5"
       }
     },
     injury: {
@@ -811,6 +810,7 @@ const es = {
       fitness: "Capacidad Aeróbica",
       technique: "Técnica",
       zones: "Zonas FC",
+      log: "Bitácora",
       heatmap: "Heatmap Global",
       gallery: "Galería de Rutas",
       geozones: "Lugares",
@@ -1066,11 +1066,11 @@ const es = {
         sessions: "{{count}} sesiones analizadas",
         limit: "Límite registrado"
       },
-      polarized_tip: "{{z1}}% Z1 / {{z2}}% Z2 / {{z3}}% Z3 — Excelente adherencia al modelo 80/20. Stöggl & Sperlich (2014) demostraron que la distribución polarizada supera al entrenamiento en umbral en mejoras de VO2max y rendimiento en carrera. Mantén los días fáciles verdaderamente fáciles (<{{hi}} bpm).",
-      low_intensity_tip: "Solo {{z3}}% en Z3. Los estímulos de alta intensidad son imprescindibles para progresar el VO2max y la economía de carrera. Añade 1–2 sesiones/semana por encima de {{lo}} bpm.",
-      moderate_tip: "Distribución actual {{z1}} / {{z2}} / {{z3}} % (Z1/Z2/Z3). El objetivo polarizado es ~75 / 10 / 20. Intenta desplazar el tiempo de Z2 hacia Z1 o hacia Z3.",
+      polarized_tip: "{{z1}}% fácil (Z1–Z2) / {{z2}}% gris (Z3) / {{z3}}% duro (Z4–Z5) — Excelente adherencia al modelo 80/20. Stöggl & Sperlich (2014) demostraron que la distribución polarizada supera al entrenamiento en umbral en mejoras de VO2max y rendimiento en carrera. Mantén los días fáciles verdaderamente fáciles (<{{hi}} bpm).",
+      gray_zone_tip: "El {{z2}}% de tu tiempo cae en Z3, la zona gris: suficiente para acumular fatiga, insuficiente como estímulo de umbral o VO2max. Baja los días fáciles por debajo de {{hi}} ppm y sube la calidad por encima de {{lo}} ppm.",
+      low_intensity_tip: "Solo {{z3}}% por encima del umbral (Z4–Z5). Los estímulos de alta intensidad son imprescindibles para progresar el VO2max y la economía de carrera. Añade 1–2 sesiones/semana por encima de {{lo}} ppm.",
+      moderate_tip: "Distribución actual {{z1}} / {{z2}} / {{z3}} % (fácil Z1–Z2 / gris Z3 / duro Z4–Z5). El objetivo polarizado es ~75 / 10 / 20. Intenta desplazar el tiempo de Z3 hacia los días fáciles o hacia sesiones de calidad.",
       seiler_scientific_base: "Seiler & Kjerland (2006) analizaron a esquiadores de élite y descubrieron que el 75–80% del volumen se realizaba en Z1. Stöggl & Sperlich (2014) compararon 4 modelos y concluyeron que el entrenamiento polarizado producía las mayores mejoras en VO2max y rendimiento.",
-      bars_obj_8020: "Las barras verticales indican el objetivo del modelo 80/20",
       z1_desc: "Conversacional, oxidación de grasas, desarrollo mitocondrial.",
       z2_desc: "'Zona gris' — fisiológicamente costosa pero sin las adaptaciones de Z1 o Z3.",
       z3_desc: "Intervalos, VO2max, anaeróbico. Adaptaciones neuromusculares y cardíacas.",
@@ -1577,8 +1577,6 @@ const es = {
       monthly: "Mensual",
       weekly: "Semanal",
       polarization_title: "Análisis de Polarización — Modelo Seiler 80/20",
-      seiler_name: "Seiler 3-Zonas · Modelo Polarizado",
-      seiler_desc: "El modelo más respaldado por evidencia científica para atletas de resistencia. Divide en fácil / umbral / intenso. Base del entrenamiento 80/20.",
       karvonen_name: "Karvonen 5-Zonas · Heart Rate Reserve",
       karvonen_desc: "Usa la Reserva de FC (FCmax − FCreposo) con los cortes estándar de 10% HRR (Garmin/Polar). Más preciso que %FCmax porque incorpora tu condición física base.",
       karvonen_zones: {
@@ -1596,9 +1594,9 @@ const es = {
         mod: "Distribución Moderada 📊"
       },
       polar_labels: {
-        z1: "Z1 · Base Aeróbica",
-        z2: "Z2 · Zona Gris",
-        z3: "Z3 · Alta Intensidad"
+        z1: "Fácil · Z1–Z2",
+        z2: "Gris · Z3",
+        z3: "Duro · Z4–Z5"
       }
     }
   }
