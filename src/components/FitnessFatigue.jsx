@@ -9,11 +9,13 @@ import {
 import {
   ArrowTrendingUpIcon, FireIcon, SparklesIcon, BoltIcon,
   AdjustmentsHorizontalIcon, ExclamationTriangleIcon,
+  XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import { dayKey, activityDayKey } from '../lib/trainingLoad';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
+import { isRun, paceStr, timeStr } from '../lib/statusStats';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -133,6 +135,10 @@ export default function FitnessFatigue({ activities }) {
   const es = i18n.language.startsWith('es');
   const [timeRange, setTimeRange] = useState('12');
   const [offsetMonths, setOffsetMonths] = useState(0);
+  // Día fijado al pinchar en la carga diaria. El tooltip ya lista las sesiones,
+  // pero se va con el ratón: esto las deja ancladas y enlazadas a Strava. Venía
+  // de la vista "Mi Estado", que pintaba su propio PMC en paralelo a este.
+  const [selectedDay, setSelectedDay] = useState(null);
   // Se desestructura aquí y no dentro del useMemo: el compilador de React lee
   // `pmc.current` como el `.current` de una ref y se salta la optimización del
   // componente entero si `pmc` entra como dependencia en bloque.
@@ -232,6 +238,21 @@ export default function FitnessFatigue({ activities }) {
       topEfforts: efforts,
     };
   }, [activities, pmcSeries, pmcCurrent]);
+
+  // ── 3b. Picos de CTL ─────────────────────────────────────────────────────────
+  // "52 de fitness" no dice nada sin saber que tu máximo fueron 68. Se calcula
+  // sobre la serie COMPLETA, no sobre el rango visible: el pico histórico no
+  // puede cambiar porque estés mirando los últimos 3 meses.
+  const { peakCTL, peakCTLYear } = useMemo(() => {
+    if (!chartData.length) return { peakCTL: 0, peakCTLYear: 0 };
+    const thisYear = String(new Date().getFullYear());
+    let all = 0, year = 0;
+    for (const d of chartData) {
+      if (d.Fitness > all) all = d.Fitness;
+      if (d.date.startsWith(thisYear) && d.Fitness > year) year = d.Fitness;
+    }
+    return { peakCTL: Math.round(all * 10) / 10, peakCTLYear: Math.round(year * 10) / 10 };
+  }, [chartData]);
 
   // ── 4. Filter visible range ──────────────────────────────────────────────────
   const filteredData = useMemo(() => {
@@ -426,6 +447,21 @@ export default function FitnessFatigue({ activities }) {
                 stroke="#2563eb" strokeWidth={3} fill="url(#gradCTL)"
                 dot={false} isAnimationActive={false}
                 activeDot={{ r: 6, fill: '#2563eb', stroke: '#fff', strokeWidth: 2 }} />
+              {/* Picos: la franja es el 10% superior de cada máximo */}
+              {peakCTL > 0 && (
+                <ReferenceArea y1={peakCTL * 0.9} y2={peakCTL} fill="#3b82f6" fillOpacity={0.08} ifOverflow="hidden" />
+              )}
+              {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
+                <ReferenceArea y1={peakCTLYear * 0.9} y2={peakCTLYear} fill="#f59e0b" fillOpacity={0.1} ifOverflow="hidden" />
+              )}
+              {peakCTL > 0 && (
+                <ReferenceLine y={peakCTL} stroke="#3b82f6" strokeDasharray="4 3" strokeOpacity={0.6}
+                  label={{ value: `${t('fitness.peak_all')} ${peakCTL}`, position: 'insideTopRight', fontSize: 9, fill: '#3b82f6', opacity: 0.8 }} />
+              )}
+              {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
+                <ReferenceLine y={peakCTLYear} stroke="#f59e0b" strokeDasharray="4 3" strokeOpacity={0.6}
+                  label={{ value: `${t('fitness.peak_year')} ${peakCTLYear}`, position: 'insideBottomRight', fontSize: 9, fill: '#f59e0b', opacity: 0.8 }} />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -437,13 +473,16 @@ export default function FitnessFatigue({ activities }) {
               <XAxis dataKey="date" hide />
               <YAxis hide domain={[0, 'dataMax']} width={36} />
               <RechartsTooltip content={<PMCTooltip />} />
-              <Bar dataKey="load" barSize={3} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+              <Bar dataKey="load" barSize={3} radius={[2, 2, 0, 0]} isAnimationActive={false}
+                className="cursor-pointer"
+                onClick={(data) => setSelectedDay(prev => (prev?.date === data.date ? null : data))}>
                 {filteredData.map((entry, i) => {
                   const maxV = Math.max(...filteredData.map(d => d.load));
                   const r = maxV > 0 ? entry.load / maxV : 0;
                   return (
                     <Cell key={i}
-                      fill={r > 0.75 ? '#1d4ed8' : r > 0.45 ? '#60a5fa' : r > 0 ? '#bfdbfe' : 'transparent'}
+                      fill={selectedDay?.date === entry.date ? '#f97316'
+                        : r > 0.75 ? '#1d4ed8' : r > 0.45 ? '#60a5fa' : r > 0 ? '#bfdbfe' : 'transparent'}
                     />
                   );
                 })}
@@ -494,6 +533,44 @@ export default function FitnessFatigue({ activities }) {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+
+        {/* ── Panel actividades del día seleccionado ── */}
+        {selectedDay?.acts?.length > 0 && (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                {new Date(selectedDay.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+              <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {selectedDay.acts.map((a, i) => (
+                <a key={i} href={`https://www.strava.com/activities/${a.id}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all group"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-slate-400">
+                      {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
+                      {isRun(a)
+                        ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)
+                        : (a.average_speed > 0 && <span>⚡ {(a.average_speed * 3.6).toFixed(1)} km/h</span>)}
+                      {a.average_heartrate > 0 && <span>❤️ {Math.round(a.average_heartrate)} bpm</span>}
+                      {a.suffer_score > 0 && <span>🔥 SS: {Math.round(a.suffer_score)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-3">
+                    <span className="font-bold text-slate-700 text-sm">{(a.distance / 1000).toFixed(1)} km</span>
+                    <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* ── Weekly load ───────────────────────────────────────────────────────── */}

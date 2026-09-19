@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo, Fragment } from 'react';
+import { useCallback, useEffect, useState, useMemo, Fragment, Suspense, lazy } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import cloudStorage, { hydrate, reset as resetCloudStorage, flush as flushCloudStorage } from './lib/cloudStorage';
@@ -8,40 +8,42 @@ import StravaCallback from './components/StravaCallback';
 import OfflineBanner from './components/OfflineBanner';
 import MonthlyChart from './components/MonthlyChart';
 import PersonalBests from './components/PersonalBests';
-import TrainingPlanner from './components/TrainingPlanner';
-import RacePredictor from './components/RacePredictor';
 import RunQA from './components/RunQA';
-import DataExporter from './components/DataExporter';
 import StatusHero from './components/StatusHero';
-import StatusOverview from './components/StatusOverview';
-import FitnessFatigue from './components/FitnessFatigue';
-import WeeklyProgression from './components/WeeklyProgression';
-import InjuryRisk from './components/InjuryRisk';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import UserMenu from './components/UserMenu';
 import LandingPage from './components/LandingPage';
 import ActivitySplits from './components/ActivitySplits';
-import HRAnalysis from './components/HRAnalysis';
-import TechniqueAnalysis from './components/TechniqueAnalysis';
-import GlobalHeatmap from './components/GlobalHeatmap';
-import RouteGallery from './components/RouteGallery';
-import GeoZones from './components/GeoZones';
-import TrainingZones from './components/TrainingZones';
+// Vistas secundarias: solo se monta una a la vez (viewMap), así que se cargan
+// bajo demanda. Esto saca del bundle inicial sus dependencias pesadas
+// (recharts/tremor, leaflet en los mapas, jspdf en el planner).
+const FitnessFatigue = lazy(() => import('./components/FitnessFatigue'));
+const WeeklyProgression = lazy(() => import('./components/WeeklyProgression'));
+const InjuryRisk = lazy(() => import('./components/InjuryRisk'));
+const HRAnalysis = lazy(() => import('./components/HRAnalysis'));
+const TechniqueAnalysis = lazy(() => import('./components/TechniqueAnalysis'));
+const TrainingZones = lazy(() => import('./components/TrainingZones'));
+const RouteGallery = lazy(() => import('./components/RouteGallery'));
+const ConsistencyHeatmap = lazy(() => import('./components/ConsistencyHeatmap'));
+const GearTracker = lazy(() => import('./components/GearTracker'));
+const TargetRaces = lazy(() => import('./components/TargetRaces'));
+const RaceDetector = lazy(() => import('./components/RaceDetector'));
+const CriticalSpeed = lazy(() => import('./components/CriticalSpeed'));
+const TrainingPlanner = lazy(() => import('./components/TrainingPlanner'));
+const RacePredictor = lazy(() => import('./components/RacePredictor'));
+const FitnessHub = lazy(() => import('./components/FitnessHub'));
+const HealthHub = lazy(() => import('./components/HealthHub'));
+const DataExporter = lazy(() => import('./components/DataExporter'));
+const HrCalibration = lazy(() => import('./components/HrCalibration'));
+const Connections = lazy(() => import('./components/Connections'));
+const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
+const GeoZones = lazy(() => import('./components/GeoZones'));
 import useHrParams from './hooks/useHrParams';
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
-import ConsistencyHeatmap from './components/ConsistencyHeatmap';
-import GearTracker from './components/GearTracker';
 import AIInsights from './components/AIInsights';
-import RaceDetector from './components/RaceDetector';
-import CriticalSpeed from './components/CriticalSpeed';
-import TargetRaces from './components/TargetRaces';
 import NextRaceBanner from './components/NextRaceBanner';
-import FitnessHub from './components/FitnessHub';
-import HealthHub from './components/HealthHub';
-import HrCalibration from './components/HrCalibration';
-import Connections from './components/Connections';
 import { getActivity, getActivityStreams, getStravaAuthUrl } from './services/strava';
 import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
 import { computeStreamGap, needsStreamGap, activityGapSpeed } from './lib/streamGap';
@@ -85,7 +87,6 @@ import {
 
 const NAV_ITEMS = [
   { id: 'dashboard',  icon: Squares2X2Icon },
-  { id: 'status',     icon: TrophyIcon },
   { id: 'pmc', icon: ArrowTrendingUpIcon },
   { id: 'weekly', icon: CalendarDaysIcon },
   { id: 'injury', icon: ExclamationTriangleIcon },
@@ -121,7 +122,7 @@ const NAV_ITEMS = [
 const NAV_CATEGORIES = [
   { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard'] },
   { id: 'sessions', icon: ChartBarIcon, itemIds: ['heatmap', 'gallery', 'geozones', 'gear'] },
-  { id: 'load', icon: ChartPieIcon, itemIds: ['status', 'pmc', 'weekly', 'injury', 'consistency'] },
+  { id: 'load', icon: ChartPieIcon, itemIds: ['pmc', 'weekly', 'injury', 'consistency'] },
   // Capacidad primero (el techo: curva, VDOT/VO2, umbrales), adaptación después
   // (la tendencia: respuesta cardíaca, técnica, vitales). Son los dos ejes en
   // los que las fases 3-5 van a fundir estos seis ítems.
@@ -1374,7 +1375,6 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
-                status:      <StatusOverview activities={allActivities} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
@@ -1401,7 +1401,7 @@ const Dashboard = ({ user, handleLogout }) => {
               if (!view) return null;
               return (
                 <div className="fade-in">
-                  {view}
+                  <Suspense fallback={null}>{view}</Suspense>
                 </div>
               );
             })()}

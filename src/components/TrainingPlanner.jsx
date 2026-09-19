@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { useTranslation } from 'react-i18next';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { generateAIObjectWithFallback, parseModelValue } from '../services/ai';
 import { Select, SelectItem } from "@tremor/react";
 import { HandRaisedIcon, FlagIcon, ClockIcon, CpuChipIcon, SparklesIcon } from "@heroicons/react/24/solid";
@@ -199,7 +197,13 @@ const TrainingPlanner = ({ activities }) => {
         .filter(i => i >= 0);
     const pushedCount = Object.values(pushResults).filter(r => r?.ok).length;
 
-    const exportToPDF = (plan) => {
+    // jsPDF y su plugin de tablas pesan ~400 kB y solo hacen falta al exportar:
+    // se cargan bajo demanda para no arrastrarlos en el bundle inicial.
+    const exportToPDF = async (plan) => {
+        const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+            import('jspdf'),
+            import('jspdf-autotable'),
+        ]);
         const doc = new jsPDF();
         const primaryColor = [37, 99, 235];
         doc.setFillColor(...primaryColor);

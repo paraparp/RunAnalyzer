@@ -8,7 +8,7 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado:** fases 1, 2 y 3a completas. La estructura de 8 categorías de la primera pasada se
+> **Estado:** fases 1, 2 y 3 (a y b) completas. La estructura de 8 categorías de la primera pasada se
 > **revisó a 5** el mismo día (§5, fase 1b) por lo que se veía al usarla. Pendientes: fases 3-5 y
 > las dos que salieron de la segunda revisión (§6): el scope temporal único y la vista de sesión.
 
@@ -69,13 +69,13 @@ eso hace que la misma verdad parezca cuatro temas distintos.
 | Número | Veces | Dónde |
 |---|---|---|
 | Eficiencia aeróbica | **4** | `HRAnalysis` *efficiency* · `VitalsOverview:662` · `VO2MaxTracker:934` · `StatusSnapshot:695` |
-| FC reposo / HRV histórico | **4** | `StatusSnapshot:1025` · `GarminCardiac:1637` · `VO2MaxTracker:775` · `VitalsOverview:600-615` |
+| FC reposo / HRV histórico | **4** → 3 | ~~`StatusSnapshot:1025`~~ (fundido en Vitales, fase 3b) · `GarminCardiac:1637` · `VO2MaxTracker:775` · `VitalsOverview:600-615` |
 | Deriva / desacople | **4** | `HRAnalysis` *drift* · `CardiacDecoupling` · `VO2MaxTracker` (`driftRatePerHour`) · `VitalsOverview:680` |
 | Volumen / carga agregada | **5** | `MonthlyChart` · `HRAnalysis:731-747` · `FitnessFatigue` *weekly_load* · `WeeklyProgression` · `VitalsOverview:647` |
 | Curva mean-max + CS | **3** | `CriticalSpeed` · `LactateThreshold:215` · `VO2MaxTracker` (`buildMeanMaxCurve` + `vdotFromCurve`) |
 | Predicciones de carrera | **3** | `CriticalSpeed:241` · `VDOTEstimator:444` · `RacePredictor` |
 | Ritmos de entrenamiento | **3** | `VDOTEstimator:388` · `LactateThreshold:265` · `TrainingZones` (tabla de zonas) |
-| ACWR | **3** | `StatusSnapshot:790` · `FitnessFatigue:568` · `InjuryRisk` |
+| ACWR | **3** → 2 | ~~`StatusSnapshot:790`~~ (fase 3a/3b) · `FitnessFatigue:568` · `InjuryRisk` |
 
 ### 2.2 Colocaciones imposibles
 
@@ -180,7 +180,7 @@ tres los arregla la misma revisión**:
 |---|---|
 | `today` Hoy | `dashboard` |
 | `sessions` Sesiones | `heatmap`, `gallery`, `geozones`, `gear` |
-| `load` Carga | `status`, `consistency` → tras la fase 3a: `status`, `pmc`, `weekly`, `injury`, `consistency` |
+| `load` Carga | tras las fases 3a/3b: `pmc`, `weekly`, `injury`, `consistency` |
 | `engine` Motor | `criticalspeed`, `fitness`, `zones` · `hranalysis`, `technique`, `health` |
 | `racing` Competición | `targets`, `planner`, `predictor`, `racehistory` |
 | `settings` Ajustes | `calibration`, `connections`, `export` |
@@ -279,13 +279,22 @@ error no vuelva a llegar al navegador:
   verdad y el PMC mockeado — 5 casos que cubren justo lo que el lint no puede ver: que el árbol
   entero se pinta.
 
-*Mi Estado* queda como zona de paso: su gráfico de CTL/ATL y su bloque de Garmin siguen pintando
-series que ya tienen dueño (`FitnessFatigue` y `VitalsOverview`), y eso es exactamente la fase 3b.
+*Mi Estado* quedó como zona de paso, y la fase 3b la vació.
 
-**3b — fundir lo que quedó duplicado.** El gráfico de CTL/ATL de *Mi Estado* contra el PMC de
-`FitnessFatigue` (portando lo que el dueño no tiene: zonas de pico y panel del día), y el bloque de
-Garmin contra los tiles de `VitalsOverview`. Al acabar, *Mi Estado* desaparece y Carga se queda con
-PMC · Semanal · Riesgo · Consistencia.
+**3b — fundir lo que quedó duplicado ✅ HECHO (2026-09-19).** *Mi Estado* **ya no existe**: cada
+uno de sus tres bloques se fue con su dueño, y lo que se conservó es sólo lo que el dueño no tenía.
+
+| Bloque | Dueño | Qué se portó / qué se tiró |
+|---|---|---|
+| Gráfico CTL/ATL | [FitnessFatigue.jsx](../src/components/FitnessFatigue.jsx) | **Portado**: las franjas y líneas de pico (histórico y del año) y el **panel del día fijado** al pinchar la carga diaria, con enlace a Strava. **Tirado**: el gráfico entero — el dueño ya tenía tres paneles sincronizados (CTL/ATL, carga, TSB con zonas) con rango y paginación. |
+| Tarjetas + gráfico de Garmin | [VitalsOverview.jsx](../src/components/VitalsOverview.jsx) | **Portado**: las medias de 7/28 días y los récords histórico y del año de FC reposo y recuperación (`computeGarminStats`), que es contra lo que se compara el valor de hoy. **Tirado**: el gráfico de doble eje — era el mismo dato que los paneles de VFC y FC reposo, con otro color y sin suavizado. |
+| Comparativa ahora/año/histórico | [StatusHero.jsx](../src/components/StatusHero.jsx) → **Hoy** | Entera, dentro de un `CollapsibleSection` **plegado**: la portada contesta "¿cómo voy?" con los cuatro números de arriba, y esto es para cuando quieres saber respecto a qué. Tremor desmonta el cuerpo mientras está plegado, así que la portada no paga ni el render ni los sparklines de una tabla que nadie ha abierto. |
+
+El pico de CTL se calcula sobre la serie **completa**, no sobre el rango visible: el máximo
+histórico no puede cambiar porque estés mirando los últimos tres meses.
+
+Carga queda en **PMC · Semanal · Riesgo · Consistencia**, y el ítem `status` desaparece del menú y
+de las traducciones.
 
 **3c — el resto de los ficheros mezclados.**
 
@@ -314,7 +323,7 @@ descosida.
 `/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
 clima y la comparación con sesiones similares. Hoy no existe (§6.2).
 
-La suite (917 tests / 49 ficheros, en verde tras la fase 3a) debe correr entre fase y fase a partir de la 3.
+La suite (915 tests / 49 ficheros, en verde tras la fase 3b) debe correr entre fase y fase a partir de la 3.
 
 ---
 

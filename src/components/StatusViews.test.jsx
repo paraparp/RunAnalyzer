@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-// Humo de las dos vistas que salieron de `StatusSnapshot` en la fase 3a.
+// Humo de la vista que salió de `StatusSnapshot`. La fase 3b fundió la otra
+// (`StatusOverview`) con sus dueños: su PMC en `FitnessFatigue`, sus récords de
+// Garmin en `VitalsOverview` y su comparativa aquí, plegada.
 //
 // El motivo de que existan: `no-undef` NO mira los nombres de las etiquetas JSX,
 // así que un `<Card>` sin importar pasaba el lint Y el build de Vite, y solo
@@ -30,7 +32,6 @@ vi.mock('../hooks/useCalibratedPMC', () => ({
 }));
 
 const { default: StatusHero } = await import('./StatusHero');
-const { default: StatusOverview } = await import('./StatusOverview');
 
 const run = (daysAgo, { km = 10, speed = 3, hr = 145 } = {}) => ({
   id: `r${daysAgo}`,
@@ -59,28 +60,14 @@ describe('StatusHero', () => {
   it('sin actividades no pinta nada en vez de romper la portada', () => {
     expect(renderToStaticMarkup(<StatusHero activities={[]} />)).toBe('');
   });
-});
 
-describe('StatusOverview', () => {
-  it('monta la comparativa y el PMC', () => {
-    const html = renderToStaticMarkup(<StatusOverview activities={activities} />);
+  it('lleva la comparativa contra el histórico, plegada', () => {
+    const html = renderToStaticMarkup(<StatusHero activities={activities} />);
     expect(html).toContain('Estado actual vs mejor histórico');
-    expect(html).toContain('Fitness (CTL)');
-    expect(html).toContain('Km (última semana)');
-    expect(html).toContain('Mejor ritmo 10k');
-    expect(html).toContain('Fitness y Fatiga');
-  });
-
-  it('el bloque de Garmin solo aparece si hay datos guardados', () => {
-    // Sin caché de Garmin en cloudStorage no se pinta: la vista no inventa una
-    // sección vacía. Es también lo que hace que la fase 3b pueda fundirlo con
-    // `VitalsOverview` sin dejar un hueco.
-    const html = renderToStaticMarkup(<StatusOverview activities={activities} />);
-    expect(html).not.toContain('Body Battery');
-  });
-
-  it('sin datos avisa en vez de quedarse en blanco', () => {
-    const html = renderToStaticMarkup(<StatusOverview activities={[]} />);
-    expect(html).toContain('No hay datos suficientes');
+    // El cuerpo del acordeón NO se monta mientras está plegado (Tremor lo
+    // desmonta), así que la portada no paga ni el render ni los sparklines de
+    // una tabla que nadie ha abierto todavía.
+    expect(html).not.toContain('Km (última semana)');
+    expect(html).toContain('aria-expanded="false"');
   });
 });

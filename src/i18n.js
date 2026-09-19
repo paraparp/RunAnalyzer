@@ -23,7 +23,6 @@ const en = {
       qa: "AI Q&A",
       health: "Vitals & Recovery",
       export: "Export",
-      status: "My Status",
       pmc: "PMC / Fitness",
       weekly: "Weekly",
       injury: "Injury Risk",
@@ -758,6 +757,8 @@ const en = {
       peak_fitness: "of peak",
       avg_7_days: "Avg load 7 days",
       weekly_load: "Weekly Load",
+      peak_all: "All-time peak",
+      peak_year: "This year's peak",
       performance_vs_fitness: "Performance vs. Fitness (CTL)",
       how_to_read: "How to read this data",
       status: {
@@ -822,7 +823,6 @@ const es = {
       qa: "Preguntas AI",
       health: "Vitales y Recuperación",
       export: "Exportar",
-      status: "Mi Estado",
       pmc: "PMC / Fitness",
       weekly: "Semanal",
       injury: "Riesgo de Lesión",
@@ -1088,6 +1088,8 @@ const es = {
       peak_fitness: "del pico",
       avg_7_days: "Carga media 7 días",
       weekly_load: "Carga Semanal",
+      peak_all: "Pico hist.",
+      peak_year: "Pico año",
       performance_vs_fitness: "Rendimiento vs. Fitness Físico (CTL)",
       how_to_read: "Cómo interpretar estos datos",
       status: {

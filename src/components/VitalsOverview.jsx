@@ -13,6 +13,8 @@ import { vo2FromRun } from '../lib/physiology';
 import { efficiencyFactorRun } from '../lib/efficiencyFactor';
 import { decouplingPct } from '../lib/decoupling';
 import useHrParams from '../hooks/useHrParams';
+import { computeGarminStats } from '../lib/statusStats';
+import { HeroCard } from './StatusCards';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -366,6 +368,15 @@ export default function VitalsOverview({ activities = [] }) {
   const { pmc } = useCalibratedPMC(activities);
   const ctlSeries = useMemo(() => computeCTLSeries(pmc), [pmc]);
 
+  // Medias de 7/28 días y récords históricos de FC reposo y recuperación. Las
+  // tarjetas de arriba cuentan la TENDENCIA; esto cuenta contra qué se compara,
+  // que es lo único que la vista "Mi Estado" tenía y aquí faltaba (su gráfico era
+  // el mismo que estos paneles, con otro color).
+  const garminRecords = useMemo(
+    () => computeGarminStats(garmin, { now: nowMs }),
+    [garmin, nowMs],
+  );
+
   const { hrvData, hrData, vo2Data, loadData, effData, decData, domain, summary, hasGarmin, goodBands, effThreshold, hasDecoupling } = useMemo(() => {
     const now = nowMs;
     const cutoff = now - days * MS_DAY;
@@ -697,6 +708,51 @@ export default function VitalsOverview({ activities = [] }) {
           />
         )}
       </motion.div>
+
+      {/* ── Registros de Garmin ──────────────────────────────────────────────
+          Los paneles de arriba cuentan la tendencia; esto cuenta contra qué se
+          compara: medias de 7 y 28 días y los récords histórico y del año.
+          Venía de "Mi Estado", cuya única aportación real eran estos números —
+          su gráfico repetía estos mismos paneles con otro color. ───────────── */}
+      {garminRecords && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <HeroCard
+            label="FC Reposo"
+            value={garminRecords.currentRHR ?? '—'}
+            unit="bpm"
+            icon={HeartIcon}
+            color={garminRecords.rhrAllTimeMin && garminRecords.currentRHR <= garminRecords.rhrAllTimeMin + 2 ? 'emerald'
+              : garminRecords.rhr28avg && garminRecords.currentRHR > garminRecords.rhr28avg + 5 ? 'rose' : 'blue'}
+            subRows={[
+              { label: 'Media 7 días', value: garminRecords.rhr7avg ? `${garminRecords.rhr7avg.toFixed(1)} bpm` : '—' },
+              { label: 'Media 28 días', value: garminRecords.rhr28avg ? `${garminRecords.rhr28avg.toFixed(1)} bpm` : '—' },
+              { label: 'Mínimo histórico', value: garminRecords.rhrAllTimeMin ? `${garminRecords.rhrAllTimeMin} bpm` : '—' },
+              { label: 'Mínimo este año', value: garminRecords.rhrYearMin ? `${garminRecords.rhrYearMin} bpm` : '—' },
+            ]}
+          />
+          <HeroCard
+            label={garminRecords.hasHRV ? 'VFC — RMSSD' : 'Body Battery'}
+            value={garminRecords.currentRec != null ? (garminRecords.hasHRV ? `${Math.round(garminRecords.currentRec)}` : garminRecords.currentRec) : '—'}
+            unit={garminRecords.hasHRV ? 'ms' : '/ 100'}
+            icon={BoltIcon}
+            color={garminRecords.hasHRV
+              ? (garminRecords.hrvDeviation > 5 ? 'emerald' : garminRecords.hrvDeviation < -10 ? 'rose' : 'amber')
+              : (garminRecords.currentRec >= 80 ? 'emerald' : garminRecords.currentRec >= 50 ? 'amber' : 'rose')}
+            subRows={garminRecords.hasHRV ? [
+              { label: 'vs baseline 60d', value: garminRecords.hrvDeviation != null ? `${garminRecords.hrvDeviation >= 0 ? '+' : ''}${garminRecords.hrvDeviation}%` : '—' },
+              { label: 'Media 7 días', value: garminRecords.rec7avg ? `${Math.round(garminRecords.rec7avg)} ms` : '—' },
+              { label: 'Media 28 días', value: garminRecords.rec28avg ? `${Math.round(garminRecords.rec28avg)} ms` : '—' },
+              { label: 'Máximo histórico', value: garminRecords.recAllTimeMax ? `${Math.round(garminRecords.recAllTimeMax)} ms` : '—' },
+              { label: 'Máximo este año', value: garminRecords.recYearMax ? `${Math.round(garminRecords.recYearMax)} ms` : '—' },
+            ] : [
+              { label: 'Mínimo hoy', value: garminRecords.currentBBLow != null ? `${garminRecords.currentBBLow}/100` : '—' },
+              { label: 'Media 7 días', value: garminRecords.rec7avg ? `${garminRecords.rec7avg.toFixed(0)}/100` : '—' },
+              { label: 'Media 28 días', value: garminRecords.rec28avg ? `${garminRecords.rec28avg.toFixed(0)}/100` : '—' },
+              { label: 'Máximo histórico', value: garminRecords.recAllTimeMax ? `${garminRecords.recAllTimeMax}/100` : '—' },
+            ]}
+          />
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-1.5 px-4">
         {effThreshold != null && goodBands.length > 0 && (
