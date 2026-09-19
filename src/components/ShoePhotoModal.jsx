@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { 
-  XMarkIcon, 
-  ArrowUpTrayIcon, 
-  LinkIcon, 
-  TrashIcon, 
+import {
+  XMarkIcon,
+  ArrowUpTrayIcon,
+  LinkIcon,
+  TrashIcon,
   PhotoIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
@@ -87,7 +87,7 @@ export default function ShoePhotoModal({
       const dx = clientX - dragStartRef.current.x;
       const dy = clientY - dragStartRef.current.y;
 
-      const scale = 0.9 * zoom;
+      const scale = 2.4 * zoom;
       const dxEffective = flipH ? -dx : dx;
       const nextX = Math.max(-50, Math.min(50, dragStartRef.current.panX + dxEffective / scale));
       const nextY = Math.max(-50, Math.min(50, dragStartRef.current.panY + dy / scale));
@@ -194,10 +194,10 @@ export default function ShoePhotoModal({
   };
 
   const normCurrent = normalizeShoePhoto(currentPhoto);
-  const isUnchanged = normCurrent && 
-    normCurrent.url === preview && 
-    normCurrent.zoom === zoom && 
-    normCurrent.x === pan.x && 
+  const isUnchanged = normCurrent &&
+    normCurrent.url === preview &&
+    normCurrent.zoom === zoom &&
+    normCurrent.x === pan.x &&
     normCurrent.y === pan.y &&
     Boolean(normCurrent.flipH) === flipH;
 
@@ -246,64 +246,44 @@ export default function ShoePhotoModal({
           </div>
 
           <div className="p-6 space-y-6">
-            {/* Preview Box con tamaño idéntico al listado real */}
+            {/* Preview Box with Interactive Framing / Zoom / Flip */}
             <div className="flex flex-col items-center">
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center gap-4 max-w-sm w-full shadow-inner">
-                {/* Marco con exactamente el mismo tamaño que la tarjeta: w-20 h-20 sm:w-24 sm:h-24 */}
-                <div
-                  onMouseDown={onPointerDown}
-                  onTouchStart={onPointerDown}
-                  title={t('gear.photos.drag_hint')}
-                  className={`w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-2xl border border-slate-200/80 bg-white relative overflow-hidden flex items-center justify-center select-none shadow-xs group/box ${
-                    preview ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+              <div
+                onMouseDown={onPointerDown}
+                onTouchStart={onPointerDown}
+                className={`w-56 h-36 sm:w-64 sm:h-40 rounded-2xl border border-slate-200/80 bg-slate-50/80 relative overflow-hidden flex items-center justify-center select-none shadow-inner group/box ${preview ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
                   }`}
-                >
-                  {preview ? (
-                    <div className="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
-                      <img
-                        src={preview}
-                        alt={gear.name}
-                        referrerPolicy="no-referrer"
-                        draggable={false}
-                        style={{
-                          transform: `scale(${zoom}) translate(${pan.x}%, ${pan.y}%) scaleX(${flipH ? -1 : 1})`,
-                          transformOrigin: 'center center'
-                        }}
-                        onError={() => setErrorMsg(t('gear.photos.load_failed'))}
-                        className="w-full h-full object-contain p-1.5 select-none pointer-events-none transition-transform duration-75"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-slate-300">
-                      <PhotoIcon className="w-8 h-8 stroke-1" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider mt-0.5 text-slate-400">
-                        {brandInfo.short}
-                      </span>
-                    </div>
-                  )}
-
-                  {isOptimizing && (
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mb-1" />
-                      <span className="text-[10px] font-bold">{t('gear.photos.optimizing')}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Contexto del par (nombre y marca) */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h5 className="font-black text-slate-900 text-xs truncate uppercase tracking-tight">
-                      {gear.name}
-                    </h5>
+              >
+                {preview ? (
+                  <div className="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
+                    <img
+                      src={preview}
+                      alt={gear.name}
+                      referrerPolicy="no-referrer"
+                      draggable={false}
+                      style={{
+                        transform: `scale(${zoom}) translate(${pan.x}%, ${pan.y}%) scaleX(${flipH ? -1 : 1})`,
+                        transformOrigin: 'center center'
+                      }}
+                      onError={() => setErrorMsg(t('gear.photos.load_failed'))}
+                      className="w-full h-full object-contain p-2 select-none pointer-events-none transition-transform duration-75"
+                    />
                   </div>
-                  <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${brandInfo.bg} ${brandInfo.text} border ${brandInfo.border}`}>
-                    {brandInfo.brand}
-                  </span>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                    {t('gear.photos.preview')}
-                  </p>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-300">
+                    <PhotoIcon className="w-12 h-12 stroke-1" />
+                    <span className="text-xs font-bold uppercase tracking-wider mt-1 text-slate-400">
+                      {brandInfo.brand}
+                    </span>
+                  </div>
+                )}
+
+                {isOptimizing && (
+                  <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mb-2" />
+                    <span className="text-xs font-bold">{t('gear.photos.optimizing')}</span>
+                  </div>
+                )}
               </div>
 
               {/* Controles de Zoom, Encuadre y Flip */}
@@ -349,11 +329,10 @@ export default function ShoePhotoModal({
                       type="button"
                       onClick={() => setFlipH((f) => !f)}
                       title={t('gear.photos.flip')}
-                      className={`p-1 px-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                        flipH
+                      className={`p-1 px-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${flipH
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
-                      }`}
+                        }`}
                     >
                       <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
                       <span className="text-[10px] hidden sm:inline">{t('gear.photos.flip')}</span>
@@ -398,11 +377,10 @@ export default function ShoePhotoModal({
               <button
                 type="button"
                 onClick={() => { setActiveTab('upload'); setErrorMsg(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${
-                  activeTab === 'upload' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${activeTab === 'upload'
+                    ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 <ArrowUpTrayIcon className="w-4 h-4" />
                 <span>{t('gear.photos.upload_tab')}</span>
@@ -411,11 +389,10 @@ export default function ShoePhotoModal({
               <button
                 type="button"
                 onClick={() => { setActiveTab('url'); setErrorMsg(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${
-                  activeTab === 'url' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${activeTab === 'url'
+                    ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 <LinkIcon className="w-4 h-4" />
                 <span>{t('gear.photos.url_tab')}</span>
@@ -429,11 +406,10 @@ export default function ShoePhotoModal({
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-                  isDragging 
-                    ? 'border-indigo-500 bg-indigo-50/50' 
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${isDragging
+                    ? 'border-indigo-500 bg-indigo-50/50'
                     : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 bg-white'
-                }`}
+                  }`}
               >
                 <input
                   ref={fileInputRef}

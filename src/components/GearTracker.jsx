@@ -2,10 +2,10 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { useTranslation } from 'react-i18next';
 import { getAthleteProfile } from '../services/strava';
-import { 
-  SparklesIcon, 
-  ClockIcon, 
-  MapPinIcon, 
+import {
+  SparklesIcon,
+  ClockIcon,
+  MapPinIcon,
   ArrowsRightLeftIcon,
   CalendarDaysIcon,
   PencilSquareIcon,
@@ -186,7 +186,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
       .map(gear => {
         const distKm = gear.distance / 1000;
         const avgSpeed = gear.moving_time > 0 ? (gear.distance / gear.moving_time) : 0;
-        
+
         const formatPace = (speedMps) => formatPaceFromSpeed(speedMps, '-');
 
         const today = new Date();
@@ -196,7 +196,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
         const fmtDate = (d) => d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
         const hasFirst = gear.firstUsed.getTime() < 8640000000000000;
-        const hasLast  = gear.lastUsed.getTime() > 0;
+        const hasLast = gear.lastUsed.getTime() > 0;
 
         return {
           ...gear,
@@ -222,11 +222,11 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
     return (
       <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
         <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-           <MapPinIcon className="w-10 h-10 text-slate-300" />
+          <MapPinIcon className="w-10 h-10 text-slate-300" />
         </div>
         <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('gear.empty_title', 'Garaje Vacío')}</h3>
         <p className="text-slate-500 max-w-sm mx-auto font-medium">
-           {t('gear.empty_desc', 'Si añades tus zapatillas dentro de tus actividades de Strava, aparecerán aquí agrupadas automáticamente.')}
+          {t('gear.empty_desc', 'Si añades tus zapatillas dentro de tus actividades de Strava, aparecerán aquí agrupadas automáticamente.')}
         </p>
       </div>
     );
@@ -238,10 +238,10 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10">
           <div>
             <div className="flex items-center gap-2 mb-2">
-               <div className="bg-slate-900 text-white p-1 rounded-lg">
-                  <SparklesIcon className="w-4 h-4" />
-               </div>
-               <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('gear.title')}</h3>
+              <div className="bg-slate-900 text-white p-1 rounded-lg">
+                <SparklesIcon className="w-4 h-4" />
+              </div>
+              <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('gear.title')}</h3>
             </div>
             <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
               {t('gear.subtitle')}
@@ -277,7 +277,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
             const photoData = normalizeShoePhoto(shoePhotos[gear.id]);
 
             return (
-              <motion.div 
+              <motion.div
                 key={gear.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -291,12 +291,12 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                       type="button"
                       onClick={() => setPhotoModalGear(gear)}
                       title={photoData ? t('gear.photos.change') : t('gear.photos.add')}
-                      className="group/thumb relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50 overflow-hidden cursor-pointer shadow-xs hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-center text-left"
+                      className="group/thumb relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50 overflow-hidden cursor-pointer shadow-xs hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-center text-left"
                     >
                       {photoData ? (
                         <div className="w-full h-full overflow-hidden flex items-center justify-center pointer-events-none">
-                          <img 
-                            src={photoData.url} 
+                          <img
+                            src={photoData.url}
                             alt={gear.name}
                             referrerPolicy="no-referrer"
                             style={{
@@ -329,98 +329,98 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                     {/* Shoe Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
-                         <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
-                         <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${bgColor} ${textColor} border ${borderColor}`}>
-                            {statusText}
-                         </div>
+                        <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
+                        <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${bgColor} ${textColor} border ${borderColor}`}>
+                          {statusText}
+                        </div>
                       </div>
                       <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                         <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
-                         <span>•</span>
-                         <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
-                         <span>•</span>
-                         <span className="flex items-center gap-1 normal-case tracking-normal">
-                            <CalendarDaysIcon className="w-3 h-3" /> {gear.firstUsedDate} → {gear.lastUsedDate}
-                         </span>
+                        <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1 normal-case tracking-normal">
+                          <CalendarDaysIcon className="w-3 h-3" /> {gear.firstUsedDate} → {gear.lastUsedDate}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Perf Stats */}
                   <div className="grid grid-cols-2 gap-8 shrink-0 border-l border-slate-50 pl-8 hidden sm:grid">
-                     <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.avg_pace')}</p>
-                        <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
-                           {gear.paceFormatted} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">/km</span>
-                        </p>
-                     </div>
-                     <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.km_per_run')}</p>
-                        <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
-                           {(gear.distanceKm / gear.count).toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">km</span>
-                        </p>
-                     </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.avg_pace')}</p>
+                      <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
+                        {gear.paceFormatted} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">/km</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('gear.stats.km_per_run')}</p>
+                      <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
+                        {(gear.distanceKm / gear.count).toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">km</span>
+                      </p>
+                    </div>
                   </div>
 
                   {/* Wear Progress */}
                   <div className="w-full lg:w-64 xl:w-80 shrink-0">
                     <div className="flex justify-between items-end mb-2 gap-2">
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
-                       {editingId === gear.id ? (
-                         <div className="flex items-center gap-1">
-                           <input
-                             type="number"
-                             autoFocus
-                             min={MIN_SHOE_LIFE_KM}
-                             max={MAX_SHOE_LIFE_KM}
-                             value={draftLife}
-                             onChange={(e) => setDraftLife(e.target.value)}
-                             onKeyDown={(e) => {
-                               if (e.key === 'Enter') saveLife(gear.id);
-                               if (e.key === 'Escape') setEditingId(null);
-                             }}
-                             className="w-20 px-2 py-0.5 text-xs font-black tabular-nums text-slate-900 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
-                             aria-label={t('gear.life.edit')}
-                           />
-                           <button
-                             type="button"
-                             onClick={() => saveLife(gear.id)}
-                             disabled={!isValidLifeKm(draftLife)}
-                             title={t('gear.life.save')}
-                             className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:text-slate-300 disabled:hover:bg-transparent"
-                           >
-                             <CheckIcon className="w-3.5 h-3.5" />
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => resetLife(gear.id)}
-                             title={t('gear.life.auto')}
-                             className="p-1 rounded-lg text-slate-400 hover:bg-slate-50"
-                           >
-                             <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
-                           </button>
-                         </div>
-                       ) : (
-                         <button
-                           type="button"
-                           onClick={() => { setEditingId(gear.id); setDraftLife(String(gear.maxLife)); }}
-                           title={t('gear.life.edit')}
-                           className="flex items-center gap-1.5 group/life"
-                         >
-                           <span className="text-xs font-black text-slate-900 tabular-nums">
-                             {Math.round(gear.distanceKm)} <span className="text-[10px] text-slate-400 font-bold">/ {gear.maxLife} km</span>
-                           </span>
-                           <PencilSquareIcon className="w-3 h-3 text-slate-300 group-hover/life:text-slate-500 transition-colors" />
-                         </button>
-                       )}
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
+                      {editingId === gear.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            autoFocus
+                            min={MIN_SHOE_LIFE_KM}
+                            max={MAX_SHOE_LIFE_KM}
+                            value={draftLife}
+                            onChange={(e) => setDraftLife(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveLife(gear.id);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            className="w-20 px-2 py-0.5 text-xs font-black tabular-nums text-slate-900 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
+                            aria-label={t('gear.life.edit')}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveLife(gear.id)}
+                            disabled={!isValidLifeKm(draftLife)}
+                            title={t('gear.life.save')}
+                            className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:text-slate-300 disabled:hover:bg-transparent"
+                          >
+                            <CheckIcon className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => resetLife(gear.id)}
+                            title={t('gear.life.auto')}
+                            className="p-1 rounded-lg text-slate-400 hover:bg-slate-50"
+                          >
+                            <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setEditingId(gear.id); setDraftLife(String(gear.maxLife)); }}
+                          title={t('gear.life.edit')}
+                          className="flex items-center gap-1.5 group/life"
+                        >
+                          <span className="text-xs font-black text-slate-900 tabular-nums">
+                            {Math.round(gear.distanceKm)} <span className="text-[10px] text-slate-400 font-bold">/ {gear.maxLife} km</span>
+                          </span>
+                          <PencilSquareIcon className="w-3 h-3 text-slate-300 group-hover/life:text-slate-500 transition-colors" />
+                        </button>
+                      )}
                     </div>
                     <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100 relative">
-                       <motion.div 
-                          className={`h-full rounded-full ${color} shadow-[0_0_10px_rgba(0,0,0,0.1)]`}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 1, ease: "easeOut" }}
-                       />
+                      <motion.div
+                        className={`h-full rounded-full ${color} shadow-[0_0_10px_rgba(0,0,0,0.1)]`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                      />
                     </div>
                     {/* De dónde sale el denominador: es una estimación por tipo salvo
                         que el atleta lo haya fijado, y la vista lo dice. */}

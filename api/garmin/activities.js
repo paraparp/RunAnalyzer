@@ -5,7 +5,12 @@ export const config = { maxDuration: 60 };
 // POST /api/garmin/activities → últimas actividades de Garmin con running dynamics.
 // Se guardan luego en user_storage (garmin_activities) y el MCP las correlaciona
 // con las carreras de Strava por hora de inicio.
-export default async function handler(req, res) {
+// `getClient` inyectable como en `health/recent.js` y `login.js`: en producción
+// cada invocación arranca en frío y hace login, pero el servidor de desarrollo
+// pasa su sesión cacheada. Sin esta firma la ruta no se podía montar en
+// `server.js` — y sin montarla, el carril de actividades de `syncAll` respondía
+// "Cannot POST /api/garmin/activities" en cada arranque en local.
+export default async function handler(req, res, { getClient = createClient, onError } = {}) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { username, password, limit = 100, enrichedIds, enrichDetail, enrichRuns } = req.body ?? {};
@@ -15,7 +20,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const client = await createClient(username, password);
+    const client = await getClient(username, password);
     // `enrichedIds`: garmin_id que el cliente ya tiene enriquecidos (hr_source, laps…).
     // Cubre carreras y bicis: el detalle es lo único que trae el origen de la FC.
     // Se saltan para que cada sync avance sobre el histórico pendiente.
@@ -26,6 +31,7 @@ export default async function handler(req, res) {
     const enriched = activities.filter((a) => a.hr_source != null).length;
     res.json({ activities, total: activities.length, enriched_now: enriched });
   } catch (e) {
+    onError?.(e);
     res.status(502).json({ error: e.message });
   }
 }

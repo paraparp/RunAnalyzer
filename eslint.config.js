@@ -32,6 +32,11 @@ export default defineConfig([
       // dejaba fuera los que empiezan por minúscula — y, de paso, escondía los
       // imports de componente que sí sobran.
       'react/jsx-uses-vars': 'error',
+      // La contraria de la anterior, y la que de verdad faltaba: `no-undef` NO
+      // mira los nombres de las etiquetas JSX, así que un `<Card>` sin importar
+      // pasaba el lint y el build y solo reventaba al renderizar en el navegador
+      // ("Card is not defined"). Esta regla sí lo ve.
+      'react/jsx-no-undef': 'error',
       'no-unused-vars': ['error', { varsIgnorePattern: '^_' }],
     },
   },

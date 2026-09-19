@@ -18,7 +18,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /**
  * PMC redondeado para el prompt. La matemática vive en `lib/trainingLoad.js`
- * (fuente única compartida con StatusSnapshot, FitnessFatigue, InjuryRisk y
+ * (fuente única compartida con statusStats, FitnessFatigue, InjuryRisk y
  * VitalsOverview); aquí solo se redondea para que el texto del prompt no
  * arrastre decimales.
  */

@@ -1,567 +1,64 @@
 import { useMemo, useState } from 'react';
 import cloudStorage from '../lib/cloudStorage';
 import { Card, Text } from '@tremor/react';
-import FitnessFatigue from './FitnessFatigue';
-import WeeklyProgression from './WeeklyProgression';
-import InjuryRisk from './InjuryRisk';
 import {
   ComposedChart, Area, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
-  LineChart, Line
+  Line,
 } from 'recharts';
 import {
-  ArrowTrendingUpIcon,
-  BoltIcon, FireIcon, HeartIcon,
-  ExclamationTriangleIcon, CheckCircleIcon,
-  CalendarDaysIcon, ArrowUpIcon, ArrowDownIcon,
+  ArrowTrendingUpIcon, BoltIcon, HeartIcon,
   XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { weekStartKey } from '../lib/isoWeek';
-import { monthKey, dayKey, activityDayKey } from '../lib/trainingLoad';
-import { formatPaceFromSpeed, formatDurationHm } from '../lib/timeFormat';
+import { monthKey } from '../lib/trainingLoad';
+import {
+  computeStats, computeGarminStats, isRun, paceStr, timeStr, fmt1,
+} from '../lib/statusStats';
+import { HeroCard, MiniSparkline, PctPill, RangeSelector } from './StatusCards';
 
-// ─── constants ────────────────────────────────────────────────────────────────
-const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
+// ─────────────────────────────────────────────────────────────────────────────
+// Carga › Mi Estado: el detalle del estado actual contra el histórico.
+// Comparativa de métricas (ahora / mejor del año / mejor histórico), el PMC día
+// a día con las zonas de pico y el panel de lo que se hizo el día que pinchas, y
+// las tendencias de Garmin.
+//
+// Es lo que quedaba de la pestaña "Estado" de `StatusSnapshot` una vez que el
+// briefing se fue a Hoy (`StatusHero`) y las otras tres pestañas —PMC, Semanal y
+// Riesgo— pasaron a ser ítems del menú. El gráfico de CTL/ATL y el bloque de
+// Garmin están de paso: la fase 3b los funde con sus dueños
+// (`FitnessFatigue` y `VitalsOverview`), que ya pintan las mismas series.
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-const isRun = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);
-
-const paceStr = (speedMs) => formatPaceFromSpeed(speedMs, '—');
-const timeStr = (seconds) => formatDurationHm(seconds, '—');
-
-const fmt1 = (n) => (n == null ? '—' : Number(n).toFixed(1));
-
-// ─── main computation ─────────────────────────────────────────────────────────
-function computeStats(activities, pmc) {
-  if (!activities || activities.length === 0) return null;
-
-  const now = new Date();
-  const nowMs = now.getTime();
-  const thisYear = now.getFullYear();
-
-  // ── PMC: llega ya calibrado desde useCalibratedPMC (fuente única compartida
-  // con FitnessFatigue, InjuryRisk, VitalsOverview, el coach IA y el MCP; antes
-  // esta vista usaba su propia carga `(min/60)*0.5`, y después una calibración
-  // por defecto que ignoraba la FC de reposo real y los overrides manuales).
-  if (!pmc) return null;
-
-  let peakCTL = 0, peakCTLDate = '', peakCTLYear = 0;
-  const weeklyLoadMap = {};
-  const ctlSeries = pmc.series.map((p) => {
-    if (p.ctl > peakCTL) { peakCTL = p.ctl; peakCTLDate = p.date; }
-    if (Number(p.date.slice(0, 4)) === thisYear && p.ctl > peakCTLYear) peakCTLYear = p.ctl;
-
-    const wk = weekStartKey(new Date(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))));
-    if (!weeklyLoadMap[wk]) weeklyLoadMap[wk] = { load: 0 };
-    weeklyLoadMap[wk].load += p.load;
-
-    return {
-      date: p.date,
-      ctl: p.ctl,
-      atl: p.atl,
-      tsb: p.tsb,
-      load: p.load,
-      activities: p.activities.map((a) => ({
-        id: a.id,
-        name: a.name,
-        distance: a.distance,
-        type: a.type,
-        sport_type: a.sport_type,
-        moving_time: a.moving_time,
-        average_speed: a.average_speed,
-        average_heartrate: a.average_heartrate,
-        suffer_score: a.suffer_score,
-      })),
-    };
-  });
-
-  const currentCTL = pmc.current.ctl;
-  const currentATL = pmc.current.atl;
-  const currentTSB = pmc.current.tsb;
-  // ACWR por EWMA 7:28 (Williams 2017), no ATL/CTL(42).
-  const currentACWR = pmc.current.acwr ?? 0;
-
-  const ctl7ago = currentCTL - pmc.current.ctlTrend7;
-  const ctl28ago = currentCTL - pmc.current.ctlTrend28;
-
-  // full history available for chart
-  const chartDataFull = ctlSeries;
-
-  // ── weekly km (running) ──
-  const runActivities = activities.filter(isRun);
-  const weeklyKm = {};
-  runActivities.forEach((a) => {
-    const wk = weekStartKey(activityDayKey(a));
-    weeklyKm[wk] = (weeklyKm[wk] || 0) + a.distance / 1000;
-  });
-
-  const allWeeklyKmVals = Object.entries(weeklyKm);
-  const peakWeekKm = allWeeklyKmVals.reduce((max, [, v]) => Math.max(max, v), 0);
-  const thisYearWeeks = allWeeklyKmVals.filter(([k]) => k.startsWith(String(thisYear)));
-  const peakWeekKmYear = thisYearWeeks.reduce((max, [, v]) => Math.max(max, v), 0);
-  const avgWeekKmYear = thisYearWeeks.length > 0 ? thisYearWeeks.reduce((s, [, v]) => s + v, 0) / thisYearWeeks.length : 0;
-
-  const last7daysMs = nowMs - 7 * 86400000;
-  const last7daysKm = runActivities
-    .filter((a) => new Date(a.start_date).getTime() >= last7daysMs)
-    .reduce((s, a) => s + a.distance / 1000, 0);
-
-  // ── best pace efforts ──
-  const pace5kAll = [], pace5kYear = [], pace5kRecent = [];
-  const pace10kAll = [], pace10kYear = [], pace10kRecent = [];
-  const last28Ms = nowMs - 28 * 86400000;
-
-  runActivities.forEach((a) => {
-    if (!a.average_speed || a.average_speed <= 0) return;
-    const t = new Date(a.start_date).getTime();
-    const isThisYear = new Date(a.start_date).getFullYear() === thisYear;
-    const isRecent = t >= last28Ms;
-    const dist = a.distance;
-
-    if (dist >= 4800 && dist <= 5200) {
-      pace5kAll.push(a.average_speed);
-      if (isThisYear) pace5kYear.push(a.average_speed);
-      if (isRecent) pace5kRecent.push(a.average_speed);
-    }
-    if (dist >= 9500 && dist <= 10500) {
-      pace10kAll.push(a.average_speed);
-      if (isThisYear) pace10kYear.push(a.average_speed);
-      if (isRecent) pace10kRecent.push(a.average_speed);
-    }
-  });
-
-  const bestSpeed = (arr) => (arr.length ? Math.max(...arr) : null);
-
-  // ── HR efficiency ──
-  const hrEff = (arr) => {
-    const valid = arr.filter((a) => a.average_heartrate && a.average_speed > 0 && a.distance > 3000);
-    if (!valid.length) return null;
-    const avg = valid.reduce((s, a) => {
-      const speedKmh = a.average_speed * 3.6;
-      return s + a.average_heartrate / speedKmh;
-    }, 0) / valid.length;
-    return avg;
-  };
-
-  const recentRuns = runActivities.filter((a) => new Date(a.start_date).getTime() >= last28Ms);
-  const yearRuns = runActivities.filter((a) => new Date(a.start_date).getFullYear() === thisYear);
-
-  const hrEffRecent = hrEff(recentRuns);
-  const hrEffYear = hrEff(yearRuns);
-  const hrEffAll = hrEff(runActivities);
-
-  // ── consistency ──
-  // Días LOCALES a los dos lados de la comparación: con `start_date` en UTC y
-  // "hoy" sacado de `toISOString()`, entre las 00:00 y las 02:00 locales la
-  // ventana entera se corría un día.
-  const activeDays = new Set(activities.map(activityDayKey).filter(Boolean));
-  const last28days = Array.from({ length: 28 }, (_, i) => dayKey(new Date(nowMs - i * 86400000)));
-  const activeLast28 = last28days.filter((d) => activeDays.has(d)).length;
-  const activeLast7 = last28days.slice(0, 7).filter((d) => activeDays.has(d)).length;
-
-  // streak
-  let streak = 0;
-  for (let i = 0; ; i++) {
-    const d = dayKey(new Date(nowMs - i * 86400000));
-    if (activeDays.has(d)) streak++;
-    else break;
-  }
-
-  // ── elevation ──
-  const elevLast28 = runActivities
-    .filter((a) => new Date(a.start_date).getTime() >= last28Ms)
-    .reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
-
-  // monthly elevation this year
-  const monthlyElev = {};
-  runActivities.forEach((a) => {
-    const d = new Date(a.start_date);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    monthlyElev[key] = (monthlyElev[key] || 0) + (a.total_elevation_gain || 0);
-  });
-  const elevMonthsYear = Object.entries(monthlyElev)
-    .filter(([k]) => k.startsWith(String(thisYear)))
-    .map(([, v]) => v);
-  const avgMonthlyElevYear = elevMonthsYear.length ? elevMonthsYear.reduce((s, v) => s + v, 0) / elevMonthsYear.length : 0;
-  const allElevMonths = Object.values(monthlyElev);
-  const peakMonthlyElev = allElevMonths.length ? Math.max(...allElevMonths) : 0;
-
-  // ── weekly CTL sparkline data (last 8 weeks, 1 point/week) ──
-  const sparklineWeeks = 8;
-  const sparkData = Array.from({ length: sparklineWeeks }, (_, i) => {
-    const offset = (sparklineWeeks - 1 - i) * 7;
-    const idx = ctlSeries.length - 1 - offset;
-    if (idx < 0) return null;
-    return ctlSeries[idx];
-  }).filter(Boolean);
-
-  return {
-    currentCTL, currentATL, currentTSB, currentACWR,
-    peakCTL, peakCTLDate, peakCTLYear,
-    ctl7ago, ctl28ago,
-    last7daysKm, avgWeekKmYear, peakWeekKm, peakWeekKmYear,
-    bestPace5kRecent: bestSpeed(pace5kRecent),
-    bestPace5kYear: bestSpeed(pace5kYear),
-    bestPace5kAll: bestSpeed(pace5kAll),
-    bestPace10kRecent: bestSpeed(pace10kRecent),
-    bestPace10kYear: bestSpeed(pace10kYear),
-    bestPace10kAll: bestSpeed(pace10kAll),
-    hrEffRecent, hrEffYear, hrEffAll,
-    activeLast7, activeLast28, streak,
-    elevLast28, avgMonthlyElevYear, peakMonthlyElev,
-    chartDataFull,
-    sparkData,
-  };
-}
-
-// ─── garmin stats ─────────────────────────────────────────────────────────────
-function computeGarminStats(rawData) {
-  if (!rawData || rawData.length === 0) return null;
-
-  const sorted = [...rawData].sort((a, b) => a.date.localeCompare(b.date));
-  const now = new Date();
-  const thisYear = now.getFullYear();
-  // `d.date` de Garmin es un día local: los cortes también, o la ventana se
-  // desplaza un día en la franja de madrugada.
-  const last7  = dayKey(new Date(now.getTime() -  7 * 86400000));
-  const last28 = dayKey(new Date(now.getTime() - 28 * 86400000));
-  const last60 = dayKey(new Date(now.getTime() - 60 * 86400000));
-
-  const recent7      = sorted.filter(d => d.date >= last7);
-  const recent28     = sorted.filter(d => d.date >= last28);
-  const recent60     = sorted.filter(d => d.date >= last60);
-  const thisYearData = sorted.filter(d => d.date.startsWith(String(thisYear)));
-
-  const avg = (arr, key) => {
-    const vals = arr.map(d => d[key]).filter(v => v != null && !isNaN(v));
-    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
-  };
-  const minVal = (arr, key) => {
-    const vals = arr.map(d => d[key]).filter(v => v != null && !isNaN(v));
-    return vals.length ? Math.min(...vals) : null;
-  };
-  const maxVal = (arr, key) => {
-    const vals = arr.map(d => d[key]).filter(v => v != null && !isNaN(v));
-    return vals.length ? Math.max(...vals) : null;
-  };
-
-  // ── Detect if HRV data exists ──
-  const hasHRV = sorted.some(d => d.hrv != null && d.hrv > 0);
-  const recoveryKey = hasHRV ? 'hrv' : 'bbHigh'; // prefer HRV, fallback to Body Battery
-
-  // Latest values
-  const lastWithHR  = [...sorted].reverse().find(d => d.restingHR != null);
-  const lastWithRec = [...sorted].reverse().find(d => d[recoveryKey] != null);
-
-  const currentRHR = lastWithHR?.restingHR ?? null;
-  const currentRec = lastWithRec?.[recoveryKey] ?? null;  // HRV (ms) or BB (0-100)
-  const currentBBLow = hasHRV ? null : lastWithRec?.bbLow ?? null;
-
-  // ── Calculate 15-day rolling averages for min/max peaks ──
-  const rolling15 = sorted.map((d, i) => {
-    const startIdx = Math.max(0, i - 14);
-    const window = sorted.slice(startIdx, i + 1);
-    
-    const rhrVals = window.map(w => w.restingHR).filter(v => v != null && !isNaN(v));
-    const rhrAvg15 = rhrVals.length >= 5 ? +(rhrVals.reduce((a,b)=>a+b,0)/rhrVals.length).toFixed(1) : null;
-    
-    const recVals = window.map(w => w[recoveryKey]).filter(v => v != null && !isNaN(v));
-    const recAvg15 = recVals.length >= 5 ? +(recVals.reduce((a,b)=>a+b,0)/recVals.length).toFixed(1) : null;
-
-    return {
-      date: d.date,
-      rhrAvg15,
-      recAvg15
-    };
-  });
-  const rolling15ThisYear = rolling15.filter(d => d.date.startsWith(String(thisYear)));
-
-  // ── RHR stats ──
-  const rhr7avg  = avg(recent7,  'restingHR');
-  const rhr28avg = avg(recent28, 'restingHR');
-  
-  const rhrAllTimeMin = minVal(rolling15, 'rhrAvg15');
-  const rhrAllTimeMax = maxVal(rolling15, 'rhrAvg15');
-  const rhrYearMin    = minVal(rolling15ThisYear, 'rhrAvg15');
-  const rhrYearMax    = maxVal(rolling15ThisYear, 'rhrAvg15');
-
-  // ── Recovery (HRV or BB) stats ──
-  const rec7avg      = avg(recent7,      recoveryKey);
-  const rec28avg     = avg(recent28,     recoveryKey);
-  const rec60avg     = avg(recent60,     recoveryKey); // personal baseline for HRV
-  
-  const recAllTimeMax = maxVal(rolling15, 'recAvg15');
-  const recAllTimeMin = minVal(rolling15, 'recAvg15');
-  const recYearAvg    = avg(thisYearData,    recoveryKey);
-  const recYearMax    = maxVal(rolling15ThisYear, 'recAvg15');
-
-  // ── HRV deviation from personal baseline (key metric) ──
-  // Standard practice: compare current 7d avg vs 60d rolling baseline
-  // > +10% above baseline = very recovered, < -10% = suppressed
-  const hrvDeviation = (hasHRV && rec7avg && rec60avg)
-    ? Math.round(((rec7avg - rec60avg) / rec60avg) * 100)
-    : null;
-
-  // ── Sparklines (8 weeks) ──
-  const recSparkData = [];
-  const rhrSparkData = [];
-  for (let i = 7; i >= 0; i--) {
-    const wStart = new Date(now.getTime() - (i + 1) * 7 * 86400000).toISOString().split('T')[0];
-    const wEnd   = new Date(now.getTime() -  i      * 7 * 86400000).toISOString().split('T')[0];
-    const week   = sorted.filter(d => d.date >= wStart && d.date < wEnd);
-    const recAvg = avg(week, recoveryKey);
-    const rhrAvg = avg(week, 'restingHR');
-    recSparkData.push({ v: recAvg != null ? Math.round(recAvg * 10) / 10 : null });
-    rhrSparkData.push({ v: rhrAvg != null ? Math.round(rhrAvg * 10) / 10 : null });
-  }
-
-  // ── Full chart data (all dates, filtered in component) ──
-  const chartData = sorted.map(d => ({
-    date:   d.date,
-    rhr:    d.restingHR ?? null,
-    rec:    d[recoveryKey] ?? null,   // hrv or bb
-    bbLow:  d.bbLow ?? null,
-    // rolling 7-day avg for HRV baseline band
-  }));
-
-  // Attach 7-day rolling avg for the baseline band on chart
-  for (let i = 0; i < chartData.length; i++) {
-    const window = chartData.slice(Math.max(0, i - 6), i + 1).map(d => d.rec).filter(v => v != null);
-    chartData[i].recRolling7 = window.length >= 3 ? Math.round(window.reduce((s, v) => s + v, 0) / window.length * 10) / 10 : null;
-  }
-
-  return {
-    hasHRV, recoveryKey,
-    currentRHR, currentRec, currentBBLow,
-    rhr7avg, rhr28avg,
-    rhrAllTimeMin, rhrAllTimeMax, rhrYearMin, rhrYearMax,
-    rec7avg, rec28avg, rec60avg,
-    recAllTimeMax, recAllTimeMin, recYearAvg, recYearMax,
-    hrvDeviation,
-    recSparkData, rhrSparkData,
-    chartData,
-    lastDate: lastWithHR?.date ?? lastWithRec?.date ?? null,
-  };
-}
-
-// ─── sub-components ───────────────────────────────────────────────────────────
-
-function PhaseBanner({ tsb, acwr, garmin }) {
-  let phase, color, borderColor, bg, Icon, description;
-
-  if (tsb > 5) {
-    phase = 'En forma'; color = 'text-emerald-700'; borderColor = 'border-emerald-500';
-    bg = 'bg-emerald-50'; Icon = CheckCircleIcon;
-    description = 'Forma positiva — listo para competir o atacar una sesión clave';
-  } else if (tsb >= 0) {
-    phase = 'Acumulando'; color = 'text-amber-700'; borderColor = 'border-amber-400';
-    bg = 'bg-amber-50'; Icon = ArrowTrendingUpIcon;
-    description = 'Cargando trabajo, ligera fatiga acumulada';
-  } else if (tsb >= -10) {
-    phase = 'Cargando'; color = 'text-orange-700'; borderColor = 'border-orange-500';
-    bg = 'bg-orange-50'; Icon = FireIcon;
-    description = 'Bloque de carga activo — monitorizar recuperación';
-  } else {
-    phase = 'Fatiga alta'; color = 'text-rose-700'; borderColor = 'border-rose-500';
-    bg = 'bg-rose-50'; Icon = ExclamationTriangleIcon;
-    description = 'Fatiga elevada — considerar recuperación activa o descanso';
-  }
-
-  return (
-    <div className={`rounded-xl border-l-4 ${borderColor} ${bg} p-4 flex items-center justify-between gap-4 flex-wrap`}>
-      <div className="flex items-center gap-3">
-        <Icon className={`w-5 h-5 ${color} shrink-0`} />
-        <div>
-          <span className={`font-black text-lg ${color}`}>{phase}</span>
-          <span className="text-slate-500 text-sm ml-2">{description}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-4 text-xs flex-wrap">
-        <div className="text-center">
-          <div className="text-slate-400 uppercase font-bold tracking-wide">TSB</div>
-          <div className={`text-xl font-black ${color}`}>{fmt1(tsb)}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-slate-400 uppercase font-bold tracking-wide">ACWR</div>
-          <div className={`text-xl font-black ${acwr > 1.5 ? 'text-rose-600' : acwr > 1.3 ? 'text-amber-600' : 'text-slate-700'}`}>
-            {acwr.toFixed(2)}
-          </div>
-        </div>
-        {garmin?.currentRHR != null && (
-          <div className="text-center">
-            <div className="text-slate-400 uppercase font-bold tracking-wide">FC Reposo</div>
-            <div className={`text-xl font-black ${
-              garmin.rhrAllTimeMin && garmin.currentRHR <= garmin.rhrAllTimeMin + 3 ? 'text-emerald-600'
-              : garmin.currentRHR > (garmin.rhr28avg || garmin.currentRHR) + 5 ? 'text-rose-600'
-              : 'text-slate-700'
-            }`}>
-              {garmin.currentRHR} <span className="text-xs font-normal">bpm</span>
-            </div>
-          </div>
-        )}
-        {garmin?.currentRec != null && (
-          <div className="text-center">
-            <div className="text-slate-400 uppercase font-bold tracking-wide">
-              {garmin.hasHRV ? 'VFC (RMSSD)' : 'Body Battery'}
-            </div>
-            {garmin.hasHRV ? (
-              <>
-                <div className={`text-xl font-black ${
-                  garmin.hrvDeviation > 5  ? 'text-emerald-600'
-                  : garmin.hrvDeviation < -10 ? 'text-rose-600'
-                  : 'text-amber-600'
-                }`}>
-                  {Math.round(garmin.currentRec)}<span className="text-xs font-normal"> ms</span>
-                </div>
-                {garmin.hrvDeviation != null && (
-                  <div className={`text-xs font-bold ${garmin.hrvDeviation >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                    {garmin.hrvDeviation >= 0 ? '+' : ''}{garmin.hrvDeviation}% vs baseline
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className={`text-xl font-black ${
-                garmin.currentRec >= 80 ? 'text-emerald-600'
-                : garmin.currentRec >= 50 ? 'text-amber-600'
-                : 'text-rose-600'
-              }`}>
-                {garmin.currentRec}<span className="text-xs font-normal">/100</span>
-              </div>
-            )}
-          </div>
-        )}
-        {(acwr > 1.5 || (garmin?.currentRHR != null && garmin.rhr28avg && garmin.currentRHR > garmin.rhr28avg + 5)) && (
-          <div className="flex items-center gap-1 bg-rose-100 text-rose-700 px-2 py-1 rounded-lg font-semibold text-xs">
-            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-            {acwr > 1.5 ? 'Riesgo lesión' : 'FC elevada'}
-          </div>
-        )}
-        {garmin?.hasHRV && garmin.hrvDeviation != null && garmin.hrvDeviation < -10 && (
-          <div className="flex items-center gap-1 bg-rose-100 text-rose-700 px-2 py-1 rounded-lg font-semibold text-xs">
-            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-            VFC suprimida
-          </div>
-        )}
-        {!garmin?.hasHRV && garmin?.currentRec != null && garmin.currentRec < 30 && (
-          <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-semibold text-xs">
-            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-            Recuperación baja
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HeroCard({ label, value, unit, subRows, trendDelta, icon: Icon, color = 'blue' }) {
-  const colorMap = {
-    blue:    { bg: 'bg-blue-50',    text: 'text-blue-700',    icon: 'text-blue-500' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'text-emerald-500' },
-    amber:   { bg: 'bg-amber-50',   text: 'text-amber-700',   icon: 'text-amber-500' },
-    rose:    { bg: 'bg-rose-50',    text: 'text-rose-700',    icon: 'text-rose-500' },
-  };
-  const c = colorMap[color] || colorMap.blue;
-
-  return (
-    <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <Text className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</Text>
-        {Icon && <div className={`p-1.5 rounded-lg ${c.bg}`}><Icon className={`w-4 h-4 ${c.icon}`} /></div>}
-      </div>
-      <div className="flex items-end gap-2">
-        <span className={`text-4xl font-black leading-none ${c.text}`}>{value}</span>
-        {unit && <span className="text-sm font-semibold text-slate-400 pb-0.5">{unit}</span>}
-        {trendDelta != null && (
-          <span className={`ml-1 pb-0.5 text-xs font-bold flex items-center gap-0.5 ${trendDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-            {trendDelta >= 0 ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
-            {Math.abs(trendDelta).toFixed(1)}
-          </span>
-        )}
-      </div>
-      <div className="space-y-1 border-t border-slate-100 pt-3">
-        {subRows.map((row, i) => (
-          <div key={i} className="flex justify-between items-center text-xs">
-            <span className="text-slate-400">{row.label}</span>
-            <span className="font-semibold text-slate-600">{row.value}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function pctPill(now, best, lowerIsBetter = false) {
-  if (!best || !now) return <span className="text-slate-300 text-xs">—</span>;
-  const pct = lowerIsBetter ? (best / now) * 100 : (now / best) * 100;
-  const clamped = Math.min(pct, 100);
-  const color = clamped >= 80 ? 'bg-emerald-100 text-emerald-700' : clamped >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700';
-  return <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${color}`}>{Math.round(clamped)}%</span>;
-}
-
-function MiniSparkline({ data, color = '#3b82f6' }) {
-  if (!data || data.length < 2) return <span className="text-slate-300 text-xs">—</span>;
-  return (
-    <ResponsiveContainer width={64} height={24}>
-      <LineChart data={data} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
-        <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-function RangeSelector({ value, onChange, options }) {
-  return (
-    <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs shrink-0">
-      {options.map(opt => (
-        <button
-          key={opt.v}
-          onClick={() => onChange(opt.v)}
-          className={`px-3 py-1.5 transition-colors font-medium ${
-            value === opt.v
-              ? 'bg-slate-800 text-white'
-              : 'bg-white text-slate-500 hover:bg-slate-50'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─── main component ───────────────────────────────────────────────────────────
-export default function StatusSnapshot({ activities }) {
+export default function StatusOverview({ activities }) {
   const { pmc } = useCalibratedPMC(activities);
   const pmcSeries = pmc?.series ?? null;
   const pmcCurrent = pmc?.current ?? null;
+  // "Ahora" estable por montaje: leer el reloj en cada render hace que el mismo
+  // dato entre y salga de la ventana según cuántas veces se repinte la vista.
+  const [nowMs2] = useState(() => Date.now());
+
   const stats = useMemo(
-    () => (pmcSeries && pmcCurrent ? computeStats(activities, { series: pmcSeries, current: pmcCurrent }) : null),
-    [activities, pmcSeries, pmcCurrent],
+    () => (pmcSeries && pmcCurrent
+      ? computeStats(activities, { series: pmcSeries, current: pmcCurrent }, { now: nowMs2 })
+      : null),
+    [activities, pmcSeries, pmcCurrent, nowMs2],
   );
 
-  // Load Garmin data from localStorage (same source as GarminCardiac component)
   const garmin = useMemo(() => {
     try {
       const raw = cloudStorage.getItem('garmin_cardiac_data');
-      if (raw) return computeGarminStats(JSON.parse(raw));
+      if (raw) return computeGarminStats(JSON.parse(raw), { now: nowMs2 });
     } catch { /* cache de Garmin ilegible: se sigue sin ella */ }
     return null;
-  }, []);
+  }, [nowMs2]);
 
-  // TODOS los hooks van antes del corte por falta de datos: `stats` es null
-  // mientras el PMC no ha resuelto o `activities` llega vacío, así que declararlos
-  // más abajo hacía que el mismo componente pasara de 4 hooks a 9 en cuanto los
-  // datos entraban — "Rendered more hooks than during the previous render".
-  const [tab, setTab] = useState('estado');
   const [timeRange, setTimeRange] = useState('90d'); // '90d' | '6m' | '1y' | 'all'
   const [selectedDay, setSelectedDay] = useState(null);
   const [showGarminHR, setShowGarminHR] = useState(true);
   const [showGarminRec, setShowGarminRec] = useState(true);
   const [garminGranularity, setGarminGranularity] = useState('day'); // 'day', 'week', 'month'
-  // "Ahora" estable por montaje: leer el reloj en cada render hace que el mismo
-  // dato entre y salga de la ventana según cuántas veces se repinte la vista.
-  const [nowMs2] = useState(() => Date.now());
 
   if (!stats) {
     return (
@@ -572,23 +69,15 @@ export default function StatusSnapshot({ activities }) {
   }
 
   const {
-    currentCTL, currentATL, currentTSB, currentACWR,
-    peakCTL, peakCTLYear, ctl7ago,
-    last7daysKm, avgWeekKmYear, peakWeekKm, peakWeekKmYear,
+    currentCTL, currentATL, currentTSB,
+    peakCTL, peakCTLYear,
+    last7daysKm, peakWeekKm, peakWeekKmYear,
     bestPace10kRecent, bestPace10kYear, bestPace10kAll,
-    bestPace5kRecent,
     hrEffRecent, hrEffYear, hrEffAll,
-    activeLast7, activeLast28, streak,
+    activeLast28,
     elevLast28, avgMonthlyElevYear, peakMonthlyElev,
     chartDataFull, sparkData,
   } = stats;
-
-  const ctlTrend = currentCTL - ctl7ago;
-  const ctlPctPeak = peakCTL > 0 ? Math.round((currentCTL / peakCTL) * 100) : 0;
-
-  // hero card color by TSB
-  const fitnessColor = ctlPctPeak >= 80 ? 'emerald' : ctlPctPeak >= 50 ? 'blue' : 'amber';
-  const formColor = currentTSB > 5 ? 'emerald' : currentTSB > -5 ? 'amber' : 'rose';
 
   // sparkline datasets (last 8 weeks)
   const ctlSparkData  = sparkData.map((d) => ({ v: d.ctl }));
@@ -738,84 +227,9 @@ export default function StatusSnapshot({ activities }) {
 
   const peakCTLVal = Math.round(peakCTL * 10) / 10;
 
+
   return (
     <div className="space-y-4">
-
-      {/* ── Tab bar ── */}
-      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1">
-        {[
-          { id: 'estado', label: 'Estado' },
-          { id: 'pmc',    label: 'PMC / Fitness' },
-          { id: 'semanal', label: 'Semanal' },
-          { id: 'lesion', label: 'Riesgo Lesión' },
-        ].map(({ id, label }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-              tab === id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
-            }`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'pmc'    && <FitnessFatigue activities={activities} />}
-      {tab === 'semanal' && <WeeklyProgression activities={activities} />}
-      {tab === 'lesion' && <InjuryRisk activities={activities} />}
-      {tab === 'estado' && <>
-
-      {/* ── Phase Banner ── */}
-      <PhaseBanner tsb={currentTSB} acwr={currentACWR} garmin={garmin} />
-
-      {/* ── Hero Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <HeroCard
-          label="Fitness (CTL)"
-          value={fmt1(currentCTL)}
-          trendDelta={ctlTrend}
-          icon={ArrowTrendingUpIcon}
-          color={fitnessColor}
-          subRows={[
-            { label: 'Pico histórico',  value: `${fmt1(peakCTL)} (${ctlPctPeak}%)` },
-            { label: 'Pico este año',   value: fmt1(peakCTLYear) },
-            { label: 'Tendencia 7d',    value: ctlTrend >= 0 ? `+${ctlTrend.toFixed(1)}` : ctlTrend.toFixed(1) },
-          ]}
-        />
-        <HeroCard
-          label="Forma (TSB)"
-          value={fmt1(currentTSB)}
-          icon={BoltIcon}
-          color={formColor}
-          subRows={[
-            { label: 'Fatiga actual (ATL)',  value: fmt1(currentATL) },
-            { label: 'ACWR',                value: currentACWR.toFixed(2) },
-            { label: 'Días activos (7d)',    value: `${activeLast7} / 7` },
-          ]}
-        />
-        <HeroCard
-          label="Volumen semanal"
-          value={last7daysKm.toFixed(1)}
-          unit="km"
-          icon={CalendarDaysIcon}
-          color="blue"
-          subRows={[
-            { label: 'Media semanal año', value: `${avgWeekKmYear.toFixed(1)} km` },
-            { label: 'Semana pico año',   value: `${peakWeekKmYear.toFixed(1)} km` },
-            { label: 'Semana pico total', value: `${peakWeekKm.toFixed(1)} km` },
-          ]}
-        />
-        <HeroCard
-          label="Mejor ritmo reciente"
-          value={paceStr(bestPace10kRecent) !== '—' ? paceStr(bestPace10kRecent) : paceStr(bestPace5kRecent)}
-          unit={paceStr(bestPace10kRecent) !== '—' ? '/km 10k' : '/km 5k'}
-          icon={FireIcon}
-          color="amber"
-          subRows={[
-            { label: 'PB 10k este año',   value: paceStr(bestPace10kYear) },
-            { label: 'PB 10k histórico',  value: paceStr(bestPace10kAll) },
-            { label: 'Racha actual',       value: `${streak} días` },
-          ]}
-        />
-      </div>
 
       {/* ── Comparison Table ── */}
       <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white overflow-x-auto">
@@ -843,7 +257,7 @@ export default function StatusSnapshot({ activities }) {
                 <td className="py-2.5 px-3 text-right text-slate-500 text-xs">{row.bestAll}</td>
                 <td className="py-2.5 px-3 text-right">
                   {row.noCompare ? <span className="text-slate-300 text-xs">—</span>
-                    : pctPill(row.nowRaw, row.bestAllRaw, row.lowerIsBetter)}
+                    : <PctPill now={row.nowRaw} best={row.bestAllRaw} lowerIsBetter={row.lowerIsBetter} />}
                 </td>
                 <td className="py-2.5 px-3 flex justify-center items-center">
                   {row.spark
@@ -1250,7 +664,6 @@ export default function StatusSnapshot({ activities }) {
         </>
       )}
 
-      </>}
     </div>
   );
 }

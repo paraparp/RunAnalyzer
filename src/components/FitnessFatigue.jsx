@@ -145,7 +145,7 @@ export default function FitnessFatigue({ activities }) {
     if (!activities?.length) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     // El PMC llega ya calibrado desde useCalibratedPMC (fuente única compartida
-    // con StatusSnapshot, InjuryRisk, VitalsOverview, el coach IA y el MCP).
+    // con statusStats, InjuryRisk, VitalsOverview, el coach IA y el MCP).
     if (!pmcSeries || !pmcCurrent) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
 
     const weeklyBuckets = {};

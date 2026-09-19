@@ -122,7 +122,7 @@ function buildBands(data, threshold) {
 
 /**
  * Serie diaria de CTL. La carga por sesión y el EWMA viven en lib/trainingLoad
- * (fuente única compartida con StatusSnapshot, FitnessFatigue, InjuryRisk y el
+ * (fuente única compartida con statusStats, FitnessFatigue, InjuryRisk y el
  * coach IA). Aquí solo se reindexa a milisegundos de medianoche local, que es la
  * base temporal que usan el resto de series de esta vista.
  */

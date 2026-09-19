@@ -2,7 +2,7 @@
 // trainingLoad — modelo ÚNICO de carga de entrenamiento y PMC para toda la app.
 //
 // Antes cada vista implementaba su propio bucle CTL/ATL con su propia definición
-// de carga diaria (StatusSnapshot e InjuryRisk usaban `(min/60)*0.5`; el resto un
+// de carga diaria (el estado del atleta e InjuryRisk usaban `(min/60)*0.5`; el resto un
 // `estimateLoad` distinto), así que la misma sesión producía un CTL en "Estado" y
 // otro en "Motor Aeróbico" y un tercero en el prompt del coach. Este módulo es la
 // única fuente: funciones puras, sin UI ni I/O.

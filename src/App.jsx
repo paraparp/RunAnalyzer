@@ -12,7 +12,11 @@ import TrainingPlanner from './components/TrainingPlanner';
 import RacePredictor from './components/RacePredictor';
 import RunQA from './components/RunQA';
 import DataExporter from './components/DataExporter';
-import StatusSnapshot from './components/StatusSnapshot';
+import StatusHero from './components/StatusHero';
+import StatusOverview from './components/StatusOverview';
+import FitnessFatigue from './components/FitnessFatigue';
+import WeeklyProgression from './components/WeeklyProgression';
+import InjuryRisk from './components/InjuryRisk';
 import Logo from './components/Logo';
 import CollapsibleSection from './components/CollapsibleSection';
 import UserMenu from './components/UserMenu';
@@ -69,6 +73,7 @@ import {
   MapIcon,
   SignalIcon,
   CalendarDaysIcon,
+  ExclamationTriangleIcon,
   BeakerIcon,
   StarIcon,
   RectangleGroupIcon,
@@ -81,6 +86,9 @@ import {
 const NAV_ITEMS = [
   { id: 'dashboard',  icon: Squares2X2Icon },
   { id: 'status',     icon: TrophyIcon },
+  { id: 'pmc', icon: ArrowTrendingUpIcon },
+  { id: 'weekly', icon: CalendarDaysIcon },
+  { id: 'injury', icon: ExclamationTriangleIcon },
   { id: 'hranalysis', icon: HeartIcon },
   { id: 'technique', icon: FireIcon },
   { id: 'zones', icon: SignalIcon },
@@ -113,7 +121,7 @@ const NAV_ITEMS = [
 const NAV_CATEGORIES = [
   { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard'] },
   { id: 'sessions', icon: ChartBarIcon, itemIds: ['heatmap', 'gallery', 'geozones', 'gear'] },
-  { id: 'load', icon: ChartPieIcon, itemIds: ['status', 'consistency'] },
+  { id: 'load', icon: ChartPieIcon, itemIds: ['status', 'pmc', 'weekly', 'injury', 'consistency'] },
   // Capacidad primero (el techo: curva, VDOT/VO2, umbrales), adaptación después
   // (la tendencia: respuesta cardíaca, técnica, vitales). Son los dos ejes en
   // los que las fases 3-5 van a fundir estos seis ítems.
@@ -371,6 +379,11 @@ const Dashboard = ({ user, handleLogout }) => {
   const runningActivities = useMemo(() => stravaData?.activities
     ? stravaData.activities.filter(activity => RUNNING_TYPES.includes(activity.type) || RUNNING_TYPES.includes(activity.sport_type))
     : [], [stravaData]);
+
+  // Memoizada por el mismo motivo que `runningActivities`: el modelo de carga
+  // (CTL/ATL/ACWR) consume TODOS los deportes, y una identidad nueva por render
+  // le hace recalcular el PMC entero en cada repintado.
+  const allActivities = useMemo(() => stravaData?.activities ?? [], [stravaData]);
 
   // Calibrated FCmax / FCreposo / LTHR, resolved once and shared by the zones tab
   // and the per-lap zone badges so both classify a given bpm identically.
@@ -822,6 +835,10 @@ const Dashboard = ({ user, handleLogout }) => {
                   onManage={() => setCurrentView('targets')}
                   onOpenPlan={(id) => navigate(`/targets/${id}`)}
                 />
+
+                {/* Estado de hoy: fase + fitness/forma/volumen/ritmo. El detalle
+                    contra el histórico está en Carga › Mi Estado. */}
+                <StatusHero activities={allActivities} />
 
                 {/* Mobile year filter */}
                 <div className="sm:hidden flex items-center gap-2 px-1">
@@ -1356,9 +1373,11 @@ const Dashboard = ({ user, handleLogout }) => {
             )}
 
             {currentView !== 'dashboard' && (() => {
-              const allActivities = stravaData?.activities || [];
               const viewMap = {
-                status:      <StatusSnapshot activities={allActivities} />,
+                status:      <StatusOverview activities={allActivities} />,
+                pmc:         <FitnessFatigue activities={allActivities} />,
+                weekly:      <WeeklyProgression activities={allActivities} />,
+                injury:      <InjuryRisk activities={allActivities} />,
                 hranalysis:  <HRAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
                 technique:   <TechniqueAnalysis activities={runningActivities} />,
                 zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} onOpenCalibration={() => setCurrentView('calibration')} />,

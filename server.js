@@ -9,6 +9,7 @@ import aiModels from './api/ai/models.js';
 import garminLogin from './api/garmin/login.js';
 import garminHealthStream from './api/garmin/health/stream.js';
 import garminHealthRecent from './api/garmin/health/recent.js';
+import garminActivities from './api/garmin/activities.js';
 import garminWorkouts from './api/garmin/workouts.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
@@ -78,6 +79,12 @@ app.get('/api/ai/models', aiModels);
 app.post('/api/garmin/login', withCachedSession(garminLogin));
 app.post('/api/garmin/health/stream', withCachedSession(garminHealthStream));
 app.post('/api/garmin/health/recent', withCachedSession(garminHealthRecent));
+// Actividades con running dynamics (las que el MCP correlaciona con Strava). La
+// función serverless existía desde el principio pero nunca se montó aquí, así que
+// en desarrollo esta llamada SIEMPRE ha caído en un 404; se notaba poco porque
+// solo la hacía el sync manual de Garmin, y desde que `syncAll` la llama en el
+// arranque el error sale en consola en cada carga.
+app.post('/api/garmin/activities', withCachedSession(garminActivities));
 // Escritura de entrenos: no usa la sesión cacheada de dev — `garmin-write` abre la
 // suya con las credenciales guardadas del usuario (igual que en producción).
 app.all('/api/garmin/workouts', garminWorkouts);

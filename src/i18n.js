@@ -24,6 +24,9 @@ const en = {
       health: "Vitals & Recovery",
       export: "Export",
       status: "My Status",
+      pmc: "PMC / Fitness",
+      weekly: "Weekly",
+      injury: "Injury Risk",
       calibration: "HR Calibration",
       connections: "Connections",
       categories: {
@@ -489,9 +492,9 @@ const en = {
       karvonen_name: "Karvonen 5-Zones · Heart Rate Reserve",
       karvonen_desc: "Uses Heart Rate Reserve (MaxHR − RestHR) with the standard 10% HRR steps (Garmin/Polar). More precise than %MaxHR as it incorporates baseline fitness.",
       karvonen_zones: {
-        z1: { label: "Recovery",        desc: "<60% HRR. Very easy jog, active recovery, < 2 mmol/L lactate." },
-        z2: { label: "Aerobic Base",    desc: "60–70% HRR. Easy endurance, LT1, fat oxidation." },
-        z3: { label: "Aerobic",         desc: "70–80% HRR. Steady runs, light tempo." },
+        z1: { label: "Recovery", desc: "<60% HRR. Very easy jog, active recovery, < 2 mmol/L lactate." },
+        z2: { label: "Aerobic Base", desc: "60–70% HRR. Easy endurance, LT1, fat oxidation." },
+        z3: { label: "Aerobic", desc: "70–80% HRR. Steady runs, light tempo." },
         z4: { label: "Lactate Threshold", desc: "80–90% HRR. Tempo, LT2, ~4 mmol/L lactate." },
         z5: { label: "VO2max / Sprint", desc: ">90% HRR. Anaerobic, maximal capacity, sprints." }
       },
@@ -820,6 +823,9 @@ const es = {
       health: "Vitales y Recuperación",
       export: "Exportar",
       status: "Mi Estado",
+      pmc: "PMC / Fitness",
+      weekly: "Semanal",
+      injury: "Riesgo de Lesión",
       calibration: "Calibración FC",
       connections: "Conexiones",
       categories: {
@@ -1572,11 +1578,11 @@ const es = {
       karvonen_name: "Karvonen 5-Zonas · Heart Rate Reserve",
       karvonen_desc: "Usa la Reserva de FC (FCmax − FCreposo) con los cortes estándar de 10% HRR (Garmin/Polar). Más preciso que %FCmax porque incorpora tu condición física base.",
       karvonen_zones: {
-        z1: { label: "Recuperación",     desc: "<60% HRR. Trote muy suave, recuperación activa, < 2 mmol/L lactato." },
-        z2: { label: "Base Aeróbica",    desc: "60–70% HRR. Fondo fácil, LT1, oxidación de grasas." },
+        z1: { label: "Recuperación", desc: "<60% HRR. Trote muy suave, recuperación activa, < 2 mmol/L lactato." },
+        z2: { label: "Base Aeróbica", desc: "60–70% HRR. Fondo fácil, LT1, oxidación de grasas." },
         z3: { label: "Aeróbico Intenso", desc: "70–80% HRR. Fondo medio, tempo suave." },
-        z4: { label: "Umbral Lactato",   desc: "80–90% HRR. Tempo, LT2, ~4 mmol/L lactato." },
-        z5: { label: "VO2max / Sprint",  desc: ">90% HRR. Anaeróbico, capacidad máxima, sprints." }
+        z4: { label: "Umbral Lactato", desc: "80–90% HRR. Tempo, LT2, ~4 mmol/L lactato." },
+        z5: { label: "VO2max / Sprint", desc: ">90% HRR. Anaeróbico, capacidad máxima, sprints." }
       },
       scientific_base: "Base científica",
       seiler_status: {

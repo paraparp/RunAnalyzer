@@ -99,7 +99,7 @@ const DEFAULT_BASEMAP = 'dark';
 
 const basemapUrl = (id) => (id === 'light' ? getLightMapTileUrl()
   : id === 'satellite' ? getSatelliteMapTileUrl()
-  : getDarkMapTileUrl());
+    : getDarkMapTileUrl());
 
 // El punto de la opción, para reconocerla sin leer: gris oscuro, gris claro,
 // verde de imagen aérea.
@@ -140,15 +140,15 @@ function boundsOf(routes) {
 // ── Piezas de UI ─────────────────────────────────────────────────────────────
 
 const FOCUS = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ' +
-              'focus-visible:ring-offset-1 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900';
+  'focus-visible:ring-offset-1 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900';
 
 const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm ' +
-            'font-medium text-slate-700 transition enabled:hover:bg-slate-100 disabled:opacity-40 ' +
-            'motion-reduce:transition-none dark:border-slate-600 dark:text-slate-200 ' +
-            `dark:enabled:hover:bg-slate-800 ${FOCUS}`;
+  'font-medium text-slate-700 transition enabled:hover:bg-slate-100 disabled:opacity-40 ' +
+  'motion-reduce:transition-none dark:border-slate-600 dark:text-slate-200 ' +
+  `dark:enabled:hover:bg-slate-800 ${FOCUS}`;
 
 const ICON_BTN = 'rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 ' +
-                 `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
+  `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
 
 const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500';
 
@@ -156,7 +156,7 @@ const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-400 d
 // columnas entre filas. Por debajo de lg la fila se deshace en un flex que
 // envuelve, y ahí cada dato recupera su etiqueta.
 const ROW_GRID = 'lg:grid lg:grid-cols-[minmax(0,1fr)_8.5rem_4rem_5rem_5rem_4.5rem_9.5rem_5.5rem] ' +
-                 'lg:items-center lg:gap-x-3';
+  'lg:items-center lg:gap-x-3';
 
 /** Celda de dato: en columna estrecha lleva su etiqueta delante; en tabla, no. */
 function Cell({ label, align = 'left', children }) {
@@ -216,8 +216,8 @@ function RadiusPicker({ value, onChange, label }) {
             className={`min-w-[2.5rem] rounded-md px-2 py-1 text-xs font-medium tabular-nums transition
                         motion-reduce:transition-none ${FOCUS}
                         ${on
-                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50'
-                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
           >
             {r}
           </button>
@@ -271,8 +271,8 @@ function Menu({ label, children }) {
 }
 
 const MENU_ITEM = 'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 ' +
-                  'transition enabled:hover:bg-slate-100 disabled:opacity-40 motion-reduce:transition-none ' +
-                  `dark:text-slate-200 dark:enabled:hover:bg-slate-800 ${FOCUS}`;
+  'transition enabled:hover:bg-slate-100 disabled:opacity-40 motion-reduce:transition-none ' +
+  `dark:text-slate-200 dark:enabled:hover:bg-slate-800 ${FOCUS}`;
 
 /** Interruptor de capa del mapa: pulsado = capa visible. */
 function LayerToggle({ on, onClick, children }) {
@@ -283,8 +283,8 @@ function LayerToggle({ on, onClick, children }) {
       aria-pressed={on}
       className={`rounded-full border px-2.5 py-1 text-xs font-medium transition motion-reduce:transition-none ${FOCUS}
                   ${on
-                    ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
-                    : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
+          ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+          : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
     >
       {children}
     </button>
@@ -863,8 +863,8 @@ export default function GeoZones({ activities }) {
                   key={z.key}
                   className={`group relative overflow-hidden rounded-xl border transition motion-reduce:transition-none
                               ${picked
-                                ? 'border-sky-400 bg-sky-50/60 dark:border-sky-600 dark:bg-sky-950/20'
-                                : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'}`}
+                      ? 'border-sky-400 bg-sky-50/60 dark:border-sky-600 dark:bg-sky-950/20'
+                      : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'}`}
                 >
                   {/* La barra de km ES la fila: proporción sobre el sitio con más
                       kilómetros. Absorbe el gráfico de barras que antes vivía en su
@@ -994,8 +994,8 @@ export default function GeoZones({ activities }) {
                     className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition
                                 motion-reduce:transition-none ${FOCUS}
                                 ${on
-                                  ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-50'
-                                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+                        ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-50'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
                   >
                     {x.label}
                     {x.count != null && (

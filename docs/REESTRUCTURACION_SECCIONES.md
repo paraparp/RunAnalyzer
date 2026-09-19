@@ -8,7 +8,7 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado:** fases 1 y 2 completas. La estructura de 8 categorías de la primera pasada se
+> **Estado:** fases 1, 2 y 3a completas. La estructura de 8 categorías de la primera pasada se
 > **revisó a 5** el mismo día (§5, fase 1b) por lo que se veía al usarla. Pendientes: fases 3-5 y
 > las dos que salieron de la segunda revisión (§6): el scope temporal único y la vista de sesión.
 
@@ -23,7 +23,7 @@ Lo que de verdad contiene cada ítem, no lo que promete su nombre.
 | Ítem | Contenido real |
 |---|---|
 | `dashboard` | Inline en [App.jsx:989-1528](../src/App.jsx#L989). Filtro de año **duplicado** ([:957](../src/App.jsx#L957) en la topbar y [:1001](../src/App.jsx#L1001) en el cuerpo, mismo `selectedYear`) · 6 StatCards (km, nº, tiempo, ritmo, GAP, desnivel) · `NextRaceBanner` · **`AIInsights` entero** (807 líneas, 4 zonas) · `PersonalBests` horizontal · `MonthlyChart` (km/tiempo/desnivel/carga × semana/mes/año) · tabla paginada de actividades con `ActivitySplits` desplegables |
-| `status` | [StatusSnapshot.jsx](../src/components/StatusSnapshot.jsx), 1256 l. **Ya es un hub de 4 tabs**: *Estado* (4 hero cards + tabla comparativa ahora/año/histórico de 8 métricas + gráfico CTL/ATL + panel del día + **bloque Garmin de FC reposo / HRV / Body Battery**, [:1025](../src/components/StatusSnapshot.jsx#L1025)), *PMC* → `FitnessFatigue`, *Semanal* → `WeeklyProgression`, *Riesgo Lesión* → `InjuryRisk` |
+| `status` | ~~`StatusSnapshot.jsx`, 1256 l.~~ **disuelto en la fase 3a**. Era un hub de 4 tabs: *Estado* (4 hero cards + tabla comparativa ahora/año/histórico de 8 métricas + gráfico CTL/ATL + panel del día + **bloque Garmin de FC reposo / HRV / Body Battery**, en el tab Estado), *PMC* → `FitnessFatigue`, *Semanal* → `WeeklyProgression`, *Riesgo Lesión* → `InjuryRisk` |
 | `hranalysis` | [HRAnalysis.jsx](../src/components/HRAnalysis.jsx), 1323 l., **5 tabs propios**: *overview* (FC media por sesión + **Volumen Mensual km** + **Carga Acumulada**, [:731-747](../src/components/HRAnalysis.jsx#L731)), *scatter* (FC vs GAP), *drift* (dinámica intra-sesión), *efficiency* (eficiencia cardíaca + ritmo a 150 bpm), *diagnosis* |
 | `zones` | [TrainingZones.jsx](../src/components/TrainingZones.jsx). ~~**1. Calibración: los inputs de FCmax / FCreposo / LTHR**~~ (movidos a Ajustes en la fase 2; queda en solo lectura) · 2. selector de modelo (`seiler` / `karvonen`) + tabla de zonas · 3. tiempo en zonas · 4. evolución · 5. polarización Seiler |
 | `technique` | Un solo gráfico: ritmo vs cadencia, con filtro de llano y de años |
@@ -180,7 +180,7 @@ tres los arregla la misma revisión**:
 |---|---|
 | `today` Hoy | `dashboard` |
 | `sessions` Sesiones | `heatmap`, `gallery`, `geozones`, `gear` |
-| `load` Carga | `status`, `consistency` |
+| `load` Carga | `status`, `consistency` → tras la fase 3a: `status`, `pmc`, `weekly`, `injury`, `consistency` |
 | `engine` Motor | `criticalspeed`, `fitness`, `zones` · `hranalysis`, `technique`, `health` |
 | `racing` Competición | `targets`, `planner`, `predictor`, `racehistory` |
 | `settings` Ajustes | `calibration`, `connections`, `export` |
@@ -241,12 +241,56 @@ del menú obligaba a abandonar justo la vista sobre la que ibas a preguntar.
 
 ### Fase 3 — partir los ficheros mezclados
 
-Sin reescribir lógica, sólo separando bloques ya existentes:
+Sin reescribir lógica, sólo separando bloques ya existentes.
 
-- `StatusSnapshot` **se disuelve**: hero cards → Hoy · tabla comparativa + gráfico CTL/ATL →
-  Carga › PMC · bloque Garmin → Salud › Vitales · sus tabs dejan de ser tabs y pasan a ser ítems.
-- `GarminCardiac` → *Sueño* + *Adaptación y tendencias*, con el login/sync fuera (fase 2).
-- `HRAnalysis` → *Respuesta cardíaca* + *Eficiencia*; el volumen se tira (ya está en Entrenamientos).
+**3a — `StatusSnapshot` se disuelve ✅ HECHO (2026-09-13).** El fichero de 1256 líneas que era a la
+vez hub de cuatro pestañas, dueño de dos cálculos y de tres vistas **ya no existe**:
+
+| Sale a | Qué se lleva |
+|---|---|
+| [lib/statusStats.js](../src/lib/statusStats.js) | `computeStats` y `computeGarminStats`, puros, con **`now` inyectable** |
+| [StatusCards.jsx](../src/components/StatusCards.jsx) | los átomos compartidos: `PhaseBanner`, `HeroCard`, `MiniSparkline`, `PctPill`, `RangeSelector` |
+| [StatusHero.jsx](../src/components/StatusHero.jsx) → **Hoy** | la fase + los 4 números de "¿cómo voy?": fitness, forma, volumen semanal y mejor ritmo reciente |
+| [StatusOverview.jsx](../src/components/StatusOverview.jsx) → **Carga › Mi Estado** | la comparativa ahora/año/histórico, el PMC día a día con zonas de pico y panel del día, y las tendencias de Garmin |
+| ítems del menú | *PMC*, *Semanal* y *Riesgo de Lesión* dejan de ser pestañas escondidas y son tres entradas de Carga |
+
+Dos cosas que el corte destapó y que van más allá de mover bloques:
+
+- **El reloj se inyecta.** Los dos cálculos leían `new Date()` por su cuenta, y las ventanas de
+  7/28/365 días son justo el corazón de lo que calculan: no se podían fijar en un test ni eran
+  estables entre repintados. Ahora `now` es un parámetro, y de ahí salen los
+  [15 tests](../src/lib/statusStats.test.js) que esta matemática **no tenía** — incluido uno que
+  comprueba que mover el "ahora" mete y saca la misma sesión de la ventana de 7 días.
+- **`allActivities` se memoiza** en `App.jsx` por el mismo motivo que `runningActivities`: el modelo
+  de carga consume todos los deportes, y una identidad nueva por render le hacía recalcular el PMC
+  entero en cada repintado. Los tres ítems nuevos reciben **todas** las actividades, que es lo que
+  recibían dentro de `StatusSnapshot`: pasarles sólo running les habría quitado la carga de la bici
+  del CTL/ATL/ACWR sin decirlo.
+
+**Lo que el corte rompió, y el guardia que lo tapa.** `StatusCards.jsx` salió sin el import de
+`Card`/`Text` de Tremor y reventó al renderizar. Ni el lint ni `vite build` lo vieron, y el motivo
+importa: **`no-undef` no mira los nombres de las etiquetas JSX**, así que un `<Card>` sin importar
+es válido para los dos. Arreglado con el import, y con dos guardias para que la clase entera de
+error no vuelva a llegar al navegador:
+
+- [eslint.config.js](../eslint.config.js) activa `react/jsx-no-undef` (probado: con el import roto a
+  propósito, el lint lo señala).
+- [StatusViews.test.jsx](../src/components/StatusViews.test.jsx) monta las dos vistas con datos de
+  verdad y el PMC mockeado — 5 casos que cubren justo lo que el lint no puede ver: que el árbol
+  entero se pinta.
+
+*Mi Estado* queda como zona de paso: su gráfico de CTL/ATL y su bloque de Garmin siguen pintando
+series que ya tienen dueño (`FitnessFatigue` y `VitalsOverview`), y eso es exactamente la fase 3b.
+
+**3b — fundir lo que quedó duplicado.** El gráfico de CTL/ATL de *Mi Estado* contra el PMC de
+`FitnessFatigue` (portando lo que el dueño no tiene: zonas de pico y panel del día), y el bloque de
+Garmin contra los tiles de `VitalsOverview`. Al acabar, *Mi Estado* desaparece y Carga se queda con
+PMC · Semanal · Riesgo · Consistencia.
+
+**3c — el resto de los ficheros mezclados.**
+
+- `GarminCardiac` → *Sueño* + *Adaptación y tendencias*, con el login/sync ya fuera (fase 2).
+- `HRAnalysis` → *Respuesta cardíaca* + *Eficiencia*; el volumen se tira (ya está en Sesiones).
 - `VO2MaxTracker` cede curva, VDOT, FC reposo y eficiencia; se queda en VO2.
 
 ### Fase 4 — vaciar `App.jsx`
@@ -270,7 +314,7 @@ descosida.
 `/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
 clima y la comparación con sesiones similares. Hoy no existe (§6.2).
 
-La suite (883 tests / 46 ficheros, en verde tras la fase 2) debe correr entre fase y fase a partir de la 3.
+La suite (917 tests / 49 ficheros, en verde tras la fase 3a) debe correr entre fase y fase a partir de la 3.
 
 ---
 
