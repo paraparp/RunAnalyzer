@@ -1,8 +1,8 @@
 // ============================================================================
-// strava-oauth — intercambio de tokens con Strava, compartido por las dos
-// funciones serverless (/api/strava/token y /api/strava/refresh).
+// strava-oauth — intercambio de tokens con Strava, compartido por los dos
+// grants que sirve `api/strava/[action].js` (/token y /refresh).
 //
-// Los dos endpoints solo se diferencian en el `grant_type` y en el campo que
+// Los dos grants solo se diferencian en el `grant_type` y en el campo que
 // validan del body; todo lo demás (credenciales del servidor, llamada, manejo
 // de errores) es idéntico. `server.js` ya lo tenía factorizado así para dev.
 //
@@ -33,7 +33,7 @@ export async function stravaToken(grant, res) {
 }
 
 /**
- * Envuelve `stravaToken` en un handler serverless: solo POST y con el campo
+ * Envuelve `stravaToken` en un handler: solo POST y con el campo
  * obligatorio presente.
  *
  * @param {string} field nombre del campo requerido en el body

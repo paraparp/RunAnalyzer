@@ -15,7 +15,7 @@ import {
   oxygenCostDaniels, oxygenCostLeger, oxygenCostACSM, vo2maxFromHRR, vo2maxFromHRmaxPct,
 } from '../lib/physiology';
 import {
-  ComposedChart, AreaChart, Area, Line, ScatterChart, Scatter, Cell, ZAxis,
+  ComposedChart, Area, Line, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
@@ -353,21 +353,9 @@ export default function VO2MaxTracker({ activities }) {
     return source === 'garmin' ? value : null;
   }, [garminCardiac]);
 
-  // Historial de FC reposo para la gráfica, acotado al rango seleccionado
-  const garminHistory = useMemo(() => {
-    if (!garminCardiac?.length) return [];
-    // `r.date` es un día ya local (YYYY-MM-DD): se compara como texto contra la
-    // misma frontera de calendario que usa el resto de la pestaña.
-    const fromISO = monthsToShow === '60' ? null : monthsAgoISO(parseInt(monthsToShow));
-    return garminCardiac
-      .filter(r => r.restingHR > 20 && (!fromISO || String(r.date).slice(0, 10) >= fromISO))
-      .map(r => ({ date: r.date, rhr: r.restingHR }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [garminCardiac, monthsToShow]);
-
-  const { trendData, weeklyData, stats, efficiencyData } = useMemo(() => {
+  const { trendData, weeklyData, stats } = useMemo(() => {
     if (!activities || activities.length === 0)
-      return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
+      return { trendData: [], weeklyData: [], stats: null };
 
     // --- FCmax: fuente única del proyecto (mediana del 5% superior, filtro 140-215) ---
     const { value: activeMaxHR } = detectMaxHR(activities);
@@ -455,9 +443,9 @@ export default function VO2MaxTracker({ activities }) {
     // válidas (un bloque entero de rodaje suave queda fuera). El ancla de
     // rendimiento no depende de la FC, así que la cabecera se sigue pintando.
     if (validRuns.length === 0) {
-      if (!anchorInfo) return { trendData: [], weeklyData: [], stats: null, efficiencyData: [] };
+      if (!anchorInfo) return { trendData: [], weeklyData: [], stats: null };
       return {
-        trendData: [], weeklyData: [], efficiencyData: [],
+        trendData: [], weeklyData: [],
         stats: {
           current: anchorInfo.vdot,
           currentSource: 'vdot',
@@ -539,7 +527,6 @@ export default function VO2MaxTracker({ activities }) {
       });
 
     // --- Efficiency scatter ---
-    const efficiency = validRuns.map(r => ({ ...r, paceNum: r.pace }));
 
     // --- Stats ---
     const current = trend.length > 0 ? trend[trend.length - 1].vo2avg : 0;
@@ -581,7 +568,6 @@ export default function VO2MaxTracker({ activities }) {
     return {
       trendData: trend,
       weeklyData: weekly,
-      efficiencyData: efficiency,
       stats: {
         current: headline,
         currentSource: anchorInfo ? 'vdot' : 'hr',
@@ -767,60 +753,6 @@ export default function VO2MaxTracker({ activities }) {
         </div>
       </div>
 
-      {/* Garmin Resting HR History Chart - MOVED UP for visibility */}
-      {garminHistory && garminHistory.length > 0 && (
-        <Card className="shadow-lg border-sky-100 bg-sky-50/20">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <Title className="text-slate-800 font-bold mb-1">📈 Historial de FC Reposo (Garmin)</Title>
-              <Text className="text-slate-500 text-sm">Tus latidos basales detectados al dormir en el rango seleccionado ({monthsToShow === '60' ? 'histórico' : `${monthsToShow} meses`}).</Text>
-            </div>
-            <div className="bg-sky-100 px-3 py-1 rounded-full border border-sky-200">
-              <p className="text-sky-700 text-xs font-bold">Media: {Math.round(garminHistory.reduce((s, i) => s + i.rhr, 0) / garminHistory.length)} bpm</p>
-            </div>
-          </div>
-          <div className="h-[200px] w-full min-h-[200px]">
-            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
-              <AreaChart data={garminHistory}>
-                <defs>
-                  <linearGradient id="colorRHR" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 9, fill: '#64748b' }}
-                  tickFormatter={(str) => {
-                    const d = new Date(str);
-                    return `${d.getDate()}/${d.getMonth() + 1}`;
-                  }}
-                />
-                <YAxis
-                  hide={false}
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  tick={{ fontSize: 9, fill: '#64748b' }}
-                />
-                <RechartsTooltip
-                  contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  labelFormatter={(str) => new Date(str).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="rhr"
-                  stroke="#0ea5e9"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorRHR)"
-                  name="Pulsaciones (bpm)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
-
       {/* Controls */}
       <div className="flex gap-3">
         <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
@@ -926,54 +858,6 @@ export default function VO2MaxTracker({ activities }) {
             </ResponsiveContainer>
           </div>
         </Card>
-      )}
-
-      {/* Efficiency scatter */}
-      {efficiencyData.length > 0 && (
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">Eficiencia Aeróbica</Title>
-        <Text className="text-slate-500 text-sm mb-4">
-          Ritmo vs FC — puntos más abajo y a la izquierda = más eficiente
-        </Text>
-        <div className="h-[320px] w-full min-h-[320px]">
-          <ResponsiveContainer width="100%" height="100%" minHeight={320}>
-            <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="hr"
-                type="number"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
-                domain={['dataMin - 5', 'dataMax + 5']}
-                name="FC media"
-                unit=" bpm"
-              />
-              <YAxis
-                dataKey="paceNum"
-                type="number"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
-                reversed
-                tickFormatter={v => formatPaceFromMinPerKm(v)}
-                domain={['dataMin - 0.3', 'dataMax + 0.3']}
-                name="Ritmo"
-              />
-              <ZAxis dataKey="confidence" range={[20, 120]} name="Confianza" />
-              <RechartsTooltip content={<CustomTooltip />} />
-              <Scatter data={efficiencyData} name="Sesiones">
-                {efficiencyData.map((entry, idx) => {
-                  const recencyRatio = idx / Math.max(1, efficiencyData.length - 1);
-                  const alpha = 0.25 + recencyRatio * 0.65;
-                  return (
-                    <Cell key={idx} fill={`rgba(37, 99, 235, ${alpha})`} />
-                  );
-                })}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
-        <p className="text-[10px] text-slate-400 mt-2">
-          Puntos más oscuros = sesiones más recientes. Tamaño = confianza de la estimación.
-        </p>
-      </Card>
       )}
 
       {/* VO2max classification */}

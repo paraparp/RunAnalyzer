@@ -63,7 +63,8 @@ const en = {
       thresholds: "Thresholds",
       vitals: "Vitals Summary",
       cardiac_monitor: "Cardiac Monitor",
-      decoupling: "Decoupling"
+      decoupling: "Decoupling",
+      sleep: "Sleep"
     },
     dashboard: {
       distance: "Distance",
@@ -863,7 +864,8 @@ const es = {
       thresholds: "Umbrales",
       vitals: "Resumen Vital",
       cardiac_monitor: "Monitor Cardiaco",
-      decoupling: "Desacople"
+      decoupling: "Desacople",
+      sleep: "Sueño"
     },
     dashboard: {
       distance: "Distancia",

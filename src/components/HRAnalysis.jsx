@@ -9,7 +9,7 @@ import { daysAgoISO } from '../lib/criticalSpeed';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
-    BarChart, Bar, ComposedChart, Area, AreaChart
+    ComposedChart, Area
 } from "recharts";
 import {
     CalendarIcon,
@@ -117,19 +117,6 @@ const CustomTooltipDrift = ({ active, payload, label }) => {
     return null;
 };
 
-const CustomTooltipVolume = ({ active, payload }) => {
-    if (active && payload?.[0]) {
-        const d = payload[0].payload;
-        return (
-            <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-[13px] shadow-xl">
-                <div className="font-semibold text-white">{d.label}</div>
-                <div>{d.km.toFixed(1)} km · {d.runs} salidas</div>
-                <div className="text-rose-400">FC media: {d.avgHr ? Math.round(d.avgHr) : "-"} bpm</div>
-            </div>
-        );
-    }
-    return null;
-};
 
 export default function HRAnalysis({ activities, onEnrichActivity }) {
     const { t, i18n } = useTranslation();
@@ -266,28 +253,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 speed: r.gapSpeed, // Use GAP-adjusted speed for scatter X axis
                 hr: r.avgHr,
                 period: `${r.monthLabel} ${new Date(r.date).getFullYear()}`,
-            }));
-
-        // Monthly volume
-        const monthlyMap = {};
-        withHR.forEach(r => {
-            if (!monthlyMap[r.yearMonth]) {
-                monthlyMap[r.yearMonth] = { km: 0, runs: 0, totalHr: 0, hrCount: 0, totalLoad: 0, label: `${r.monthLabel}`, monthIndex: r.month };
-            }
-            monthlyMap[r.yearMonth].km += r.km;
-            monthlyMap[r.yearMonth].runs += 1;
-            monthlyMap[r.yearMonth].totalHr += r.avgHr;
-            monthlyMap[r.yearMonth].hrCount += 1;
-            monthlyMap[r.yearMonth].totalLoad += r.suffer_score || 0;
-        });
-        const monthlyVolume = Object.entries(monthlyMap)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .slice(-12)
-            .map(([key, val]) => ({
-                ...val,
-                avgHr: val.hrCount > 0 ? val.totalHr / val.hrCount : 0,
-                color: MONTH_COLORS[val.monthIndex],
-                key,
             }));
 
         // Drift analysis: very permissive filter to satisfy "show everything"
@@ -435,7 +400,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         return {
             timeline: withHR,
             scatterData,
-            monthlyVolume,
             driftRuns,
             efficiencyData,
             pace150Data,
@@ -470,7 +434,7 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         { id: "diagnosis", label: t('hr_analysis.tabs.diagnosis') },
     ];
 
-    const { timeline, scatterData, monthlyVolume, driftRuns, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
+    const { timeline, scatterData, driftRuns, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
 
     return (
         <div className="space-y-5">
@@ -726,53 +690,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                            <h3 className="text-sm font-bold text-slate-800 mb-4 text-center sm:text-left">Volumen Mensual (km)</h3>
-                            <ResponsiveContainer width="100%" height={160}>
-                                <BarChart data={monthlyVolume}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                    <Tooltip content={<CustomTooltipVolume />} />
-                                    <Bar dataKey="km" radius={[4, 4, 0, 0]}>
-                                        {monthlyVolume.map((entry, i) => (
-                                            <Cell key={i} fill={entry.color} fillOpacity={0.75} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                            <h3 className="text-sm font-bold text-slate-800 mb-4 text-center sm:text-left">Carga Acumulada (Relative Effort)</h3>
-                            <ResponsiveContainer width="100%" height={160}>
-                                <AreaChart data={monthlyVolume}>
-                                    <defs>
-                                        <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} />
-                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.4} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px', color: '#f8fafc', fontSize: '11px' }}
-                                        itemStyle={{ color: '#fca5a5' }}
-                                        formatter={(val) => [Math.round(val), "Carga"]}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="totalLoad"
-                                        stroke="#f43f5e"
-                                        strokeWidth={2.5}
-                                        fillOpacity={1}
-                                        fill="url(#colorLoad)"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
                 </div>
             )}
 
