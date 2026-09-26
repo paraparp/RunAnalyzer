@@ -39,6 +39,9 @@ const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
 const GeoZones = lazy(() => import('./components/GeoZones'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
+// La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
+const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
+const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
 import useHrParams from './hooks/useHrParams';
 import useIsAdmin from './hooks/useIsAdmin';
 
@@ -622,6 +625,14 @@ const Dashboard = ({ user, handleLogout }) => {
                 <TimeScopeSelector />
               </div>
             )}
+
+            {/* Conclusión del área (§6.3): la misma en todas las vistas del área. */}
+            {(() => {
+              const catId = navCategories.find(cat => cat.itemIds.includes(navView))?.id;
+              if (catId === 'load') return <Suspense fallback={null}><LoadVerdict activities={allActivities} /></Suspense>;
+              if (catId === 'engine') return <Suspense fallback={null}><EngineVerdict runs={runningActivities} hrParams={hrParams} /></Suspense>;
+              return null;
+            })()}
 
             {currentView !== 'dashboard' && (() => {
               const viewMap = {

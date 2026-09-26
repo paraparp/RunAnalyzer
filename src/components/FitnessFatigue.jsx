@@ -17,7 +17,7 @@ import useTimeScope from '../hooks/useTimeScope';
 import { scopeMonths } from '../lib/timeScope';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
-import { isRun, paceStr, timeStr } from '../lib/statusStats';
+import { isRun, paceStr, timeStr, acwrZone, rampLevel, formZone } from '../lib/statusStats';
 import GlobalKpiGrid from './GlobalKpiGrid';
 
 
@@ -250,21 +250,26 @@ export default function FitnessFatigue({ activities }) {
   // ── 5. Status helpers ────────────────────────────────────────────────────────
   const formStatus = useMemo(() => {
     if (!current) return null;
-    const f = current.form;
-    if (f > 15)  return { label: t('fitness.status.transition'), desc: t('fitness.status.transition_desc'), color: 'sky' };
-    if (f > 5)   return { label: t('fitness.status.fresh'),      desc: t('fitness.status.fresh_desc'),      color: 'emerald' };
-    if (f > -10) return { label: t('fitness.status.optimal'),    desc: t('fitness.status.optimal_desc'),    color: 'blue' };
-    if (f > -20) return { label: t('fitness.status.loaded'),     desc: t('fitness.status.loaded_desc'),     color: 'amber' };
-    return         { label: t('fitness.status.overloaded'),  desc: t('fitness.status.overloaded_desc'),  color: 'rose' };
+    // Cortes compartidos con el veredicto del área (lib/statusStats › formZone).
+    const zone = formZone(current.form) ?? 'optimal';
+    const color = { transition: 'sky', fresh: 'emerald', optimal: 'blue', loaded: 'amber', overloaded: 'rose' }[zone];
+    return { label: t(`fitness.status.${zone}`), desc: t(`fitness.status.${zone}_desc`), color };
   }, [current, t]);
 
   const acwrStatus = useMemo(() => {
     if (!current) return null;
-    const r = current.acwr;
-    if (r < 0.8)  return { label: t('fitness.acwr_status.underload'), desc: t('fitness.acwr_status.underload_desc'), color: 'sky',     risk: t('fitness.risk.low') };
-    if (r <= 1.3) return { label: t('fitness.acwr_status.optimal'),   desc: t('fitness.acwr_status.optimal_desc'),   color: 'emerald', risk: t('fitness.risk.low') };
-    if (r <= 1.5) return { label: t('fitness.acwr_status.caution'),   desc: t('fitness.acwr_status.caution_desc'),   color: 'amber',   risk: t('fitness.risk.moderate') };
-    return          { label: t('fitness.acwr_status.danger'),    desc: t('fitness.acwr_status.danger_desc'),    color: 'rose',    risk: t('fitness.risk.high') };
+    // Cortes compartidos con el veredicto del área (lib/statusStats › acwrZone).
+    const zone = acwrZone(current.acwr) ?? 'optimal';
+    const style = {
+      underload: { color: 'sky',     risk: 'low' },
+      optimal:   { color: 'emerald', risk: 'low' },
+      caution:   { color: 'amber',   risk: 'moderate' },
+      danger:    { color: 'rose',    risk: 'high' },
+    }[zone];
+    return {
+      label: t(`fitness.acwr_status.${zone}`), desc: t(`fitness.acwr_status.${zone}_desc`),
+      color: style.color, risk: t(`fitness.risk.${style.risk}`),
+    };
   }, [current, t]);
 
 
@@ -312,8 +317,8 @@ export default function FitnessFatigue({ activities }) {
             color: acwrStatus?.color === 'emerald' ? 'text-emerald-600' : 'text-rose-600',
             icon: BoltIcon, acwr: true },
           { label: t('fitness.ramp'), value: (rampRate > 0 ? '+' : '') + rampRate,
-            sub: rampRate > 5 ? t('fitness.ramp_labels.high') : t('fitness.ramp_labels.safe'),
-            color: rampRate > 5 ? 'text-rose-600' : 'text-emerald-600', icon: AdjustmentsHorizontalIcon },
+            sub: t(`fitness.ramp_labels.${rampLevel(rampRate) ?? 'safe'}`),
+            color: rampLevel(rampRate) === 'high' ? 'text-rose-600' : 'text-emerald-600', icon: AdjustmentsHorizontalIcon },
         ].map((card, i) => (
           <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
             <div className="flex justify-between items-start mb-4">

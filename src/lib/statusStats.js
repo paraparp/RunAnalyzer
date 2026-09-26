@@ -354,3 +354,36 @@ export function loadPhase(tsb) {
   if (tsb >= -10) return PHASES.load;
   return PHASES.redRisk;
 }
+
+// ── Zona del ACWR y nivel de la rampa de CTL ─────────────────────────────────
+// Mismo motivo que `loadPhase`: los cortes vivían dentro del JSX del PMC, y el
+// veredicto del área de Carga necesita exactamente los mismos. Devuelven claves
+// (`fitness.acwr_status.*`, `fitness.ramp_labels.*`); el texto y el color los pone
+// quien pinta. Cortes: ACWR 0.8–1.3 habitual, >1.5 subida brusca (Gabbett; ver la
+// advertencia de Impellizzeri 2020 en athleteContext); rampa > +5 CTL/semana.
+export function acwrZone(acwr) {
+  if (acwr == null || !Number.isFinite(acwr)) return null;
+  if (acwr < 0.8) return 'underload';
+  if (acwr <= 1.3) return 'optimal';
+  if (acwr <= 1.5) return 'caution';
+  return 'danger';
+}
+
+export const RAMP_HIGH = 5;
+export const rampLevel = (ramp) => (ramp == null || !Number.isFinite(ramp) ? null : ramp > RAMP_HIGH ? 'high' : 'safe');
+
+// ── Estado de forma por TSB (escala del PMC) ─────────────────────────────────
+// Cinco niveles, cercanos a la guía de Coggan (−10…−30 es entrenamiento
+// productivo; muy por encima de +15 se pierde forma). Es la escala del PMC y la
+// del veredicto del área de Carga, que se pinta encima: las dos tienen que decir
+// lo mismo. OJO: `loadPhase` (portada) usa otros cortes; unificarlas está
+// pendiente de decidir (docs/REESTRUCTURACION_SECCIONES.md §7).
+// Claves: `fitness.status.*`.
+export function formZone(tsb) {
+  if (tsb == null || !Number.isFinite(tsb)) return null;
+  if (tsb > 15) return 'transition';
+  if (tsb > 5) return 'fresh';
+  if (tsb > -10) return 'optimal';
+  if (tsb > -20) return 'loaded';
+  return 'overloaded';
+}
