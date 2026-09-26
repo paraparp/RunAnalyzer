@@ -6,6 +6,15 @@ import { karvonenBounds, DEFAULT_REST_HR } from './hrZones';
 import { zoneMix, polarizedGroups } from './zoneMix';
 import { DISTANCE_KM } from './raceDistances';
 import { formatPaceFromMinPerKm, formatPaceFromSecPerKm, formatDuration } from './timeFormat';
+import { formZone } from './statusStats';
+
+// Palabras del coach para cada estado de forma. Los CORTES son los de `formZone`,
+// la escala única de TSB de la app: el coach no puede llamar "óptimo" a un TSB que
+// la pantalla llama "cargado".
+const TSB_WORDS = {
+  transition: 'muy fresco/desentrenando', fresh: 'fresco', optimal: 'óptimo',
+  loaded: 'cargado', overloaded: 'sobrecargado',
+};
 
 // ── Scientific helpers ───────────────────────────────────────────────────────
 const mean = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -604,7 +613,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const pmcSection = pmc ? [
     `Fitness (CTL, EWMA 42d)=${pmc.ctl} · ${pmc.pctPeak}% de tu pico histórico (${pmc.peak})`,
     `Fatiga (ATL, EWMA 7d)=${pmc.atl}`,
-    `Forma (TSB=CTL−ATL)=${pmc.tsb > 0 ? '+' : ''}${pmc.tsb} (${pmc.tsb > 15 ? 'muy fresco/desentrenando' : pmc.tsb > 5 ? 'fresco' : pmc.tsb >= -10 ? 'óptimo' : pmc.tsb >= -20 ? 'cargado' : 'sobrecargado'})`,
+    `Forma (TSB=CTL−ATL)=${pmc.tsb > 0 ? '+' : ''}${pmc.tsb} (${TSB_WORDS[formZone(pmc.tsb)] ?? 'óptimo'})`,
     `ACWR (agudo:crónico 7:28 por EWMA, Williams 2017)=${pmc.acwr} (zona habitual 0.8–1.3; >1.5 sugiere subida brusca de carga). Trátalo como señal blanda: su validez como predictor de lesión está cuestionada (Impellizzeri 2020), no bases una recomendación solo en él`,
     `Rampa CTL=${pmc.ramp > 0 ? '+' : ''}${pmc.ramp}/sem (no superar +5/sem)`,
   ].join('\n') : 'Sin datos suficientes para el modelo PMC.';

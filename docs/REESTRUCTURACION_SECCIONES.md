@@ -501,11 +501,12 @@ primera ya lo tiene por sesión (fase 7) y la segunda es la de las predicciones.
 4. ~~**¿Cuál es el scope temporal por defecto?**~~ **Resuelto: últimos 12 meses** (2026-09-26).
    Coincide con el PMC y el VO2max, cubre una temporada entera y da muestra suficiente a la
    velocidad crítica y al desacople. Aplicado en la fase 6.
-6. **¿Qué escala de TSB manda?** Hay DOS: `loadPhase` (portada: fatiga alta por debajo de −10) y
-   `formZone` (PMC y veredicto de Carga: 5 niveles, sobrecarga por debajo de −20, "transición" por
-   encima de +15). La del PMC está más cerca de la guía de Coggan (−10…−30 es entrenamiento
-   productivo). El mismo TSB puede salir "fatiga alta" en la portada y "cargado" en Carga.
-   **Abierta.**
+6. ~~**¿Qué escala de TSB manda?**~~ **Resuelto: la del PMC** (2026-09-26). Había dos: `loadPhase`
+   (portada: fatiga alta por debajo de −10) y la de 5 niveles del PMC (sobrecarga por debajo de −20,
+   "transición" por encima de +15), más cercana a la guía de Coggan (−10…−30 es entrenamiento
+   productivo). Ahora `formZone` (lib/statusStats) es la única: `loadPhase` la envuelve para la
+   portada y el coach IA la usa para nombrar el TSB en el prompt (antes tenía los cortes desplazados
+   un punto). Mismo TSB, misma palabra en portada, Carga y consejo.
 5. ~~**¿Qué sistema de ritmos gana?**~~ **Resuelto: LT1/LT2** (2026-09-26). Es el que tiene más
    respaldo actual: prescribe desde los límites fisiológicos de los dominios de intensidad
    (umbrales de lactato / ventilatorios, con la velocidad crítica como frontera pesado-severo),

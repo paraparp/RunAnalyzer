@@ -48,10 +48,12 @@ const VERDICT = {
 };
 
 const PHASE_CLS = {
-  fit:     'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  build:   'bg-amber-50 text-amber-700 ring-amber-200',
-  load:    'bg-orange-50 text-orange-700 ring-orange-200',
-  redRisk: 'bg-rose-50 text-rose-700 ring-rose-200',
+  // Mismos colores que la tarjeta de estado del PMC.
+  transition: 'bg-sky-50 text-sky-700 ring-sky-200',
+  fresh:      'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  optimal:    'bg-blue-50 text-blue-700 ring-blue-200',
+  loaded:     'bg-amber-50 text-amber-700 ring-amber-200',
+  overloaded: 'bg-rose-50 text-rose-700 ring-rose-200',
 };
 
 const hoursStr = (sec) => {

@@ -157,3 +157,14 @@ describe('computeGarminStats', () => {
     expect(g.rhr7avg).toBe(52);
   });
 });
+
+describe('escala única de TSB', () => {
+  it('la portada (loadPhase) y el PMC (formZone) dicen lo mismo', async () => {
+    const { loadPhase, formZone } = await import('./statusStats');
+    for (const tsb of [30, 16, 15, 10, 5, 0, -9, -10, -15, -20, -25]) {
+      expect(loadPhase(tsb).key).toBe(formZone(tsb));
+    }
+    expect(loadPhase(-15).label).toBe('Cargado');
+    expect(loadPhase(null).key).toBe('optimal');
+  });
+});

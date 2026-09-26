@@ -50,7 +50,7 @@ describe('TodayBalance', () => {
     expect(html).toContain('Carga y forma');
     expect(html).toContain('75%');            // volumen fácil (Z1+Z2)
     expect(html).toContain('80% de tu pico'); // CTL contra el techo del atleta
-    expect(html).toContain('Cargando');       // fase derivada del TSB (-9)
+    expect(html).toContain('Óptimo');         // fase del TSB (-9) con la escala única (formZone)
     expect(html).toContain('1.18');           // ACWR
   });
 

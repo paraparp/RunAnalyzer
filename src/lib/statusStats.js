@@ -337,22 +337,22 @@ export function computeGarminStats(rawData, { now: nowInput = Date.now() } = {})
 }
 
 // ── Fase de entrenamiento a partir del TSB ───────────────────────────────────
-// Los cortes estaban escritos dentro de `PhaseBanner`, o sea dentro de un JSX.
-// La portada necesita el MISMO veredicto en formato pastilla, y copiarlo habría
-// dejado dos escalas para la misma palabra ("Cargando" a -8 en una vista y a -12
-// en otra). Devuelve clave + texto; el color lo pone quien pinta.
+// La portada la pinta como banner y como pastilla. Antes tenía cortes PROPIOS
+// (fatiga alta por debajo de −10) distintos de los del PMC, así que el mismo TSB
+// salía "Fatiga alta" en la portada y "Cargado" en Carga. Ahora es un envoltorio
+// de `formZone`, la escala única (decisión 6 de docs/REESTRUCTURACION_SECCIONES.md
+// §7): mismos cortes, mismas palabras. Devuelve clave + texto; el color lo pone
+// quien pinta. Los textos son los de `fitness.status.*` en español.
 export const PHASES = {
-  fit:    { key: 'fit',    label: 'En forma',    description: 'Forma positiva — listo para competir o atacar una sesión clave' },
-  build:  { key: 'build',  label: 'Acumulando',  description: 'Cargando trabajo, ligera fatiga acumulada' },
-  load:   { key: 'load',   label: 'Cargando',    description: 'Bloque de carga activo — monitorizar recuperación' },
-  redRisk:{ key: 'redRisk',label: 'Fatiga alta', description: 'Fatiga elevada — considerar recuperación activa o descanso' },
+  transition: { key: 'transition', label: 'Transición',   description: 'Muy fresco: si se alarga, empiezas a perder forma' },
+  fresh:      { key: 'fresh',      label: 'Fresco',       description: 'Buen momento para competir o para una sesión clave' },
+  optimal:    { key: 'optimal',    label: 'Óptimo',       description: 'Carga y recuperación van a la par' },
+  loaded:     { key: 'loaded',     label: 'Cargado',      description: 'Fatiga acumulada, pero hay adaptación — prioriza sueño y nutrición' },
+  overloaded: { key: 'overloaded', label: 'Sobrecargado', description: 'Riesgo de sobreentrenamiento — reduce volumen e intensidad' },
 };
 
 export function loadPhase(tsb) {
-  if (tsb > 5) return PHASES.fit;
-  if (tsb >= 0) return PHASES.build;
-  if (tsb >= -10) return PHASES.load;
-  return PHASES.redRisk;
+  return PHASES[formZone(tsb) ?? 'optimal'];
 }
 
 // ── Zona del ACWR y nivel de la rampa de CTL ─────────────────────────────────
@@ -375,9 +375,8 @@ export const rampLevel = (ramp) => (ramp == null || !Number.isFinite(ramp) ? nul
 // ── Estado de forma por TSB (escala del PMC) ─────────────────────────────────
 // Cinco niveles, cercanos a la guía de Coggan (−10…−30 es entrenamiento
 // productivo; muy por encima de +15 se pierde forma). Es la escala del PMC y la
-// del veredicto del área de Carga, que se pinta encima: las dos tienen que decir
-// lo mismo. OJO: `loadPhase` (portada) usa otros cortes; unificarlas está
-// pendiente de decidir (docs/REESTRUCTURACION_SECCIONES.md §7).
+// del veredicto del área de Carga, y también la de la portada (`loadPhase`): la
+// escala ÚNICA de TSB de la app (decisión 6 de docs/REESTRUCTURACION_SECCIONES.md §7).
 // Claves: `fitness.status.*`.
 export function formZone(tsb) {
   if (tsb == null || !Number.isFinite(tsb)) return null;

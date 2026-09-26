@@ -21,10 +21,12 @@ export function PhaseBanner({ tsb, acwr, garmin }) {
   // aquí solo queda cómo se pinta cada fase.
   const { key, label: phase, description } = loadPhase(tsb);
   const STYLE = {
-    fit:     { color: 'text-emerald-700', borderColor: 'border-emerald-500', bg: 'bg-emerald-50', Icon: CheckCircleIcon },
-    build:   { color: 'text-amber-700',   borderColor: 'border-amber-400',   bg: 'bg-amber-50',   Icon: ArrowTrendingUpIcon },
-    load:    { color: 'text-orange-700',  borderColor: 'border-orange-500',  bg: 'bg-orange-50',  Icon: FireIcon },
-    redRisk: { color: 'text-rose-700',    borderColor: 'border-rose-500',    bg: 'bg-rose-50',    Icon: ExclamationTriangleIcon },
+    // Mismos colores que la tarjeta de estado del PMC.
+    transition: { color: 'text-sky-700',     borderColor: 'border-sky-400',     bg: 'bg-sky-50',     Icon: ArrowTrendingUpIcon },
+    fresh:      { color: 'text-emerald-700', borderColor: 'border-emerald-500', bg: 'bg-emerald-50', Icon: CheckCircleIcon },
+    optimal:    { color: 'text-blue-700',    borderColor: 'border-blue-500',    bg: 'bg-blue-50',    Icon: CheckCircleIcon },
+    loaded:     { color: 'text-amber-700',   borderColor: 'border-amber-400',   bg: 'bg-amber-50',   Icon: FireIcon },
+    overloaded: { color: 'text-rose-700',    borderColor: 'border-rose-500',    bg: 'bg-rose-50',    Icon: ExclamationTriangleIcon },
   };
   const { color, borderColor, bg, Icon } = STYLE[key];
 
