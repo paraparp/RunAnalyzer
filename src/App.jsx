@@ -630,7 +630,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
-                hranalysis:  <HRAnalysis activities={runningActivities} onEnrichActivity={handleFetchDetails} />,
+                hranalysis:  <HRAnalysis activities={runningActivities} />,
                 technique:   <TechniqueAnalysis activities={runningActivities} />,
                 zones:       <TrainingZones activities={runningActivities} hrParams={hrParams} onOpenCalibration={() => setCurrentView('calibration')} />,
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,

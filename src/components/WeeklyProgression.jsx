@@ -7,6 +7,7 @@ import { activityDayKey, dayKey } from '../lib/trainingLoad';
 import { monthsAgoISO } from '../lib/criticalSpeed';
 import { scopeMonths } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
+import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { monthShort } from '../lib/monthLabels';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -25,6 +26,7 @@ function CustomTooltip({ active, payload }) {
       </p>
       <p className="text-blue-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
       <p className="text-slate-500">Sesiones: {d.sessions} | Desnivel: {Math.round(d.elevation)}m</p>
+      {d.load > 0 && <p className="text-slate-500">Carga: <span className="font-bold">{Math.round(d.load)}</span></p>}
       {d.avg4w != null && <p className="text-slate-500">Media 4 sem cerradas: {d.avg4w} km</p>}
       {d.isPartial ? (
         <p className="text-slate-400 italic">Semana incompleta: no se compara</p>
@@ -43,6 +45,10 @@ export default function WeeklyProgression({ activities }) {
   const MONTH_SHORT = monthShort(i18n.language);
   // Período compartido (lib/timeScope): el control vive en la barra superior.
   const [scope] = useTimeScope();
+  // Carga diaria del PMC calibrado: la MISMA que suma el CTL, así que la carga
+  // semanal de aquí y la curva del PMC no pueden discrepar.
+  const { pmc } = useCalibratedPMC(activities);
+  const pmcSeries = pmc?.series ?? null;
 
   const { weeklyData, stats } = useMemo(() => {
     if (!activities || activities.length === 0) return { weeklyData: [], stats: null };
@@ -63,6 +69,15 @@ export default function WeeklyProgression({ activities }) {
       weeksMap[key].sessions += 1;
       weeksMap[key].elevation += a.total_elevation_gain || 0;
     });
+
+    // Carga por semana ISO. Se suma por separado porque la serie del PMC cubre
+    // todos los días, también los de descanso, y no sale de `activities`.
+    const loadByWeek = {};
+    for (const p of pmcSeries ?? []) {
+      if (!p.load) continue;
+      const k = isoWeekKey(p.date);
+      loadByWeek[k] = (loadByWeek[k] || 0) + p.load;
+    }
 
     const sorted = Object.values(weeksMap).sort((a, b) => a.key.localeCompare(b.key));
 
@@ -115,6 +130,7 @@ export default function WeeklyProgression({ activities }) {
 
       return {
         ...w,
+        load: loadByWeek[w.key] || 0,
         isPartial,
         change: Math.round(change),
         absDeltaKm: ramp.absDeltaKm,
@@ -168,7 +184,14 @@ export default function WeeklyProgression({ activities }) {
         maxWeekLabel: maxWeek.label,
       },
     };
-  }, [activities, scope, MONTH_SHORT]);
+  }, [activities, scope, MONTH_SHORT, pmcSeries]);
+
+  // Media de carga de las semanas cerradas del período: referencia para marcar
+  // las semanas muy por encima (>130 %) o muy por debajo (<50 %).
+  const loadAvg = useMemo(() => {
+    const closed = weeklyData.filter(w => !w.isPartial);
+    return closed.length ? closed.reduce((s, w) => s + w.load, 0) / closed.length : 0;
+  }, [weeklyData]);
 
   if (!weeklyData.length || !stats) {
     return (
@@ -260,6 +283,34 @@ export default function WeeklyProgression({ activities }) {
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {/* Carga semanal — venía del PMC. El volumen y la carga agregados tienen
+          UN dueño (esta vista); el PMC se queda con CTL/ATL/TSB. */}
+      {loadAvg > 0 && (
+        <Card className="shadow-lg border-slate-200">
+          <Title className="text-slate-800 font-bold">Carga semanal</Title>
+          <Text className="text-slate-500 text-sm">Suma de la carga diaria del PMC (calibrada con tu FC). Rojo: &gt;130 % de la media del período · gris: &lt;50 %</Text>
+          <div className="h-56 w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <ComposedChart data={weeklyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={Math.max(0, Math.floor(weeklyData.length / 12))} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={35} />
+                <RechartsTooltip content={<CustomTooltip />} />
+                <Bar dataKey="load" radius={[4, 4, 0, 0]} maxBarSize={24}>
+                  {weeklyData.map((entry, idx) => (
+                    <Cell
+                      key={idx}
+                      fill={entry.isPartial ? '#94a3b8' : entry.load > loadAvg * 1.3 ? '#f43f5e' : entry.load < loadAvg * 0.5 ? '#cbd5e1' : '#2563eb'}
+                      fillOpacity={entry.isPartial ? 0.45 : 0.75}
+                    />
+                  ))}
+                </Bar>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       {/* Legend */}
       <Card className="shadow-lg border-slate-200">

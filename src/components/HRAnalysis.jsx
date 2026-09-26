@@ -6,17 +6,17 @@ import { efficiencyMPerBeat, toBeatsPerKm } from '../lib/efficiencyFactor';
 import { activityGapSpeed } from '../lib/streamGap';
 import { activityDayKey } from '../lib/trainingLoad';
 import { daysAgoISO, activityWithinMonths } from '../lib/criticalSpeed';
+import { decouplingPct, decouplingLevel } from '../lib/decoupling';
 import { scopeMonths } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+    Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
     ComposedChart, Area
 } from "recharts";
 import {
     ClockIcon,
     FunnelIcon,
-    ArrowPathIcon,
     HeartIcon,
     ExclamationTriangleIcon,
     FireIcon,
@@ -95,41 +95,15 @@ const CustomTooltipTimeline = ({ active, payload }) => {
     return null;
 };
 
-const CustomTooltipDrift = ({ active, payload, label }) => {
-    if (active && payload?.length) {
-        return (
-            <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-[13px] shadow-xl">
-                <div className="font-semibold mb-1">Km {label}</div>
-                {payload.map((p, i) => {
-                    const isEff = p.name.includes("Eff");
-                    const unit = isEff ? "" : "bpm";
-                    const val = isEff ? p.value.toFixed(1) : Math.round(p.value);
-                    return (
-                        <div key={i} style={{ color: p.color }}>
-                            {p.name}: {val} {unit}
-                        </div>
-                    );
-                })}
-                <div className="text-[10px] text-slate-500 mt-1">🔗 Click punto para Strava</div>
-            </div>
-        );
-    }
-    return null;
-};
 
-
-export default function HRAnalysis({ activities, onEnrichActivity }) {
+export default function HRAnalysis({ activities }) {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
     // Período compartido (lib/timeScope): el control vive en la barra superior.
     const [scope] = useTimeScope();
     const [lastNRuns, setLastNRuns] = useState(30);
     const [hiddenMonths, setHiddenMonths] = useState(new Set());
-    const [hiddenDriftRuns, setHiddenDriftRuns] = useState(new Set());
-    const [driftView, setDriftView] = useState("hr"); // "hr" or "eff"
     const [effMetric, setEffMetric] = useState("hre"); // "hre" (lat/km) o "ef" (m/latido)
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [syncProgress, setSyncProgress] = useState(0);
 
     // FCreposo efectiva (Garmin → override manual → defecto): la necesita el
     // escalado a 150 ppm, que se hace sobre la RESERVA cardiaca, no sobre la FC bruta.
@@ -142,32 +116,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             else next.add(monthIndex);
             return next;
         });
-    };
-
-    const toggleDriftRun = (runIndex) => {
-        setHiddenDriftRuns(prev => {
-            const next = new Set(prev);
-            if (next.has(runIndex)) next.delete(runIndex);
-            else next.add(runIndex);
-            return next;
-        });
-    };
-
-    const handleSyncMissing = async (missingIds) => {
-        if (!onEnrichActivity || isSyncing) return;
-        setIsSyncing(true);
-        setSyncProgress(0);
-        try {
-            let count = 0;
-            for (const id of missingIds) {
-                await onEnrichActivity(id);
-                count++;
-                setSyncProgress(count);
-            }
-        } finally {
-            setIsSyncing(false);
-            setSyncProgress(0);
-        }
     };
 
     // Sesiones del período compartido; de ellas, las N más recientes.
@@ -241,56 +189,14 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 period: `${r.monthLabel} ${new Date(r.date).getFullYear()}`,
             }));
 
-        // Drift analysis: very permissive filter to satisfy "show everything"
-        // Criteria: <8% gradient, ≥2km, GAP <10:00, must have splits with HR data
-        const driftCandidates = withHR.filter(r =>
-            r.elevPerKm < 80 && r.km >= 2 && r.gapMinKm > 0 && r.gapMinKm < 10 && r.splits && r.splits.length >= 3
-        );
-
-        // Identify runs that qualify for drift but are missing splits
-        const missingDetails = withHR.filter(r =>
-            r.elevPerKm < 80 && r.km >= 2 && r.gapMinKm > 0 && r.gapMinKm < 10 && (!r.splits || r.splits.length < 3)
-        );
-
-        // Drift data: extract HR per km from splits
-        const driftRuns = driftCandidates
-            .map((r, i) => {
-                // Color scale: newest (high i) = vibrant Indigo, oldest (low i) = light Slate
-                const ratio = i / (driftCandidates.length - 1 || 1);
-                const hue = 210 + (ratio * 45); // 210 (slate/blue) to 255 (indigo/violet)
-                const sat = 30 + (ratio * 55);  // 30% to 85%
-                const light = 75 - (ratio * 25); // 75% to 50%
-                const color = `hsl(${hue}, ${sat}%, ${light}%)`;
-
-                return {
-                    name: `${r.dateShort} ${r.name}`,
-                    color: color,
-                    isRecent: ratio > 0.85,
-                    date: r.dateFormatted,
-                    id: r.id,
-                    data: r.splits.map((s, idx) => {
-                        const speed = s.average_speed || 0;
-                        const hr = s.average_heartrate || 0;
-                        return {
-                            km: idx + 1,
-                            hr: hr,
-                            pace: speed ? (1000 / (speed * 60)).toFixed(2) : 0,
-                            eff: (hr > 0 && speed > 0) ? hr / speed : 0,
-                        };
-                    }).filter(s => s.hr > 0),
-                    drift: 0,
-                };
-            })
-            .filter(r => r.data.length >= 3)
-            .map(r => {
-                // Compare avg of first third vs last third for robust drift measurement
-                const thirdLen = Math.max(1, Math.floor(r.data.length / 3));
-                const firstThird = r.data.slice(0, thirdLen);
-                const lastThird = r.data.slice(-thirdLen);
-                const avgFirst = firstThird.reduce((s, d) => s + d.hr, 0) / firstThird.length;
-                const avgLast = lastThird.reduce((s, d) => s + d.hr, 0) / lastThird.length;
-                return { ...r, drift: avgLast - avgFirst };
-            });
+        // Deriva: la definición ÚNICA de lib/decoupling (Pa:HR, 2.ª mitad vs 1.ª, en %).
+        // Aquí había otra —FC del último tercio menos la del primero, en ppm— que no
+        // corregía por ritmo y calificaba con sus propios umbrales. La gráfica de
+        // deriva de esta pestaña se fue: su dueño es Salud › Desacople.
+        const driftPcts = withHR
+            .filter(r => r.elevPerKm < 80 && r.km >= 2 && r.gapMinKm > 0 && r.gapMinKm < 10 && r.splits)
+            .map(r => decouplingPct(r.splits))
+            .filter(v => v != null);
 
         // Eficiencia cardíaca en carreras llanas (<2.5% pendiente, GAP < 7:00/km).
         // UNA sola cantidad, en las dos unidades con las que se lee:
@@ -367,8 +273,9 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         }
 
         // 2. Detect high drift
-        const highDrift = driftRuns.some(r => r.drift > 18);
-        const avgDrift = driftRuns.length > 0 ? driftRuns.reduce((s, r) => s + r.drift, 0) / driftRuns.length : 0;
+        const avgDrift = driftPcts.length > 0 ? driftPcts.reduce((s, v) => s + v, 0) / driftPcts.length : null;
+        const driftLevel = decouplingLevel(avgDrift);
+        const highDrift = driftLevel === 'high' || driftLevel === 'very_high';
 
         // 3. Tendencia de eficiencia (primer 25% vs último 25% de los puntos).
         // Sobre `ef` en m/latido, donde MÁS es mejor: con la métrica invertida que
@@ -386,7 +293,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         return {
             timeline: withHR,
             scatterData,
-            driftRuns,
             efficiencyData,
             pace150Data,
             uniqueMonths,
@@ -395,10 +301,11 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                 hrDeviation,
                 highDrift,
                 avgDrift,
+                driftLevel,
+                driftCount: driftPcts.length,
                 effTrend,
                 recentCount: recentBase.length
             },
-            missingDetails: missingDetails.map(r => r.id)
         };
     }, [filteredActivities, hrrest, i18n.language]);
 
@@ -415,12 +322,11 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
     const tabs = [
         { id: "overview", label: t('hr_analysis.tabs.overview') },
         { id: "scatter", label: t('hr_analysis.tabs.scatter') },
-        { id: "drift", label: t('hr_analysis.tabs.drift') },
         { id: "efficiency", label: t('hr_analysis.tabs.efficiency') },
         { id: "diagnosis", label: t('hr_analysis.tabs.diagnosis') },
     ];
 
-    const { timeline, scatterData, driftRuns, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
+    const { timeline, scatterData, efficiencyData, pace150Data, uniqueMonths, stats, diagnosis } = processedData;
 
     return (
         <div className="space-y-5">
@@ -712,165 +618,6 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
             )}
 
             {/* ===================== DRIFT TAB ===================== */}
-            {activeTab === "drift" && (
-                <div className="space-y-5">
-                    {processedData.missingDetails.length > 0 && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-4 text-amber-800 text-[13px] leading-relaxed items-center">
-                            <span className="text-2xl shrink-0">ℹ️</span>
-                            <div className="flex-grow">
-                                <p className="font-bold mb-0.5">Hay {processedData.missingDetails.length} carreras llanas sin datos de parciales.</p>
-                                <p className="text-amber-700/80">Necesitamos los datos km a km de Strava para calcular la deriva dinámica.</p>
-                            </div>
-                            <button
-                                onClick={() => handleSyncMissing(processedData.missingDetails)}
-                                disabled={isSyncing}
-                                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-[11px] uppercase tracking-wide transition-all
-                                    ${isSyncing
-                                        ? "bg-amber-200 text-amber-500 cursor-not-allowed"
-                                        : "bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300 shadow-sm"}`}
-                            >
-                                {isSyncing ? (
-                                    <>
-                                        <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                                        Sincronizando ({syncProgress}/{processedData.missingDetails.length})...
-                                    </>
-                                ) : (
-                                    <>
-                                        <ArrowPathIcon className="w-3.5 h-3.5" />
-                                        Cargar estas {processedData.missingDetails.length}
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    )}
-                    {driftRuns.length > 0 ? (
-                        <>
-                            <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-800 mb-0.5">Dinámica Intra-Sesión ({driftRuns.length} sesiones)</h3>
-                                        <p className="text-[11px] text-slate-400">Datos por kilómetro en carreras llanas seleccionadas</p>
-                                    </div>
-                                    <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
-                                        <button
-                                            onClick={() => setDriftView("hr")}
-                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                                                ${driftView === "hr" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                                        >
-                                            Pulso (bpm)
-                                        </button>
-                                        <button
-                                            onClick={() => setDriftView("eff")}
-                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                                                ${driftView === "eff" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                                        >
-                                            Eficiencia (bpm/vel)
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <ResponsiveContainer width="100%" height={320}>
-                                    <LineChart>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-                                        <XAxis
-                                            dataKey="km"
-                                            type="number"
-                                            domain={[1, "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: "Kilómetro", position: "bottom", offset: -2, style: { fontSize: 11, fill: "#94a3b8" } }}
-                                        />
-                                        <YAxis
-                                            domain={driftView === "hr"
-                                                ? [(min) => Math.floor(min / 5) * 5 - 5, (max) => Math.ceil(max / 5) * 5 + 5]
-                                                : ["auto", "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{
-                                                value: driftView === "hr" ? "Frecuencia Cardíaca (bpm)" : "Ratio bpm / (m/s)",
-                                                angle: -90,
-                                                position: "insideLeft",
-                                                offset: 10,
-                                                style: { fontSize: 11, fill: "#94a3b8" }
-                                            }}
-                                        />
-                                        <Tooltip content={<CustomTooltipDrift />} />
-                                        {driftRuns.map((run, i) => (
-                                            !hiddenDriftRuns.has(i) && (
-                                                <Line
-                                                    key={i}
-                                                    data={run.data}
-                                                    type="monotone"
-                                                    dataKey={driftView === "hr" ? "hr" : "eff"}
-                                                    name={`${driftView === "hr" ? "FC" : "Eff"} ${run.name}`}
-                                                    stroke={run.color}
-                                                    trackStyle={{ cursor: 'pointer' }}
-                                                    strokeWidth={run.isRecent ? 3.5 : 1.6}
-                                                    activeDot={{ r: 6, onClick: () => openStrava(run.id), cursor: 'pointer' }}
-                                                    dot={run.isRecent ? { r: 4, fill: run.color, strokeWidth: 2, stroke: '#fff' } : { r: 2.5, fill: run.color, fillOpacity: 0.6 }}
-                                                    strokeOpacity={run.isRecent ? 1 : 0.6}
-                                                    strokeDasharray={(!run.isRecent && i % 2 === 0) ? "4 4" : undefined}
-                                                />
-                                            )
-                                        ))}
-                                    </LineChart>
-                                </ResponsiveContainer>
-                                {/* Clickable Legend */}
-                                <div className="flex flex-wrap gap-3 justify-center mt-3 text-[11px]">
-                                    {driftRuns.map((run, i) => (
-                                        <button
-                                            key={i}
-                                            onClick={() => toggleDriftRun(i)}
-                                            className={`flex items-center gap-1.5 transition-opacity ${hiddenDriftRuns.has(i) ? 'opacity-30 line-through' : 'opacity-100'}`}
-                                        >
-                                            <div className="w-5 h-0.5 rounded" style={{ background: run.color }} />
-                                            <span className="text-slate-500">{run.name}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Drift stat cards */}
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                                {driftRuns.map((run, i) => {
-                                    const isHigh = Math.abs(run.drift) > 20;
-                                    const isModerate = Math.abs(run.drift) > 10 && Math.abs(run.drift) <= 20;
-                                    return (
-                                        <div
-                                            key={i}
-                                            className={`rounded-xl p-4 border ${isHigh ? "bg-rose-50 border-rose-200" : isModerate ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"
-                                                }`}
-                                        >
-                                            <div className={`text-[10px] uppercase tracking-wider font-bold mb-1.5 ${isHigh ? "text-rose-500" : isModerate ? "text-amber-600" : "text-emerald-600"
-                                                }`}>
-                                                {run.name}
-                                            </div>
-                                            <div className={`text-2xl font-extrabold tabular-nums ${isHigh ? "text-rose-600" : isModerate ? "text-amber-600" : "text-emerald-600"
-                                                }`}>
-                                                {run.drift >= 0 ? "+" : ""}{Math.round(run.drift)}
-                                                <span className="text-sm font-normal ml-1">bpm</span>
-                                            </div>
-                                            <div className="text-[11px] text-slate-500 mt-1">
-                                                {run.data[0]?.hr ? Math.round(run.data[0].hr) : "?"} → {run.data[run.data.length - 1]?.hr ? Math.round(run.data[run.data.length - 1].hr) : "?"} · {
-                                                    isHigh ? "Elevada" : isModerate ? "Moderada" : "Normal"
-                                                }
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-[13px] leading-relaxed text-slate-600">
-                                <strong className="text-amber-600">📊 Interpretación:</strong> Una deriva &gt;15bpm en un rodaje fácil puede indicar deshidratación, fatiga acumulada, déficit de hierro o calor excesivo. Compara sesiones similares a lo largo del tiempo para detectar tendencias.
-                            </div>
-                        </>
-                    ) : (
-                        <div className="bg-white rounded-xl border border-slate-200/80 p-8 text-center">
-                            <p className="text-sm text-slate-400">No hay suficientes carreras con parciales (splits) para analizar la deriva cardíaca.</p>
-                            <p className="text-xs text-slate-300 mt-2">Expande actividades en la tabla para cargar los parciales, luego vuelve aquí.</p>
-                        </div>
-                    )}
-                </div>
-            )}
-
             {/* ===================== EFFICIENCY TAB ===================== */}
             {activeTab === "efficiency" && (
                 <div className="space-y-5">
@@ -1121,9 +868,11 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                                 <div>
                                     <h4 className="font-bold text-slate-900 text-[15px] mb-1">Deriva Cardíaca (Intrasalida)</h4>
                                     <p className="text-slate-500 text-[13px] leading-relaxed">
-                                        {diagnosis.highDrift
-                                            ? `Detectamos una deriva de hasta ${Math.round(diagnosis.avgDrift)} bpm en tus salidas fáciles. Una subida de más de 15 bpm en 10km suele apuntar a deshidratación crónica, pérdida de volumen plasmático o falta de hierro.`
-                                            : "Tu deriva cardíaca está dentro de rangos normales (< 12 bpm). Tu sistema cardiovascular mantiene bien el equilibrio térmico e hidrolítico."
+                                        {diagnosis.avgDrift == null
+                                            ? "Aún no hay carreras con parciales en el período para medir la deriva."
+                                            : diagnosis.highDrift
+                                                ? `Deriva media de ${diagnosis.avgDrift.toFixed(1)} % (Pa:HR, ${diagnosis.driftCount} carreras): ${t(`decoupling.levels.${diagnosis.driftLevel}`).toLowerCase()}. Una deriva sostenida por encima del 8 % en salidas suaves suele apuntar a deshidratación, calor, pérdida de volumen plasmático o falta de hierro.`
+                                                : `Deriva media de ${diagnosis.avgDrift.toFixed(1)} % (Pa:HR, ${diagnosis.driftCount} carreras): ${t(`decoupling.levels.${diagnosis.driftLevel}`).toLowerCase()}. Tu sistema cardiovascular mantiene bien el acoplamiento ritmo-pulso.`
                                         }
                                     </p>
                                 </div>

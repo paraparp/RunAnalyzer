@@ -11,7 +11,7 @@ import {
   AdjustmentsHorizontalIcon, ExclamationTriangleIcon,
   XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
-import { dayKey, activityDayKey } from '../lib/trainingLoad';
+import { activityDayKey } from '../lib/trainingLoad';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useTimeScope from '../hooks/useTimeScope';
 import { scopeMonths } from '../lib/timeScope';
@@ -97,20 +97,6 @@ function PMCTooltip({ active, payload, label }) {
   );
 }
 
-function WeeklyTooltip({ active, payload, label }) {
-  const { t, i18n } = useTranslation();
-  const es = i18n.language.startsWith('es');
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
-  return (
-    <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl">
-      <p className="text-[11px] font-semibold text-slate-500 mb-1">{es ? 'Semana' : 'Week'} {label}</p>
-      <p className="text-sm font-bold text-slate-900">{es ? 'Carga' : 'Load'}: {d?.Carga}</p>
-      <p className="text-xs text-slate-500">{d?.Sesiones} {t('vo2.sessions')}</p>
-    </div>
-  );
-}
-
 function ScatterTooltip({ active, payload }) {
   const { i18n } = useTranslation();
   const es = i18n.language.startsWith('es');
@@ -156,24 +142,14 @@ export default function FitnessFatigue({ activities }) {
   const pmcCurrent = pmc?.current ?? null;
 
   // ── 1. Aggregate per-day data ────────────────────────────────────────────────
-  const { chartData, current, weeklyLoad, rampRate, topEfforts } = useMemo(() => {
-    if (!activities?.length) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
+  const { chartData, current, rampRate, topEfforts } = useMemo(() => {
+    if (!activities?.length) return { chartData: [], current: null, rampRate: null, topEfforts: [] };
 
     // El PMC llega ya calibrado desde useCalibratedPMC (fuente única compartida
     // con statusStats, InjuryRisk, VitalsOverview, el coach IA y el MCP).
-    if (!pmcSeries || !pmcCurrent) return { chartData: [], current: null, weeklyLoad: [], rampRate: null, topEfforts: [] };
+    if (!pmcSeries || !pmcCurrent) return { chartData: [], current: null, rampRate: null, topEfforts: [] };
 
-    const weeklyBuckets = {};
     const data = pmcSeries.map((p) => {
-      // Cubo semanal con el lunes como inicio.
-      const d = new Date(p.date.slice(0, 4), +p.date.slice(5, 7) - 1, +p.date.slice(8, 10));
-      const mon = new Date(d);
-      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      const weekKey = dayKey(mon);
-      if (!weeklyBuckets[weekKey]) weeklyBuckets[weekKey] = { key: weekKey, load: 0, count: 0, sort: mon.getTime() };
-      weeklyBuckets[weekKey].load += p.load;
-      if (p.load > 0) weeklyBuckets[weekKey].count++;
-
       return {
         date:    p.date,
         Fitness: p.ctl,
@@ -197,14 +173,6 @@ export default function FitnessFatigue({ activities }) {
             ctlTrend7, ctlTrend28, pctPeak } = pmcCurrent;
 
     // ── 3. Derived stats ────────────────────────────────────────────────────────
-    const wl = Object.values(weeklyBuckets)
-      .sort((a, b) => a.sort - b.sort)
-      .slice(-16)
-      .map(w => {
-        const d = new Date(w.key);
-        return { name: `${d.getDate()}/${d.getMonth() + 1}`, Carga: Math.round(w.load), Sesiones: w.count };
-      });
-
     // Scatter: flat runs ≥ 3 km
     const efforts = [];
     activities.forEach(a => {
@@ -242,7 +210,6 @@ export default function FitnessFatigue({ activities }) {
         ctlTrend28:     Math.round(ctlTrend28),
         fitnessPercent: pctPeak,
       },
-      weeklyLoad: wl,
       rampRate:   Math.round(rampPerWeek * 10) / 10,
       topEfforts: efforts,
     };
@@ -578,29 +545,8 @@ export default function FitnessFatigue({ activities }) {
         )}
       </Card>
 
-      {/* ── Weekly load ───────────────────────────────────────────────────────── */}
-      {weeklyLoad.length > 0 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('fitness.weekly_load')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('consistency.subtitle')}</Text>
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyLoad} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={35} />
-                <RechartsTooltip content={<WeeklyTooltip />} />
-                <Bar dataKey="Carga" radius={[4, 4, 0, 0]}>
-                  {weeklyLoad.map((entry, i) => {
-                    const avg = weeklyLoad.reduce((s, w) => s + w.Carga, 0) / weeklyLoad.length;
-                    return <Cell key={i} fill={entry.Carga > avg * 1.3 ? '#f43f5e' : entry.Carga < avg * 0.5 ? '#94a3b8' : '#2563eb'} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
+      {/* La carga semanal vive en Carga › Semanal, junto al volumen (un número,
+          una vista dueña: docs/REESTRUCTURACION_SECCIONES.md §4). */}
 
       {/* ── Scatter: TSB vs performance ──────────────────────────────────────── */}
       {topEfforts.length > 0 && (

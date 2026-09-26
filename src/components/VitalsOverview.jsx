@@ -6,12 +6,10 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 import {
-  HeartIcon, BoltIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, ExclamationTriangleIcon, FireIcon,
+  HeartIcon, BoltIcon, ArrowTrendingUpIcon, ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { vo2FromRun } from '../lib/physiology';
 import { efficiencyFactorRun } from '../lib/efficiencyFactor';
-import { decouplingPct } from '../lib/decoupling';
 import useHrParams from '../hooks/useHrParams';
 import { computeGarminStats } from '../lib/statusStats';
 import { HeroCard } from './StatusCards';
@@ -122,21 +120,6 @@ function buildBands(data, threshold) {
     bands.push({ x1: start, x2: end > start ? end : start + 3 * MS_DAY });
   }
   return bands;
-}
-
-/**
- * Serie diaria de CTL. La carga por sesión y el EWMA viven en lib/trainingLoad
- * (fuente única compartida con statusStats, FitnessFatigue, InjuryRisk y el
- * coach IA). Aquí solo se reindexa a milisegundos de medianoche local, que es la
- * base temporal que usan el resto de series de esta vista.
- */
-function computeCTLSeries(pmc) {
-  if (!pmc) return [];
-  return pmc.series.map((p) => ({
-    ms: new Date(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))).getTime(),
-    ctl: p.ctl,
-    load: p.load,
-  }));
 }
 
 // Período mínimo (días) para que cada granularidad produzca ≥2-3 puntos con sentido
@@ -364,9 +347,6 @@ export default function VitalsOverview({ activities = [] }) {
   //    con el de la pestaña de VO2max. Ver bloque G1 de la auditoría. ──
   const { hrmax, hrrest } = useHrParams(activities);
 
-  // CTL runs over full history (EWMA needs the warm-up), filtered to the window below
-  const { pmc } = useCalibratedPMC(activities);
-  const ctlSeries = useMemo(() => computeCTLSeries(pmc), [pmc]);
 
   // Medias de 7/28 días y récords históricos de FC reposo y recuperación. Las
   // tarjetas de arriba cuentan la TENDENCIA; esto cuenta contra qué se compara,
@@ -377,7 +357,7 @@ export default function VitalsOverview({ activities = [] }) {
     [garmin, nowMs],
   );
 
-  const { hrvData, hrData, vo2Data, loadData, effData, decData, domain, summary, hasGarmin, goodBands, effThreshold, hasDecoupling } = useMemo(() => {
+  const { hrvData, hrData, vo2Data, effData, domain, summary, hasGarmin, goodBands, effThreshold } = useMemo(() => {
     const now = nowMs;
     const cutoff = now - days * MS_DAY;
     const isDay = gran === "day";
@@ -417,12 +397,7 @@ export default function VitalsOverview({ activities = [] }) {
 
     const vo2Data = series(runs, 28); // ~4-week rolling fitness en diario
 
-    // ── Carga de entrenamiento acumulada (CTL) — window slice of full series ──
-    const ctlPts = ctlSeries.filter((d) => d.ms >= cutoff).map((d) => ({ ms: d.ms, v: d.ctl }));
-    // CTL ya es una EWMA en base de día local; en diario se muestra tal cual
-    const loadData = isDay
-      ? ctlPts.map((p) => ({ ms: p.ms, smooth: p.v, raw: null }))
-      : aggregate(ctlPts, gran, 1);
+    // El CTL no se pinta aquí: su dueño es Carga › PMC (docs/REESTRUCTURACION_SECCIONES.md §4).
 
     // ── Eficiencia aeróbica (metros por latido) ──
     // La definición vive en src/lib/efficiencyFactor.js: era la única de las seis
@@ -444,26 +419,10 @@ export default function VitalsOverview({ activities = [] }) {
     const effThreshold = effMax > 0 ? +(effMax * 0.85).toFixed(2) : null;
     const goodBands = buildBands(effData, effThreshold);
 
-    // ── Decoupling aeróbico (Pa:HR) — solo actividades con parciales (splits_metric) ──
-    const decRuns = activities
-      .filter((a) => {
-        const ms = new Date(a.start_date).getTime();
-        if (ms < cutoff) return false;
-        if (!a.splits_metric || a.splits_metric.length < 4) return false;
-        if (!a.average_heartrate || (a.moving_time || 0) < 1800) return false; // ≥30 min, estable
-        return true;
-      })
-      .map((a) => {
-        const dc = decouplingPct(a.splits_metric);
-        return dc == null ? null : { ms: new Date(a.start_date).getTime(), v: +dc.toFixed(2) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.ms - b.ms);
-    const decData = series(decRuns, 28, 1);
-    const hasDecoupling = decRuns.length > 0;
+    // El desacople no se pinta aquí: su dueño es Salud › Desacople (§4 del plan).
 
     // ── Shared X domain ──
-    const allMs = [...hrvData, ...hrData, ...vo2Data, ...loadData, ...effData, ...decData].map((d) => d.ms);
+    const allMs = [...hrvData, ...hrData, ...vo2Data, ...effData].map((d) => d.ms);
     const domain = allMs.length ? [Math.min(...allMs), Math.max(...allMs)] : [cutoff, now];
 
     // ── Summary (current value + delta vs first half of period) ──
@@ -483,18 +442,16 @@ export default function VitalsOverview({ activities = [] }) {
     };
 
     return {
-      hrvData, hrData, vo2Data, loadData, effData, decData, domain, goodBands, effThreshold, hasDecoupling,
+      hrvData, hrData, vo2Data, effData, domain, goodBands, effThreshold,
       hasGarmin: garmin.length > 0,
       summary: {
         hrv: { current: lastOf(hrvData), trend: deltaOf(hrvData) },
         rhr: { current: lastOf(hrData), trend: deltaOf(hrData) },
         vo2: { current: lastOf(vo2Data), trend: deltaOf(vo2Data) },
-        load: { current: lastOf(loadData), trend: deltaOf(loadData) },
         eff: { current: lastOf(effData), trend: deltaOf(effData, 2) },
-        dec: { current: lastOf(decData), trend: deltaOf(decData) },
       },
     };
-  }, [garmin, activities, ctlSeries, days, gran, gapAdjust, hrmax, hrrest, nowMs]);
+  }, [garmin, activities, days, gran, gapAdjust, hrmax, hrrest, nowMs]);
 
   // X-axis label format depends on granularity
   const xFmt = useMemo(() => {
@@ -637,21 +594,6 @@ export default function VitalsOverview({ activities = [] }) {
           avgLabel={avgLabel}
         />
         <VitalPanel
-          title="Carga acumulada"
-          subtitle={`CTL · carga crónica de entrenamiento (EWMA 42 días, estándar)${gran === "day" ? "" : " · " + granLabel}`}
-          icon={FireIcon}
-          accent="amber"
-          data={loadData}
-          unit=""
-          current={summary.load.current}
-          trend={summary.load.trend}
-          domain={domain}
-          ticks={xTicks}
-          xFmt={xFmt}
-          bands={goodBands}
-          avgLabel={avgLabel}
-        />
-        <VitalPanel
           title="Eficiencia aeróbica"
           subtitle={`m/latido (EF) · ${effData.filter((d) => d.raw != null).length} carreras · km aeróbicos 70-85% FCmax, 1.os 75 min · ${gapAdjust ? "ajustado por desnivel (GAP), <4%" : "<1% desnivel"} · ${granLabel}`}
           icon={ArrowTrendingUpIcon}
@@ -668,27 +610,6 @@ export default function VitalsOverview({ activities = [] }) {
           decimals={2}
           yPad={0.1}
         />
-        {hasDecoupling && (
-          <VitalPanel
-            title="Decoupling aeróbico"
-            subtitle={`Deriva Pa:HR (2ª vs 1ª mitad) · solo carreras con parciales, ≥30 min · ${granLabel}`}
-            icon={ArrowTrendingDownIcon}
-            accent="indigo"
-            data={decData}
-            unit="%"
-            current={summary.dec.current}
-            trend={summary.dec.trend}
-            trendInverse
-            domain={domain}
-            ticks={xTicks}
-            xFmt={xFmt}
-            bands={goodBands}
-            avgLabel={avgLabel}
-            decimals={1}
-            yPad={1}
-            refValue={5}
-          />
-        )}
       </motion.div>
 
       {/* ── Registros de Garmin ──────────────────────────────────────────────
@@ -745,11 +666,6 @@ export default function VitalsOverview({ activities = [] }) {
               <span className="text-slate-400"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
             </span>
           </div>
-        )}
-        {!hasDecoupling && (
-          <p className="text-[11px] text-slate-400 text-center">
-            El panel de <strong>decoupling</strong> aparecerá cuando tengas carreras con parciales cargados (expándelas en el listado del Dashboard).
-          </p>
         )}
         <p className="text-[11px] text-slate-400 text-center">
           Las líneas punteadas marcan el máx/mín del período. Los ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad.
