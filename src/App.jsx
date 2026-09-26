@@ -39,6 +39,8 @@ const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
 const GeoZones = lazy(() => import('./components/GeoZones'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
+// TEMPORAL: comparativa de la portada (H6). Se borra al decidir.
+const HomeAlternatives = lazy(() => import('./components/HomeAlternatives'));
 // La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
 const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
 const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
@@ -617,6 +619,16 @@ const Dashboard = ({ user, handleLogout }) => {
                 onSync={() => runSync(true)}
                 isSyncing={isSyncing}
               />
+            )}
+            {currentView === 'dashboard' && (
+              <Suspense fallback={null}>
+                <HomeAlternatives
+                  activities={allActivities}
+                  runningActivities={runningActivities}
+                  hrParams={hrParams}
+                  onNavigate={(v) => navigate(`/${v}`)}
+                />
+              </Suspense>
             )}
 
             {SCOPED_VIEWS.has(currentView) && (
