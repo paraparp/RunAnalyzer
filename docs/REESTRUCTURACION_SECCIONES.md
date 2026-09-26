@@ -9,8 +9,7 @@
 > en vez de por la pregunta que responden.
 >
 > **Estado (2026-09-26):** **fases 1 a 7 completas**, con la estructura de 8 categorías de la
-> primera pasada revisada a 5 el mismo día (fase 1b, §5). **Pendientes**: las filas de §2.1 que siguen
-> abiertas: volumen agregado, desacople y ritmos de entrenamiento.
+> primera pasada revisada a 5 el mismo día (fase 1b, §5). **§2.1 cerrado** (2026-09-26): cada número tiene una sola vista dueña.
 
 ---
 
@@ -66,7 +65,7 @@ repartidos por `App.jsx`).
 El cálculo está centralizado; lo que estaba replicado era el **gráfico y el número en pantalla**, y
 eso hacía que la misma verdad pareciera cuatro temas distintos.
 
-La columna **Estado** es el recuento *verificado contra el código* a 2026-09-19, no el de la
+La columna **Estado** es el recuento *verificado contra el código* a 2026-09-26, no el de la
 auditoría de partida: las fases 3 a 5 fueron cerrando filas.
 
 | Número | Sitios | Estado |
@@ -76,9 +75,9 @@ auditoría de partida: las fases 3 a 5 fueron cerrando filas.
 | FC reposo / HRV histórico | 4 → **2** ✅ | Dueño: *Vitales* (`VitalsOverview`). `GarminCardiac` mantiene sus *Tendencias cardíacas*, que es otra lectura (correlación y adaptación). Fuera `StatusSnapshot` (3b) y `VO2MaxTracker` (3c) |
 | Eficiencia aeróbica | 4 → **2** ✅ | `HRAnalysis` *efficiency* (dueño) y el tile de `VitalsOverview`. Fuera `VO2MaxTracker` (3c) y `StatusSnapshot` (3b) |
 | ACWR | 3 → **2** ✅ | `InjuryRisk` (dueño) y la tarjeta de estado de `FitnessFatigue`. Fuera `StatusSnapshot` (3a/3b) |
-| Volumen / carga agregada | 5 → **4** ⚠️ | Sigue abierto: `ActivityLog` (`MonthlyChart`), `FitnessFatigue` *weekly_load*, `WeeklyProgression` y el tile *carga acumulada* de `VitalsOverview`. Solo se cerró `HRAnalysis` (3c) |
-| Deriva / desacople | 4 → **3** ⚠️ | Sigue abierto: `HRAnalysis` *drift*, `CardiacDecoupling` y el tile de `VitalsOverview`. `VO2MaxTracker` usa `driftRatePerHour` para **corregir** el VO2, que es un uso legítimo, no una cuarta pantalla |
-| Ritmos de entrenamiento | **3** ⚠️ | Abierto a propósito: Daniels (`VDOTEstimator`), LT1/LT2 (`LactateThreshold`) y la tabla de zonas (`TrainingZones`). Son tres sistemas de prescripción, y cuál gana es la decisión 1 de §7 |
+| Volumen / carga agregada | 5 → **2** ✅ | Dueño: *Semanal* (`WeeklyProgression`), que ahora pinta también la carga semanal, sumada del MISMO PMC calibrado. Fuera `FitnessFatigue` *weekly_load* y el panel de CTL de `VitalsOverview` (el CTL es del PMC). Se queda el `MonthlyChart` de la bitácora: es el navegador del listado (pinchar una barra filtra la tabla), no una lectura de volumen |
+| Deriva / desacople | 4 → **2** ✅ | Dueño: *Desacople* (`CardiacDecoupling`) para la serie; la vista de sesión da la de UNA sesión. Fuera el panel de `VitalsOverview` y la pestaña *drift* de `HRAnalysis`, que además usaba otra definición (FC del último tercio menos la del primero, en ppm, sin corregir por ritmo); su diagnóstico ahora lee `decouplingPct` y la escala compartida `decouplingLevel`. `VO2MaxTracker` usa `driftRatePerHour` para **corregir** el VO2: uso legítimo, no una pantalla |
+| Ritmos de entrenamiento | 2 → **1** ✅ | Dueño: *Umbrales* (`LactateThreshold`, LT1/LT2 + velocidad crítica), por la decisión 5 de §7. `VDOTEstimator` pierde su tabla de Daniels y la pestaña pasa a llamarse *VDOT*. `TrainingZones` no era un tercer sistema de ritmos: son zonas de FC (Karvonen, decisión 1) |
 
 ### 2.2 Colocaciones imposibles
 
@@ -488,11 +487,10 @@ que varios gráficos nuevos.
    registro. Su override de vida útil es lo único que tira hacia Ajustes.
 4. ~~**¿Cuál es el scope temporal por defecto?**~~ **Resuelto: últimos 12 meses** (2026-09-26).
    Coincide con el PMC y el VO2max, cubre una temporada entera y da muestra suficiente a la
-   velocidad crítica y al desacople. Pendiente de aplicar en la fase 6.
+   velocidad crítica y al desacople. Aplicado en la fase 6.
 5. ~~**¿Qué sistema de ritmos gana?**~~ **Resuelto: LT1/LT2** (2026-09-26). Es el que tiene más
    respaldo actual: prescribe desde los límites fisiológicos de los dominios de intensidad
    (umbrales de lactato / ventilatorios, con la velocidad crítica como frontera pesado-severo),
    mientras que Daniels sale de tablas empíricas de rendimiento en carrera. Además es coherente con
    lo ya decidido: LT1 y LT2 son las anclas de ritmo que recibe el coach y encajan con las zonas
-   Karvonen. Daniels queda como lectura del VDOT, sin tabla de ritmos propia. Pendiente de aplicar
-   (fila *Ritmos de entrenamiento* de §2.1).
+   Karvonen. Daniels queda como lectura del VDOT, sin tabla de ritmos propia. Aplicado el mismo día.

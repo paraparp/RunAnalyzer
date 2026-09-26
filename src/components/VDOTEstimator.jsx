@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Callout } from '@tremor/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-import { velocityFromVO2 } from '../lib/physiology';
 import { activityDayKey } from '../lib/trainingLoad';
 import { calculateVDOT } from '../lib/vdot';
 import { RACE_DISTANCES } from '../lib/raceDistances';
-import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { formatDuration } from '../lib/timeFormat';
 import { activityWithinMonths } from '../lib/criticalSpeed';
 import { scopeMonths } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
@@ -25,36 +24,9 @@ import useTimeScope from '../hooks/useTimeScope';
 // ecuaciones que ancla la cifra de cabecera del VO2max en rendimiento, y tener
 // dos copias era la razón de que VDOT y VO2max fueran dos números de lo mismo.
 
-/**
- * Training paces derived from %VO2max zones (Daniels' Running Formula).
- *
- * Percentages reverse-engineered from published Daniels pace tables
- * using the Daniels-Gilbert VO2-velocity quadratic:
- *   Easy:       60–68% VO2max
- *   Marathon:   74% VO2max
- *   Tempo/T:    80% VO2max
- *   Interval/I: 97% VO2max
- *   Repetition: 110% VO2max
- *
- * @param {number} vdot
- * @returns training paces in min/km
- */
-function getTrainingPaces(vdot) {
-  function paceMinPerKm(pct) {
-    const targetVO2 = vdot * pct;
-    const v = velocityFromVO2(targetVO2);
-    if (v <= 0) return 0;
-    return 1000 / v; // min/km
-  }
-
-  return {
-    easy: { min: paceMinPerKm(0.68), max: paceMinPerKm(0.60) },
-    marathon: { pace: paceMinPerKm(0.74) },
-    tempo: { pace: paceMinPerKm(0.80) },
-    interval: { pace: paceMinPerKm(0.97) },
-    repetition: { pace: paceMinPerKm(1.10) },
-  };
-}
+// Los ritmos de entrenamiento NO se derivan aquí del VDOT (Daniels): el sistema de
+// prescripción de la app es LT1/LT2 (decisión 5 de docs/REESTRUCTURACION_SECCIONES.md
+// §7), y su dueño es Motor › Umbrales. Dos tablas de ritmos daban dos "fácil" distintos.
 
 // ============================================================
 // Standard race distances for detection & prediction
@@ -211,14 +183,6 @@ export default function VDOTEstimator({ activities }) {
     return Array.from(dateMap.values()).sort((a, b) => a.sortDate - b.sortDate);
   }, [activities]);
 
-  // Training paces
-  const trainingPaces = useMemo(() => {
-    if (!bestVDOT) return null;
-    return getTrainingPaces(bestVDOT.vdot);
-  }, [bestVDOT]);
-
-
-
   if (!activities || activities.length === 0) {
     return (
       <Card className="shadow-lg border-slate-200">
@@ -237,7 +201,7 @@ export default function VDOTEstimator({ activities }) {
             <Title className="text-slate-800 font-bold mb-1">Estimador VDOT (Daniels)</Title>
             <Text className="text-slate-500 text-sm">
               Tu índice de forma aeróbica estimado a partir de tus carreras en 5K, 10K, Media y Maratón.
-              Un VDOT más alto = mejor forma. Con él se calculan tus ritmos de entrenamiento y predicciones de carrera.
+              Un VDOT más alto = mejor forma. Los ritmos de entrenamiento están en la pestaña Umbrales (LT1/LT2); las predicciones, en Competición.
             </Text>
           </div>
         </div>
@@ -369,64 +333,15 @@ export default function VDOTEstimator({ activities }) {
         </Card>
       )}
 
-      {/* Ritmos de Daniels. Las predicciones de carrera NO viven aquí: su dueño
-          es Competición › Predicciones, que las hace con `predictRaces` sobre
-          toda la evidencia y no solo sobre el VDOT. */}
-      {bestVDOT && trainingPaces && (
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="shadow-lg border-slate-200">
-            <Title className="text-slate-800 font-bold mb-1">Ritmos de Entrenamiento</Title>
-            <Text className="text-slate-500 text-sm mb-4">Ritmos recomendados según tu VDOT de {bestVDOT.vdot}</Text>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                <div>
-                  <p className="text-sm font-bold text-emerald-800">Easy / Fácil</p>
-                  <p className="text-[10px] text-emerald-600">60–68% VO₂max · Carrera continua</p>
-                </div>
-                <p className="text-lg font-bold text-emerald-700 tabular-nums">
-                  {formatPaceFromMinPerKm(trainingPaces.easy.min)} - {formatPaceFromMinPerKm(trainingPaces.easy.max)} <span className="text-xs font-medium">/km</span>
-                </p>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-sky-50 border border-sky-100">
-                <div>
-                  <p className="text-sm font-bold text-sky-800">Marathon / Maratón</p>
-                  <p className="text-[10px] text-sky-600">74% VO₂max · Ritmo específico maratón</p>
-                </div>
-                <p className="text-lg font-bold text-sky-700 tabular-nums">
-                  {formatPaceFromMinPerKm(trainingPaces.marathon.pace)} <span className="text-xs font-medium">/km</span>
-                </p>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
-                <div>
-                  <p className="text-sm font-bold text-amber-800">Tempo / Umbral</p>
-                  <p className="text-[10px] text-amber-600">80% VO₂max · Ritmo sostenido 20–40 min</p>
-                </div>
-                <p className="text-lg font-bold text-amber-700 tabular-nums">
-                  {formatPaceFromMinPerKm(trainingPaces.tempo.pace)} <span className="text-xs font-medium">/km</span>
-                </p>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
-                <div>
-                  <p className="text-sm font-bold text-orange-800">Interval / Intervalos</p>
-                  <p className="text-[10px] text-orange-600">97% VO₂max · Repeticiones 3–5 min</p>
-                </div>
-                <p className="text-lg font-bold text-orange-700 tabular-nums">
-                  {formatPaceFromMinPerKm(trainingPaces.interval.pace)} <span className="text-xs font-medium">/km</span>
-                </p>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-100">
-                <div>
-                  <p className="text-sm font-bold text-rose-800">Repetition / Series</p>
-                  <p className="text-[10px] text-rose-600">110% VO₂max · Repeticiones 200–400m</p>
-                </div>
-                <p className="text-lg font-bold text-rose-700 tabular-nums">
-                  {formatPaceFromMinPerKm(trainingPaces.repetition.pace)} <span className="text-xs font-medium">/km</span>
-                </p>
-              </div>
-            </div>
-          </Card>
-
-        </div>
+      {/* Ni ritmos ni predicciones viven aquí: los ritmos son de Umbrales (LT1/LT2)
+          y las predicciones de Competición › Predicciones (`predictRaces`). */}
+      {bestVDOT && (
+        <Card className="shadow-lg border-slate-200">
+          <Text className="text-slate-600 text-sm">
+            ¿Buscas tus ritmos de entrenamiento? Están en la pestaña <span className="font-semibold">Umbrales</span>:
+            se prescriben desde tus umbrales LT1/LT2 y tu velocidad crítica, que es el modelo con más respaldo actual.
+          </Text>
+        </Card>
       )}
 
       {/* Formula info */}

@@ -61,7 +61,7 @@ const en = {
       connect_btn: "Connect with Strava"
     },
     hubs: {
-      vdot: "Daniels paces",
+      vdot: "VDOT",
       vo2: "VO2max",
       thresholds: "Thresholds",
       vitals: "Vitals Summary",
@@ -982,7 +982,7 @@ const es = {
       connect_btn: "Conectar con Strava"
     },
     hubs: {
-      vdot: "Ritmos Daniels",
+      vdot: "VDOT",
       vo2: "VO2max",
       thresholds: "Umbrales",
       vitals: "Resumen Vital",
