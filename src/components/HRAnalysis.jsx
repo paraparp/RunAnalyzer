@@ -5,17 +5,17 @@ import useHrParams from '../hooks/useHrParams';
 import { efficiencyMPerBeat, toBeatsPerKm } from '../lib/efficiencyFactor';
 import { activityGapSpeed } from '../lib/streamGap';
 import { activityDayKey } from '../lib/trainingLoad';
-import { daysAgoISO } from '../lib/criticalSpeed';
+import { daysAgoISO, activityWithinMonths } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ScatterChart, Scatter, Cell, ReferenceLine,
     ComposedChart, Area
 } from "recharts";
 import {
-    CalendarIcon,
     ClockIcon,
     FunnelIcon,
-    ChevronDownIcon,
     ArrowPathIcon,
     HeartIcon,
     ExclamationTriangleIcon,
@@ -121,9 +121,9 @@ const CustomTooltipDrift = ({ active, payload, label }) => {
 export default function HRAnalysis({ activities, onEnrichActivity }) {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
-    const [filterMode, setFilterMode] = useState("last"); // "last" or "year"
+    // Período compartido (lib/timeScope): el control vive en la barra superior.
+    const [scope] = useTimeScope();
     const [lastNRuns, setLastNRuns] = useState(30);
-    const [selectedYear, setSelectedYear] = useState("All");
     const [hiddenMonths, setHiddenMonths] = useState(new Set());
     const [hiddenDriftRuns, setHiddenDriftRuns] = useState(new Set());
     const [driftView, setDriftView] = useState("hr"); // "hr" or "eff"
@@ -170,28 +170,14 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
         }
     };
 
-    // Available years from activities
-    const availableYears = useMemo(() => {
-        if (!activities || activities.length === 0) return [];
-        const years = new Set(
-            activities
-                .filter(a => a.average_heartrate && a.average_heartrate > 0)
-                .map(a => new Date(a.start_date).getFullYear())
-        );
-        return Array.from(years).sort((a, b) => b - a);
-    }, [activities]);
-
-    // Filter activities based on mode
+    // Sesiones del período compartido; de ellas, las N más recientes.
     const filteredActivities = useMemo(() => {
         if (!activities || activities.length === 0) return [];
-        if (filterMode === "year") {
-            if (selectedYear === "All") return activities;
-            return activities.filter(a => new Date(a.start_date).getFullYear() === parseInt(selectedYear));
-        }
-        // "last" mode: take last N runs sorted by date
-        const sorted = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        const sorted = activities
+            .filter(activityWithinMonths(scopeMonths(scope)))
+            .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
         return sorted.slice(0, lastNRuns).reverse(); // reverse back to chronological
-    }, [activities, filterMode, selectedYear, lastNRuns]);
+    }, [activities, scope, lastNRuns]);
 
     // Process activities into chart-ready data
     const processedData = useMemo(() => {
@@ -471,60 +457,18 @@ export default function HRAnalysis({ activities, onEnrichActivity }) {
                     ))}
                 </div>
 
-                {/* Filter controls */}
-                <div className="flex items-center gap-0 bg-white border border-slate-100 rounded-2xl overflow-hidden h-[48px] shadow-sm">
-                    {/* Mode Toggle */}
-                    <div className="flex items-center h-full">
-                        <button
-                            onClick={() => setFilterMode("last")}
-                            className={`flex items-center gap-2 px-4 h-full text-[10px] font-black uppercase tracking-widest transition-all
-                                ${filterMode === "last"
-                                    ? "bg-blue-600 text-white shadow-inner"
-                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-50"}`}
-                        >
-                            <ClockIcon className="w-4 h-4" />
-                            <span className="hidden xs:inline">{t('hr_analysis.filters.last')}</span>
-                        </button>
-                        <button
-                            onClick={() => setFilterMode("year")}
-                            className={`flex items-center gap-2 px-4 h-full text-[10px] font-black uppercase tracking-widest transition-all
-                                ${filterMode === "year"
-                                    ? "bg-blue-600 text-white shadow-inner"
-                                    : "text-slate-400 hover:bg-slate-50 border-r border-slate-50"}`}
-                        >
-                            <CalendarIcon className="w-4 h-4" />
-                            <span className="hidden xs:inline">{t('hr_analysis.filters.year')}</span>
-                        </button>
-                    </div>
-
-                    {/* Value Selector */}
-                    <div className="flex items-center bg-slate-50/30 px-4 h-full min-w-[80px]">
-                        {filterMode === "last" ? (
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="number"
-                                    value={lastNRuns}
-                                    onChange={(e) => setLastNRuns(Math.max(1, parseInt(e.target.value) || 0))}
-                                    className="w-8 text-sm font-black text-slate-900 bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
-                                />
-                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
-                            </div>
-                        ) : (
-                            <div className="relative flex items-center w-full">
-                                <select
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="appearance-none text-sm font-black text-slate-900 bg-transparent border-0 p-0 pr-6 focus:ring-0 cursor-pointer w-full text-center"
-                                >
-                                    <option value="All">{t('hr_analysis.filters.all')}</option>
-                                    {availableYears.map(y => (
-                                        <option key={y} value={String(y)}>{y}</option>
-                                    ))}
-                                </select>
-                                <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-0 pointer-events-none" />
-                            </div>
-                        )}
-                    </div>
+                {/* Tope de sesiones. El PERÍODO es el compartido (barra superior); esto
+                    solo limita cuántas se dibujan, porque los gráficos van sesión a sesión. */}
+                <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-2xl px-4 h-[48px] shadow-sm">
+                    <ClockIcon className="w-4 h-4 text-slate-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('hr_analysis.filters.last')}</span>
+                    <input
+                        type="number"
+                        value={lastNRuns}
+                        onChange={(e) => setLastNRuns(Math.max(1, parseInt(e.target.value) || 0))}
+                        className="w-10 text-sm font-black text-slate-900 bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
+                    />
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
                 </div>
             </div>
 

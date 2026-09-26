@@ -7,6 +7,9 @@ import {
 import { Card, Title, Text, Badge, Callout } from '@tremor/react';
 import { karvonenBounds, classifyHR, POLARIZED_TARGETS } from '../lib/hrZones';
 import { hrSegments, zoneMix, polarizedGroups, polarizationStatus } from '../lib/zoneMix';
+import { activityWithinMonths } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 import { weekStartKey } from '../lib/isoWeek';
 import { monthKey } from '../lib/trainingLoad';
 
@@ -49,28 +52,15 @@ const MODEL = {
   ],
 };
 
-// ── Ventanas de tiempo ────────────────────────────────────────────────────────
-// El reparto por zonas depende por completo de la ventana que se mire: dos
-// meses cuentan el bloque actual, tres años cuentan la carrera entera. Antes
-// estaba clavado a los 2 meses que usa la calibración del LTHR y no había forma
-// de ver si el 80/20 aguanta a lo largo de una temporada.
-const PERIODS = [
-  { id: '1w',  days: 7    },
-  { id: '1m',  days: 30   },
-  { id: '3m',  days: 91   },
-  { id: '6m',  days: 183  },
-  { id: '1y',  days: 365  },
-  { id: '2y',  days: 730  },
-  { id: '3y',  days: 1095 },
-  { id: 'all', days: null },
-];
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TrainingZones({ activities, hrParams, onOpenCalibration }) {
   const { t, i18n } = useTranslation();
   const [groupBy,   setGroupBy]   = useState('month');
   const [evoMode,   setEvoMode]   = useState('hours');
-  const [period,    setPeriod]    = useState('3m');
+  // Período compartido (lib/timeScope): el control vive en la barra superior. El
+  // reparto por zonas depende por completo de la ventana que se mire, y ahora es
+  // la misma que usan el PMC, el desacople o la curva.
+  const [scope] = useTimeScope();
   // Zonas ocultas en el gráfico de evolución. Todas visibles por defecto: apagar
   // una es para AISLAR la lectura (ver solo el volumen duro, p. ej.), no el estado
   // normal. Solo afecta al pintado — los % siguen siendo sobre el tiempo total,
@@ -109,11 +99,8 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
   // array es la ventana de calibración del LTHR y toparía cualquier período
   // largo en dos meses.
   const periodActivities = useMemo(() => {
-    const days = PERIODS.find(p => p.id === period)?.days;
-    if (!days) return activities ?? [];
-    const cutoff = Date.now() - days * 86400000;
-    return (activities ?? []).filter(a => new Date(a.start_date).getTime() >= cutoff);
-  }, [activities, period]);
+    return (activities ?? []).filter(activityWithinMonths(scopeMonths(scope)));
+  }, [activities, scope]);
 
   // ── Time-in-zones distribution ──
   // El reparto lo cuenta lib/zoneMix, el mismo que usa la portada: si se contara
@@ -314,29 +301,6 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
           ))}
         </div>
       </Card>
-
-      {/* ── Selector de período ──────────────────────────────────────────────
-          Manda sobre el reparto, la evolución y la lectura polarizada; la
-          calibración de arriba no se toca (esa ventana la fija la detección del
-          LTHR). ────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-          {t('zones.period_label')}
-        </span>
-        {PERIODS.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setPeriod(p.id)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-              period === p.id
-                ? 'bg-slate-700 text-white border-slate-700'
-                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-            }`}
-          >
-            {t(`zones.periods.${p.id}`)}
-          </button>
-        ))}
-      </div>
 
       {/* ── 3. Time in zones ────────────────────────────────────────────────── */}
       <Card className="shadow-lg border-slate-200">

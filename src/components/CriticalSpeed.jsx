@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Select, SelectItem } from '@tremor/react';
 import { BoltIcon } from '@heroicons/react/24/outline';
 import {
     Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
@@ -11,12 +10,8 @@ import {
     CANON_EFFORTS, fmtTime, fmtPace, FIT_MIN_S, FIT_MAX_S, monthsAgoISO,
 } from '../lib/criticalSpeed';
 import { vdotFromCurve } from '../lib/vdot';
-
-const WINDOWS = [
-    { id: '180', months: 6 },
-    { id: '365', months: 12 },
-    { id: 'all', months: null },
-];
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 
 const labelOf = (id) => CANON_EFFORTS.find((e) => e.id === id)?.label || id;
 
@@ -33,9 +28,9 @@ const Metric = ({ label, value, unit, hint, tone = 'text-slate-900' }) => (
 
 const CriticalSpeed = ({ activities = [] }) => {
     const { t } = useTranslation();
-    const [windowId, setWindowId] = useState('365');
-
-    const months = WINDOWS.find((w) => w.id === windowId)?.months ?? null;
+    // Período compartido (lib/timeScope): el control vive en la barra superior.
+    const [scope] = useTimeScope();
+    const months = scopeMonths(scope);
 
     // Curva del periodo elegido y la del periodo ANTERIOR de igual duración, para
     // ver si la curva se ha movido y por dónde.
@@ -97,15 +92,6 @@ const CriticalSpeed = ({ activities = [] }) => {
                         <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('cs.title')}</h2>
                         <p className="text-slate-500 text-sm font-medium">{t('cs.subtitle')}</p>
                     </div>
-                </div>
-                <div className="w-44">
-                    <Select value={windowId} onValueChange={setWindowId} enableClear={false}>
-                        {WINDOWS.map((w) => (
-                            <SelectItem key={w.id} value={w.id}>
-                                {w.months ? t('cs.last_months', { count: w.months }) : t('cs.all_time')}
-                            </SelectItem>
-                        ))}
-                    </Select>
                 </div>
             </div>
         </div>

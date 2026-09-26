@@ -6,6 +6,8 @@ import { isoWeekKey } from '../lib/isoWeek';
 import { activityDayKey } from '../lib/trainingLoad';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { buildMeanMaxCurve, monthsAgoISO, daysAgoISO, activityWithinMonths, CANON_EFFORTS } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 import { vdotFromCurve } from '../lib/vdot';
 import { detectMaxHR, detectRestHR, DEFAULT_REST_HR } from '../lib/hrZones';
 import { activityGapSpeed } from '../lib/streamGap';
@@ -321,7 +323,8 @@ export default function VO2MaxTracker({ activities }) {
   const { t, i18n } = useTranslation();
   const MONTH_SHORT = monthShort(i18n.language);
 
-  const [monthsToShow, setMonthsToShow] = useState('12');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
   const [smoothing, setSmoothing] = useState('7');
 
   // ── Datos fisiológicos del sync global de Garmin ──────────────────────────
@@ -363,7 +366,7 @@ export default function VO2MaxTracker({ activities }) {
     // --- FC reposo: Garmin si hay, si no el valor por defecto honesto. Sin heurísticas. ---
     const activeRestHR = garminRestHR || DEFAULT_REST_HR;
 
-    const months = parseInt(monthsToShow);
+    const months = scopeMonths(scope);
     // Misma ventana que el ancla de rendimiento de abajo: meses de calendario
     // sobre el día local, no bloques de 30 días cortados en un instante UTC.
     const inWindow = activityWithinMonths(months);
@@ -376,7 +379,9 @@ export default function VO2MaxTracker({ activities }) {
 
     // Tendencia del ancla: mejor VDOT de la segunda mitad de la ventana contra el
     // de la primera. Se comparan rendimientos, no puntos de trabajo.
-    const midISO = monthsAgoISO(Math.max(1, Math.round(months / 2)));
+    // Con todo el histórico no hay mitad natural: se parte en los últimos 30 meses,
+    // que es lo que hacía la antigua opción "Todo" (60 meses).
+    const midISO = monthsAgoISO(Math.max(1, Math.round((months ?? 60) / 2)));
     const anchorPrev = vdotFromCurve(buildMeanMaxCurve(activities, { from: fromISO, to: midISO }));
     const anchorRecent = vdotFromCurve(buildMeanMaxCurve(activities, { from: midISO }));
     const anchorTrend = (anchorPrev && anchorRecent)
@@ -590,7 +595,7 @@ export default function VO2MaxTracker({ activities }) {
         isMaxHREstimated: true,
       },
     };
-  }, [activities, monthsToShow, smoothing, garminRestHR, t, MONTH_SHORT]);
+  }, [activities, scope, smoothing, garminRestHR, t, MONTH_SHORT]);
 
   if (!stats) {
     return (
@@ -755,13 +760,6 @@ export default function VO2MaxTracker({ activities }) {
 
       {/* Controls */}
       <div className="flex gap-3">
-        <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
-          <SelectItem value="3">3 meses</SelectItem>
-          <SelectItem value="6">6 meses</SelectItem>
-          <SelectItem value="12">12 meses</SelectItem>
-          <SelectItem value="24">24 meses</SelectItem>
-          <SelectItem value="60">Todo</SelectItem>
-        </Select>
         <Select value={smoothing} onValueChange={setSmoothing} className="w-40">
           <SelectItem value="3">Media 3 sesiones</SelectItem>
           <SelectItem value="7">Media 7 sesiones</SelectItem>

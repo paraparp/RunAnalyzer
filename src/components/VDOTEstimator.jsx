@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Card, Title, Text, Callout, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text, Callout } from '@tremor/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { velocityFromVO2 } from '../lib/physiology';
 import { activityDayKey } from '../lib/trainingLoad';
 import { calculateVDOT } from '../lib/vdot';
 import { RACE_DISTANCES } from '../lib/raceDistances';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { activityWithinMonths } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 
 // ============================================================
 // Daniels-Gilbert Formula (1979)
@@ -103,7 +106,8 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export default function VDOTEstimator({ activities }) {
-  const [timeWindow, setTimeWindow] = useState('all');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
   const [hiddenSeries, setHiddenSeries] = useState({});
 
   const handleLegendClick = (e) => {
@@ -118,13 +122,8 @@ export default function VDOTEstimator({ activities }) {
   const vdotEstimates = useMemo(() => {
     if (!activities || activities.length === 0) return [];
 
-    let filtered = activities;
-    if (timeWindow !== 'all') {
-      const months = parseInt(timeWindow);
-      const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - months);
-      filtered = activities.filter(a => new Date(a.start_date) >= cutoff);
-    }
+    // Misma frontera de calendario (día local) que el resto de vistas.
+    const filtered = activities.filter(activityWithinMonths(scopeMonths(scope)));
 
     const estimates = [];
 
@@ -164,7 +163,7 @@ export default function VDOTEstimator({ activities }) {
     });
 
     return estimates;
-  }, [activities, timeWindow]);
+  }, [activities, scope]);
 
   // Best VDOT estimate
   const bestVDOT = useMemo(() => {
@@ -241,12 +240,6 @@ export default function VDOTEstimator({ activities }) {
               Un VDOT más alto = mejor forma. Con él se calculan tus ritmos de entrenamiento y predicciones de carrera.
             </Text>
           </div>
-          <Select value={timeWindow} onValueChange={setTimeWindow} enableClear={false} className="w-40">
-            <SelectItem value="all">Todo el historial</SelectItem>
-            <SelectItem value="3">Últimos 3 meses</SelectItem>
-            <SelectItem value="6">Últimos 6 meses</SelectItem>
-            <SelectItem value="12">Último año</SelectItem>
-          </Select>
         </div>
 
         {bestVDOT ? (

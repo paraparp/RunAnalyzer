@@ -11,13 +11,14 @@ import { readStoredGarminActivities } from '../lib/garminActivitiesSync';
 import { matchGarminByStart, parseHrSourcePolicy, resolveActivityHrSource } from '../lib/hrSource';
 import { normalizeWeatherTemps, wbgtFromCelsius } from '../lib/weather';
 import cloudStorage from '../lib/cloudStorage';
+import { scopeFromISO } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 
 // Serie única y color único: lo que se compara es un mismo número consigo mismo a lo
 // largo del tiempo, no varias entidades entre sí.
 const LINE = '#2563eb';
 const BAND = '#93c5fd';
 
-const RANGES = { 6: 6, 12: 12, 24: 24 };
 
 /** WBGT de una actividad de Garmin, con el mismo árbitro de unidades que el MCP. */
 const wbgtOfGarmin = (g) => {
@@ -25,12 +26,6 @@ const wbgtOfGarmin = (g) => {
   if (!w) return null;
   const { temp_c } = normalizeWeatherTemps(w.temp_c, w.dew_point_c, w.humidity_pct);
   return wbgtFromCelsius(temp_c, w.humidity_pct);
-};
-
-const isoMonthsAgo = (months) => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
 };
 
 // Reparto de descartes por motivo. Se enseña en los dos sitios donde hace falta: en
@@ -76,7 +71,8 @@ export default function AerobicForm({ activities }) {
   const { t } = useTranslation();
   const [axis, setAxis] = useState('gap');
   const [granularity, setGranularity] = useState('month');
-  const [months, setMonths] = useState('12');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
 
   // Origen de FC y WBGT no viven en la actividad de Strava: hay que emparejarla con
   // su registro de Garmin. Se hace aquí y no dentro de `aerobicForm.js` para que esa
@@ -100,8 +96,8 @@ export default function AerobicForm({ activities }) {
   const result = useMemo(() => hrAtFixedEffort(enriched, {
     axis,
     granularity,
-    from: isoMonthsAgo(RANGES[months] || 12),
-  }), [enriched, axis, granularity, months]);
+    from: scopeFromISO(scope),
+  }), [enriched, axis, granularity, scope]);
 
   const chartData = useMemo(() => (result.periods || []).map((p) => ({
     ...p,
@@ -134,11 +130,6 @@ export default function AerobicForm({ activities }) {
       <Select value={granularity} onValueChange={setGranularity} className="w-36">
         <SelectItem value="month">{t('aerobic_form.by_month')}</SelectItem>
         <SelectItem value="block">{t('aerobic_form.by_block')}</SelectItem>
-      </Select>
-      <Select value={months} onValueChange={setMonths} className="w-32">
-        <SelectItem value="6">{t('decoupling.months_6')}</SelectItem>
-        <SelectItem value="12">{t('decoupling.months_12')}</SelectItem>
-        <SelectItem value="24">{t('decoupling.months_24')}</SelectItem>
       </Select>
     </div>
   );

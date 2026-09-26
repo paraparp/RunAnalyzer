@@ -8,10 +8,9 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado (2026-09-26):** **fases 1 a 5 y 7 completas**, con la estructura de 8 categorías de la
-> primera pasada revisada a 5 el mismo día (fase 1b, §5). **Pendientes**: las dos que salieron de la
-> segunda revisión (§6) — el scope temporal único (fase 6) — y las
-> filas de §2.1 que siguen abiertas: volumen agregado, desacople y ritmos de entrenamiento.
+> **Estado (2026-09-26):** **fases 1 a 7 completas**, con la estructura de 8 categorías de la
+> primera pasada revisada a 5 el mismo día (fase 1b, §5). **Pendientes**: las filas de §2.1 que siguen
+> abiertas: volumen agregado, desacople y ritmos de entrenamiento.
 
 ---
 
@@ -376,11 +375,30 @@ información. Los dos siguen ahí, cada uno en su vista, y ninguno predice carre
 | `LactateThreshold` | 397 | **330** |
 | `VDOTEstimator` | 499 | **464** |
 
-### Fase 6 — un solo scope temporal ⏳ PENDIENTE
+### Fase 6 — un solo scope temporal ✅ HECHO (2026-09-26)
 
-Sustituir los **18 controles de período** de §6.1 por un control compartido con un vocabulario y un
-default coherente. Es, de todo lo que queda, lo que más cambia la sensación de que la app está
-descosida.
+Un período, un vocabulario, un default. [timeScope.js](../src/lib/timeScope.js) define los períodos
+(1M · 3M · 6M · 12M · 2A · Todo) en **meses de calendario** sobre el día local —la frontera de
+`monthsAgoISO`, la misma de la curva mean-max— y el default de **12 meses** (decisión 4 de §7).
+El estado vive en un contexto ([TimeScope.jsx](../src/components/TimeScope.jsx)), se recuerda en
+`cloudStorage` y se elige con **un solo control**, encima del contenido de las vistas que lo usan:
+cambiarlo en una lo cambia en todas.
+
+Once vistas dejan su selector propio y leen el compartido: PMC (`FitnessFatigue`, conserva las
+flechas para pasear el período hacia atrás), Semanal, Capacidad, VDOT, VO2max, Umbrales, Zonas,
+Análisis FC, Vitales, Desacople y Forma aeróbica. Las que trabajan en días (Zonas, Vitales) derivan
+los días de la misma frontera, así que "12 meses" son 365 días y no 360. En Vitales la granularidad
+se deriva: si el período no da para la elegida se pinta diaria, sin olvidar la elección.
+
+**Lo que se quedó fuera, a propósito:**
+
+- **Granularidad** (día/semana/mes/año en Vitales, Tendencias cardíacas, Zonas): es cómo se agrega,
+  no qué período se mira.
+- **Año natural** en la bitácora, el calendario de constancia y Técnica: responden a "¿cómo fue
+  2024?", no a "¿cómo estoy?", y un calendario anual no tiene sentido con una ventana móvil.
+- **"Últimas N sesiones"** en Análisis FC: se queda como TOPE de dibujo dentro del período (los
+  gráficos van sesión a sesión); su selector de año se fue.
+- **Período del contexto del chat** (`RunQA`): decide cuánto dato se manda al modelo, no qué se ve.
 
 ### Fase 7 — vista de sesión ✅ HECHO (2026-09-26)
 

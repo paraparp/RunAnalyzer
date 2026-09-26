@@ -231,6 +231,11 @@ const en = {
       empty_title: "No coordinates",
       empty: "None of your runs carries a start position ({{count}} without coordinates). This view needs GPS data."
     },
+    time_scope: {
+      label: "Period",
+      shared_hint: "Applies to every analysis view: changing it here changes it everywhere.",
+      options: { "1m": "1M", "3m": "3M", "6m": "6M", "12m": "12M", "24m": "2Y", all: "All" },
+    },
     session: {
       back: "Back",
       not_found: "This activity isn't in your synced data.",
@@ -551,8 +556,6 @@ const en = {
       resolution_partial: "{{avg}} of {{total}} sessions have no splits: they count with their average HR and collapse into a single zone (inflates Z2). They fill in over the next syncs.",
       evolution: "Temporal Evolution",
       evolution_desc: "Hours or % in each zone per bucket, within the selected period",
-      period_label: "Period",
-      periods: { "1w": "1w", "1m": "1m", "3m": "3m", "6m": "6m", "1y": "1y", "2y": "2y", "3y": "3y", all: "All" },
       monthly: "Monthly",
       weekly: "Weekly",
       polarization_title: "Polarization Analysis — Seiler 80/20 Model",
@@ -731,10 +734,6 @@ const en = {
         high: "High",
         very_high: "Very High"
       },
-      months_3: "3 months",
-      months_6: "6 months",
-      months_12: "12 months",
-      months_24: "24 months",
       good_threshold: "5% good",
       high_threshold: "10% high"
     },
@@ -746,8 +745,6 @@ const en = {
     cs: {
       title: "Critical Speed",
       subtitle: "Your speed–duration curve, fitted from every effort in your history.",
-      last_months: "Last {{count}} months",
-      all_time: "All history",
       cs: "Critical speed",
       cs_hint: "{{speed}} m/s · your measured threshold, not a table estimate",
       d_prime: "Anaerobic reserve (D′)",
@@ -810,10 +807,6 @@ const en = {
       improving: "Improving",
       worsening: "Worsening",
       stable: "Stable",
-      months_3: "3 months",
-      months_6: "6 months",
-      months_12: "12 months",
-      months_24: "24 months",
       months_with_data: "{{n}} month(s) with data",
       chart_title: "Lactate Threshold Evolution (LT2)",
       chart_subtitle: "Estimated pace at 87% HRmax using gaussian weighting by HR proximity to target.",
@@ -1158,6 +1151,11 @@ const es = {
       legend_routes: "Un color por ruta distinta — la más gruesa es la más repetida",
       empty_title: "Sin coordenadas",
       empty: "Ninguna de tus carreras trae posición de salida ({{count}} sin coordenadas). Esta vista necesita datos de GPS."
+    },
+    time_scope: {
+      label: "Período",
+      shared_hint: "Se aplica a todas las vistas de análisis: cambiarlo aquí lo cambia en todas.",
+      options: { "1m": "1M", "3m": "3M", "6m": "6M", "12m": "12M", "24m": "2A", all: "Todo" },
     },
     session: {
       back: "Volver",
@@ -1545,10 +1543,6 @@ const es = {
         high: "Alto",
         very_high: "Muy alto"
       },
-      months_3: "3 meses",
-      months_6: "6 meses",
-      months_12: "12 meses",
-      months_24: "24 meses",
       good_threshold: "5% bueno",
       high_threshold: "10% alto"
     },
@@ -1560,8 +1554,6 @@ const es = {
     cs: {
       title: "Velocidad Crítica",
       subtitle: "Tu curva velocidad–duración, ajustada con todos los esfuerzos de tu histórico.",
-      last_months: "Últimos {{count}} meses",
-      all_time: "Todo el histórico",
       cs: "Velocidad crítica",
       cs_hint: "{{speed}} m/s · tu umbral medido, no estimado por tablas",
       d_prime: "Reserva anaeróbica (D′)",
@@ -1624,10 +1616,6 @@ const es = {
       improving: "Mejorando",
       worsening: "Empeorando",
       stable: "Estable",
-      months_3: "3 meses",
-      months_6: "6 meses",
-      months_12: "12 meses",
-      months_24: "24 meses",
       months_with_data: "{{n}} mes(es) con datos",
       chart_title: "Evolución del Umbral de Lactato (LT2)",
       chart_subtitle: "Ritmo estimado al 87% FCmax usando ponderación gaussiana por proximidad a la FC objetivo.",
@@ -1828,8 +1816,6 @@ const es = {
       resolution_partial: "{{avg}} de {{total}} sesiones no tienen parciales: entran con su FC media y colapsan en una sola zona (infla Z2). Se irán completando en los próximos syncs.",
       evolution: "Evolución Temporal",
       evolution_desc: "Horas o % en cada zona por bloque, dentro del período elegido",
-      period_label: "Período",
-      periods: { "1w": "1s", "1m": "1m", "3m": "3m", "6m": "6m", "1y": "1a", "2y": "2a", "3y": "3a", all: "Todo" },
       monthly: "Mensual",
       weekly: "Semanal",
       polarization_title: "Análisis de Polarización — Modelo Seiler 80/20",

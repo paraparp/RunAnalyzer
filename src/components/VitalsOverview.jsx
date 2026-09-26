@@ -15,6 +15,8 @@ import { decouplingPct } from '../lib/decoupling';
 import useHrParams from '../hooks/useHrParams';
 import { computeGarminStats } from '../lib/statusStats';
 import { HeroCard } from './StatusCards';
+import { scopeDays } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -136,15 +138,6 @@ function computeCTLSeries(pmc) {
     load: p.load,
   }));
 }
-
-const PERIODS = [
-  { label: "1M", days: 30 },
-  { label: "3M", days: 90 },
-  { label: "6M", days: 180 },
-  { label: "1A", days: 365 },
-  { label: "3A", days: 1096 },
-  { label: "Todo", days: 99999 },
-];
 
 // Período mínimo (días) para que cada granularidad produzca ≥2-3 puntos con sentido
 const GRAN_MIN_DAYS = { day: 0, week: 14, month: 90, year: 730 };
@@ -334,8 +327,15 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
 // Main
 // ---------------------------------------------------------------------------
 export default function VitalsOverview({ activities = [] }) {
-  const [days, setDays] = useState(180);
-  const [gran, setGran] = useState("day"); // day | week | month | year
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  // "Todo" no tiene días: se usa un tope que cubre cualquier histórico.
+  const [scope] = useTimeScope();
+  const days = scopeDays(scope) ?? 99999;
+  // La granularidad elegida se RESPETA, pero si el período no da para ella se
+  // pinta diaria: se deriva en vez de reescribir la elección, así que al volver
+  // a un período largo reaparece la que tenías.
+  const [granPick, setGran] = useState("day"); // day | week | month | year
+  const gran = days >= GRAN_MIN_DAYS[granPick] ? granPick : "day";
   const [gapAdjust, setGapAdjust] = useState(false); // ajustar eficiencia por desnivel (GAP)
   // Extremo derecho de la ventana, estable por montaje: leerlo en cada render
   // movía el corte y hacía entrar y salir puntos según cuántas veces se repintara.
@@ -555,24 +555,6 @@ export default function VitalsOverview({ activities = [] }) {
                 </button>
               );
             })}
-          </div>
-
-          {/* Period selector */}
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            {PERIODS.map((p) => (
-              <button
-                key={p.days}
-                onClick={() => {
-                  setDays(p.days);
-                  if (p.days < GRAN_MIN_DAYS[gran]) setGran("day");
-                }}
-                aria-pressed={days === p.days}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${days === p.days ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {p.label}
-              </button>
-            ))}
           </div>
 
           {/* GAP toggle (afecta solo a Eficiencia aeróbica) */}

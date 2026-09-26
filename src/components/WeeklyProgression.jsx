@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text } from '@tremor/react';
 import { isoWeek, isoWeekKey, weekStartFromIso } from '../lib/isoWeek';
 import { weeklyVolumeRamp } from '../lib/weeklyVolume';
 import { activityDayKey, dayKey } from '../lib/trainingLoad';
 import { monthsAgoISO } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 import { monthShort } from '../lib/monthLabels';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -39,7 +41,8 @@ function CustomTooltip({ active, payload }) {
 export default function WeeklyProgression({ activities }) {
   const { i18n } = useTranslation();
   const MONTH_SHORT = monthShort(i18n.language);
-  const [monthsToShow, setMonthsToShow] = useState('6');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
 
   const { weeklyData, stats } = useMemo(() => {
     if (!activities || activities.length === 0) return { weeklyData: [], stats: null };
@@ -123,11 +126,11 @@ export default function WeeklyProgression({ activities }) {
     });
 
     // Filter by time range
-    const months = parseInt(monthsToShow);
+    const months = scopeMonths(scope);
     // Meses de CALENDARIO: `months * 30 * 86400000` recorta 360 días cuando el
     // selector dice 12 meses. La frontera y el inicio de semana son días locales.
     const from = monthsAgoISO(months);
-    const filtered = withMetrics.filter(w => dayKey(new Date(w.dateMs)) >= from);
+    const filtered = from ? withMetrics.filter(w => dayKey(new Date(w.dateMs)) >= from) : withMetrics;
 
     // Stats — todas sobre semanas CERRADAS; la parcial solo se informa aparte.
     const closed = filtered.filter(w => !w.isPartial);
@@ -165,7 +168,7 @@ export default function WeeklyProgression({ activities }) {
         maxWeekLabel: maxWeek.label,
       },
     };
-  }, [activities, monthsToShow, MONTH_SHORT]);
+  }, [activities, scope, MONTH_SHORT]);
 
   if (!weeklyData.length || !stats) {
     return (
@@ -223,12 +226,6 @@ export default function WeeklyProgression({ activities }) {
             <Title className="text-slate-800 font-bold">Progresión de Volumen Semanal</Title>
             <Text className="text-slate-500 text-sm">km por semana con media móvil de 4 semanas y regla del 10%</Text>
           </div>
-          <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
-            <SelectItem value="3">3 meses</SelectItem>
-            <SelectItem value="6">6 meses</SelectItem>
-            <SelectItem value="12">12 meses</SelectItem>
-            <SelectItem value="24">24 meses</SelectItem>
-          </Select>
         </div>
 
         <div className="h-[360px] w-full mt-4">

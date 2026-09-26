@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text } from '@tremor/react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell,
@@ -11,6 +11,8 @@ import {
   formatPace,
 } from '../lib/lactateThreshold';
 import useHrParams from '../hooks/useHrParams';
+import useTimeScope from '../hooks/useTimeScope';
+import { scopeMonths } from '../lib/timeScope';
 
 // ─── methodology ──────────────────────────────────────────────────────────────
 //
@@ -30,15 +32,16 @@ import useHrParams from '../hooks/useHrParams';
 
 export default function LactateThreshold({ activities }) {
   const { t } = useTranslation();
-  const [monthsToShow, setMonthsToShow] = useState('12');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
 
   // FCreposo efectiva (Garmin → override manual → defecto), la misma que ven las
   // zonas y el prompt del coach. Sin ella el modelo caía a un estimador propio.
   const { hrrest } = useHrParams(activities);
 
   const model = useMemo(
-    () => computeLactateModel(activities, parseInt(monthsToShow), { hrrest }),
-    [activities, monthsToShow, hrrest]
+    () => computeLactateModel(activities, scopeMonths(scope), { hrrest }),
+    [activities, scope, hrrest]
   );
 
   const { hrInfo, hrmax, lt2Hr, monthly: monthlyData = [], hr, cs, hasData } = model;
@@ -171,12 +174,6 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Time window ── */}
       <div className="flex items-center gap-3">
-        <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-36">
-          <SelectItem value="3">{t('lactate.months_3')}</SelectItem>
-          <SelectItem value="6">{t('lactate.months_6')}</SelectItem>
-          <SelectItem value="12">{t('lactate.months_12')}</SelectItem>
-          <SelectItem value="24">{t('lactate.months_24')}</SelectItem>
-        </Select>
         <span className="text-xs text-slate-400">{t('lactate.months_with_data', { n: monthlyData.length })}</span>
       </div>
 

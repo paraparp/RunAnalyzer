@@ -1,4 +1,4 @@
-import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text } from '@tremor/react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,6 +13,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { dayKey, activityDayKey } from '../lib/trainingLoad';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
+import useTimeScope from '../hooks/useTimeScope';
+import { scopeMonths } from '../lib/timeScope';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
 import { isRun, paceStr, timeStr } from '../lib/statusStats';
@@ -134,8 +136,14 @@ function ScatterTooltip({ active, payload }) {
 export default function FitnessFatigue({ activities }) {
   const { t, i18n } = useTranslation();
   const es = i18n.language.startsWith('es');
-  const [timeRange, setTimeRange] = useState('12');
-  const [offsetMonths, setOffsetMonths] = useState(0);
+  // Período compartido (lib/timeScope): el control vive en la barra superior. Las
+  // flechas pasean ESE período hacia atrás; el desplazamiento va atado al período
+  // en el que se fijó, así que al cambiarlo vuelve solo al presente.
+  const [scope] = useTimeScope();
+  const months = scopeMonths(scope);
+  const [offset, setOffset] = useState({ scope, months: 0 });
+  const offsetMonths = offset.scope === scope ? offset.months : 0;
+  const setOffsetMonths = (fn) => setOffset({ scope, months: fn(offsetMonths) });
   // Día fijado al pinchar en la carga diaria. El tooltip ya lista las sesiones,
   // pero se va con el ratón: esto las deja ancladas y enlazadas a Strava. Venía
   // de la vista "Mi Estado", que pintaba su propio PMC en paralelo a este.
@@ -257,22 +265,20 @@ export default function FitnessFatigue({ activities }) {
 
   // ── 4. Filter visible range ──────────────────────────────────────────────────
   const filteredData = useMemo(() => {
-    if (timeRange === 'all') return chartData;
-    const months = parseInt(timeRange);
+    if (months == null) return chartData;
     const end    = new Date();
     end.setMonth(end.getMonth() - offsetMonths);
     const start  = new Date(end);
     start.setMonth(start.getMonth() - months);
     return chartData.filter(d => d.date >= start.toISOString().split('T')[0] && d.date <= end.toISOString().split('T')[0]);
-  }, [chartData, timeRange, offsetMonths]);
+  }, [chartData, months, offsetMonths]);
 
   const canGoBack = useMemo(() => {
-    if (timeRange === 'all' || !chartData.length) return false;
-    const months = parseInt(timeRange);
+    if (months == null || !chartData.length) return false;
     const end    = new Date();
     end.setMonth(end.getMonth() - offsetMonths - months);
     return chartData[0]?.date < end.toISOString().split('T')[0];
-  }, [timeRange, offsetMonths, chartData]);
+  }, [months, offsetMonths, chartData]);
 
   // ── 5. Status helpers ────────────────────────────────────────────────────────
   const formStatus = useMemo(() => {
@@ -388,23 +394,15 @@ export default function FitnessFatigue({ activities }) {
             <Text className="text-slate-400 text-xs">{t('fitness.pmc.desc')}</Text>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={timeRange} onValueChange={v => { setTimeRange(v); setOffsetMonths(0); }} enableClear={false} className="w-36">
-              <SelectItem value="all">{t('hr_analysis.filters.all')}</SelectItem>
-              <SelectItem value="3">{es ? '3 meses' : '3 months'}</SelectItem>
-              <SelectItem value="6">{es ? '6 meses' : '6 months'}</SelectItem>
-              <SelectItem value="12">{es ? '12 meses' : '12 months'}</SelectItem>
-              <SelectItem value="24">{es ? '2 años' : '2 years'}</SelectItem>
-              <SelectItem value="36">{es ? '3 años' : '3 years'}</SelectItem>
-            </Select>
-            {timeRange !== 'all' && (
+            {months != null && (
               <div className="flex gap-1">
-                <button onClick={() => setOffsetMonths(p => p + parseInt(timeRange))} disabled={!canGoBack}
+                <button onClick={() => setOffsetMonths(p => p + months)} disabled={!canGoBack}
                   className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
                   </svg>
                 </button>
-                <button onClick={() => setOffsetMonths(p => Math.max(p - parseInt(timeRange), 0))} disabled={offsetMonths === 0}
+                <button onClick={() => setOffsetMonths(p => Math.max(p - months, 0))} disabled={offsetMonths === 0}
                   className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />

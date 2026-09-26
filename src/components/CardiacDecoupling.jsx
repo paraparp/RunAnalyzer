@@ -4,6 +4,8 @@ import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { decouplingPct, decouplingLevel } from '../lib/decoupling';
 import { activityWithinMonths } from '../lib/criticalSpeed';
+import { scopeMonths } from '../lib/timeScope';
+import useTimeScope from '../hooks/useTimeScope';
 import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
@@ -40,14 +42,15 @@ function CustomTooltip({ active, payload }) {
 
 export default function CardiacDecoupling({ activities }) {
   const { t } = useTranslation();
-  const [monthsToShow, setMonthsToShow] = useState('6');
+  // Período compartido (lib/timeScope): el control vive en la barra superior.
+  const [scope] = useTimeScope();
   const [minDuration, setMinDuration] = useState('30');
 
   const { decouplingData, trendData, stats } = useMemo(() => {
     if (!activities || activities.length === 0) return { decouplingData: [], trendData: [], stats: null };
 
     const minMins = parseInt(minDuration);
-    const months = parseInt(monthsToShow);
+    const months = scopeMonths(scope);
     // Meses de CALENDARIO sobre el día local, como el resto de las vistas: el
     // `months * 30 * 86400000` anterior daba 180 días cuando el selector dice 6 meses.
     const inWindow = activityWithinMonths(months);
@@ -132,7 +135,7 @@ export default function CardiacDecoupling({ activities }) {
         levelLast5Color: avgLast5Key ? LEVEL_COLORS[avgLast5Key] : '#94a3b8',
       },
     };
-  }, [activities, monthsToShow, minDuration]);
+  }, [activities, scope, minDuration]);
 
   if (!decouplingData.length) {
     return (
@@ -182,12 +185,6 @@ export default function CardiacDecoupling({ activities }) {
 
       {/* Controls */}
       <div className="flex gap-3">
-        <Select value={monthsToShow} onValueChange={setMonthsToShow} className="w-32">
-          <SelectItem value="3">{t('decoupling.months_3')}</SelectItem>
-          <SelectItem value="6">{t('decoupling.months_6')}</SelectItem>
-          <SelectItem value="12">{t('decoupling.months_12')}</SelectItem>
-          <SelectItem value="24">{t('decoupling.months_24')}</SelectItem>
-        </Select>
         <Select value={minDuration} onValueChange={setMinDuration} className="w-36">
           <SelectItem value="20">+20 min</SelectItem>
           <SelectItem value="30">+30 min</SelectItem>

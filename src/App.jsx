@@ -11,6 +11,7 @@ import Logo from './components/Logo';
 import UserMenu from './components/UserMenu';
 import LandingPage from './components/LandingPage';
 import TodayView from './components/TodayView';
+import { TimeScopeProvider, TimeScopeSelector } from './components/TimeScope';
 // Vistas secundarias: solo se monta una a la vez (viewMap), así que se cargan
 // bajo demanda. Esto saca del bundle inicial sus dependencias pesadas
 // (recharts/tremor, leaflet en los mapas, jspdf en el planner).
@@ -134,6 +135,11 @@ const NAV_CATEGORIES = [
   { id: 'racing', icon: TrophyIcon, itemIds: ['targets', 'planner', 'predictor', 'racehistory'] },
   { id: 'settings', icon: Cog6ToothIcon, itemIds: ['calibration', 'connections', 'export'] },
 ];
+
+// Vistas que acotan el histórico con el período compartido (lib/timeScope). Solo
+// en ellas se enseña el selector: ponerlo donde no manda nada invitaría a pensar
+// que filtra lo que no filtra.
+const SCOPED_VIEWS = new Set(['pmc', 'weekly', 'criticalspeed', 'fitness', 'zones', 'hranalysis', 'health']);
 
 const Dashboard = ({ user, handleLogout }) => {
   const { t, i18n } = useTranslation();
@@ -610,6 +616,13 @@ const Dashboard = ({ user, handleLogout }) => {
               />
             )}
 
+            {SCOPED_VIEWS.has(currentView) && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('time_scope.label')}</span>
+                <TimeScopeSelector />
+              </div>
+            )}
+
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
                 log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onEnrichActivity={handleFetchDetails} onOpenActivity={openActivity} />,
@@ -774,7 +787,9 @@ function App() {
               </div>
             </div>
           ) : (
-            <Dashboard user={user} handleLogout={handleLogout} />
+            <TimeScopeProvider>
+              <Dashboard user={user} handleLogout={handleLogout} />
+            </TimeScopeProvider>
           )
         } />
       </Routes>
