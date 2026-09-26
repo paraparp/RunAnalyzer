@@ -55,7 +55,7 @@ const StatCard = ({ label, value, unit, icon: Icon, color = 'indigo' }) => {
 // donde se usa.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function ActivityLog({ activities, runningActivities, hrParams, onEnrichActivity }) {
+export default function ActivityLog({ activities, runningActivities, hrParams, onEnrichActivity, onOpenActivity }) {
   const { t, i18n } = useTranslation();
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [searchQuery, setSearchQuery] = useState('');
@@ -707,10 +707,10 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
-                              className="text-sm font-medium text-slate-800 hover:text-indigo-600 transition-colors truncate max-w-[160px]">
+                            <button type="button" onClick={() => onOpenActivity?.(activity.id)}
+                              className="text-left text-sm font-medium text-slate-800 hover:text-indigo-600 transition-colors truncate max-w-[160px]">
                               {activity.name}
-                            </a>
+                            </button>
                             {(() => {
                               const st = activity.sport_type || activity.type;
                               const isRace = activity.workout_type === 1;

@@ -37,6 +37,7 @@ const Connections = lazy(() => import('./components/Connections'));
 const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
 const GeoZones = lazy(() => import('./components/GeoZones'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const SessionView = lazy(() => import('./components/SessionView'));
 import useHrParams from './hooks/useHrParams';
 import useIsAdmin from './hooks/useIsAdmin';
 
@@ -163,7 +164,9 @@ const Dashboard = ({ user, handleLogout }) => {
     setChatOpen(true);
   }, []);
   // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
-  const { view: viewParam, raceId } = useParams();
+  // El segundo segmento es el id de la carrera en /targets y el de la actividad en
+  // /activity/:id (la vista de sesión).
+  const { view: viewParam, raceId: routeId } = useParams();
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
   const navItems = useMemo(() => (isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS), [isAdmin]);
@@ -172,7 +175,12 @@ const Dashboard = ({ user, handleLogout }) => {
       ? NAV_CATEGORIES.map(c => (c.id === 'settings' ? { ...c, itemIds: [...c.itemIds, 'admin'] } : c))
       : NAV_CATEGORIES
   ), [isAdmin]);
-  const currentView = navItems.some(i => i.id === viewParam) ? viewParam : 'dashboard';
+  // La sesión no está en el menú (es un detalle, no un sitio al que ir), así que se
+  // resuelve aparte y cuelga de Sesiones a efectos de navegación.
+  const currentView = viewParam === 'activity' && routeId
+    ? 'activity'
+    : navItems.some(i => i.id === viewParam) ? viewParam : 'dashboard';
+  const navView = currentView === 'activity' ? 'log' : currentView;
   const setCurrentView = useCallback(
     (v) => navigate(v === 'dashboard' ? '/' : `/${v}`),
     [navigate]
@@ -386,12 +394,19 @@ const Dashboard = ({ user, handleLogout }) => {
   const hrParams = useHrParams(runningActivities);
 
 
-  const currentNavItem = navItems.find(item => item.id === currentView);
+  const currentNavItem = navItems.find(item => item.id === navView);
   const pageTitle = currentNavItem ? t(`nav.${currentNavItem.id}`) : t('nav.dashboard');
+  const openActivity = useCallback((id) => navigate(`/activity/${id}`), [navigate]);
+  // Volver es "atrás" si se llegó navegando; si se entró por la URL directa, atrás
+  // saldría de la app, así que se cae a la bitácora.
+  const goBackFromActivity = useCallback(
+    () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/log')),
+    [navigate]
+  );
 
   // Sidebar component
   const SidebarContent = () => {
-    const activeCatId = navCategories.find(cat => cat.itemIds.includes(currentView))?.id;
+    const activeCatId = navCategories.find(cat => cat.itemIds.includes(navView))?.id;
     return (
       <>
         {/* Logo */}
@@ -517,7 +532,7 @@ const Dashboard = ({ user, handleLogout }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
         {(() => {
-          const activeCat = navCategories.find(cat => cat.itemIds.includes(currentView));
+          const activeCat = navCategories.find(cat => cat.itemIds.includes(navView));
           const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
           return (
             <header className="sticky top-0 z-40 flex justify-between items-center px-8 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl h-16 shadow-sm dark:shadow-none shrink-0 gap-6">
@@ -597,7 +612,8 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
-                log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onEnrichActivity={handleFetchDetails} />,
+                log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onEnrichActivity={handleFetchDetails} onOpenActivity={openActivity} />,
+                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} onBack={goBackFromActivity} onOpenActivity={openActivity} onEnrichActivity={handleFetchDetails} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
@@ -609,7 +625,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 geozones:    <GeoZones activities={runningActivities} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
-                targets:     <TargetRaces activities={runningActivities} planRaceId={raceId} />,
+                targets:     <TargetRaces activities={runningActivities} planRaceId={routeId} />,
                 racehistory: <RaceDetector activities={runningActivities} />,
                 criticalspeed: <CriticalSpeed activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,

@@ -2,22 +2,15 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
-import { decouplingPct } from '../lib/decoupling';
+import { decouplingPct, decouplingLevel } from '../lib/decoupling';
 import { activityWithinMonths } from '../lib/criticalSpeed';
 import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
 } from 'recharts';
 
-// Level keys for i18n lookup
-function getDecouplingLevelKey(pct) {
-  if (pct === null) return null;
-  if (pct < 3) return 'excellent';
-  if (pct < 5) return 'good';
-  if (pct < 8) return 'normal';
-  if (pct < 12) return 'high';
-  return 'very_high';
-}
+// Escala de niveles: la de lib/decoupling, compartida con la vista de sesión.
+const getDecouplingLevelKey = decouplingLevel;
 
 const LEVEL_COLORS = {
   excellent: '#10b981',

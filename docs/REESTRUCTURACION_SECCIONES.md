@@ -8,9 +8,9 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado (2026-09-19):** **fases 1 a 5 completas**, con la estructura de 8 categorías de la
+> **Estado (2026-09-26):** **fases 1 a 5 y 7 completas**, con la estructura de 8 categorías de la
 > primera pasada revisada a 5 el mismo día (fase 1b, §5). **Pendientes**: las dos que salieron de la
-> segunda revisión (§6) — el scope temporal único (fase 6) y la vista de sesión (fase 7) — y las
+> segunda revisión (§6) — el scope temporal único (fase 6) — y las
 > filas de §2.1 que siguen abiertas: volumen agregado, desacople y ritmos de entrenamiento.
 
 ---
@@ -382,10 +382,29 @@ Sustituir los **18 controles de período** de §6.1 por un control compartido co
 default coherente. Es, de todo lo que queda, lo que más cambia la sensación de que la app está
 descosida.
 
-### Fase 7 — vista de sesión ⏳ PENDIENTE
+### Fase 7 — vista de sesión ✅ HECHO (2026-09-26)
 
-`/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
-clima y la comparación con sesiones similares. Hoy no existe (§6.2).
+`/activity/:id` ([SessionView.jsx](../src/components/SessionView.jsx)), cuelga de *Sesiones* sin
+ocupar sitio en el menú: se entra desde el nombre de la sesión en la bitácora y desde la tabla de
+sesiones equivalentes. Enseña cabecera (distancia, tiempos, ritmo, GAP con su fuente, FC, D+), una
+**frase de veredicto derivada** (eficiencia frente a sus pares, deriva, calor: §6.3 aplicado a la
+sesión), tiempo en zona con la lectura polarizada, desacople en sus dos ventanas, eficiencia
+(sesión entera y EF aeróbico), meteorología con las dos penalizaciones, los parciales y las
+sesiones equivalentes.
+
+**No calcula nada nuevo.** [sessionAnalysis.js](../src/lib/sessionAnalysis.js) solo junta, para una
+actividad, lo que ya calculan los dueños de cada número (`zoneMix`, `decoupling`,
+`efficiencyFactor`, `streamGap`, `weather`). Para que eso fuera cierto hubo que mover dos cosas:
+
+- La penalización por calor (`heatPenaltyPct`, `heatIntensityFactor`) sale de
+  `api/_lib/garmin-helpers.js` a `src/lib/weather.js`, con un punto de entrada único,
+  `sessionHeat`, que ahora usa también el `shapeWeather` del MCP.
+- La escala de niveles de la deriva (`decouplingLevel`) sale de `CardiacDecoupling` a
+  `lib/decoupling`: la pestaña y la sesión califican con los mismos cortes.
+
+Las sesiones equivalentes replican el criterio de la tool MCP `compare_similar_sessions`
+(distancia ±10 %, FC media ±5 ppm, sin competiciones, m/latido de la sesión entera), para que el
+MCP y la pantalla den el mismo número.
 
 La suite (930 tests / 51 ficheros, en verde tras la fase 4) debe correr entre fase y fase a partir de la 3.
 
@@ -449,5 +468,13 @@ que varios gráficos nuevos.
    tabs propios).
 3. **¿Material es Sesiones o Ajustes?** Aplicado en Sesiones: los km por zapatilla se derivan del
    registro. Su override de vida útil es lo único que tira hacia Ajustes.
-4. **¿Cuál es el scope temporal por defecto?** La fase 6 necesita elegir uno —y justificarlo— para
-   las ventanas que hoy van de 90 días a "todo el histórico" (§6.1).
+4. ~~**¿Cuál es el scope temporal por defecto?**~~ **Resuelto: últimos 12 meses** (2026-09-26).
+   Coincide con el PMC y el VO2max, cubre una temporada entera y da muestra suficiente a la
+   velocidad crítica y al desacople. Pendiente de aplicar en la fase 6.
+5. ~~**¿Qué sistema de ritmos gana?**~~ **Resuelto: LT1/LT2** (2026-09-26). Es el que tiene más
+   respaldo actual: prescribe desde los límites fisiológicos de los dominios de intensidad
+   (umbrales de lactato / ventilatorios, con la velocidad crítica como frontera pesado-severo),
+   mientras que Daniels sale de tablas empíricas de rendimiento en carrera. Además es coherente con
+   lo ya decidido: LT1 y LT2 son las anclas de ritmo que recibe el coach y encajan con las zonas
+   Karvonen. Daniels queda como lectura del VDOT, sin tabla de ritmos propia. Pendiente de aplicar
+   (fila *Ritmos de entrenamiento* de §2.1).

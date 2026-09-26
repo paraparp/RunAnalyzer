@@ -23,12 +23,7 @@ import { hrAtFixedEffort, DEFAULT_WINDOW_MIN } from '../../src/lib/aerobicForm.j
 import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
 import { dayKey } from '../../src/lib/trainingLoad.js';
 import { computeCalibratedPMC, OVERRIDES_KEY as HR_OVERRIDES_KEY } from '../../src/lib/loadCalibration.js';
-import {
-  heatPenaltyPct,
-  heatIntensityFactor,
-  normalizeWeatherTemps,
-  wbgtFromCelsius,
-} from './garmin-helpers.js';
+import { sessionHeat } from '../../src/lib/weather.js';
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -213,42 +208,30 @@ function shapeGarminLaps(laps) {
 // Se devuelven las DOS cifras: la de tabla (referencia a intensidad de competición) y
 // la de esta sesión. Mezclarlas es justo el error que hacía inservible el número.
 function shapeWeather(w, avgHr, hrMax) {
-  if (!w) return null;
-  // Las filas del cache se guardaron con la conversión de unidad antigua, que dejaba sin
-  // convertir cualquier lectura de 45 °F o menos y podía mezclar unidades entre la
-  // temperatura y el rocío de la MISMA actividad. Se renormaliza aquí, por el mismo
-  // motivo que la penalización: rehacer el sync de todo el histórico no compensa. La
-  // normalización es idempotente, así que las filas ya correctas quedan intactas.
-  const { temp_c, dew_point_c, unit_source } = normalizeWeatherTemps(w.temp_c, w.dew_point_c, w.humidity_pct);
-  const recomputed = wbgtFromCelsius(temp_c, w.humidity_pct);
-  const wbgt = recomputed != null ? round(recomputed, 1) : w.wbgt_c;
-  // Red de seguridad de unidad: un WBGT fuera de este rango no es meteorología, es
-  // una conversión mal hecha (96,7 = una lectura en °F tratada como °C; −2,1 = una
-  // lectura en °C convertida como si fuera °F). Antes esos valores se servían tal
-  // cual y arrastraban la penalización por calor: 10,2 % donde tocaba ~1 %.
-  const plausible = wbgt != null && wbgt >= -5 && wbgt <= 45;
-  const race = plausible ? heatPenaltyPct(wbgt) : null;
-  const pctHrMax = avgHr && hrMax ? (avgHr / hrMax) * 100 : null;
-  const factor = heatIntensityFactor(pctHrMax);
+  // El cálculo vive en src/lib/weather.js › sessionHeat, compartido con la vista de
+  // sesión del front: aquí solo se redondea y se añade la explicación para el LLM.
+  const h = sessionHeat(w, avgHr, hrMax);
+  if (!h) return null;
+  const r1 = (v) => (v == null ? null : round(v, 1));
   return {
     ...w,
-    temp_c: round(temp_c, 1),
-    dew_point_c: round(dew_point_c, 1),
-    wbgt_c: wbgt,
+    temp_c: r1(h.temp_c),
+    dew_point_c: r1(h.dew_point_c),
+    wbgt_c: h.wbgt_c,
     // Cómo se decidió la escala: 'dew_point' (el punto de rocío y la humedad son
     // coherentes con una sola interpretación), 'mixed' (cada lectura venía en una
     // escala distinta: fila vieja del cache) o 'threshold' (respaldo por magnitud,
     // porque faltaba el rocío o las dos interpretaciones empataban).
-    unit_source,
-    wbgt_plausible: plausible,
-    heat_penalty_pct: race == null ? null : round(race, 1),
+    unit_source: h.unit_source,
+    wbgt_plausible: h.wbgt_plausible,
+    heat_penalty_pct: r1(h.heat_penalty_pct),
     heat_penalty_basis: 'intensidad de competición (~90 % FCmax)',
-    heat_penalty_session_pct: race != null && factor != null ? round(race * factor, 1) : null,
-    intensity_factor: factor != null ? round(factor, 2) : null,
-    pct_hr_max: pctHrMax != null ? round(pctHrMax, 1) : null,
-    heat_note: !plausible
-      ? `WBGT ${wbgt} fuera de rango físico: la temperatura de origen (${w.temp_c}) tiene la unidad mal etiquetada y no se puede recuperar. No uses el calor de esta sesión.`
-      : factor == null
+    heat_penalty_session_pct: r1(h.heat_penalty_session_pct),
+    intensity_factor: h.intensity_factor != null ? round(h.intensity_factor, 2) : null,
+    pct_hr_max: r1(h.pct_hr_max),
+    heat_note: !h.wbgt_plausible
+      ? `WBGT ${h.wbgt_c} fuera de rango físico: la temperatura de origen (${w.temp_c}) tiene la unidad mal etiquetada y no se puede recuperar. No uses el calor de esta sesión.`
+      : h.intensity_factor == null
         ? 'Sin FC media o sin FCmax: solo se puede dar la penalización de tabla, que asume ritmo de competición y sobreestima un rodaje suave.'
         : 'heat_penalty_session_pct es la cifra aplicable a ESTA sesión; heat_penalty_pct es la referencia de tabla a ritmo de competición.',
   };

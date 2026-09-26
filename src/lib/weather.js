@@ -124,3 +124,77 @@ export function normalizeWeatherTemps(temp, dew, rh) {
   return { temp_c: scored[0].temp_c, dew_point_c: scored[0].dew_point_c, unit_source: 'dew_point' };
 }
 
+
+// Penalización de ritmo por calor, interpolada por tramos sobre la tabla de consenso
+// (Ely et al. / tablas de ajuste por WBGT). El modelo anterior era lineal a 0,65 %/°C
+// sobre 12 °C y sobreestimaba ~×2: daba 7,3 % a WBGT 23,2 donde las tablas dan 3-4 %.
+//
+// IMPORTANTE: estos valores son el coste a intensidad de COMPETICIÓN (~90 % FCmax),
+// que es como están medidas las tablas. Para una sesión concreta hay que escalarlos
+// con heatIntensityFactor(); ver shapeWeather() en api/_lib/mcp-store.js y sessionWeather() en sessionAnalysis.js.
+const HEAT_TABLE = [[12, 0], [18, 1], [20, 2], [23, 4], [26, 6], [29, 9], [32, 13]];
+
+/** % de pérdida de ritmo a intensidad de competición para un WBGT dado. */
+export function heatPenaltyPct(wbgt) {
+  if (wbgt == null || !Number.isFinite(wbgt)) return null;
+  if (wbgt <= HEAT_TABLE[0][0]) return 0;
+  for (let i = 1; i < HEAT_TABLE.length; i++) {
+    const [x0, y0] = HEAT_TABLE[i - 1];
+    const [x1, y1] = HEAT_TABLE[i];
+    if (wbgt <= x1) return y0 + ((wbgt - x0) / (x1 - x0)) * (y1 - y0);
+  }
+  // Por encima de la tabla se extrapola con la última pendiente, con tope duro.
+  const [xn, yn] = HEAT_TABLE[HEAT_TABLE.length - 1];
+  const [xp, yp] = HEAT_TABLE[HEAT_TABLE.length - 2];
+  return Math.min(20, yn + (wbgt - xn) * ((yn - yp) / (xn - xp)));
+}
+
+/**
+ * Factor de intensidad: el mismo WBGT no cuesta lo mismo a 141 ppm que a 177. El calor
+ * metabólico crece con la intensidad y el margen para disiparlo se estrecha, así que en
+ * aeróbico bajo el coste real es una fracción del valor de tabla. Anclado a 1,0 en
+ * ~90 % FCmax (intensidad a la que están medidas las tablas) y ~0,4 en ~76 %.
+ */
+export function heatIntensityFactor(pctHrMax) {
+  if (pctHrMax == null || !Number.isFinite(pctHrMax)) return null;
+  return Math.min(1, Math.max(0.15, (pctHrMax - 67) / 23));
+}
+
+/**
+ * Calor de UNA sesión a partir de la meteorología cacheada de Garmin
+ * (`{ temp_c, dew_point_c, humidity_pct, wbgt_c }`), su FC media y la FCmax del atleta.
+ *
+ * Punto de entrada único para el MCP (`shapeWeather`) y la vista de sesión: las dos
+ * cifras de penalización salen de aquí y con el mismo nombre, porque mezclarlas es
+ * justo el error que hacía inservible el número. `heat_penalty_pct` es la referencia
+ * de tabla a ritmo de competición; `heat_penalty_session_pct`, la escalada a la
+ * intensidad de ESTA sesión (null si falta FC media o FCmax).
+ *
+ * Se renormaliza la unidad aunque la fila venga del cache: la normalización es
+ * idempotente y las filas viejas se guardaron con la heurística que mezclaba escalas.
+ */
+export function sessionHeat(w, avgHr, hrMax) {
+  if (!w) return null;
+  const { temp_c, dew_point_c, unit_source } = normalizeWeatherTemps(w.temp_c, w.dew_point_c, w.humidity_pct);
+  const recomputed = wbgtFromCelsius(temp_c, w.humidity_pct);
+  const wbgt = recomputed != null ? Math.round(recomputed * 10) / 10 : gnum(w.wbgt_c);
+  // Red de seguridad de unidad: un WBGT fuera de este rango no es meteorología, es
+  // una conversión mal hecha (96,7 = °F tratados como °C; −2,1 = °C convertidos
+  // como si fueran °F), y arrastraría la penalización.
+  const plausible = wbgt != null && wbgt >= -5 && wbgt <= 45;
+  const race = plausible ? heatPenaltyPct(wbgt) : null;
+  const pctHrMax = avgHr && hrMax ? (avgHr / hrMax) * 100 : null;
+  const factor = heatIntensityFactor(pctHrMax);
+  return {
+    temp_c,
+    dew_point_c,
+    humidity_pct: gnum(w.humidity_pct),
+    unit_source,
+    wbgt_c: wbgt,
+    wbgt_plausible: plausible,
+    heat_penalty_pct: race,
+    heat_penalty_session_pct: race != null && factor != null ? race * factor : null,
+    intensity_factor: factor,
+    pct_hr_max: pctHrMax,
+  };
+}

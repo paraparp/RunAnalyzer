@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { karvonenBounds, classifyHR } from '../lib/hrZones';
 import { formatDuration, formatPaceFromSpeed, formatPaceFromSecPerKm } from '../lib/timeFormat';
 import { gapSpeed, gapSpeedFromGain } from '../lib/gap';
+import { ZONES } from '../lib/zoneColors';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -18,15 +19,6 @@ const calculateGAP = (speed, distance, elevation_diff, elevation_gain) => {
     return v > 0 ? formatPaceFromSpeed(v) : '--:--';
 };
 
-// ─── zone config ─────────────────────────────────────────────────────────────
-
-const ZONES = {
-    1: { label: 'Z1', color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', text: '#64748b' },
-    2: { label: 'Z2', color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', text: '#0284c7' },
-    3: { label: 'Z3', color: '#4ade80', bg: 'rgba(74,222,128,0.12)', text: '#16a34a' },
-    4: { label: 'Z4', color: '#fb923c', bg: 'rgba(251,146,60,0.12)', text: '#ea580c' },
-    5: { label: 'Z5', color: '#f87171', bg: 'rgba(248,113,113,0.12)', text: '#dc2626' },
-};
 
 // Zone for a lap, on the SAME calibrated Karvonen bounds the zones tab uses
 // (useHrParams → manual override → auto-detection). Returns a 1-based zone id to

@@ -158,3 +158,17 @@ export function driftRatePerHour(splits, { window = 'halves' } = {}) {
   if (!(spanH > 0)) return null;
   return d.pct / 100 / spanH;
 }
+
+/**
+ * Nivel de una deriva en %, como clave de i18n (`decoupling.levels.*`). Escala
+ * ÚNICA: la pestaña de Desacople y la vista de sesión califican con los mismos
+ * cortes, o el mismo 6% saldría "normal" en una y "alto" en otra.
+ */
+export function decouplingLevel(pct) {
+  if (pct == null) return null;
+  if (pct < 3) return 'excellent';
+  if (pct < 5) return 'good';
+  if (pct < 8) return 'normal';
+  if (pct < 12) return 'high';
+  return 'very_high';
+}
