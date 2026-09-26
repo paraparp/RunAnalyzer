@@ -96,6 +96,24 @@ const CustomTooltipTimeline = ({ active, payload }) => {
 };
 
 
+// Próximos pasos a partir de las TRES señales del diagnóstico, con sus mismos
+// umbrales (FC +5 ppm al mismo esfuerzo, deriva alta, eficiencia a la baja). Antes
+// era una lista fija que recomendaba una analítica "Prioridad: Crítico" a todo el
+// mundo, hubiera señales o no. La analítica solo aparece cuando coinciden dos
+// señales: una sola tiene explicaciones más simples (calor, fatiga, sensor).
+function nextSteps(diagnosis) {
+    const hrUp = diagnosis.hrDeviation > 5;
+    const drift = diagnosis.highDrift;
+    const effDown = diagnosis.effTrend === "worsening";
+    const steps = [];
+    if (hrUp && (drift || effDown)) steps.push({ task: "Analítica de sangre: pide niveles de ferritina, hierro, hemoglobina y magnesio. Dos señales a la vez (pulso alto al mismo ritmo y deriva o eficiencia a la baja) justifican descartar un déficit.", prio: "Alta" });
+    if (hrUp) steps.push({ task: "Monitoriza la FC en reposo: si al despertar también sube más de 5 ppm, para los entrenamientos intensos.", prio: "Alta" });
+    if (drift) steps.push({ task: "Hidratación y calor: bebe con electrolitos en los días de calor y compara la deriva en sesiones frescas antes de sacar conclusiones.", prio: "Media" });
+    if (hrUp || effDown) steps.push({ task: "Descanso activo: si descargas un 20 % el volumen semanal, el pulso debería volver a su sitio en 7-10 días.", prio: "Media" });
+    if (!steps.length) steps.push({ task: "Sin señales de alarma en el período: pulso, deriva y eficiencia están en rango. Sigue con tu plan.", prio: "—" });
+    return steps.map((s, i) => ({ ...s, id: String(i + 1) }));
+}
+
 export default function HRAnalysis({ activities }) {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState("overview");
@@ -906,12 +924,7 @@ export default function HRAnalysis({ activities }) {
                         </h3>
 
                         <div className="space-y-4">
-                            {[
-                                { id: "1", task: "Analítica de sangre: Pide niveles de Ferritina, Hierro, Hemoglobina y Magnesio.", prio: "Crítico" },
-                                { id: "2", task: "Hidratación: Asegúrate de beber al menos 2.5L diarios con electrolitos en días de calor.", prio: "Alta" },
-                                { id: "3", task: "Descanso Activo: Si descargas un 20% el volumen semanal, el pulso debería bajar en 7-10 días.", prio: "Media" },
-                                { id: "4", task: "Monitoriza FC Reposo: Si la FC al despertar también sube >5 bpm, detén los entrenamientos intensos.", prio: "Alta" }
-                            ].map((item, i) => (
+                            {nextSteps(diagnosis).map((item, i) => (
                                 <div key={i} className="flex items-start gap-4 p-3 rounded-xl bg-white/10 hover:bg-white/15 transition-colors">
                                     <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-xs shrink-0">{item.id}</div>
                                     <div className="flex-1">

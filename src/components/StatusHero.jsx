@@ -50,9 +50,9 @@ export default function StatusHero({ activities }) {
     peakCTL, peakCTLYear, ctl7ago,
     last7daysKm, avgWeekKmYear, peakWeekKm, peakWeekKmYear,
     bestPace10kRecent, bestPace10kYear, bestPace10kAll, bestPace5kRecent,
-    hrEffRecent, hrEffYear, hrEffAll,
-    activeLast7, activeLast28, streak,
-    elevLast28, avgMonthlyElevYear, peakMonthlyElev,
+    efRecent, efBestYear, efBestAll,
+    activeLast7, activeLast28, activeBest28Year, activeBest28All, streak,
+    elevLast28, peakMonthlyElevYear, peakMonthlyElev,
     chartDataFull, sparkData,
   } = stats;
 
@@ -131,8 +131,8 @@ export default function StatusHero({ activities }) {
       label: 'Desnivel mensual',
       now: `${Math.round(elevLast28)} m`,
       nowRaw: elevLast28,
-      bestYear: `${Math.round(avgMonthlyElevYear)} m`,
-      bestYearRaw: avgMonthlyElevYear,
+      bestYear: `${Math.round(peakMonthlyElevYear)} m`,
+      bestYearRaw: peakMonthlyElevYear,
       bestAll: `${Math.round(peakMonthlyElev)} m`,
       bestAllRaw: peakMonthlyElev,
       spark: null,
@@ -143,10 +143,10 @@ export default function StatusHero({ activities }) {
       label: 'Consistencia (28d)',
       now: `${activeLast28} días`,
       nowRaw: activeLast28,
-      bestYear: '28 días',
-      bestYearRaw: 28,
-      bestAll: '28 días',
-      bestAllRaw: 28,
+      bestYear: `${activeBest28Year} días`,
+      bestYearRaw: activeBest28Year,
+      bestAll: `${activeBest28All} días`,
+      bestAllRaw: activeBest28All,
       spark: null,
       lowerIsBetter: false,
     },
@@ -159,19 +159,19 @@ export default function StatusHero({ activities }) {
       bestAll: paceStr(bestPace10kAll),
       bestAllRaw: bestPace10kAll,
       spark: null,
-      lowerIsBetter: true, // lower pace = better
+      lowerIsBetter: false, // son VELOCIDADES (m/s): más es mejor
       unit: '/km',
     },
     {
       label: 'Eficiencia aeróbica',
-      now: hrEffRecent ? hrEffRecent.toFixed(2) : '—',
-      nowRaw: hrEffRecent,
-      bestYear: hrEffYear ? hrEffYear.toFixed(2) : '—',
-      bestYearRaw: hrEffYear,
-      bestAll: hrEffAll ? hrEffAll.toFixed(2) : '—',
-      bestAllRaw: hrEffAll,
+      now: efRecent ? `${efRecent.toFixed(2)} m/lat` : '—',
+      nowRaw: efRecent,
+      bestYear: efBestYear ? efBestYear.toFixed(2) : '—',
+      bestYearRaw: efBestYear,
+      bestAll: efBestAll ? efBestAll.toFixed(2) : '—',
+      bestAllRaw: efBestAll,
       spark: null,
-      lowerIsBetter: true, // lower HR/speed = better efficiency
+      lowerIsBetter: false, // EF en m/latido: más es mejor
     },
     // ── Garmin rows (only if data available) ──
     ...(garmin ? [

@@ -16,7 +16,7 @@ import {
 import { OVERRIDES_EVENT } from '../lib/hrOverrides';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useGarminWearableData from '../hooks/useGarminWearableData';
-import { computeStats, computeGarminStats, loadPhase, isRun, paceStr, fmt1 } from '../lib/statusStats';
+import { computeStats, computeGarminStats, loadPhase, formZone, isRun, paceStr, fmt1 } from '../lib/statusStats';
 import { computeReadiness } from '../lib/athleteContext';
 import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
@@ -416,9 +416,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     }).filter(v => v != null));
     const easyHr = median(sample.map(r => r.average_heartrate).filter(Boolean));
 
-    // Día de descarga cuando la readiness o la forma lo piden.
+    // Día de descarga cuando la readiness o la forma lo piden. La forma, con la
+    // escala única de TSB (formZone): "sobrecargado" es lo que pide descargar;
+    // antes había aquí un corte propio en −15.
     const recovery = (readiness?.score != null && readiness.score < 50)
-      || (currentTSB != null && currentTSB < -15);
+      || formZone(currentTSB) === 'overloaded';
 
     const paceShift = recovery ? 35 : 0;               // +35 s/km en regenerativo
     const kmScale = recovery ? 0.55 : 1;
@@ -556,16 +558,17 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         bestYear: `${s.peakWeekKmYear.toFixed(1)} km`, bestAll: `${s.peakWeekKm.toFixed(1)} km`, bestAllRaw: s.peakWeekKm,
         spark: briefing.volSpark, sparkColor: '#10b981' },
       { label: 'Desnivel mensual', now: `${Math.round(s.elevLast28)} m`, nowRaw: s.elevLast28,
-        bestYear: `${Math.round(s.avgMonthlyElevYear)} m`, bestAll: `${Math.round(s.peakMonthlyElev)} m`, bestAllRaw: s.peakMonthlyElev },
+        bestYear: `${Math.round(s.peakMonthlyElevYear)} m`, bestAll: `${Math.round(s.peakMonthlyElev)} m`, bestAllRaw: s.peakMonthlyElev },
       { label: 'Consistencia (28d)', now: `${s.activeLast28} días`, nowRaw: s.activeLast28,
-        bestYear: '28 días', bestAll: '28 días', bestAllRaw: 28 },
+        bestYear: `${s.activeBest28Year} días`, bestAll: `${s.activeBest28All} días`, bestAllRaw: s.activeBest28All },
       { label: 'Mejor ritmo 10k', now: paceStr(s.bestPace10kRecent), nowRaw: s.bestPace10kRecent,
         bestYear: paceStr(s.bestPace10kYear), bestAll: paceStr(s.bestPace10kAll), bestAllRaw: s.bestPace10kAll,
         lowerIsBetter: false },
-      { label: 'Eficiencia aeróbica', now: s.hrEffRecent ? s.hrEffRecent.toFixed(2) : DASH, nowRaw: s.hrEffRecent,
-        bestYear: s.hrEffYear ? s.hrEffYear.toFixed(2) : DASH,
-        bestAll: s.hrEffAll ? s.hrEffAll.toFixed(2) : DASH, bestAllRaw: s.hrEffAll,
-        lowerIsBetter: true },
+      // EF en m/latido (lib/efficiencyFactor): más es mejor; el récord es el mejor mes.
+      { label: 'Eficiencia aeróbica', now: s.efRecent ? `${s.efRecent.toFixed(2)} m/lat` : DASH, nowRaw: s.efRecent,
+        bestYear: s.efBestYear ? s.efBestYear.toFixed(2) : DASH,
+        bestAll: s.efBestAll ? s.efBestAll.toFixed(2) : DASH, bestAllRaw: s.efBestAll,
+        lowerIsBetter: false },
       ...(g ? [
         { label: 'FC Reposo', now: g.currentRHR ? `${g.currentRHR} bpm` : DASH, nowRaw: g.currentRHR,
           bestYear: g.rhrYearMin ? `${g.rhrYearMin} bpm` : DASH,

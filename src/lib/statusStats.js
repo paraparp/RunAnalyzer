@@ -14,6 +14,8 @@
 import { weekStartKey } from './isoWeek';
 import { dayKey, activityDayKey } from './trainingLoad';
 import { formatPaceFromSpeed, formatDurationHm } from './timeFormat';
+import { efficiencyFactorRun } from './efficiencyFactor';
+import { detectMaxHR } from './hrZones';
 
 export const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 
@@ -124,23 +126,35 @@ export function computeStats(activities, pmc, { now: nowInput = Date.now() } = {
 
   const bestSpeed = (arr) => (arr.length ? Math.max(...arr) : null);
 
-  // ── HR efficiency ──
-  const hrEff = (arr) => {
-    const valid = arr.filter((a) => a.average_heartrate && a.average_speed > 0 && a.distance > 3000);
-    if (!valid.length) return null;
-    const avg = valid.reduce((s, a) => {
-      const speedKmh = a.average_speed * 3.6;
-      return s + a.average_heartrate / speedKmh;
-    }, 0) / valid.length;
-    return avg;
+  // ── Eficiencia aeróbica (EF, m/latido: MÁS es mejor) ──
+  // La de lib/efficiencyFactor, la única de la app: solo km aeróbicos y llanos,
+  // ajustada por GAP. Aquí había una tercera convención (ppm por km/h, menos es
+  // mejor) que mezclaba series con rodajes, y su "mejor" era una media.
+  // Reciente = mediana de las últimas 4 semanas; récord = el mejor MES (mediana
+  // de un mes con al menos 3 sesiones comparables), que es estable frente a un
+  // día suelto con viento a favor.
+  const maxObservedHr = detectMaxHR(runActivities).value;
+  const efRuns = runActivities
+    .map((a) => ({ a, ef: efficiencyFactorRun(a, { maxObservedHr, gapAdjust: true }) }))
+    .filter((x) => x.ef != null);
+  const medianOf = (arr) => {
+    if (!arr.length) return null;
+    const sorted = [...arr].sort((x, y) => x - y);
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
   };
-
-  const recentRuns = runActivities.filter((a) => new Date(a.start_date).getTime() >= last28Ms);
-  const yearRuns = runActivities.filter((a) => new Date(a.start_date).getFullYear() === thisYear);
-
-  const hrEffRecent = hrEff(recentRuns);
-  const hrEffYear = hrEff(yearRuns);
-  const hrEffAll = hrEff(runActivities);
+  const efRecent = medianOf(efRuns.filter((x) => new Date(x.a.start_date).getTime() >= last28Ms).map((x) => x.ef));
+  const efByMonth = {};
+  for (const { a, ef } of efRuns) {
+    const month = (activityDayKey(a) || '').slice(0, 7);
+    if (month) (efByMonth[month] ||= []).push(ef);
+  }
+  const monthEfs = Object.entries(efByMonth)
+    .filter(([, v]) => v.length >= 3)
+    .map(([month, v]) => ({ month, ef: medianOf(v) }));
+  const bestOf = (rows) => (rows.length ? Math.max(...rows.map((r) => r.ef)) : null);
+  const efBestYear = bestOf(monthEfs.filter((r) => r.month.startsWith(String(thisYear))));
+  const efBestAll = bestOf(monthEfs);
 
   // ── consistency ──
   // Días LOCALES a los dos lados de la comparación: con `start_date` en UTC y
@@ -150,6 +164,22 @@ export function computeStats(activities, pmc, { now: nowInput = Date.now() } = {
   const last28days = Array.from({ length: 28 }, (_, i) => dayKey(new Date(nowMs - i * 86400000)));
   const activeLast28 = last28days.filter((d) => activeDays.has(d)).length;
   const activeLast7 = last28days.slice(0, 7).filter((d) => activeDays.has(d)).length;
+
+  // Mejor ventana de 28 días (días activos): el récord contra el que se compara
+  // `activeLast28`. Antes era un "28 días" escrito a mano. Ventana deslizante
+  // sobre los días activos ordenados; la del año solo cuenta días de este año.
+  const dayNum = (k) => Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)) / 86400000;
+  const best28 = (keys) => {
+    const nums = keys.map(dayNum).sort((x, y) => x - y);
+    let best = 0;
+    for (let i = 0, j = 0; j < nums.length; j++) {
+      while (nums[j] - nums[i] >= 28) i++;
+      best = Math.max(best, j - i + 1);
+    }
+    return best;
+  };
+  const activeBest28All = best28([...activeDays]);
+  const activeBest28Year = best28([...activeDays].filter((k) => k.startsWith(String(thisYear))));
 
   // streak
   let streak = 0;
@@ -174,7 +204,8 @@ export function computeStats(activities, pmc, { now: nowInput = Date.now() } = {
   const elevMonthsYear = Object.entries(monthlyElev)
     .filter(([k]) => k.startsWith(String(thisYear)))
     .map(([, v]) => v);
-  const avgMonthlyElevYear = elevMonthsYear.length ? elevMonthsYear.reduce((s, v) => s + v, 0) / elevMonthsYear.length : 0;
+  // El récord del año es el MEJOR mes, no la media (la media se enseñaba como récord).
+  const peakMonthlyElevYear = elevMonthsYear.length ? Math.max(...elevMonthsYear) : 0;
   const allElevMonths = Object.values(monthlyElev);
   const peakMonthlyElev = allElevMonths.length ? Math.max(...allElevMonths) : 0;
 
@@ -198,9 +229,9 @@ export function computeStats(activities, pmc, { now: nowInput = Date.now() } = {
     bestPace10kRecent: bestSpeed(pace10kRecent),
     bestPace10kYear: bestSpeed(pace10kYear),
     bestPace10kAll: bestSpeed(pace10kAll),
-    hrEffRecent, hrEffYear, hrEffAll,
-    activeLast7, activeLast28, streak,
-    elevLast28, avgMonthlyElevYear, peakMonthlyElev,
+    efRecent, efBestYear, efBestAll,
+    activeLast7, activeLast28, activeBest28Year, activeBest28All, streak,
+    elevLast28, peakMonthlyElevYear, peakMonthlyElev,
     chartDataFull,
     sparkData,
   };

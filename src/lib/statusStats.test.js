@@ -88,13 +88,21 @@ describe('computeStats', () => {
     expect(s.activeLast7).toBe(3);
   });
 
-  it('la eficiencia cardíaca ignora las sesiones cortas y las sin FC', () => {
+  it('la eficiencia es el EF compartido (m/latido) e ignora cortas y sin FC', () => {
     const conFC = [run(2, { km: 10, speed: 3, hr: 150 })];
     const sinFC = [run(2, { km: 10, speed: 3 })];
-    const corta = [run(2, { km: 2, speed: 3, hr: 150 })];
-    expect(computeStats(conFC, pmcFor(conFC), { now: NOW }).hrEffRecent).toBeCloseTo(150 / (3 * 3.6), 5);
-    expect(computeStats(sinFC, pmcFor(sinFC), { now: NOW }).hrEffRecent).toBeNull();
-    expect(computeStats(corta, pmcFor(corta), { now: NOW }).hrEffRecent).toBeNull();
+    const corta = [run(2, { km: 1.5, speed: 3, hr: 150 })];
+    expect(computeStats(conFC, pmcFor(conFC), { now: NOW }).efRecent).toBeCloseTo((3 * 60) / 150, 5);
+    expect(computeStats(sinFC, pmcFor(sinFC), { now: NOW }).efRecent).toBeNull();
+    expect(computeStats(corta, pmcFor(corta), { now: NOW }).efRecent).toBeNull();
+  });
+
+  it('la consistencia se compara con la mejor ventana REAL de 28 días', () => {
+    // 3 días activos ahora; hace 60 días hubo una racha de 5 días seguidos.
+    const acts = [run(0), run(1), run(2), ...[60, 61, 62, 63, 64].map((d) => run(d))];
+    const s = computeStats(acts, pmcFor(acts), { now: NOW });
+    expect(s.activeLast28).toBe(3);
+    expect(s.activeBest28All).toBe(5);
   });
 
   it('el pico de CTL sale de la serie, no del valor actual', () => {
