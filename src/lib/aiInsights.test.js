@@ -65,7 +65,19 @@ describe('coachCoherenceWarnings', () => {
     const w = coachCoherenceWarnings(sesion({ fcMax: 200 }), { fcmax: 190, readiness: { score: 80 } });
     expect(w.join(' ')).toMatch(/supera tu FCmax/);
   });
-  it('avisa si una sesión fácil supera el LT1', () => {
+  it('avisa si una sesión fácil supera el techo de Z2', () => {
+    // El techo lo marcan las zonas de Karvonen (fin de Z2), que es el mismo
+    // número que el prompt le da al coach; con LT1 el validador podía avisar de
+    // una sesión que cumplía el prompt al pie de la letra.
+    const w = coachCoherenceWarnings(
+      sesion({ tipo: 'Regenerativo', fcMax: 155 }),
+      { readiness: { score: 80 }, zones: [{ lo: 0, hi: 133 }, { lo: 134, hi: 147 }], lt: { lt1Hr: 145 } },
+    );
+    expect(w.join(' ')).toMatch(/umbral aeróbico/);
+    expect(w.join(' ')).toContain('147 ppm');
+  });
+
+  it('sin zonas resueltas cae al LT1 en vez de dejar de validar', () => {
     const w = coachCoherenceWarnings(
       sesion({ tipo: 'Regenerativo', fcMax: 155 }),
       { readiness: { score: 80 }, lt: { lt1Hr: 145 } },

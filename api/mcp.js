@@ -13,7 +13,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { applyCors, baseUrl, resourceUrl, verifyAccessToken } from './_lib/mcp-oauth.js';
 import {
   getActivities, filterActivities, activityStats, shapeSummary, shapeFull,
-  estimateHrMax, compareSimilarSessions,
+  estimateHrMax, compareSimilarSessions, getAerobicForm,
   listRunningDynamics, getHrvResting, getSleep, getPersonalBests,
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
@@ -168,6 +168,31 @@ const TOOLS = [
     },
     run: async (userId, args) => {
       const res = await compareSimilarSessions(userId, args);
+      return res?.error ? toolError(res.error) : text(res);
+    },
+  },
+  {
+    name: 'hr_at_fixed_effort',
+    description: 'FORMA AERÓBICA OBJETIVA: FC predicha a un esfuerzo FIJO, un punto por periodo (mes o bimestre). Es la tool para "¿estoy mejor que en marzo?". Regresión FC ~ esfuerzo + periodo [+ WBGT] sobre tramos ESTABLES de cada sesión (ventana 15-45 min por defecto, sin paradas ni picos), leída en un esfuerzo de referencia: BAJAR es mejorar. NO uses `compare_similar_sessions` para esto — su m/latido es un cociente con sesgo de intensidad, y filtrar por banda de FC condiciona sobre la variable resultado y borra la mejora. Dos ejes con `axis`: "gap" (velocidad equivalente en llano calculada en casa, cubre todo el histórico) o "power" (potencia de Garmin, que es un MODELO de velocidad+pendiente, no un potenciómetro, y falta en muchas sesiones). Ninguno de los dos mide economía de carrera: los dos son ritmo corregido por terreno. Lee `hr_at_ref` SIEMPRE con su `se` y su `n`, comprueba `wbgt_adjusted` antes de atribuir el cambio a la forma, `slope_ok` antes de leer nada, y `sensitivity` (la misma lectura con la pendiente a la mitad y al doble) antes de concluir. Requiere sesiones enriquecidas con `hr_effort`: las que falten salen en `excluded` con el motivo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        axis: { type: 'string', enum: ['gap', 'power'], description: 'Eje de esfuerzo: gap (por defecto, m/s equivalentes en llano) o power (W de Garmin)' },
+        from: dateArg, to: dateArg,
+        granularity: { type: 'string', enum: ['month', 'block'], description: 'Un punto por mes (por defecto) o por bimestre, si hay pocas sesiones al mes' },
+        ref_effort: { type: 'number', description: 'Esfuerzo de referencia donde se lee la FC: m/s de GAP o W. Por defecto la MEDIANA del atleta en el rango (leer lejos de los datos extrapola)' },
+        window_start_min: { type: 'number', description: 'Inicio de la ventana estable, en minutos desde el arranque (por defecto 15: antes la FC todavía está subiendo)' },
+        window_end_min: { type: 'number', description: 'Fin de la ventana, en minutos (por defecto 45: después manda la deriva cardiaca)' },
+        max_cv: { type: 'number', description: 'Inestabilidad máxima del esfuerzo en la ventana, como CV de la serie suavizada (por defecto 0.08; un rodaje ondulado normal ronda 0.05). Series y cuestas ya caen antes, en el filtro de picos' },
+        min_sessions: { type: 'number', description: 'Sesiones mínimas para publicar un periodo (por defecto 2)' },
+        hr_source: { type: 'string', enum: ['strap', 'wrist', 'unknown'], description: 'Origen de FC exigido (por defecto "strap"): mezclar banda y muñeca entre periodos mide el SENSOR, no al atleta. Pasa null para no filtrar' },
+        include_races: { type: 'boolean', description: 'Incluir competiciones (por defecto false)' },
+        use_wbgt: { type: 'boolean', description: 'Meter el WBGT como covariable cuando hay datos (por defecto true)' },
+        include_sessions: { type: 'boolean', description: 'Devolver la lista de sesiones incluidas y excluidas (por defecto true)' },
+      },
+    },
+    run: async (userId, args) => {
+      const res = await getAerobicForm(userId, args);
       return res?.error ? toolError(res.error) : text(res);
     },
   },
@@ -594,6 +619,7 @@ const TITLES = {
   list_activities: 'Listar actividades', get_activity: 'Detalle de actividad',
   activity_stats: 'Agregados de actividad', list_running_dynamics: 'Running dynamics',
   compare_similar_sessions: 'Comparar sesiones equivalentes',
+  hr_at_fixed_effort: 'Forma aeróbica (FC a esfuerzo fijo)',
   get_personal_bests: 'Mejores marcas', personal_records: 'Récords por distancia',
   best_efforts_progression: 'Progresión por distancia', list_hrv_resting: 'VFC y FC en reposo',
   list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición',

@@ -1,20 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Select, SelectItem } from '@tremor/react';
-import { BoltIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { BoltIcon } from '@heroicons/react/24/outline';
 import {
     Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
     Tooltip as RechartsTooltip, Scatter, ComposedChart, ReferenceLine,
 } from 'recharts';
 import {
-    buildMeanMaxCurve, fitCriticalSpeed, fitCriticalSpeed3P, predictTime, speedForDuration,
+    buildMeanMaxCurve, fitCriticalSpeed, fitCriticalSpeed3P, speedForDuration,
     CANON_EFFORTS, fmtTime, fmtPace, FIT_MIN_S, FIT_MAX_S, monthsAgoISO,
 } from '../lib/criticalSpeed';
-import { RACE_DISTANCES } from '../lib/raceDistances';
-
-// Distancias sobre las que se enseña la predicción del modelo: las cuatro
-// oficiales de carretera, con el id canónico de la curva de esfuerzos.
-const TARGETS = RACE_DISTANCES.map(({ id, m, short }) => ({ id, m, label: short }));
+import { vdotFromCurve } from '../lib/vdot';
 
 const WINDOWS = [
     { id: '180', months: 6 },
@@ -84,16 +80,11 @@ const CriticalSpeed = ({ activities = [] }) => {
         [modelSeries, points, prevPoints],
     );
 
-    const predictions = useMemo(() => TARGETS.map((d) => {
-        const model = predictTime(fit, d.m);
-        const real = curve.find((p) => p.id === d.id);
-        return {
-            ...d,
-            model,
-            real,
-            delta_s: model && real ? real.time_s - model.time_s : null,
-        };
-    }), [fit, curve]);
+    // La MISMA curva leída con la tabla de Daniels. No se vuelve a construir ni
+    // se filtra distinto: CS y D′ describen la asíntota y la reserva, el VDOT
+    // pone ese mismo esfuerzo en una escala comparable entre corredores. Antes
+    // esto se recalculaba en dos vistas más, cada una con su ventana.
+    const vdot = useMemo(() => vdotFromCurve(curve), [curve]);
 
     const header = (
         <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm">
@@ -141,7 +132,7 @@ const CriticalSpeed = ({ activities = [] }) => {
         <div className="space-y-6 max-w-6xl mx-auto fade-in">
             {header}
 
-            <div className={`grid grid-cols-1 gap-4 ${fit3p ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric
                     label={t('cs.cs')}
                     value={fmtPace(fit.cs_pace_min_km)}
@@ -161,6 +152,17 @@ const CriticalSpeed = ({ activities = [] }) => {
                     hint={t('cs.quality_hint', { n: fit.n })}
                     tone={fit.r2 > 0.99 ? 'text-emerald-600' : fit.r2 > 0.97 ? 'text-slate-900' : 'text-amber-600'}
                 />
+                {vdot && (
+                    <Metric
+                        label="VDOT"
+                        value={vdot.vdot}
+                        hint={t('cs.vdot_hint', {
+                            effort: labelOf(vdot.anchor.id),
+                            time: fmtTime(vdot.anchor.time_s),
+                        })}
+                        tone="text-blue-600"
+                    />
+                )}
                 {fit3p && (
                     <Metric
                         label={t('cs.v_max')}
@@ -233,55 +235,6 @@ const CriticalSpeed = ({ activities = [] }) => {
                         {t('cs.model_3p_note', { n: fit3p.n })}
                     </p>
                 )}
-            </div>
-
-            {/* Predicciones */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{t('cs.predictions_title')}</h3>
-                    <p className="text-[11px] font-medium text-slate-400 mt-1">{t('cs.predictions_desc')}</p>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                {['distance', 'model', 'model_pace', 'best', 'delta'].map((k) => (
-                                    <th key={k} className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
-                                        {t(`cs.col_${k}`)}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {predictions.map((p) => (
-                                <tr key={p.id} className="border-t border-slate-100">
-                                    <td className="px-4 py-3 font-black text-slate-900">{p.label}</td>
-                                    <td className="px-4 py-3 font-bold tabular-nums text-slate-700">
-                                        {p.model ? fmtTime(p.model.time_s) : '—'}
-                                        {p.model?.optimistic && (
-                                            <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-600">
-                                                <InformationCircleIcon className="w-3 h-3" />
-                                                {t('cs.optimistic')}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 font-bold tabular-nums text-slate-500">
-                                        {p.model ? `${fmtPace(p.model.pace_min_km)}/km` : '—'}
-                                    </td>
-                                    <td className="px-4 py-3 font-bold tabular-nums text-slate-700">
-                                        {p.real ? fmtTime(p.real.time_s) : <span className="text-slate-300">—</span>}
-                                    </td>
-                                    <td className={`px-4 py-3 font-black tabular-nums ${p.delta_s == null ? 'text-slate-300' : p.delta_s <= 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                                        {p.delta_s == null ? '—' : `${p.delta_s <= 0 ? '−' : '+'}${fmtTime(Math.abs(p.delta_s))}`}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <p className="px-5 sm:px-6 py-3 text-[11px] font-medium text-slate-400 border-t border-slate-100">
-                    {t('cs.model_caveat')}
-                </p>
             </div>
 
             {/* Esfuerzos que sostienen el ajuste */}

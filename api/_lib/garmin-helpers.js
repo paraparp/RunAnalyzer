@@ -1,4 +1,5 @@
 import pkg from 'garmin-connect';
+import { wbgtFromCelsius, normalizeWeatherTemps } from '../../src/lib/weather.js';
 const { GarminConnect } = pkg;
 
 export function toDateStr(date) {
@@ -235,93 +236,12 @@ export function deriveDataQuality(metadataDTO, summaryDTO) {
 }
 
 // ── Unidades de la meteorología de Garmin ────────────────────────────────────
-// El endpoint /weather no declara la unidad: devuelve los valores en la unidad de la
-// cuenta en el momento de la subida (en esta cuenta, °F). La heurística anterior era
-// un umbral por campo —"por encima de 45 es Fahrenheit"— y fallaba de dos maneras:
-//   1. Cualquier lectura de 45 °F o menos (≤ 7,2 °C) se colaba sin convertir. Vigbay
-//      (abril, 45 °F / 36 °F) se servía como 45 °C con rocío 36 °C: WBGT 55,7 y una
-//      penalización por calor del 19,6 % en una media maratón a 7 °C.
-//   2. Al decidirse campo a campo, la misma actividad podía quedar con la temperatura
-//      convertida y el rocío sin convertir (C21K: 10 °C con punto de rocío de 40).
-// El punto de rocío es función determinista de temperatura y humedad, así que sirve de
-// árbitro: se prueban las combinaciones (temperatura y rocío, cada uno tal cual o
-// convertido desde °F), se descartan las físicamente imposibles (rocío por encima de la
-// temperatura del aire) y gana la que reproduce la relación de Magnus. La hipótesis
-// correcta encaja con un error de décimas; la incorrecta se desvía grados.
-const F_TO_C = (t) => ((t - 32) * 5) / 9;
-const MAGNUS_B = 17.27;
-const MAGNUS_C = 237.7;
-
-/** Punto de rocío (°C) a partir de temperatura (°C) y humedad relativa (%). */
-function dewPointC(ta, rh) {
-  if (!Number.isFinite(ta) || !Number.isFinite(rh) || rh <= 0) return null;
-  const g = Math.log(rh / 100) + (MAGNUS_B * ta) / (MAGNUS_C + ta);
-  return (MAGNUS_C * g) / (MAGNUS_B - g);
-}
-
-/** WBGT aproximado a la sombra (fórmula BoM) desde temperatura (°C) y humedad (%). */
-export function wbgtFromCelsius(ta, rh) {
-  if (!Number.isFinite(ta) || !Number.isFinite(rh)) return null;
-  const e = (rh / 100) * 6.105 * Math.exp((MAGNUS_B * ta) / (MAGNUS_C + ta));
-  return 0.567 * ta + 0.393 * e + 3.94;
-}
-
-// Margen mínimo (°C) por el que una interpretación de unidad tiene que ganar a la
-// otra para creerla. Con humedad alta el árbitro del punto de rocío es DEGENERADO:
-// a 100 % de humedad el rocío es igual a la temperatura del aire en cualquier
-// escala, así que las dos hipótesis explican el dato con error ~0 y quien ganaba
-// era el ruido de coma flotante. Ese empate daba 55 °F etiquetados como 55 °C
-// (WBGT 96,7) en unas sesiones y 14 °C convertidos como si fueran °F (WBGT −2,1)
-// en otras: el mismo fallo apuntando en direcciones opuestas.
-const UNIT_MARGIN_C = 1.5;
-
-/**
- * Temperatura y punto de rocío en °C a partir de valores de unidad desconocida.
- * Es idempotente: si ya vienen en °C los deja igual, así que vale tanto para la
- * respuesta cruda de Garmin como para filas del cache guardadas con la heurística vieja.
- *
- * Devuelve además `unit_source`: 'dew_point' si lo decidió el árbitro, 'threshold'
- * si hubo que caer al umbral de magnitud (sin rocío/humedad, o empate).
- */
-export function normalizeWeatherTemps(temp, dew, rh) {
-  const t = gnum(temp);
-  const d = gnum(dew);
-  const h = gnum(rh);
-  if (t == null) return { temp_c: null, dew_point_c: null, unit_source: null };
-
-  // Umbral de magnitud: el respaldo. Garmin manda las dos lecturas en la MISMA
-  // unidad, así que la decisión es una sola para el par. No distingue 45 °F de
-  // 45 °C: es el límite del dato, no del criterio.
-  const byThreshold = () => (t > 45
-    ? { temp_c: F_TO_C(t), dew_point_c: d == null ? null : F_TO_C(d), unit_source: 'threshold' }
-    : { temp_c: t, dew_point_c: d ?? null, unit_source: 'threshold' });
-
-  if (d == null || h == null || h <= 0) return byThreshold();
-
-  // Sólo pares COHERENTES: o las dos lecturas están en °C o las dos en °F. Antes se
-  // elegían por separado y se podía acabar con la temperatura en una escala y el
-  // rocío en la otra dentro de la misma actividad.
-  const candidates = [
-    { temp_c: t, dew_point_c: d },
-    { temp_c: F_TO_C(t), dew_point_c: F_TO_C(d) },
-  ];
-  const scored = [];
-  for (const c of candidates) {
-    if (c.dew_point_c > c.temp_c + 0.5) continue; // el rocío no puede superar el aire
-    const pred = dewPointC(c.temp_c, h);
-    if (pred == null) continue;
-    scored.push({ ...c, err: Math.abs(pred - c.dew_point_c) });
-  }
-  if (!scored.length) return byThreshold();
-  scored.sort((a, b) => a.err - b.err);
-
-  // Con una sola hipótesis viable el árbitro decide; con dos hace falta que la
-  // ganadora explique el rocío CLARAMENTE mejor. Si el empate está dentro del
-  // margen, el árbitro no sabe nada y manda la magnitud.
-  const decisive = scored.length === 1 || scored[1].err - scored[0].err >= UNIT_MARGIN_C;
-  if (!decisive) return byThreshold();
-  return { temp_c: scored[0].temp_c, dew_point_c: scored[0].dew_point_c, unit_source: 'dew_point' };
-}
+// El árbitro de unidades y el WBGT viven ahora en `src/lib/weather.js`, porque el
+// front los necesita igual que el servidor (la vista de forma aeróbica corrige por
+// calor). Se reexportan desde aquí para no tocar a quien ya los importaba.
+// Se reexportan porque aquí dentro también se usan: un `export ... from` a secas no
+// dejaría el nombre en el ámbito de este módulo.
+export { wbgtFromCelsius, normalizeWeatherTemps };
 
 // Penalización de ritmo por calor, interpolada por tramos sobre la tabla de consenso
 // (Ely et al. / tablas de ajuste por WBGT). El modelo anterior era lineal a 0,65 %/°C

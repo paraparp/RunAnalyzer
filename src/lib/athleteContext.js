@@ -2,6 +2,8 @@ import { computeLactateModel, formatPace, LT1_HRR_PCT, LT2_HRR_PCT, LT_MONTHS } 
 import { computePMC as computePmcSeries, sessionLoad } from './trainingLoad';
 import { resolveHrCalibration, computeCalibratedPMC } from './loadCalibration';
 import { loadOverrides } from './hrOverrides';
+import { karvonenBounds, DEFAULT_REST_HR } from './hrZones';
+import { zoneMix, polarizedGroups } from './zoneMix';
 import { DISTANCE_KM } from './raceDistances';
 import { formatPaceFromMinPerKm, formatPaceFromSecPerKm, formatDuration } from './timeFormat';
 
@@ -69,7 +71,7 @@ function analyzeHRV(garmin, now) {
  * · resting-HR trend 15% · TSB/form 15%. This is the number the athlete can
  * trust blindly; the LLM is told to align its prescription to it.
  */
-function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
+export function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
   const parts = [];
   if (hrv) {
     let s = 70;
@@ -308,24 +310,34 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     ? (lt.trendDelta > 5 ? 'mejorando' : lt.trendDelta < -5 ? 'empeorando' : 'estable')
     : null;
 
-  // ── HR zones — UN SOLO sistema coherente, derivado de TUS LT1/LT2. Antes se
-  // mezclaban Seiler + Karvonen, que daban topes contradictorios entre sí y con
-  // la FC fácil real (Karvonen subestimaba). Ahora las zonas salen de los umbrales. ─
+  // ── HR zones — Karvonen, el ÚNICO modelo de zonas de la app ────────────────
+  // Antes el coach derivaba sus propias 3 zonas de LT1/LT2 mientras la interfaz
+  // pintaba otras: el atleta leía "Z2" en la app y "Z2" en el consejo queriendo
+  // decir cosas distintas. Ahora los dos cuentan sobre `karvonenBounds`. LT1 y
+  // LT2 no desaparecen: siguen siendo los anclajes FISIOLÓGICOS que fijan los
+  // RITMOS de referencia, pero ya no definen zonas paralelas.
+  const hrZoneBounds = karvonenBounds({ hrmax: fcmax, hrrest: fcRest || DEFAULT_REST_HR });
+  const easyCeil  = hrZoneBounds[1].hi;   // techo de Z2: hasta aquí es volumen fácil
+  const hardFloor = hrZoneBounds[3].lo;   // suelo de Z4: desde aquí es calidad
   const hrZonesSummary = [
     `FCmax=${fcmax}ppm (mediana top 5% histórico)`,
-    `FC reposo=${fcRest}ppm (${restDet.source === 'garmin' ? 'Garmin más reciente' : 'valor por defecto, sin medición'})`,
-    `LT1 (umbral aeróbico, TECHO del rodaje fácil)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} [método FC: ${lt1Method}]`,
-    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia del RITMO umbral (serie mensual de ritmo sostenido a FC umbral; NO deriva del ppm estimado): ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado → límites de zona aproximados)' : ''}`,
-    `ZONAS (derivadas de tus LT1/LT2 — sistema teórico de referencia; si un dato observado choca con él, manda la regla de PRECEDENCIA):`,
-    `· Z1 fácil/base — aquí va el 80% del volumen: <${lt1Hr}ppm (por debajo de LT1)`,
-    `· Z2 gris (entre umbrales; solo tempo suave o progresión): ${lt1Hr}-${lthr - 1}ppm`,
-    `· Z3 umbral+/calidad (tempo, series, intervalos): ≥${lthr}ppm (desde LT2)`,
-    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax): centro REAL de tu zona fácil. NO frenes los rodajes por debajo de esta FC observada (ya eran fáciles).` : null,
-    // Precedencia explícita cuando el techo teórico (LT1) y la FC fácil observada
+    `FC reposo=${fcRest}ppm (${restDet.source === 'garmin' ? 'Garmin más reciente' : 'valor por defecto, sin medición'}) → reserva de FC=${fcmax - fcRest}ppm`,
+    `LT1 (umbral aeróbico)=${lt1Hr}ppm${lt1PaceStr ? ` · ritmo ≈${lt1PaceStr}/km` : ''} [método FC: ${lt1Method}]`,
+    `LT2 (umbral de lactato/anaeróbico = LTHR)=${lthr}ppm${lt2PaceStr ? ` · ritmo ≈${lt2PaceStr}/km${lt?.csValid ? ' (Critical Speed ≈LT2, ligeramente ≥ MLSS)' : ' (cross-check FC)'}` : ''}${ltTrend ? ` · tendencia del RITMO umbral (serie mensual de ritmo sostenido a FC umbral; NO deriva del ppm estimado): ${ltTrend}` : ''} [método FC: ${lthrMethod}]${lthrIsEstimate ? ' (FC ESTIMADA por fórmula, sin umbral de campo detectado)' : ''}`,
+    `ZONAS (Karvonen sobre la reserva de FC — ES EL ÚNICO MODELO DE ZONAS, el mismo que cuenta la app; si un dato observado choca con él, manda la regla de PRECEDENCIA):`,
+    `· Z1 recuperación (<60% FCR): <${hrZoneBounds[1].lo}ppm`,
+    `· Z2 base aeróbica — aquí va el grueso del volumen (60-70% FCR): ${hrZoneBounds[1].lo}-${hrZoneBounds[1].hi}ppm`,
+    `· Z3 aeróbico intenso, la "zona gris" (70-80% FCR): ${hrZoneBounds[2].lo}-${hrZoneBounds[2].hi}ppm`,
+    `· Z4 umbral de lactato (80-90% FCR): ${hrZoneBounds[3].lo}-${hrZoneBounds[3].hi}ppm`,
+    `· Z5 VO2max/anaeróbico (>90% FCR): ≥${hrZoneBounds[4].lo}ppm`,
+    `LECTURA 80/20: fácil = Z1+Z2 (≤${easyCeil}ppm) · gris = Z3 · duro = Z4+Z5 (≥${hardFloor}ppm). Objetivo ≈75% fácil / ≤10% gris / ~20% duro.`,
+    `Cruce con tus umbrales: LT1 (${lt1Hr}ppm) cae ${lt1Hr <= easyCeil ? 'dentro del bloque fácil' : 'en la zona gris'} y LT2 (${lthr}ppm), ${lthr >= hardFloor ? 'dentro del bloque duro' : 'en la zona gris'}. Los umbrales anclan los RITMOS; las zonas de arriba son las que se CUENTAN.`,
+    avgHR ? `FC media real de rodaje fácil (4 sem) = ${avgHR}ppm (${Math.round(avgHR / fcmax * 100)}% FCmax): centro REAL de tu volumen fácil. NO frenes los rodajes por debajo de esta FC observada (ya eran fáciles).` : null,
+    // Precedencia explícita cuando el techo teórico y la FC fácil observada
     // chocan: sin ella el modelo debe elegir a ciegas entre ambos anclajes.
-    avgHR && avgHR >= lt1Hr
-      ? `⚠ PRECEDENCIA: tu FC fácil observada (${avgHR}ppm) alcanza o supera el techo teórico LT1 (${lt1Hr}ppm). MANDA LA OBSERVADA: usa ${avgHR - 4}-${avgHR + 6}ppm (= FC fácil observada ${avgHR}ppm −4/+6) como banda fáctica de rodaje fácil; LT1 es orientativo${lt1Measured ? '' : ' (estimado por fórmula, no medido)'}. A efectos del 80/20, esta banda CUENTA como volumen fácil/Z1: NO la señales como "zona gris".`
-      : avgHR ? `Techo del rodaje fácil: LT1 (${lt1Hr}ppm), coherente con tu FC fácil observada (${avgHR}ppm).` : null,
+    avgHR && avgHR > easyCeil
+      ? `⚠ PRECEDENCIA: tu FC fácil observada (${avgHR}ppm) supera el techo de Z2 (${easyCeil}ppm). MANDA LA OBSERVADA: usa ${avgHR - 4}-${avgHR + 6}ppm (= FC fácil observada ${avgHR}ppm −4/+6) como banda fáctica de rodaje fácil. A efectos del 80/20, esa banda CUENTA como volumen fácil: NO la señales como "zona gris".`
+      : avgHR ? `Techo del rodaje fácil: ${easyCeil}ppm (fin de Z2), coherente con tu FC fácil observada (${avgHR}ppm).` : null,
   ].filter(Boolean).join('\n');
 
   // Ancla del ritmo de rodaje FÁCIL: media de las carreras recientes hechas bajo
@@ -563,24 +575,17 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   // ── Sections ─────────────────────────────────────────────────────────────
   const weekTable = byWeek.map(w => `${w.week}: ${w.km}km (${w.sessions} carreras)`).join(' | ');
 
-  // ── Intensity distribution (Seiler 3-zone polarized model) ────────────────
-  // Classifies last-4-week runs by avg HR vs LTHR into easy/threshold/hard and
-  // computes the % of TIME in each. Endurance science target: ≈80% easy.
+  // ── Distribución de intensidad (4 sem) ────────────────────────────────────
+  // La cuenta la lleva `zoneMix`, el mismo contador que la vista de Zonas y la
+  // portada: tiempo PARCIAL A PARCIAL sobre las zonas de Karvonen. Antes se
+  // clasificaba cada sesión entera por su FC media contra ratios de LTHR, y eso
+  // colapsa un rodaje con calentamiento y repechos en una sola zona — el coach
+  // veía un reparto que no coincidía con el que el atleta tenía en pantalla.
   let polarized = null;
-  const hrRuns4w = recentRuns.filter(a => a.average_heartrate && a.moving_time);
-  if (hrRuns4w.length >= 3) {
-    let easy = 0, thr = 0, hard = 0;
-    for (const a of hrRuns4w) {
-      const r = a.average_heartrate / lthr;
-      const t = a.moving_time;
-      if (r < 0.92) easy += t; else if (r < 1.0) thr += t; else hard += t;
-    }
-    const tot = easy + thr + hard;
-    if (tot > 0) polarized = {
-      easy: Math.round(easy / tot * 100),
-      thr: Math.round(thr / tot * 100),
-      hard: Math.round(hard / tot * 100),
-    };
+  const mix4w = zoneMix(recentRuns, hrZoneBounds);
+  if (mix4w.hasData && mix4w.sessions >= 3) {
+    const g = polarizedGroups(mix4w.pct);
+    polarized = { easy: Math.round(g.low), thr: Math.round(g.mod), hard: Math.round(g.high) };
   }
 
   const physioSection = [
@@ -750,6 +755,7 @@ REGLAS ESTRICTAS DE SALIDA:
     athleteContext,
     sci: {
       readiness, pmc, hrv, rhr, bb, sleep, polarized, fcmax, fcRest, lthr,
+      zones: hrZoneBounds, // Karvonen: las mismas que cuenta zoneMix y pinta Zonas
       easyHr: avgHR, // FC media real de rodaje fácil (4 sem): centro observado de Z1
       lt: {
         lt1Hr, lt2Hr: lthr,

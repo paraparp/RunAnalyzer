@@ -11,6 +11,7 @@ import garminHealthStream from './api/garmin/health/stream.js';
 import garminHealthRecent from './api/garmin/health/recent.js';
 import garminActivities from './api/garmin/activities.js';
 import garminWorkouts from './api/garmin/workouts.js';
+import admin from './api/admin.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
 
@@ -88,6 +89,13 @@ app.post('/api/garmin/activities', withCachedSession(garminActivities));
 // Escritura de entrenos: no usa la sesión cacheada de dev — `garmin-write` abre la
 // suya con las credenciales guardadas del usuario (igual que en producción).
 app.all('/api/garmin/workouts', garminWorkouts);
+
+// ---------------------------------------------------------------------------
+// Admin. Mismo handler que en Vercel; el guardián (sesión + fila en app_admins)
+// vive dentro, así que en local protege igual. Necesita SUPABASE_SERVICE_ROLE_KEY
+// en .env: sin ella responde 500 en vez de 404.
+// ---------------------------------------------------------------------------
+app.all('/api/admin', admin);
 
 // POST /api/garmin/debug — inspecciona la respuesta cruda de Garmin para una
 // fecha. Solo desarrollo: no existe como función serverless.

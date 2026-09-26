@@ -94,7 +94,10 @@ export const getActivityStreams = async (accessToken, activityId) => {
     // muestra (stream_gap), que salen de esta misma descarga.
     // grade_smooth es la pendiente ya suavizada por Strava: streamProfile la prefiere
     // frente a derivarla de la altitud, cuyo ruido inventa desnivel bruto.
-    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,altitude,time,grade_smooth&key_by_type=true`, {
+    // heartrate + watts alimentan el perfil FC-esfuerzo (hr_effort). Van en las mismas
+    // claves a propósito: pedir una segunda vez los streams de la actividad costaría
+    // otra petición de la cuota de Strava para datos que ya vienen en esta.
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,altitude,time,grade_smooth,heartrate,watts&key_by_type=true`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`,
         },

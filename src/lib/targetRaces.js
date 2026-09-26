@@ -4,7 +4,7 @@ import { parseTimeToMinutes, formatMinutes, daysUntil } from './timeFormat';
 
 // Se re-exportan para no cambiar el punto de importación de las vistas, que
 // piden estos helpers junto con el resto de la API de carreras objetivo.
-export { parseTimeToMinutes, formatMinutes, daysUntil };
+export { parseTimeToMinutes, formatMinutes, daysUntil, DISTANCE_KM };
 
 // ============================================================================
 // targetRaces — lista de carreras/eventos objetivo del usuario.

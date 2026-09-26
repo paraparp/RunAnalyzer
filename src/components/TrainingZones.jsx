@@ -49,18 +49,45 @@ const MODEL = {
   ],
 };
 
+// ── Ventanas de tiempo ────────────────────────────────────────────────────────
+// El reparto por zonas depende por completo de la ventana que se mire: dos
+// meses cuentan el bloque actual, tres años cuentan la carrera entera. Antes
+// estaba clavado a los 2 meses que usa la calibración del LTHR y no había forma
+// de ver si el 80/20 aguanta a lo largo de una temporada.
+const PERIODS = [
+  { id: '1w',  days: 7    },
+  { id: '1m',  days: 30   },
+  { id: '3m',  days: 91   },
+  { id: '6m',  days: 183  },
+  { id: '1y',  days: 365  },
+  { id: '2y',  days: 730  },
+  { id: '3y',  days: 1095 },
+  { id: 'all', days: null },
+];
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TrainingZones({ activities, hrParams, onOpenCalibration }) {
   const { t, i18n } = useTranslation();
   const [groupBy,   setGroupBy]   = useState('month');
   const [evoMode,   setEvoMode]   = useState('hours');
+  const [period,    setPeriod]    = useState('3m');
+  // Zonas ocultas en el gráfico de evolución. Todas visibles por defecto: apagar
+  // una es para AISLAR la lectura (ver solo el volumen duro, p. ej.), no el estado
+  // normal. Solo afecta al pintado — los % siguen siendo sobre el tiempo total,
+  // no se recalculan sobre lo que queda visible, que sería un número inventado.
+  const [hiddenZones, setHiddenZones] = useState(() => new Set());
+  const toggleZone = (name) => setHiddenZones(prev => {
+    const next = new Set(prev);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
 
   // ── Calibration (FCmax / FCreposo / LTHR) comes from useHrParams, shared with
   //    the splits table so no view can drift into its own idea of the zones. Se
   //    EDITA en Ajustes › Calibración (`HrCalibration`); aquí solo se lee. ──
   const {
     hrmax, hrrest, lthr, hrr,
-    autoRest, lthrResult, recentActivities,
+    autoRest, lthrResult,
     maxOv, restOv, lthrOv,
   } = hrParams;
 
@@ -77,25 +104,36 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
 
   const bounds = useMemo(() => karvonenBounds({ hrmax, hrrest }), [hrmax, hrrest]);
 
+  // ── Actividades dentro de la ventana elegida ──
+  // Se filtra sobre el historial completo, no sobre `recentActivities`: ese
+  // array es la ventana de calibración del LTHR y toparía cualquier período
+  // largo en dos meses.
+  const periodActivities = useMemo(() => {
+    const days = PERIODS.find(p => p.id === period)?.days;
+    if (!days) return activities ?? [];
+    const cutoff = Date.now() - days * 86400000;
+    return (activities ?? []).filter(a => new Date(a.start_date).getTime() >= cutoff);
+  }, [activities, period]);
+
   // ── Time-in-zones distribution ──
   // El reparto lo cuenta lib/zoneMix, el mismo que usa la portada: si se contara
   // aquí, Hoy y Zonas podrían discrepar sobre el mismo mes.
+  const mix = useMemo(() => zoneMix(periodActivities, bounds), [periodActivities, bounds]);
+
   const zoneStats = useMemo(() => {
-    const mix = zoneMix(recentActivities, bounds);
     if (!mix.hasData) return [];
     return model.zones.map((z, i) => ({
       ...z, ...bounds[i],
       hours: +(mix.times[i] / 3600).toFixed(1),
       pct:   mix.pct[i],
     }));
-  }, [recentActivities, bounds, model]);
+  }, [mix, bounds, model]);
 
-  // ── Weekly / Monthly evolution (full history — the 2-month window only applies
-  //    to calibration and time-in-zones, otherwise "monthly" would never show >3 bars) ──
+  // ── Weekly / Monthly evolution (dentro del período elegido) ──
   const evolutionData = useMemo(() => {
-    if (!activities?.length) return [];
+    if (!periodActivities.length) return [];
     const buckets = {};
-    activities.forEach(a => {
+    periodActivities.forEach(a => {
       const segs = hrSegments(a);
       if (!segs.length) return;
       const d = new Date(a.start_date);
@@ -109,7 +147,9 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
       }
     });
     const sorted = Object.values(buckets).sort((a, b) => a.key.localeCompare(b.key));
-    return (groupBy === 'week' ? sorted.slice(-16) : sorted.slice(-12)).map(b => {
+    // Los topes solo evitan una barra ilegible en históricos largos; la ventana
+    // real la fija el selector de período.
+    return (groupBy === 'week' ? sorted.slice(-52) : sorted.slice(-36)).map(b => {
       const row = { name: fmtBucket(b.key, groupBy, i18n.language) };
       const total = b.zones.reduce((s, v) => s + v, 0);
       model.zones.forEach((z, i) => {
@@ -119,7 +159,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
       });
       return row;
     });
-  }, [activities, bounds, model, groupBy, evoMode, i18n.language]);
+  }, [periodActivities, bounds, model, groupBy, evoMode, i18n.language]);
 
   // ── Lectura polarizada: las 5 zonas agrupadas en fácil / gris / duro ──
   // La doctrina 80/20 no necesita un modelo de zonas propio: sale de agrupar
@@ -157,7 +197,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
     none:    t('zones.method_none'),
   }[lthrResult.method];
 
-  const activitiesWithHR = recentActivities?.filter(a => a.average_heartrate)?.length ?? 0;
+  const activitiesWithHR = periodActivities.filter(a => a.average_heartrate).length;
 
   // ── BPM range string ──
   const bpmRange = (lo, hi) =>
@@ -275,6 +315,29 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
       </Card>
 
+      {/* ── Selector de período ──────────────────────────────────────────────
+          Manda sobre el reparto, la evolución y la lectura polarizada; la
+          calibración de arriba no se toca (esa ventana la fija la detección del
+          LTHR). ────────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+          {t('zones.period_label')}
+        </span>
+        {PERIODS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setPeriod(p.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+              period === p.id
+                ? 'bg-slate-700 text-white border-slate-700'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+            }`}
+          >
+            {t(`zones.periods.${p.id}`)}
+          </button>
+        ))}
+      </div>
+
       {/* ── 3. Time in zones ────────────────────────────────────────────────── */}
       <Card className="shadow-lg border-slate-200">
         <div className="mb-5">
@@ -282,6 +345,16 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
           <Text className="text-slate-500 text-sm">
             {t('zones.time_in_zones_desc')}
           </Text>
+          {/* Resolución del dato: una sesión sin parciales entra con su FC media y
+              colapsa en UNA zona, lo que infla Z2 y borra el Z1 del calentamiento.
+              Decirlo es la diferencia entre un % medido y un % supuesto. */}
+          {mix.hasData && (
+            <p className={`text-[11px] mt-1.5 font-medium ${mix.avgOnlySessions ? 'text-amber-600' : 'text-slate-400'}`}>
+              {mix.avgOnlySessions
+                ? t('zones.resolution_partial', { avg: mix.avgOnlySessions, total: mix.sessions })
+                : t('zones.resolution_full', { total: mix.sessions })}
+            </p>
+          )}
         </div>
 
         {zoneStats.length === 0 ? (
@@ -375,13 +448,28 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
           <div className="text-center py-10 text-slate-400 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {model.zones.map(z => (
-                <div key={z.name} className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: z.color }} />
-                  <span className="text-[10px] text-slate-500 font-medium">{z.name} {z.label}</span>
-                </div>
-              ))}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {model.zones.map(z => {
+                const on = !hiddenZones.has(z.name);
+                return (
+                  <button
+                    key={z.name}
+                    onClick={() => toggleZone(z.name)}
+                    aria-pressed={on}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${
+                      on ? 'bg-white border-slate-200 hover:border-slate-400' : 'bg-slate-50 border-slate-100'
+                    }`}
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-sm shrink-0"
+                      style={{ background: on ? z.color : 'transparent', border: `1.5px solid ${z.color}`, opacity: on ? 1 : 0.45 }}
+                    />
+                    <span className={`text-[10px] font-medium ${on ? 'text-slate-500' : 'text-slate-300 line-through'}`}>
+                      {z.name} {z.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -393,7 +481,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                     contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                     formatter={(v, name) => [`${v}${evoMode === 'pct' ? '%' : 'h'}`, name]}
                   />
-                  {model.zones.map(z => (
+                  {model.zones.filter(z => !hiddenZones.has(z.name)).map(z => (
                     <Bar key={z.name} dataKey={z.name} stackId="a" fill={z.color} radius={0} />
                   ))}
                 </BarChart>

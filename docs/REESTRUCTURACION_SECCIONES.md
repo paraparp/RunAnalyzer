@@ -8,9 +8,10 @@
 > subsección de una vista de análisis, y categorías agrupadas por tipo de artefacto ("mapas", "ia")
 > en vez de por la pregunta que responden.
 >
-> **Estado:** fases 1 a 4 completas. La estructura de 8 categorías de la primera pasada se
-> **revisó a 5** el mismo día (§5, fase 1b) por lo que se veía al usarla. Pendientes: fases 3-5 y
-> las dos que salieron de la segunda revisión (§6): el scope temporal único y la vista de sesión.
+> **Estado (2026-09-19):** **fases 1 a 5 completas**, con la estructura de 8 categorías de la
+> primera pasada revisada a 5 el mismo día (fase 1b, §5). **Pendientes**: las dos que salieron de la
+> segunda revisión (§6) — el scope temporal único (fase 6) y la vista de sesión (fase 7) — y las
+> filas de §2.1 que siguen abiertas: volumen agregado, desacople y ritmos de entrenamiento.
 
 ---
 
@@ -63,19 +64,22 @@ repartidos por `App.jsx`).
 
 ### 2.1 Duplicación de presentación
 
-El cálculo está centralizado; lo que está replicado es el **gráfico y el número en pantalla**, y
-eso hace que la misma verdad parezca cuatro temas distintos.
+El cálculo está centralizado; lo que estaba replicado era el **gráfico y el número en pantalla**, y
+eso hacía que la misma verdad pareciera cuatro temas distintos.
 
-| Número | Veces | Dónde |
+La columna **Estado** es el recuento *verificado contra el código* a 2026-09-19, no el de la
+auditoría de partida: las fases 3 a 5 fueron cerrando filas.
+
+| Número | Sitios | Estado |
 |---|---|---|
-| Eficiencia aeróbica | **4** → 2 | `HRAnalysis` *efficiency* · `VitalsOverview:662` · `VO2MaxTracker:934` · `StatusSnapshot:695` |
-| FC reposo / HRV histórico | **4** → 3 | ~~`StatusSnapshot:1025`~~ (fundido en Vitales, fase 3b) · `GarminCardiac:1637` · `VO2MaxTracker:775` · `VitalsOverview:600-615` |
-| Deriva / desacople | **4** | `HRAnalysis` *drift* · `CardiacDecoupling` · `VO2MaxTracker` (`driftRatePerHour`) · `VitalsOverview:680` |
-| Volumen / carga agregada | **5** → 3 | `MonthlyChart` · `HRAnalysis:731-747` · `FitnessFatigue` *weekly_load* · `WeeklyProgression` · `VitalsOverview:647` |
-| Curva mean-max + CS | **3** | `CriticalSpeed` · `LactateThreshold:215` · `VO2MaxTracker` (`buildMeanMaxCurve` + `vdotFromCurve`) |
-| Predicciones de carrera | **3** | `CriticalSpeed:241` · `VDOTEstimator:444` · `RacePredictor` |
-| Ritmos de entrenamiento | **3** | `VDOTEstimator:388` · `LactateThreshold:265` · `TrainingZones` (tabla de zonas) |
-| ACWR | **3** → 2 | ~~`StatusSnapshot:790`~~ (fase 3a/3b) · `FitnessFatigue:568` · `InjuryRisk` |
+| Predicciones de carrera | 3 → **1** ✅ | Dueño: `RacePredictor`. Fuera las tablas de `CriticalSpeed` y `VDOTEstimator` (fase 5) |
+| Curva mean-max en pantalla | 3 → **1** ✅ | Dueño: *Capacidad* (`CriticalSpeed`). `LactateThreshold` conserva el cálculo pero ya no pinta la curva (fase 5); `VO2MaxTracker` la usa para anclar el VO2, no la dibuja |
+| FC reposo / HRV histórico | 4 → **2** ✅ | Dueño: *Vitales* (`VitalsOverview`). `GarminCardiac` mantiene sus *Tendencias cardíacas*, que es otra lectura (correlación y adaptación). Fuera `StatusSnapshot` (3b) y `VO2MaxTracker` (3c) |
+| Eficiencia aeróbica | 4 → **2** ✅ | `HRAnalysis` *efficiency* (dueño) y el tile de `VitalsOverview`. Fuera `VO2MaxTracker` (3c) y `StatusSnapshot` (3b) |
+| ACWR | 3 → **2** ✅ | `InjuryRisk` (dueño) y la tarjeta de estado de `FitnessFatigue`. Fuera `StatusSnapshot` (3a/3b) |
+| Volumen / carga agregada | 5 → **4** ⚠️ | Sigue abierto: `ActivityLog` (`MonthlyChart`), `FitnessFatigue` *weekly_load*, `WeeklyProgression` y el tile *carga acumulada* de `VitalsOverview`. Solo se cerró `HRAnalysis` (3c) |
+| Deriva / desacople | 4 → **3** ⚠️ | Sigue abierto: `HRAnalysis` *drift*, `CardiacDecoupling` y el tile de `VitalsOverview`. `VO2MaxTracker` usa `driftRatePerHour` para **corregir** el VO2, que es un uso legítimo, no una cuarta pantalla |
+| Ritmos de entrenamiento | **3** ⚠️ | Abierto a propósito: Daniels (`VDOTEstimator`), LT1/LT2 (`LactateThreshold`) y la tabla de zonas (`TrainingZones`). Son tres sistemas de prescripción, y cuál gana es la decisión 1 de §7 |
 
 ### 2.2 Colocaciones imposibles
 
@@ -200,7 +204,7 @@ Dos renombrados para que ninguna categoría compita con su propio ítem: el íte
 la sub-navegación de la topbar ya no se pinta cuando la categoría tiene un solo ítem: con una sola
 pestaña no hay nada que elegir.
 
-### Fase 2 — sacar lo que no es análisis
+### Fase 2 — sacar lo que no es análisis ✅ HECHO (2026-09-13)
 
 **Ajustes ✅ HECHO (2026-09-13).** Ajustes pasa de una categoría con un solo ítem a tres, y las dos
 colocaciones imposibles de §2.2 desaparecen:
@@ -239,7 +243,7 @@ del menú obligaba a abandonar justo la vista sobre la que ibas a preguntar.
 - `/qa` estaba en la URL y puede estar en un marcador: ahora abre el panel y limpia la ruta, en vez
   de caer en silencio al dashboard.
 
-### Fase 3 — partir los ficheros mezclados
+### Fase 3 — partir los ficheros mezclados ✅ HECHO (3a/3b: 2026-09-13 · 3c: 2026-09-19)
 
 Sin reescribir lógica, sólo separando bloques ya existentes.
 
@@ -343,18 +347,42 @@ Dos cambios de comportamiento que van con la mudanza:
 `TodayView` va en el bundle inicial (es la portada) y `ActivityLog` bajo demanda, como el resto de
 vistas secundarias.
 
-### Fase 5 — fusionar curva + CS + VDOT
+### Fase 5 — fusionar curva + CS + VDOT ✅ HECHO (2026-09-19)
 
-Una vista, una curva, tres lecturas. Es el paso con más código y el que más duplicación mata;
-va al final, cuando el sitio donde vive ya existe.
+Una curva, tres lecturas, y las predicciones con un solo dueño.
 
-### Fase 6 — un solo scope temporal
+- **[CriticalSpeed.jsx](../src/components/CriticalSpeed.jsx) pasa a llamarse *Capacidad*** y añade
+  el **VDOT sacado de la MISMA curva** que ya construía (`vdotFromCurve` sobre sus propios puntos
+  mean-max, con el esfuerzo que lo ancla como pista). Ya no se recalcula la curva en otra vista con
+  otra ventana: CS y D′ describen la asíntota y la reserva, el VDOT pone ese mismo esfuerzo en una
+  escala comparable entre corredores.
+- **Las predicciones de carrera tienen un dueño: Competición › Predicciones** (`predictRaces`, que
+  usa toda la evidencia y no sólo un modelo). Fuera la tabla de `CriticalSpeed` y la de
+  `VDOTEstimator`: de **tres** sitios a **uno**.
+- **`LactateThreshold` deja de repetir el gráfico de CS**. Su cálculo se queda —de ahí salen sus
+  ritmos y el contraste con la FC— pero el gráfico entero se sustituye por una línea con el número
+  y un puntero a Capacidad. De **tres** curvas mean-max en pantalla a **una**.
+- El hub de VDOT pasa a llamarse **Ritmos Daniels**, que es lo que le queda y lo que de verdad
+  aporta: la prescripción de Daniels.
+
+**Lo que NO se borró, y por qué.** Los ritmos de Daniels conviven con los de LT1/LT2 de Umbrales.
+Son dos sistemas de prescripción distintos, no el mismo número dos veces, y la decisión 1 de §7
+—cuál gana— sigue abierta: borrar uno de los dos es una decisión de método, no de arquitectura de
+información. Los dos siguen ahí, cada uno en su vista, y ninguno predice carreras.
+
+| Fichero | Antes | Después |
+|---|---|---|
+| `CriticalSpeed` | 312 | **265** |
+| `LactateThreshold` | 397 | **330** |
+| `VDOTEstimator` | 499 | **464** |
+
+### Fase 6 — un solo scope temporal ⏳ PENDIENTE
 
 Sustituir los **18 controles de período** de §6.1 por un control compartido con un vocabulario y un
 default coherente. Es, de todo lo que queda, lo que más cambia la sensación de que la app está
 descosida.
 
-### Fase 7 — vista de sesión
+### Fase 7 — vista de sesión ⏳ PENDIENTE
 
 `/activity/:id`: los parciales con su zona, el desacople y la eficiencia de ESA sesión, el GAP, el
 clima y la comparación con sesiones similares. Hoy no existe (§6.2).
@@ -404,10 +432,18 @@ que varios gráficos nuevos.
 
 ## 7. Decisiones abiertas
 
-1. **¿Qué sistema de zonas gana?** Recomendación: el de LT1/LT2 (`HRZonesCard` / el del coach),
-   porque es el que ya se usa para prescribir y no depende de estimar LTHR desde FCmax.
-   `seilerBounds` / `karvonenBounds` se quedan como vista alternativa dentro de Umbrales, no como
-   modelo paralelo.
+1. ~~**¿Qué sistema de zonas gana?**~~ **Resuelto: Karvonen** (2026-09-19). Es el único modelo de
+   zonas de la app: `seilerBounds` ya no existe y la vista de Zonas perdió su selector de modelo
+   —dos modelos elegibles significaba que los mismos kilómetros salían Z2 o Z3 según el botón
+   pulsado—. La lectura polarizada **no se pierde**: sale de agrupar las cinco zonas
+   (`lib/zoneMix` › `polarizedGroups`, Z1+Z2 fácil / Z3 gris / Z4+Z5 duro), así que el veredicto
+   80/20 y el modelo de zonas dejan de ser dos cálculos distintos.
+   **También el coach** (2026-09-19): `athleteContext` daba al prompt 3 zonas propias derivadas de
+   LT1/LT2 y `HRZonesCard` las pintaba, así que "Z2" significaba una cosa en el consejo y otra en la
+   app. Las dos leen ahora `karvonenBounds`, y la distribución de intensidad del prompt la cuenta
+   `zoneMix` —parcial a parcial— en vez de clasificar cada sesión entera por su FC media contra
+   ratios de LTHR. LT1 y LT2 siguen en el contexto como **anclas de ritmo**, que es lo que de verdad
+   prescriben. `coachCoherenceWarnings` valida contra el mismo techo (fin de Z2) que recibe el coach.
 2. **¿Mapas es área propia o subsección de Sesiones?** Aplicado como subsección ("dónde he corrido"
    es una pregunta sobre el pasado), aunque `GeoZones` aguantaría como área por volumen (1311 l. con
    tabs propios).

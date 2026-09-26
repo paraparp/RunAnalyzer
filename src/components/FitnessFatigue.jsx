@@ -16,6 +16,7 @@ import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
 import { isRun, paceStr, timeStr } from '../lib/statusStats';
+import GlobalKpiGrid from './GlobalKpiGrid';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -297,10 +298,13 @@ export default function FitnessFatigue({ activities }) {
   // ── No data ──────────────────────────────────────────────────────────────────
   if (!current) {
     return (
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
-        <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
-      </Card>
+      <div className="space-y-6">
+        <GlobalKpiGrid activities={activities} />
+        <Card className="shadow-lg border-slate-200">
+          <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
+          <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
+        </Card>
+      </div>
     );
   }
 
@@ -314,6 +318,9 @@ export default function FitnessFatigue({ activities }) {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+
+      {/* Totales acumulados del atleta: el contexto del que cuelga el PMC. */}
+      <GlobalKpiGrid activities={activities} />
 
       {/* ── Status cards ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

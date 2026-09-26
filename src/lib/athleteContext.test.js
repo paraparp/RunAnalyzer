@@ -310,10 +310,24 @@ describe('buildPrompt · coherencia del modelo de carga', () => {
     expect(ctx).toContain('no superar +5/sem');
   });
 
-  it('describe las tres zonas derivadas de LT1/LT2 sin solaparlas', () => {
-    expect(ctx).toContain('Z1 fácil/base');
-    expect(ctx).toContain('Z2 gris');
-    expect(ctx).toContain('Z3 umbral+/calidad');
+  it('da las cinco zonas de Karvonen, el único modelo de la app', () => {
+    // El coach prescribía sobre 3 zonas propias derivadas de LT1/LT2 mientras la
+    // interfaz contaba sobre las 5 de Karvonen: el mismo "Z2" significaba dos
+    // cosas. Si alguien reintroduce un sistema paralelo, esto lo caza.
+    expect(ctx).toContain('Karvonen sobre la reserva de FC');
+    expect(ctx).toContain('Z1 recuperación');
+    expect(ctx).toContain('Z2 base aeróbica');
+    expect(ctx).toContain('Z3 aeróbico intenso');
+    expect(ctx).toContain('Z4 umbral de lactato');
+    expect(ctx).toContain('Z5 VO2max/anaeróbico');
+    // LT1/LT2 siguen en el prompt, pero como anclas de RITMO, no como zonas.
+    expect(ctx).toContain('LT1 (umbral aeróbico)');
+    expect(ctx).toContain('Los umbrales anclan los RITMOS');
+  });
+
+  it('explica cómo se agrupa el 80/20 sobre esas cinco zonas', () => {
+    expect(ctx).toContain('LECTURA 80/20: fácil = Z1+Z2');
+    expect(ctx).toContain('duro = Z4+Z5');
   });
 
   it('ancla los ritmos de calidad al LT2 y no al ritmo fácil', () => {

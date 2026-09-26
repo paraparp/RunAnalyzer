@@ -25,6 +25,10 @@ import ShoePhotoModal from './ShoePhotoModal';
 // Vidas útiles fijadas a mano por el atleta, { gear_id: km }. Persisten como el
 // resto de preferencias (cloudStorage), no en el estado de la vista.
 const LIFE_KEY = 'shoe_life_km';
+// Criterio de orden del garaje. Por defecto el último uso: lo que el atleta
+// calza ahora es lo que quiere ver arriba, no el par con más km históricos.
+const SORT_KEY = 'gear_sort';
+const SORT_OPTIONS = ['recent', 'distance', 'wear', 'count', 'name'];
 
 function readLifeOverrides() {
   try {
@@ -49,6 +53,18 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
   }, [cachedShoes, fetchedShoeNames]);
   // Vida útil por par: la que fija el atleta gana; si no, se deduce del tipo.
   const [lifeOverrides, setLifeOverrides] = useState(readLifeOverrides);
+  const [sortBy, setSortBy] = useState(() => {
+    const saved = cloudStorage.getItem(SORT_KEY);
+    return SORT_OPTIONS.includes(saved) ? saved : 'recent';
+  });
+  const changeSort = (value) => {
+    setSortBy(value);
+    try {
+      cloudStorage.setItem(SORT_KEY, value);
+    } catch (e) {
+      console.warn('No se pudo guardar el orden del garaje; se mantiene en memoria.', e);
+    }
+  };
   const [editingId, setEditingId] = useState(null);
   const [draftLife, setDraftLife] = useState('');
 
@@ -214,9 +230,20 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
             shoeLifeKm(gear.name, lifeOverrides[gear.id])
           ),
         };
-      })
-      .sort((a, b) => b.distanceKm - a.distanceKm);
+      });
   }, [activities, shoeNames, lifeOverrides, t, i18n.language]);
+
+  const sortedGear = useMemo(() => {
+    const byWear = (g) => (g.maxLife > 0 ? g.distanceKm / g.maxLife : 0);
+    const comparators = {
+      recent: (a, b) => b.lastUsed - a.lastUsed,
+      distance: (a, b) => b.distanceKm - a.distanceKm,
+      wear: (a, b) => byWear(b) - byWear(a),
+      count: (a, b) => b.count - a.count,
+      name: (a, b) => a.name.localeCompare(b.name, i18n.language),
+    };
+    return [...gearStats].sort(comparators[sortBy] || comparators.recent);
+  }, [gearStats, sortBy, i18n.language]);
 
   if (gearStats.length === 0) {
     return (
@@ -247,10 +274,26 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
               {t('gear.subtitle')}
             </p>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <label htmlFor="gear-sort" className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              {t('gear.sort.label')}
+            </label>
+            <select
+              id="gear-sort"
+              value={sortBy}
+              onChange={(e) => changeSort(e.target.value)}
+              className="px-3 py-1.5 text-xs font-bold text-slate-900 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 focus:outline-none focus:border-slate-400 transition-colors"
+            >
+              {SORT_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{t(`gear.sort.${opt}`)}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="space-y-4">
-          {gearStats.map((gear, idx) => {
+          {sortedGear.map((gear, idx) => {
             const pct = Math.min((gear.distanceKm / gear.maxLife) * 100, 100);
             let color = "bg-emerald-500";
             let textColor = "text-emerald-600";

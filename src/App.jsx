@@ -36,12 +36,15 @@ const HrCalibration = lazy(() => import('./components/HrCalibration'));
 const Connections = lazy(() => import('./components/Connections'));
 const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
 const GeoZones = lazy(() => import('./components/GeoZones'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
 import useHrParams from './hooks/useHrParams';
+import useIsAdmin from './hooks/useIsAdmin';
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 import { getActivity, getActivityStreams, getStravaAuthUrl } from './services/strava';
 import { computeFlatEfforts, needsFlatEfforts } from './lib/flatEfforts';
 import { computeStreamGap, needsStreamGap } from './lib/streamGap';
+import { computeHrEffort, needsHrEffort } from './lib/hrEffortWindow';
 import { slimActivity, persistStravaData, readStravaData } from './lib/stravaStore';
 import syncAll from './lib/syncAll';
 import {
@@ -74,6 +77,7 @@ import {
   FlagIcon,
   Cog6ToothIcon,
   LinkIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 
 const NAV_ITEMS = [
@@ -101,6 +105,13 @@ const NAV_ITEMS = [
   { id: 'connections', icon: LinkIcon },
   { id: 'export', icon: ArrowDownTrayIcon },
 ];
+
+// Vista solo para administradores. Vive fuera de NAV_ITEMS a propósito: se añade
+// en tiempo de ejecución si `is_admin()` dice que sí, de modo que para el resto
+// de usuarios ni existe la entrada ni la ruta responde (currentView la descarta).
+// El gating es cosmético; quien mande la URL a mano verá el dashboard, y
+// /api/admin le devolvería 403 igualmente.
+const ADMIN_NAV_ITEM = { id: 'admin', icon: ShieldCheckIcon };
 
 // Las categorías agrupan por la PREGUNTA que responde cada vista. Cinco, y
 // ninguna con un solo ítem: una categoría que al abrirla da una sola cosa es un
@@ -154,7 +165,14 @@ const Dashboard = ({ user, handleLogout }) => {
   // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
   const { view: viewParam, raceId } = useParams();
   const navigate = useNavigate();
-  const currentView = NAV_ITEMS.some(i => i.id === viewParam) ? viewParam : 'dashboard';
+  const isAdmin = useIsAdmin();
+  const navItems = useMemo(() => (isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS), [isAdmin]);
+  const navCategories = useMemo(() => (
+    isAdmin
+      ? NAV_CATEGORIES.map(c => (c.id === 'settings' ? { ...c, itemIds: [...c.itemIds, 'admin'] } : c))
+      : NAV_CATEGORIES
+  ), [isAdmin]);
+  const currentView = navItems.some(i => i.id === viewParam) ? viewParam : 'dashboard';
   const setCurrentView = useCallback(
     (v) => navigate(v === 'dashboard' ? '/' : `/${v}`),
     [navigate]
@@ -206,16 +224,20 @@ const Dashboard = ({ user, handleLogout }) => {
   // sync. Se limita a carreras recientes sin detalle, con throttle y tope por sync,
   // para no tocar el rate-limit de Strava. Cada resultado se persiste en Supabase,
   // así que a lo largo de varios syncs se completa y no se vuelve a pedir nunca más.
-  // days=400 cubre la ventana de 12 meses del gráfico mensual de "Temporal Evolution"
-  // para que TODO el histórico visible reciba parciales (y sus zonas se repartan por
-  // segmento, no por FC media). cap=60 por sync fija cuántas trae de golpe: a 400ms de
-  // throttle son ~24s en segundo plano, y a lo largo de varios syncs completa el año.
-  const enrichMissingSplits = async (acts, accessToken, { cap = 60, days = 400 } = {}) => {
+  // days=null: TODO el histórico. Antes se cortaba en 400 días, y como el selector
+  // de período de Zonas llega a 3 años y "Todo", cualquier actividad más vieja se
+  // clasificaba por su FC media — un rodaje entero colapsado en UNA zona, lo que
+  // infla Z2 y borra el Z1 del calentamiento y el Z3+ de los repechos. cap=60 por
+  // sync fija cuántas trae de golpe: a 400ms de throttle son ~24s en segundo plano,
+  // y a lo largo de varios syncs completa el histórico (cada resultado se persiste,
+  // así que no se vuelve a pedir nunca más).
+  const enrichMissingSplits = async (acts, accessToken, { cap = 60, days = null } = {}) => {
     if (!accessToken || !Array.isArray(acts)) return;
     const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
-    const since = Date.now() - days * 86400000;
+    const since = days == null ? null : Date.now() - days * 86400000;
     const need = acts
-      .filter(a => isRun(a) && a.distance > 0 && !a.splits_metric && new Date(a.start_date).getTime() >= since)
+      .filter(a => isRun(a) && a.distance > 0 && !a.splits_metric
+                && (since == null || new Date(a.start_date).getTime() >= since))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
     for (const act of need) {
@@ -239,17 +261,19 @@ const Dashboard = ({ user, handleLogout }) => {
     }
   };
 
-  // Enriquece a partir de los streams (distance+altitude+time+grade_smooth) los dos
-  // cálculos que los necesitan —el mejor 1km/2km llano (flat_efforts) y el GAP
-  // muestra a muestra (stream_gap)— y guarda SOLO los resultados, que son pequeños.
-  // Una descarga, dos campos: pedirlos por separado duplicaría el gasto de API. Como los parciales, va en
+  // Enriquece a partir de los streams (distance+altitude+time+grade_smooth+
+  // heartrate+watts) los tres cálculos que los necesitan —el mejor 1km/2km llano
+  // (flat_efforts), el GAP muestra a muestra (stream_gap) y el perfil FC-esfuerzo
+  // por bloques (hr_effort)— y guarda SOLO los resultados, que son pequeños.
+  // Una descarga, tres campos: pedirlos por separado triplicaría el gasto de API. Como los parciales, va en
   // segundo plano, con throttle y tope por sync; a lo largo de varios syncs cubre
   // todo el histórico y no se vuelve a pedir. Se cachea también el resultado vacío.
   const enrichMissingFlatEfforts = async (acts, accessToken, { cap = 30 } = {}) => {
     if (!accessToken || !Array.isArray(acts)) return;
     const isRun = (a) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type);
     const need = acts
-      .filter(a => isRun(a) && a.distance >= 1000 && (needsFlatEfforts(a) || needsStreamGap(a)))
+      .filter(a => isRun(a) && a.distance >= 1000
+        && (needsFlatEfforts(a) || needsStreamGap(a) || needsHrEffort(a)))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
     for (const act of need) {
@@ -260,12 +284,13 @@ const Dashboard = ({ user, handleLogout }) => {
         // pedir hasta que cambie la versión del algoritmo.
         const flat_efforts = computeFlatEfforts(streams);
         const stream_gap = computeStreamGap(streams);
+        const hr_effort = computeHrEffort(streams);
         setStravaData(prev => {
           if (!prev?.activities) return prev;
           const idx = prev.activities.findIndex(x => x.id === act.id);
           if (idx === -1) return prev;
           const updated = [...prev.activities];
-          updated[idx] = { ...prev.activities[idx], flat_efforts, stream_gap };
+          updated[idx] = { ...prev.activities[idx], flat_efforts, stream_gap, hr_effort };
           const nd = { ...prev, activities: updated };
           persistStravaData(nd);
           return nd;
@@ -361,12 +386,12 @@ const Dashboard = ({ user, handleLogout }) => {
   const hrParams = useHrParams(runningActivities);
 
 
-  const currentNavItem = NAV_ITEMS.find(item => item.id === currentView);
+  const currentNavItem = navItems.find(item => item.id === currentView);
   const pageTitle = currentNavItem ? t(`nav.${currentNavItem.id}`) : t('nav.dashboard');
 
   // Sidebar component
   const SidebarContent = () => {
-    const activeCatId = NAV_CATEGORIES.find(cat => cat.itemIds.includes(currentView))?.id;
+    const activeCatId = navCategories.find(cat => cat.itemIds.includes(currentView))?.id;
     return (
       <>
         {/* Logo */}
@@ -382,7 +407,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
         {/* Navigation — top-level categories only */}
         <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-          {NAV_CATEGORIES.map(cat => {
+          {navCategories.map(cat => {
             const Icon = cat.icon;
             const isActive = cat.id === activeCatId;
             return (
@@ -409,7 +434,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 {isActive && (
                   <div className="pl-11 pr-2 py-1.5 space-y-0.5 mr-2">
                     {cat.itemIds.map(itemId => {
-                      const item = NAV_ITEMS.find(i => i.id === itemId);
+                      const item = navItems.find(i => i.id === itemId);
                       if (!item) return null;
                       const isItemActive = currentView === itemId;
                       return (
@@ -492,8 +517,8 @@ const Dashboard = ({ user, handleLogout }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
         {(() => {
-          const activeCat = NAV_CATEGORIES.find(cat => cat.itemIds.includes(currentView));
-          const subItems = (activeCat?.itemIds ?? []).map(id => NAV_ITEMS.find(i => i.id === id)).filter(Boolean);
+          const activeCat = navCategories.find(cat => cat.itemIds.includes(currentView));
+          const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
           return (
             <header className="sticky top-0 z-40 flex justify-between items-center px-8 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl h-16 shadow-sm dark:shadow-none shrink-0 gap-6">
               {/* Mobile menu */}
@@ -565,6 +590,8 @@ const Dashboard = ({ user, handleLogout }) => {
                 hrParams={hrParams}
                 onNavigate={(v) => navigate(v === 'dashboard' ? '/' : `/${v}`)}
                 onOpenChat={() => openChat({ withSeed: true })}
+                onSync={() => runSync(true)}
+                isSyncing={isSyncing}
               />
             )}
 
@@ -592,6 +619,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
                 calibration: <HrCalibration hrParams={hrParams} />,
                 connections: <Connections stravaData={stravaData} onConnectStrava={connectToStrava} />,
+                ...(isAdmin ? { admin: <AdminPanel /> } : {}),
               };
               const view = viewMap[currentView];
               if (!view) return null;

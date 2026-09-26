@@ -63,6 +63,31 @@ describe('normalizeWeatherTemps: el arbitro sigue mandando cuando SI decide', ()
   });
 });
 
+describe('normalizeWeatherTemps: pares con las dos escalas mezcladas', () => {
+  it('rescata el caso real 17633603665 (10 °C de aire con rocio 39)', () => {
+    // El cache viejo convirtio temp pero no dewPoint: 39 °F = 3,9 °C, que es justo
+    // lo que predice Magnus a 10 °C y 66 %. Antes salia rocio 39 con aire 10.
+    const n = normalizeWeatherTemps(10, 39, 66);
+    expect(n.temp_c).toBeCloseTo(10, 1);
+    expect(n.dew_point_c).toBeCloseTo(3.9, 1);
+    expect(n.unit_source).toBe('mixed');
+  });
+
+  it('no inventa una mezcla cuando el rocio no cuadra con la humedad', () => {
+    // Aire 10 °C al 20 % → rocio esperado ~ -12 °C. Ni 30 ni 30 °F (-1,1) lo explican:
+    // el dato esta roto de otra forma y manda el respaldo por magnitud.
+    const n = normalizeWeatherTemps(10, 30, 20);
+    expect(n.unit_source).toBe('threshold');
+  });
+
+  it('el resultado rescatado es estable al volver a normalizarlo', () => {
+    const once = normalizeWeatherTemps(10, 39, 66);
+    const twice = normalizeWeatherTemps(once.temp_c, once.dew_point_c, 66);
+    expect(twice.temp_c).toBeCloseTo(once.temp_c, 6);
+    expect(twice.dew_point_c).toBeCloseTo(once.dew_point_c, 6);
+  });
+});
+
 describe('normalizeWeatherTemps: coherencia e idempotencia', () => {
   it('nunca mezcla unidades dentro de la misma actividad', () => {
     // El rocio siempre queda en la MISMA escala que el aire: nunca uno en °C y

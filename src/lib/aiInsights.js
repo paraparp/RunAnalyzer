@@ -92,8 +92,12 @@ export const coachCoherenceWarnings = (obj, sci) => {
   if (sci?.fcmax && s.fcMax && s.fcMax > sci.fcmax) {
     warns.push(`El tope de FC propuesto (${Math.round(s.fcMax)} ppm) supera tu FCmax estimada (${sci.fcmax} ppm).`);
   }
-  if (sci?.lt?.lt1Hr && s.fcMax && s.tipo && EASY_TYPES.test(s.tipo) && s.fcMax > sci.lt.lt1Hr + 3) {
-    warns.push(`Sesión fácil con tope ${Math.round(s.fcMax)} ppm por encima de tu LT1 (${sci.lt.lt1Hr} ppm): mantente por debajo del umbral aeróbico.`);
+  // Techo del volumen fácil: el fin de Z2 de Karvonen, que es el mismo número
+  // que el prompt le da al coach. Con LT1 el validador avisaba de sesiones que
+  // cumplían el prompt al pie de la letra. LT1 queda de respaldo.
+  const easyCeil = sci?.zones?.[1]?.hi ?? sci?.lt?.lt1Hr ?? null;
+  if (easyCeil && s.fcMax && s.tipo && EASY_TYPES.test(s.tipo) && s.fcMax > easyCeil + 3) {
+    warns.push(`Sesión fácil con tope ${Math.round(s.fcMax)} ppm por encima del techo de tu volumen fácil (${easyCeil} ppm, fin de Z2): mantente por debajo del umbral aeróbico.`);
   }
   return warns;
 };

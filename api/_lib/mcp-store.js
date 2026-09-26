@@ -16,6 +16,10 @@ import { predictRaces, DEFAULT_WINDOW_MONTHS } from '../../src/lib/racePredictio
 import { computeSplitDecoupling } from '../../src/lib/decoupling.js';
 import { gapFactor } from '../../src/lib/gap.js';
 import { hasStreamGap } from '../../src/lib/streamGap.js';
+import {
+  HR_SOURCES, parseHrSourcePolicy, resolveHrSource, resolveActivityHrSource, matchGarminByStart,
+} from '../../src/lib/hrSource.js';
+import { hrAtFixedEffort, DEFAULT_WINDOW_MIN } from '../../src/lib/aerobicForm.js';
 import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
 import { dayKey } from '../../src/lib/trainingLoad.js';
 import { computeCalibratedPMC, OVERRIDES_KEY as HR_OVERRIDES_KEY } from '../../src/lib/loadCalibration.js';
@@ -232,7 +236,8 @@ function shapeWeather(w, avgHr, hrMax) {
     dew_point_c: round(dew_point_c, 1),
     wbgt_c: wbgt,
     // Cómo se decidió la escala: 'dew_point' (el punto de rocío y la humedad son
-    // coherentes con una sola interpretación) o 'threshold' (respaldo por magnitud,
+    // coherentes con una sola interpretación), 'mixed' (cada lectura venía en una
+    // escala distinta: fila vieja del cache) o 'threshold' (respaldo por magnitud,
     // porque faltaba el rocío o las dos interpretaciones empataban).
     unit_source,
     wbgt_plausible: plausible,
@@ -524,50 +529,20 @@ function inRange(dateIso, from, to) {
 // Correlaciona actividades de Garmin con las de Strava por hora de inicio (UTC),
 // con tolerancia de ±3 min, y adjunta el registro Garmin como `a._garmin`.
 function attachGarmin(stravaList, garminList) {
-  const byMinute = new Map();
-  for (const g of garminList) {
-    const t = Date.parse(g.start_time);
-    if (!Number.isNaN(t)) byMinute.set(Math.round(t / 60000), g);
-  }
+  const paired = matchGarminByStart(stravaList, garminList);
   for (const a of stravaList) {
-    const t = Date.parse(a.start_date);
-    if (Number.isNaN(t)) continue;
-    const base = Math.round(t / 60000);
-    for (let d = 0; d <= 3; d++) {
-      const g = byMinute.get(base + d) || byMinute.get(base - d);
-      if (g) { a._garmin = g; break; }
-    }
+    const g = paired.get(a.id);
+    if (g) a._garmin = g;
   }
 }
 
 // ── Origen de la FC (banda vs muñeca) ───────────────────────────────────────
-// `hr_source` solo existe en las actividades enriquecidas con el detalle de Garmin,
-// así que el histórico venía `null` y era imposible distinguir "sin banda" de "no
-// lo sé" — justo la diferencia que hace útil el filtro. Ahora:
-//   · nunca se devuelve null: si no hay dato, es 'unknown';
-//   · el usuario puede declarar desde cuándo lleva banda con la clave de
-//     user_storage `hr_strap_since` ("YYYY-MM-DD", o { since, before }), y las
-//     actividades sin dato a partir de esa fecha se resuelven como 'strap'.
-// `hr_source_origin` dice siempre de dónde sale el valor: 'sensors' (leído de los
-// sensores de Garmin), 'cutoff' (inferido de la fecha declarada) o 'missing'.
-const HR_SOURCES = new Set(['strap', 'wrist', 'unknown']);
+// Las reglas viven en `src/lib/hrSource.js`, porque el front las aplica igual sobre
+// el almacén del navegador. Aquí queda solo lo que depende de Supabase: leer la
+// política declarada por el atleta.
 
 async function getHrSourcePolicy(userId) {
-  const raw = await readKey(userId, 'hr_strap_since');
-  const cfg = typeof raw === 'string' ? { since: raw } : (raw && typeof raw === 'object' ? raw : {});
-  const since = /^\d{4}-\d{2}-\d{2}$/.test(String(cfg.since || '')) ? String(cfg.since) : null;
-  const before = HR_SOURCES.has(cfg.before) ? cfg.before : 'unknown'; // qué asumir antes del corte
-  return { since, before };
-}
-
-/** Resuelve hr_source/hr_source_origin de una actividad Garmin según la política. */
-function resolveHrSource(g, policy) {
-  if (HR_SOURCES.has(g?.hr_source)) return { hr_source: g.hr_source, hr_source_origin: 'sensors' };
-  const day = String(g?.start_time || '').slice(0, 10);
-  if (policy.since && day) {
-    return { hr_source: day >= policy.since ? 'strap' : policy.before, hr_source_origin: 'cutoff' };
-  }
-  return { hr_source: 'unknown', hr_source_origin: 'missing' };
+  return parseHrSourcePolicy(await readKey(userId, 'hr_strap_since'));
 }
 
 /** Aplica la política a la lista cruda de Garmin (no muta lo almacenado). */
@@ -576,40 +551,14 @@ function withHrSource(garmin, policy) {
 }
 
 /**
- * Origen de FC ya resuelto de una actividad. `getActivities` lo deja en `a._hr`
- * (ver resolveActivityHrSource); el respaldo cubre a quien llame a shapeSummary o
- * filterActivities con una actividad suelta, para que degrade al dato de los
- * sensores en vez de volver 'unknown' TODO en silencio.
+ * Origen de FC ya resuelto de una actividad. `getActivities` lo deja en `a._hr`;
+ * el respaldo cubre a quien llame a shapeSummary o filterActivities con una
+ * actividad suelta, para que degrade al dato de los sensores en vez de volver
+ * 'unknown' TODO en silencio.
  */
 const hrOf = (a) => a?._hr ?? (HR_SOURCES.has(a?._garmin?.hr_source)
   ? { hr_source: a._garmin.hr_source, hr_source_origin: a._garmin.hr_source_origin ?? 'sensors' }
   : { hr_source: 'unknown', hr_source_origin: 'missing' });
-
-/**
- * Resuelve el origen de FC de una actividad de STRAVA. Antes esto se leía en cada
- * sitio como `a._garmin?.hr_source ?? 'unknown'`, y ahí estaba el agujero: la fecha
- * de corte declarada solo se aplicaba a las actividades correlacionadas con un
- * registro de Garmin. Una salida en bici (o cualquier actividad sin pareja) caía a
- * 'unknown'/'missing' aunque el atleta llevara banda ese día. La política no
- * depende del deporte: es una propiedad del ATLETA en una fecha.
- *
- * No hay nada que reprocesar en el histórico: `hr_source` no está almacenado, se
- * deriva en cada lectura del cache más la política. Corregir aquí corrige el pasado.
- */
-function resolveActivityHrSource(a, policy) {
-  const g = a._garmin;
-  if (HR_SOURCES.has(g?.hr_source) && g.hr_source !== 'unknown') {
-    return { hr_source: g.hr_source, hr_source_origin: 'sensors' };
-  }
-  // Sin FC no hay origen que atribuir: decir 'strap' de una actividad sin pulso
-  // sería inventarse un sensor que no llegó a registrar nada.
-  if (a.average_heartrate == null) return { hr_source: 'unknown', hr_source_origin: 'missing' };
-  const day = String(a.start_date_local || a.start_date || '').slice(0, 10);
-  if (policy.since && day) {
-    return { hr_source: day >= policy.since ? 'strap' : policy.before, hr_source_origin: 'cutoff' };
-  }
-  return { hr_source: 'unknown', hr_source_origin: 'missing' };
-}
 
 /**
  * Actividades de Strava (reciente primero) con las running dynamics de Garmin
@@ -628,7 +577,7 @@ export async function getActivities(userId) {
   if (Array.isArray(garmin) && garmin.length) attachGarmin(sorted, withHrSource(garmin, policy));
   // El origen de FC se resuelve DESPUÉS de correlacionar y para TODA actividad, no
   // solo para las que tienen pareja en Garmin (ver resolveActivityHrSource).
-  for (const a of sorted) a._hr = resolveActivityHrSource(a, policy);
+  for (const a of sorted) a._hr = resolveActivityHrSource(a, a._garmin, policy);
   return sorted;
 }
 
@@ -1099,6 +1048,68 @@ export async function compareSimilarSessions(userId, {
 // `min` por debajo: como el orden es por TIEMPO REAL sin reescalar, admitir un
 // 4900 m o un parcial de 930 m fabricaba un PR que nadie ha corrido. Por arriba
 // sí se admite: ahí el tiempo es una cota superior honesta (`distance_delta_m`).
+/**
+ * FC a esfuerzo fijo por periodo: la comparación de FORMA entre meses.
+ *
+ * El trabajo de verdad lo hacen `hrEffortWindow.js` (perfil por bloques, cacheado
+ * en cada actividad) y `aerobicForm.js` (regresión con efecto de periodo). Aquí
+ * solo se resuelven las dos cosas que dependen del almacén: el origen de FC ya
+ * resuelto con la política del atleta y el WBGT de cada sesión.
+ */
+export async function getAerobicForm(userId, {
+  axis = 'gap', from, to, granularity = 'month', ref_effort,
+  window_start_min, window_end_min, max_cv, min_sessions,
+  hr_source = 'strap', include_races = false, use_wbgt = true,
+  include_sessions = true,
+} = {}) {
+  if (axis !== 'gap' && axis !== 'power') return { error: `axis desconocido: ${axis}` };
+  const all = await getActivities(userId);
+  const hrMax = estimateHrMax(all);
+  const window_min = [
+    window_start_min ?? DEFAULT_WINDOW_MIN[0],
+    window_end_min ?? DEFAULT_WINDOW_MIN[1],
+  ];
+  if (!(window_min[1] - window_min[0] >= 15)) {
+    return { error: 'La ventana tiene que durar al menos 15 minutos.' };
+  }
+
+  const res = hrAtFixedEffort(all.filter(isRunning), {
+    axis, from, to, granularity, ref_effort, window_min, max_cv, min_sessions,
+    hr_source, include_races, use_wbgt,
+    hrSourceOf: (a) => hrOf(a).hr_source,
+    wbgtOf: (a) => shapeWeather(a._garmin?.weather, a.average_heartrate, hrMax)?.wbgt_c ?? null,
+  });
+  if (res.error) return res;
+
+  // El resumen por sesión puede ser largo y casi nunca hace falta para responder:
+  // lo que importa es la serie por periodo y POR QUÉ quedó fuera cada sesión.
+  const sessions = include_sessions
+    ? { included: res.included, excluded: res.excluded }
+    : { included_count: res.included.length, excluded_count: res.excluded.length };
+  const rest = { ...res };
+  delete rest.included;
+  delete rest.excluded;
+
+  return {
+    ...rest,
+    ...sessions,
+    interpretation:
+      'FC predicha al esfuerzo de referencia, un punto por periodo: BAJAR es mejorar. '
+      + 'Compara `hr_at_ref` entre periodos SOLO con su `se` delante (una diferencia menor '
+      + 'que la suma de los dos SE no es una diferencia) y mira `n`. '
+      + (res.wbgt_adjusted
+        ? 'La serie está corregida por WBGT, así que el calor ya no explica el cambio. '
+        : 'La serie NO está corregida por calor (falta WBGT o no varía dentro de los periodos): '
+          + 'compara `wbgt_mean` entre periodos antes de atribuir el cambio a la forma. ')
+      + (res.slope_ok
+        ? 'Si `sensitivity` da la misma conclusión con la pendiente a la mitad y al doble, la conclusión es de los datos. '
+        : 'AVISO: la pendiente estimada no es positiva (más esfuerzo debería costar mas FC): el modelo no se sostiene con estas sesiónes, no leas los periodos. ')
+      + (axis === 'power'
+        ? 'El eje es la potencia de Garmin, que es un MODELO de velocidad + pendiente: mide ritmo corregido por terreno, no economía de carrera.'
+        : 'El eje es el GAP propio (velocidad equivalente en llano): mide ritmo corregido por terreno, no economía de carrera.'),
+  };
+}
+
 const PB_RANGES = [
   { id: '5k', name: '5K', std: 5000, max: 5200, effortNames: ['5k'] },
   { id: '10k', name: '10K', std: 10000, max: 10500, effortNames: ['10k'] },
@@ -2303,7 +2314,11 @@ const csFitOut = (fit, points = []) => {
   const acts = new Set(points.filter((p) => used.has(p.id)).map((p) => p.activity_id).filter(Boolean));
   const nAct = acts.size;
   const dates = [...new Set(points.filter((p) => used.has(p.id)).map((p) => p.date).filter(Boolean))].sort();
-  const concentrated = nAct > 0 && nAct < CS_MIN_ACTIVITIES;
+  // Sin `points` no se sabe de cuántas actividades salen los esfuerzos. Eso NO es
+  // "vienen de muchas": n_activities 0 con concentrated false se leía como ajuste
+  // limpio y tapaba justo la advertencia que este bloque existe para dar.
+  const known = points.length > 0;
+  const concentrated = known && nAct > 0 && nAct < CS_MIN_ACTIVITIES;
   return {
     cs_m_s: round(fit.cs_m_s, 3),
     cs_pace_min_km: round(fit.cs_pace_min_km),
@@ -2313,12 +2328,15 @@ const csFitOut = (fit, points = []) => {
     n: fit.n,
     // Independencia de los puntos: `n` esfuerzos de una sola actividad NO son n
     // observaciones independientes, y r² no lo distingue.
-    n_activities: nAct,
-    span_days: dates.length > 1
+    n_activities: known ? nAct : null,
+    span_days: !known ? null : (dates.length > 1
       ? Math.round((Date.parse(dates[dates.length - 1]) - Date.parse(dates[0])) / 86400000)
-      : 0,
+      : 0),
     concentrated,
-    r2_caveat: concentrated
+    r2_caveat: !known
+      ? `No se puede comprobar la independencia de los ${fit.n} esfuerzos (sin la curva de `
+        + 'origen): trata el r² con reservas hasta verlo en critical_speed.'
+      : concentrated
       ? `r² ${round(fit.r2, 4)} es engañoso: los ${fit.n} esfuerzos salen de solo `
         + `${nAct} actividad(es). Los tramos de una misma sesión se solapan entre sí, así `
         + `que el ajuste es casi perfecto por construcción. Hacen falta esfuerzos de `
@@ -2445,7 +2463,7 @@ export async function getRacePrediction(userId, { months = DEFAULT_WINDOW_MONTHS
     anchor: { ...csPoint(p.anchor), age_days: p.anchorAgeDays },
     models: {
       vdot: p.vdot,
-      cs: csFitOut(p.cs),
+      cs: csFitOut(p.cs, p.curve),
       riegel: { exponent: round(p.riegel.exponent, 3), fitted: p.riegel.fitted, n: p.riegel.n },
     },
     note: 'Media de los tres modelos ajustados sobre los MISMOS datos del atleta (VDOT, '

@@ -4,12 +4,10 @@ import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell,
-  ComposedChart, Scatter,
 } from 'recharts';
 import {
   computeLactateModel,
   trainingPaces,
-  paceFromSpeed,
   formatPace,
 } from '../lib/lactateThreshold';
 import useHrParams from '../hooks/useHrParams';
@@ -86,25 +84,7 @@ export default function LactateThreshold({ activities }) {
   };
 
   // CS chart data: model curve + scatter of best efforts
-  const csChartData = (() => {
-    if (!csValid) return [];
-    const curve = [];
-    // La curva se dibuja solo dentro de la ventana de validez del modelo (2–30
-    // min); fuera de ella ignora la fatiga y trazaría ritmos que nadie sostiene.
-    for (let m = 2; m <= 30; m += 1) {
-      const tt = m * 60;
-      const sp = cs.cs + cs.dPrime / tt;
-      curve.push({ durMin: m, modelPace: paceFromSpeed(sp) });
-    }
-    const pts = cs.efforts.map(e => ({ durMin: Math.round(e.durMin * 10) / 10, effortPace: e.pace }));
-    return [...curve, ...pts].sort((a, b) => a.durMin - b.durMin);
-  })();
 
-  const csYDomain = (() => {
-    if (!csValid) return ['auto', 'auto'];
-    const ps = cs.efforts.map(e => e.pace);
-    return [Math.min(...ps, cs.csPace) - 0.3, Math.max(...ps) + 0.3];
-  })();
 
   const paceYDomain = (() => {
     const list = monthlyData.map(d => d.lt2pace).filter(Boolean);
@@ -134,18 +114,6 @@ export default function LactateThreshold({ activities }) {
     );
   };
 
-  const renderCsTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    const eff = payload.find(p => p.dataKey === 'effortPace' && p.value != null);
-    const mod = payload.find(p => p.dataKey === 'modelPace' && p.value != null);
-    return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs space-y-0.5">
-        <p className="font-bold text-slate-700">{Math.round(label)} min</p>
-        {eff && <p className="text-blue-600 font-semibold">{t('lactate.cs_legend_efforts')}: {formatPace(eff.value)}/km</p>}
-        {mod && <p className="text-sky-500">{t('lactate.cs_legend_model')}: {formatPace(mod.value)}/km</p>}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -212,54 +180,18 @@ export default function LactateThreshold({ activities }) {
         <span className="text-xs text-slate-400">{t('lactate.months_with_data', { n: monthlyData.length })}</span>
       </div>
 
-      {/* ── Critical Speed model ── */}
+      {/* La curva y el ajuste de CS/D′ los pinta Motor › Capacidad, que es su
+          dueño; aquí interesa el NÚMERO, que es de donde salen los ritmos de
+          abajo y el contraste con la FC. Antes esta vista repetía el gráfico
+          entero con los mismos datos. */}
       {csValid && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('lactate.cs_title')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('lactate.cs_subtitle')}</Text>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('lactate.cs_cs_value')}</p>
-              <p className="text-lg font-black text-blue-600 tabular-nums">{formatPace(cs.csPace)}<span className="text-xs text-slate-400">/km</span></p>
-              <p className="text-[10px] text-slate-400">{cs.cs.toFixed(2)} m/s</p>
-            </div>
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('lactate.cs_dprime')}</p>
-              <p className="text-lg font-black text-slate-700 tabular-nums">{Math.round(cs.dPrime)} <span className="text-xs text-slate-400">m</span></p>
-              <p className="text-[10px] text-slate-400">{t('lactate.cs_efforts', { n: cs.nEfforts })}</p>
-            </div>
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('lactate.cs_r2')}</p>
-              <p className="text-lg font-black text-slate-700 tabular-nums">{(cs.r2 * 100).toFixed(1)}%</p>
-              <p className="text-[10px] text-slate-400">{cs.r2 >= 0.97 ? '✓' : '⚠'} {t('lactate.cs_r2')}</p>
-            </div>
-          </div>
-          <Text className="text-slate-400 text-xs mb-2">{t('lactate.cs_yaxis')}</Text>
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={csChartData} margin={{ top: 10, right: 20, left: 10, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="durMin" type="number" domain={[0, 50]}
-                  tickFormatter={v => `${v}m`} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis domain={csYDomain} reversed tickFormatter={v => formatPace(v)}
-                  tick={{ fontSize: 10, fill: '#94a3b8' }} width={42} />
-                <RechartsTooltip content={renderCsTooltip} />
-                <ReferenceLine y={cs.csPace} stroke="#2563eb" strokeDasharray="4 2"
-                  label={{ value: formatPace(cs.csPace), fontSize: 9, fill: '#2563eb', position: 'insideTopRight' }} />
-                <Line type="monotone" dataKey="modelPace" stroke="#93c5fd" strokeWidth={2} dot={false} connectNulls name="modelPace" />
-                <Scatter dataKey="effortPace" fill="#2563eb" name="effortPace" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex items-center gap-5 mt-3 text-[10px] text-slate-500 flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-300" /> {t('lactate.cs_legend_model')}</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-blue-600" /> {t('lactate.cs_legend_efforts')}</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5" style={{ borderTop: '2px dashed #2563eb' }} /> {t('lactate.cs_legend_asymptote')}</span>
-          </div>
-          {(cs.nEfforts < 4 || cs.r2 < 0.97) && (
-            <p className="text-[11px] text-amber-600 mt-2">⚠ {t('lactate.cs_low_conf')}</p>
-          )}
-        </Card>
+        <p className="text-[11px] text-slate-400">
+          {t('lactate.cs_from_capacity', {
+            pace: formatPace(cs.csPace),
+            n: cs.nEfforts,
+            r2: (cs.r2 * 100).toFixed(1),
+          })}
+        </p>
       )}
 
       {/* ── Training paces (decisions) ── */}

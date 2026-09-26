@@ -30,6 +30,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const {
   getActivities, shapeSummary, compareSimilarSessions, getTrainingLoadModel, getCriticalSpeed,
+  getRacePrediction,
 } = await import('./mcp-store.js');
 
 // mcp-store cachea las lecturas 15 s por (userId, key), asi que vaciar el almacen
@@ -402,5 +403,19 @@ describe('critical_speed: r2 alto no es ajuste bueno', () => {
     expect(res.fit.concentrated).toBe(false);
     expect(res.fit.r2_caveat).toBeNull();
     expect(res.fit.span_days).toBeGreaterThan(30);
+  });
+
+  // predict_races llamaba a csFitOut SIN la curva, asi que models.cs salia siempre
+  // con n_activities 0 y span_days 0: la advertencia de r2 no se podia aplicar.
+  it('predict_races publica la procedencia del ajuste de CS', async () => {
+    const reciente = new Date(Date.now() - 20 * 86400000).toISOString();
+    put('stravaData', [conEfforts(1, reciente, [
+      ['1k', 1000, 190], ['1 mile', 1609, 315], ['5k', 5000, 1050],
+    ])]);
+    const res = await getRacePrediction(U, {});
+    expect(res.error).toBeUndefined();
+    expect(res.models.cs.n_activities).toBe(1);
+    expect(res.models.cs.concentrated).toBe(true);
+    expect(res.models.cs.r2_caveat).toMatch(/r²/);
   });
 });

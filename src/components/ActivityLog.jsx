@@ -12,6 +12,7 @@ import CollapsibleSection from './CollapsibleSection';
 import { formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { activityGapSpeed } from '../lib/streamGap';
 import { activityEmoji } from '../lib/aiInsights';
+import GlobalKpiGrid from './GlobalKpiGrid';
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 
@@ -305,6 +306,9 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
 
   return (
     <div className="fade-in space-y-6">
+      {/* Totales acumulados del atleta: el contexto del que cuelga el historial. */}
+      <GlobalKpiGrid activities={activities} />
+
       {/* Mobile year filter */}
       <div className="sm:hidden flex items-center gap-2 px-1">
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('hr_analysis.filters.year')}:</span>

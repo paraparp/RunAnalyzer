@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Card, Title, Text, Badge, Callout, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text, Callout, Select, SelectItem } from '@tremor/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { velocityFromVO2 } from '../lib/physiology';
 import { activityDayKey } from '../lib/trainingLoad';
-import { calculateVDOT, predictRaceTime } from '../lib/vdot';
+import { calculateVDOT } from '../lib/vdot';
 import { RACE_DISTANCES } from '../lib/raceDistances';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 
@@ -218,15 +218,6 @@ export default function VDOTEstimator({ activities }) {
     return getTrainingPaces(bestVDOT.vdot);
   }, [bestVDOT]);
 
-  // Predicted race times using the Daniels-Gilbert formula
-  const predictions = useMemo(() => {
-    if (!bestVDOT) return [];
-    return DISTANCE_RANGES.map(r => {
-      const time = predictRaceTime(bestVDOT.vdot, r.distM);
-      const pace = time / (r.distM / 1000);
-      return { distance: r.name, time, pace, distM: r.distM };
-    });
-  }, [bestVDOT]);
 
 
   if (!activities || activities.length === 0) {
@@ -385,10 +376,11 @@ export default function VDOTEstimator({ activities }) {
         </Card>
       )}
 
-      {/* Training Paces & Predictions */}
+      {/* Ritmos de Daniels. Las predicciones de carrera NO viven aquí: su dueño
+          es Competición › Predicciones, que las hace con `predictRaces` sobre
+          toda la evidencia y no solo sobre el VDOT. */}
       {bestVDOT && trainingPaces && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Training Paces */}
+        <div className="grid grid-cols-1 gap-6">
           <Card className="shadow-lg border-slate-200">
             <Title className="text-slate-800 font-bold mb-1">Ritmos de Entrenamiento</Title>
             <Text className="text-slate-500 text-sm mb-4">Ritmos recomendados según tu VDOT de {bestVDOT.vdot}</Text>
@@ -441,33 +433,6 @@ export default function VDOTEstimator({ activities }) {
             </div>
           </Card>
 
-          {/* Race Predictions */}
-          <Card className="shadow-lg border-slate-200">
-            <Title className="text-slate-800 font-bold mb-1">Predicciones de Carrera</Title>
-            <Text className="text-slate-500 text-sm mb-4">Tiempos equivalentes según VDOT {bestVDOT.vdot}</Text>
-            <div className="space-y-3">
-              {predictions.map(p => {
-                const actual = vdotEstimates.find(e => e.distance === p.distance);
-                return (
-                  <div key={p.distance} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{p.distance}</p>
-                      <p className="text-[10px] text-slate-400 tabular-nums">{formatPaceFromMinPerKm(p.pace / 60)} /km</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-black text-blue-600 tabular-nums">{formatDuration(p.time)}</p>
-                      {actual && (
-                        <p className="text-[10px] text-slate-400">
-                          Actual: {formatDuration(actual.normalizedTime)}
-                          {actual.normalizedTime < p.time && <Badge size="xs" color="emerald" className="ml-1">Mejor</Badge>}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         </div>
       )}
 

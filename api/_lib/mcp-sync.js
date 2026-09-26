@@ -36,6 +36,7 @@ import {
 } from './garmin-helpers.js';
 import { computeFlatEfforts, needsFlatEfforts } from '../../src/lib/flatEfforts.js';
 import { computeStreamGap, needsStreamGap } from '../../src/lib/streamGap.js';
+import { computeHrEffort, needsHrEffort } from '../../src/lib/hrEffortWindow.js';
 
 // ── Política de frescura ────────────────────────────────────────────────────
 const STATE_KEY = 'mcp_sync_state';
@@ -306,8 +307,8 @@ async function refreshStrava(userId, lane = {}, { detailBudget = 3 } = {}) {
 }
 
 /**
- * Backlog de enriquecido (carril caro): rellena `flat_efforts`, `stream_gap` (ambos
- * de la MISMA descarga de streams) y los parciales que falten en el histórico. Cada actividad son 1-2 requests a Strava, así que va con
+ * Backlog de enriquecido (carril caro): rellena `flat_efforts`, `stream_gap` y
+ * `hr_effort` (los tres de la MISMA descarga de streams) y los parciales que falten en el histórico. Cada actividad son 1-2 requests a Strava, así que va con
  * presupuesto y throttle. Guarda `{}` cuando no hay tramos llanos para no volver a
  * pedir esa actividad nunca más.
  */
@@ -325,10 +326,12 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
   const recentFirst = (a, b) => String(b.start_date).localeCompare(String(a.start_date));
   const needSplits = stored.filter((a) => isRun(a) && a.distance > 0 && !a.splits_metric)
     .sort(recentFirst).slice(0, splitsBudget);
-  // Una sola descarga de streams alimenta los dos cálculos (tramos llanos y GAP
-  // muestra a muestra), así que basta con que falte uno para pedirlos.
+  // Una sola descarga de streams alimenta los tres cálculos (tramos llanos, GAP
+  // muestra a muestra y perfil FC-esfuerzo), así que basta con que falte uno para
+  // pedirlos.
   const needFlat = stored
-    .filter((a) => isRun(a) && a.distance >= 1000 && (needsFlatEfforts(a) || needsStreamGap(a)))
+    .filter((a) => isRun(a) && a.distance >= 1000
+      && (needsFlatEfforts(a) || needsStreamGap(a) || needsHrEffort(a)))
     .sort(recentFirst).slice(0, flatBudget);
 
   let splits = 0, flat = 0;
@@ -342,7 +345,7 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
   for (const act of needFlat) {
     try {
       const streams = await stravaGet(
-        `/activities/${act.id}/streams?keys=time,distance,altitude,grade_smooth&key_by_type=true`,
+        `/activities/${act.id}/streams?keys=time,distance,altitude,grade_smooth,heartrate,watts&key_by_type=true`,
         accessToken,
       );
       const prev = byId.get(act.id);
@@ -350,6 +353,7 @@ async function backfillStrava(userId, { token, splitsBudget = 15, flatBudget = 1
         ...prev,
         flat_efforts: computeFlatEfforts(streams),
         stream_gap: computeStreamGap(streams),
+        hr_effort: computeHrEffort(streams),
       });
       flat++;
     } catch (e) { console.warn(`[mcp-sync] flat_efforts ${act.id}:`, e.message); }
