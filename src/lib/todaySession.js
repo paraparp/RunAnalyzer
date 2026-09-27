@@ -19,11 +19,15 @@
 // ============================================================================
 
 import { isRestDay, nextDateForDay, toISODate } from './planSchedule.js';
+import { parseWorkout } from './aiInsights.js';
 
 /** Clave de cloudStorage del último plan del Entrenador IA. */
 export const AI_PLAN_KEY = 'ai_training_plan';
 /** Clave de cloudStorage del calendario de Garmin (se refresca una vez al día). */
 export const GARMIN_PLANNED_KEY = 'garmin_planned_cache';
+
+/** La sesión del coach vale para las próximas 48 h desde que se generó. */
+const COACH_TTL_MS = 48 * 3600 * 1000;
 
 /** Intensidad (1-5) a partir de la cual un bloque es "duro" (umbral o más). */
 const HARD_INTENSITY = 4;
@@ -117,4 +121,30 @@ export function resolveTodaySession({ garminPlanned = [], savedPlan = null, toda
   }
 
   return { source: 'auto', planExpired: expired };
+}
+
+/**
+ * La sesión recomendada por el Coach IA (su bloque "Plan · próximas 48 h"),
+ * o null si no hay análisis o tiene más de 48 h. `cache` es el estado de
+ * useAIInsights: `{ nextWork, meta, timestamp }`.
+ */
+export function coachSessionFrom(cache, nowMs) {
+  const ts = Number(cache?.timestamp);
+  if (!ts || nowMs - ts > COACH_TTL_MS || nowMs < ts) return null;
+  const w = parseWorkout(cache.nextWork, cache.meta);
+  if (!w) return null;
+  const zone = Number(w.hrZone?.match(/Zona\s*(\d)/i)?.[1]) || null;
+  const hr = w.hrZone?.match(/(\d+\s*-\s*\d+)\s*ppm/i)?.[1]?.replace(/\s+/g, '') ?? null;
+  const { blocks, totalMin, maxIntensity } = workoutBlocks(cache.meta?.sesion?.structured_workout);
+  return {
+    type: w.type,
+    distance: w.distance,
+    pace: w.pace?.replace(/\s*min\/km/i, '') ?? null,
+    hr,
+    zone,
+    blocks,
+    totalMin,
+    hard: maxIntensity >= HARD_INTENSITY || (zone ?? 0) >= HARD_INTENSITY,
+    generatedAt: ts,
+  };
 }

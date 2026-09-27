@@ -7,6 +7,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   GlobeAltIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import ModelSelector from './ModelSelector';
 import VersionBadge from './VersionBadge';
@@ -43,12 +44,16 @@ function checkGarminConnected() {
  * @param {object} props.user - Objeto con datos del usuario (name, email, picture).
  * @param {function} props.handleLogout - Callback para cerrar sesión.
  * @param {function} [props.changeLanguage] - Callback para alternar idioma.
+ * @param {function} [props.onFullSync] - Lanza la sincronización completa (histórico entero).
+ * @param {boolean} [props.isSyncing] - Hay un sync en curso (deshabilita el botón).
  * @param {string} [props.placement] - 'topbar' (despliega hacia abajo a la derecha) o 'sidebar' (despliega hacia arriba).
  */
 export default function UserMenu({
   user,
   handleLogout,
   changeLanguage,
+  onFullSync,
+  isSyncing = false,
   placement = 'topbar',
   className = '',
 }) {
@@ -275,6 +280,37 @@ export default function UserMenu({
                 <ModelSelector mode="menu" onSelect={() => {}} />
               </div>
             </div>
+
+            {/* Sincronización completa: el sync de entrada y el de la barra solo traen
+                lo nuevo, así que lo que cambie hacia atrás (actividades borradas,
+                subidas tardías) solo se recoge desde aquí. */}
+            {onFullSync && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={onFullSync}
+                  disabled={isSyncing}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                    isSyncing
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                      : 'bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/40'
+                  }`}
+                >
+                  <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isSyncing
+                      ? t('user_menu.full_syncing', 'Sincronizando todo...')
+                      : t('user_menu.full_sync', 'Sincronización completa')}
+                  </span>
+                </button>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  {t(
+                    'user_menu.full_sync_desc',
+                    'Vuelve a bajar todo el histórico de Strava y Garmin. Tarda más; el sync automático solo trae lo nuevo.'
+                  )}
+                </p>
+              </div>
+            )}
 
             {/* Idioma y Versión */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">

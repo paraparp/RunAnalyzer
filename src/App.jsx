@@ -40,7 +40,6 @@ const GeoZones = lazy(() => import('./components/GeoZones'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
 // TEMPORAL: comparativa de la portada (H6). Se borra al decidir.
-const HomeAlternatives = lazy(() => import('./components/HomeAlternatives'));
 // La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
 const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
 const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
@@ -268,7 +267,10 @@ const Dashboard = ({ user, handleLogout }) => {
           const idx = prev.activities.findIndex(x => x.id === act.id);
           if (idx === -1) return prev;
           const updated = [...prev.activities];
-          updated[idx] = slimActivity(detail, prev.activities[idx]);
+          // Encima de lo guardado, no en su lugar: sustituir borraba los tramos
+          // llanos, el GAP y hr_effort que el otro enriquecido acababa de escribir
+          // (corren a la vez), y el siguiente sync volvía a bajar sus streams.
+          updated[idx] = { ...prev.activities[idx], ...slimActivity(detail, prev.activities[idx]) };
           const nd = { ...prev, activities: updated };
           persistStravaData(nd);
           return nd;
@@ -325,21 +327,21 @@ const Dashboard = ({ user, handleLogout }) => {
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Todo el sync vive en `lib/syncAll`: Strava, la salud y el sueño de Garmin y
-  // las actividades con dinámica, en ese orden y con un solo aviso al final. Aquí
-  // solo queda lo que es de la UI: el espejo en el estado de React, el spinner y
-  // el enriquecido en segundo plano (que necesita los streams y setStravaData).
+  // las actividades con dinámica, con un solo aviso al final. Aquí solo queda lo
+  // que es de la UI: el espejo en el estado de React, el spinner y el enriquecido
+  // en segundo plano (que necesita los streams y setStravaData).
   //
-  // `force` es la ÚNICA diferencia entre entrar a la app y pulsar el botón: al
-  // entrar no se vuelve a bajar el listado de Strava si ya se bajó hoy (el
-  // rate-limit no aguanta un refresco por navegación); el botón sí, porque el
-  // usuario lo está pidiendo. Los carriles son independientes: sin Strava
+  // Tres llamadas: al entrar (solo lo nuevo, y nada si se miró hace un rato), el
+  // botón de la barra (`force`: solo lo nuevo, siempre) y el panel de usuario
+  // (`full`: el histórico entero). Los carriles son independientes: sin Strava
   // conectado, Garmin se sincroniza igual.
-  const runSync = async (force = false) => {
+  const runSync = async ({ force = false, full = false } = {}) => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
       await syncAll({
         force,
+        full,
         onStravaData: setStravaData,
         onStravaDisconnected: () => setStravaData(null),
         onActivities: (activities, accessToken) => {
@@ -368,7 +370,7 @@ const Dashboard = ({ user, handleLogout }) => {
     }
     // Fuera del `if`: antes este sync entero colgaba de que hubiera `stravaData`
     // guardado, así que quien solo tenía Garmin conectado no sincronizaba nada.
-    runSync(false);
+    runSync();
     // Deliberadamente SOLO al montar: es el refresco de entrada a la app. Meter
     // `runSync` en las dependencias lo relanzaría cada vez que cambia su
     // identidad, es decir, en cada render — que es justo lo contrario de lo que
@@ -493,6 +495,8 @@ const Dashboard = ({ user, handleLogout }) => {
             user={user}
             handleLogout={handleLogout}
             changeLanguage={changeLanguage}
+            onFullSync={() => runSync({ full: true })}
+            isSyncing={isSyncing}
             placement="sidebar"
           />
         </div>
@@ -586,7 +590,7 @@ const Dashboard = ({ user, handleLogout }) => {
                   {i18n.language.startsWith('en') ? 'EN' : 'ES'}
                 </button>
                 <button
-                  onClick={() => runSync(true)}
+                  onClick={() => runSync({ force: true })}
                   disabled={isSyncing}
                   className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
                     }`}
@@ -598,6 +602,8 @@ const Dashboard = ({ user, handleLogout }) => {
                   user={user}
                   handleLogout={handleLogout}
                   changeLanguage={changeLanguage}
+                  onFullSync={() => runSync({ full: true })}
+                  isSyncing={isSyncing}
                   placement="topbar"
                 />
               </div>
@@ -616,19 +622,9 @@ const Dashboard = ({ user, handleLogout }) => {
                 hrParams={hrParams}
                 onNavigate={(v) => navigate(v === 'dashboard' ? '/' : `/${v}`)}
                 onOpenChat={() => openChat({ withSeed: true })}
-                onSync={() => runSync(true)}
+                onSync={() => runSync({ force: true })}
                 isSyncing={isSyncing}
               />
-            )}
-            {currentView === 'dashboard' && (
-              <Suspense fallback={null}>
-                <HomeAlternatives
-                  activities={allActivities}
-                  runningActivities={runningActivities}
-                  hrParams={hrParams}
-                  onNavigate={(v) => navigate(`/${v}`)}
-                />
-              </Suspense>
             )}
 
             {SCOPED_VIEWS.has(currentView) && (

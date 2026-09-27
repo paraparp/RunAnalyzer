@@ -58,7 +58,7 @@ describe('carriles independientes', () => {
     expect(out.strava.status).toBe('disconnected');
     expect(out.garmin.status).toBe('synced');
     expect(globalThis.fetch).toHaveBeenCalledOnce();
-    expect(garmin.syncGarminActivities).toHaveBeenCalledWith('u', 'p');
+    expect(garmin.syncGarminActivities).toHaveBeenCalledWith('u', 'p', { limit: 30, enrichDetail: 10 });
     expect(JSON.parse(store.get('garmin_cardiac_data'))).toEqual([{ date: '2026-09-12', rhr: 44 }]);
   });
 
@@ -90,17 +90,10 @@ describe('carriles independientes', () => {
   });
 });
 
-describe('frescura de Strava', () => {
-  it('al entrar no vuelve a bajar el listado si ya se bajó hoy', async () => {
+describe('entrada a la app', () => {
+  it('mira siempre, aunque ya se bajara hoy', async () => {
     putStrava({ lastFetchDate: TODAY });
     const out = await syncAll();
-    expect(out.strava.status).toBe('fresh');
-    expect(strava.getActivities).not.toHaveBeenCalled();
-  });
-
-  it('el botón (force) lo baja igual', async () => {
-    putStrava({ lastFetchDate: TODAY });
-    const out = await syncAll({ force: true });
     expect(out.strava.status).toBe('synced');
     expect(strava.getActivities).toHaveBeenCalledOnce();
   });
@@ -111,6 +104,63 @@ describe('frescura de Strava', () => {
     await syncAll();
     expect(readStrava().activities[0].splits_metric).toEqual([{ km: 1 }]);
     expect(readStrava().lastFetchDate).toBe(TODAY);
+  });
+});
+
+describe('incremental vs completo', () => {
+  const OLD = [
+    { id: 2, name: 'series', start_date: '2026-09-20T07:00:00Z', splits_metric: [{ km: 1 }], hr_effort: { _v: 1 } },
+    { id: 1, name: 'rodaje', start_date: '2026-09-10T07:00:00Z' },
+  ];
+
+  it('el rápido pide solo lo posterior a la última guardada (con una semana de solape)', async () => {
+    putStrava({ activities: OLD });
+    await syncAll();
+    const after = Date.parse('2026-09-20T07:00:00Z') / 1000 - 7 * 86400;
+    expect(strava.getActivities).toHaveBeenCalledWith('tok', 1000, { after });
+  });
+
+  it('el rápido AÑADE lo nuevo sin tirar lo que no vino, y ordenado', async () => {
+    putStrava({ activities: OLD });
+    strava.getActivities.mockResolvedValue([{ id: 3, name: 'larga', start_date: '2026-09-26T07:00:00Z' }]);
+    const out = await syncAll();
+    expect(out.strava.changed).toBe(1);
+    expect(readStrava().activities.map((a) => a.id)).toEqual([3, 2, 1]);
+    expect(readStrava().activities[1].splits_metric).toEqual([{ km: 1 }]);
+  });
+
+  it('una edición en el solape actualiza el summary y conserva el enriquecido', async () => {
+    putStrava({ activities: OLD });
+    strava.getActivities.mockResolvedValue([{ id: 2, name: 'series 6x1000', start_date: '2026-09-20T07:00:00Z' }]);
+    await syncAll();
+    const act = readStrava().activities.find((a) => a.id === 2);
+    expect(act.name).toBe('series 6x1000');
+    expect(act.splits_metric).toEqual([{ km: 1 }]);
+    expect(act.hr_effort).toEqual({ _v: 1 });
+  });
+
+  it('sin novedades y ya marcado hoy no reescribe el blob ni repinta', async () => {
+    putStrava({ activities: OLD, lastFetchDate: TODAY });
+    const before = store.get('stravaData');
+    strava.getActivities.mockResolvedValue([{ id: 2, name: 'series', start_date: '2026-09-20T07:00:00Z' }]);
+    const onStravaData = vi.fn();
+    const out = await syncAll({ onStravaData });
+    expect(out.strava.changed).toBe(0);
+    expect(onStravaData).not.toHaveBeenCalled();
+    expect(store.get('stravaData')).toBe(before);
+  });
+
+  it('el completo baja el listado entero y SUSTITUYE (recoge las borradas)', async () => {
+    putStrava({ activities: OLD, lastFetchDate: TODAY });
+    putCreds();
+    strava.getActivities.mockResolvedValue([{ id: 2, name: 'series', start_date: '2026-09-20T07:00:00Z' }]);
+    const out = await syncAll({ full: true });
+    expect(strava.getActivities).toHaveBeenCalledWith('tok', 1000);
+    expect(readStrava().activities.map((a) => a.id)).toEqual([2]);
+    expect(readStrava().activities[0].hr_effort).toEqual({ _v: 1 });
+    expect(garmin.syncGarminActivities).toHaveBeenCalledWith('u', 'p', { limit: 300, enrichDetail: 40 });
+    expect(JSON.parse(globalThis.fetch.mock.calls[0][1].body).days).toBeGreaterThanOrEqual(30);
+    expect(out.garmin.status).toBe('synced');
   });
 });
 
@@ -148,13 +198,21 @@ describe('token caducado', () => {
 });
 
 describe('avisos a la UI', () => {
-  it('engancha el enriquecido solo cuando hay listado nuevo', async () => {
-    putStrava({ lastFetchDate: TODAY });
+  it('al entrar engancha el enriquecido solo si hay actividades nuevas; el botón siempre', async () => {
+    const act = { id: 1, name: 'rodaje', start_date: '2026-09-20T07:00:00Z' };
+    putStrava({ lastFetchDate: TODAY, activities: [act] });
+    strava.getActivities.mockResolvedValue([act]);
     const onActivities = vi.fn();
     await syncAll({ onActivities });
     expect(onActivities).not.toHaveBeenCalled();
     await syncAll({ force: true, onActivities });
-    expect(onActivities).toHaveBeenCalledWith([{ id: 1, name: 'rodaje' }], 'tok');
+    expect(onActivities).toHaveBeenCalledWith([act], 'tok');
+
+    onActivities.mockClear();
+    const nueva = { id: 2, name: 'series', start_date: '2026-09-26T07:00:00Z' };
+    strava.getActivities.mockResolvedValue([nueva]);
+    await syncAll({ onActivities });
+    expect(onActivities).toHaveBeenCalledWith([nueva, act], 'tok');
   });
 
   it('avisa UNA vez al final, con los dos carriles ya escritos', async () => {

@@ -2,21 +2,24 @@ import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import cloudStorage from '../lib/cloudStorage';
 import {
-  TrophyIcon,
   ArrowTrendingUpIcon,
   ArrowRightIcon,
   ChevronRightIcon,
   ArrowPathIcon,
   BoltIcon,
   CalendarDaysIcon,
-  HeartIcon,
+  ChartBarIcon,
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { OVERRIDES_EVENT } from '../lib/hrOverrides';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useGarminWearableData from '../hooks/useGarminWearableData';
-import { computeStats, computeGarminStats, loadPhase, formZone, isRun, paceStr, fmt1 } from '../lib/statusStats';
+import { computeStats, computeGarminStats, loadPhase, formZone, isRun, fmt1 } from '../lib/statusStats';
 import useTodaySession from '../hooks/useTodaySession';
+import { coachSessionFrom } from '../lib/todaySession';
+import useAIInsights from '../hooks/useAIInsights';
+import { CoachBadge, CoachBanners, CoachDisclosure, CoachMD, CoachSettings, CoachText } from './CoachAI';
+import { CUR_BADGES, TREND_BADGES, deriveStatusKey, deriveTrendKey, formatTs } from '../lib/aiInsights';
 import TodayPlannedSession from './TodayPlannedSession';
 import { computeReadiness } from '../lib/athleteContext';
 import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
@@ -27,13 +30,12 @@ import { shoeLifeKm } from '../lib/shoeLife';
 import { weeklyVolumeRamp } from '../lib/weeklyVolume';
 import { weekStartKey } from '../lib/isoWeek';
 import { formatPaceFromSpeed, formatPaceFromSecPerKm, formatMinutesHm } from '../lib/timeFormat';
-import AIInsights from './AIInsights';
-import PersonalBests from './PersonalBests';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hoy. La portada contesta "¿cómo voy y qué hago?": carrera objetivo, KPIs
-// globales, estado fisiológico, la prescripción del día, el reparto por zonas y
-// las marcas.
+// Hoy. La portada contesta "¿cómo voy y qué hago?", de lo inmediato a lo
+// acumulado: carrera objetivo, 01 hoy (readiness + sesión del día), 02 carga y
+// volumen, 03 intensidad y tendencia, 04 últimas sesiones. Cada cifra sale UNA
+// vez: el TSB y el ACWR viven en la tarjeta de Forma y en ningún otro sitio.
 //
 // TODO lo que se pinta aquí sale de los mismos módulos de cálculo que usan el
 // resto de vistas y el coach IA (`statusStats`, `athleteContext`, `zoneMix`,
@@ -44,11 +46,7 @@ import PersonalBests from './PersonalBests';
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 const DASH = '—';
-const COUNTDOWN_ARC_DAYS = 120;       // el arco de la cuenta atrás se llena a 120 días
-const ARC_LEN_HERO = 263.89;          // 2πr con r=42
 const ARC_LEN_READY = 314.15;         // 2πr con r=50
-
-const fmtNum = (v, d = 1) => (v == null || !Number.isFinite(v) ? DASH : Number(v).toFixed(d));
 
 // Zonas de Karvonen con los colores de la vista de Zonas: el mismo reparto no
 // puede cambiar de pinta según dónde se mire.
@@ -58,13 +56,6 @@ const ZONES = [
   { name: 'Z3', role: 'Aeróbico',     color: '#4ade80' },
   { name: 'Z4', role: 'Umbral',       color: '#fb923c' },
   { name: 'Z5', role: 'VO2max',       color: '#f87171' },
-];
-
-// Lectura polarizada: Z1+Z2 fácil · Z3 gris · Z4+Z5 duro (lib/zoneMix).
-const GROUPS = [
-  { key: 'low',  label: 'Fácil', sub: 'Z1–Z2', color: '#4ade80', text: 'text-emerald-600 dark:text-emerald-400' },
-  { key: 'mod',  label: 'Gris',  sub: 'Z3',    color: '#fbbf24', text: 'text-amber-600 dark:text-amber-400'     },
-  { key: 'high', label: 'Duro',  sub: 'Z4–Z5', color: '#f87171', text: 'text-rose-600 dark:text-rose-400'       },
 ];
 
 const VERDICT = {
@@ -97,64 +88,222 @@ const sparkPath = (values, { w = 100, h = 24, pad = 3 } = {}) => {
     .join(' ');
 };
 
-// ── Átomos del briefing (el diseño de la portada, el contenido de StatusHero) ──
+// Color de un bloque del coach según su intensidad (1-5).
+const intensityClass = (z) => (z >= 4 ? 'bg-rose-500 text-white'
+  : z === 3 ? 'bg-amber-400 text-amber-950'
+    : z === 2 ? 'bg-blue-600 text-white'
+      : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200');
 
-const COLOR_CLS = {
-  emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: '#10b981' },
-  blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: '#3b82f6' },
-  amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: '#f59e0b' },
-  rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: '#f43f5e' },
+// ── Átomos de la portada ─────────────────────────────────────────────────────
+
+const TONE = {
+  emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: '#10b981', text: 'text-emerald-600 dark:text-emerald-400', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+  blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: '#2563eb', text: 'text-blue-600 dark:text-blue-400',       pill: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
+  amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: '#f59e0b', text: 'text-amber-600 dark:text-amber-400',     pill: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
+  rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: '#f43f5e', text: 'text-rose-600 dark:text-rose-400',       pill: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
+  slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           stroke: '#94a3b8', text: 'text-slate-400',                         pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
 };
 
-function HeroCard({ label, value, unit, icon: Icon, color = 'blue', trendDelta, spark, subRows = [] }) {
-  const c = COLOR_CLS[color] ?? COLOR_CLS.blue;
-  const path = spark ? sparkPath(spark) : null;
+const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+const TYPE_CLS = {
+  INT: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+  LSD: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+  REC: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300',
+  RUN: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300',
+};
+
+// Cabecera de sección: número, título, contexto y, si la hay, la vista que la amplía.
+function SectionTitle({ n, title, sub, action, onMore }) {
   return (
-    <div className="flex flex-col p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between gap-1">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</span>
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${c.icon}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-baseline gap-1">
-        <span className="text-2xl font-black text-slate-900 dark:text-slate-50 tabular-nums">{value}</span>
-        {unit && <span className="text-xs text-slate-400 font-semibold">{unit}</span>}
-        {trendDelta != null && Number.isFinite(trendDelta) && (
-          <span className={`ml-auto text-[10px] font-bold ${trendDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-            {trendDelta >= 0 ? '+' : ''}{trendDelta.toFixed(1)} 7d
-          </span>
-        )}
-      </div>
-
-      {path && (
-        <svg className="w-full h-6 mt-1" preserveAspectRatio="none" viewBox="0 0 100 24">
-          <path d={path} fill="none" stroke={c.stroke} strokeLinecap="round" strokeWidth="2" />
-        </svg>
+    <div className="flex items-center gap-2.5 px-0.5">
+      <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 tabular-nums">{n}</span>
+      <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">{title}</h2>
+      {sub && <span className="hidden sm:inline text-[11px] text-slate-400 truncate">{sub}</span>}
+      <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
+      {action}
+      {onMore && (
+        <button
+          type="button"
+          onClick={onMore}
+          className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+        >
+          Ver más <ChevronRightIcon className="w-3.5 h-3.5" />
+        </button>
       )}
-
-      <dl className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-        {subRows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between gap-2">
-            <dt className="text-[10px] text-slate-400 truncate">{r.label}</dt>
-            <dd className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tabular-nums shrink-0">{r.value}</dd>
-          </div>
-        ))}
-      </dl>
     </div>
   );
 }
 
-// % respecto al pico histórico. `lowerIsBetter` para ritmos y eficiencia, donde
-// el número pequeño es el bueno.
-function PctPill({ now, best, lowerIsBetter = false }) {
-  if (!best || !now) return <span className="text-slate-300 dark:text-slate-600 text-xs">{DASH}</span>;
-  const pct = Math.min(lowerIsBetter ? (best / now) * 100 : (now / best) * 100, 100);
-  const cls = pct >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-    : pct >= 50 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-    : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300';
-  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{Math.round(pct)}%</span>;
+function Tile({ label, icon: Icon, tone = 'blue', children }) {
+  return (
+    <div className="flex flex-col gap-2 p-4 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${(TONE[tone] ?? TONE.blue).icon}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Rows({ rows }) {
+  return (
+    <dl className="mt-auto pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center justify-between gap-2">
+          <dt className="text-[10px] text-slate-400 truncate">{r.label}</dt>
+          <dd className={`text-[11px] font-bold tabular-nums shrink-0 ${r.cls ?? 'text-slate-600 dark:text-slate-300'}`}>{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function Delta({ v, suffix = '' }) {
+  if (v == null || !Number.isFinite(v)) return null;
+  return (
+    <span className={`ml-auto text-[10px] font-bold tabular-nums ${v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+      {v >= 0 ? '+' : ''}{v.toFixed(1)}{suffix}
+    </span>
+  );
+}
+
+function Spark({ data, stroke }) {
+  const path = sparkPath((data || []).map(d => d.v));
+  if (!path) return null;
+  return (
+    <svg className="w-full h-8" preserveAspectRatio="none" viewBox="0 0 100 24">
+      <path d={path} fill="none" stroke={stroke} strokeLinecap="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+// Frescura (TSB) en escala divergente: lo que se lee es el signo y la distancia
+// al cero, no el número suelto. La escala se abre si el TSB se sale de ±30, para
+// que el punto nunca se quede clavado en el extremo.
+function TsbGauge({ tsb }) {
+  if (tsb == null || !Number.isFinite(tsb)) return null;
+  const span = Math.max(30, Math.ceil(Math.abs(tsb) / 10) * 10);
+  const left = 50 + (Math.max(-span, Math.min(span, tsb)) / span) * 50;
+  return (
+    <div className="py-1">
+      <div className="relative h-4">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full overflow-hidden flex">
+          <div className="w-[33%] bg-rose-100 dark:bg-rose-950/60" title="Fatiga alta" />
+          <div className="w-[17%] bg-orange-100 dark:bg-orange-950/60" title="Bloque de carga" />
+          <div className="w-[25%] bg-emerald-100 dark:bg-emerald-950/60" title="Rango productivo" />
+          <div className="w-[25%] bg-sky-100 dark:bg-sky-950/60" title="Fresco / afinado" />
+        </div>
+        <div className="absolute top-0 bottom-0 w-px bg-slate-300 dark:bg-slate-600" style={{ left: '50%' }} />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white ring-2 ring-slate-700 dark:ring-slate-300 shadow"
+          style={{ left: `${left}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-[9px] text-slate-400 mt-1">
+        <span>fatiga</span><span>equilibrio</span><span>fresco</span>
+      </div>
+    </div>
+  );
+}
+
+// Una señal del readiness: valor, lectura contra su referencia y su tendencia.
+function Signal({ label, value, unit, note, tone = 'slate', spark, bar }) {
+  const c = TONE[tone] ?? TONE.slate;
+  return (
+    <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col gap-1 min-w-0">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+        <span className="w-2 h-2 rounded-full" style={{ background: c.stroke }} />
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums leading-none">{value}</span>
+        <span className="text-[10px] text-slate-400 font-semibold">{unit}</span>
+      </div>
+      <span className={`text-[10px] font-bold truncate ${c.text}`}>{note}</span>
+      {spark ? (
+        <svg className="w-full h-4" preserveAspectRatio="none" viewBox="0 0 100 24">
+          <path d={spark} fill="none" stroke={c.stroke} strokeLinecap="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        </svg>
+      ) : bar != null ? (
+        <div className="h-1.5 my-[5px] rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${bar}%`, background: c.stroke }} />
+        </div>
+      ) : <div className="h-4" />}
+    </div>
+  );
+}
+
+// Reparto por zonas de una ventana de `days` días hasta `nowMs`, con su lectura
+// polarizada y el veredicto 80/20.
+function zoneWindow(runs, bounds, days, nowMs) {
+  if (!bounds) return { hasData: false, bounds: null, pct: [], groups: null, verdictKey: null };
+  const mix = zoneMix(runs, bounds, { days, now: nowMs });
+  if (!mix.hasData) return { hasData: false, bounds, pct: [], groups: null, verdictKey: null };
+  const groups = polarizedGroups(mix.pct);
+  return {
+    hasData: true,
+    bounds,
+    pct: mix.pct.map(p => Math.round(p)),
+    times: mix.times,
+    totalSec: mix.totalSec,
+    groups,
+    verdictKey: polarizationStatus(groups.low, groups.mod, groups.high),
+    avgOnlySessions: mix.avgOnlySessions,
+    sessions: mix.sessions,
+  };
+}
+
+// Reparto de una ventana en una sola barra: las cinco zonas, la marca del
+// objetivo de volumen fácil y el veredicto 80/20.
+function ZoneBar({ label, mix }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{label}</span>
+        {mix.hasData ? (
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] text-slate-400 tabular-nums truncate">
+              <span className="font-black text-emerald-600 dark:text-emerald-400">{Math.round(mix.groups.low)}%</span> fácil · {hoursStr(mix.totalSec)}
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${VERDICT[mix.verdictKey].cls}`}>
+              {VERDICT[mix.verdictKey].label}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-slate-400">Sin sesiones con FC</span>
+        )}
+      </div>
+      <div className="relative">
+        <div className="h-4 w-full rounded-lg overflow-hidden flex bg-slate-100 dark:bg-slate-800">
+          {mix.hasData && ZONES.map((z, i) => (
+            <div
+              key={z.name}
+              className="h-full transition-all duration-300"
+              style={{ width: `${mix.pct[i]}%`, background: z.color }}
+              title={`${z.name} ${z.role} · ${mix.pct[i]}% · ${hoursStr(mix.times[i])}`}
+            />
+          ))}
+        </div>
+        <div
+          className="absolute -top-0.5 -bottom-0.5 w-0.5 rounded bg-slate-800/70 dark:bg-slate-200/70"
+          style={{ left: `${POLARIZED_TARGETS.low}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, cls, className = '' }) {
+  return (
+    <div className={className}>
+      <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+      <span className={`block text-xs font-bold tabular-nums ${cls ?? 'text-slate-800 dark:text-slate-200'}`}>{value}</span>
+    </div>
+  );
 }
 
 // "Ampliar en el chat": el mismo gesto que ofrece cada bloque de AIInsights, con
@@ -171,16 +320,6 @@ function AskChatBtn({ onAsk, focus }) {
       <ChatBubbleLeftRightIcon className="w-3 h-3" />
       <span>Ampliar</span>
     </button>
-  );
-}
-
-function RowSparkline({ data, color = '#3b82f6' }) {
-  const path = sparkPath((data || []).map(d => d.v));
-  if (!path) return <span className="text-slate-300 dark:text-slate-600 text-xs">{DASH}</span>;
-  return (
-    <svg className="w-16 h-5" preserveAspectRatio="none" viewBox="0 0 100 24">
-      <path d={path} fill="none" stroke={color} strokeLinecap="round" strokeWidth="2.5" />
-    </svg>
   );
 }
 
@@ -219,6 +358,19 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   const [recalcBusy, setRecalcBusy] = useState(false);
   const busy = recalcBusy || isSyncing;
 
+  // Coach IA: un único análisis para toda la portada (diagnóstico, sesión,
+  // tendencia y ejecución). AIInsights, más abajo, recibe este mismo estado.
+  const ai = useAIInsights(activities);
+  // "Recalcular" también pide un análisis nuevo, pero DESPUÉS de sincronizar:
+  // `ai.run` cambia con los datos nuevos, y es esa versión la que hay que forzar.
+  const [aiForcePending, setAiForcePending] = useState(false);
+  const aiRun = ai.run;
+  useEffect(() => {
+    if (!aiForcePending || recalcBusy) return;
+    setAiForcePending(false);
+    aiRun(true);
+  }, [aiForcePending, recalcBusy, aiRun]);
+
   const recalculate = async () => {
     if (busy) return;
     setRecalcBusy(true);
@@ -229,6 +381,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       window.dispatchEvent(new Event(OVERRIDES_EVENT));
       setNowMs(Date.now());
       setRecalcAt(Date.now());
+      setAiForcePending(true);
       setRecalcBusy(false);
     }
   };
@@ -250,11 +403,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   const currentACWR = pmc?.current?.acwr != null ? +pmc.current.acwr.toFixed(2) : null;
   const phase = currentTSB != null ? loadPhase(currentTSB) : null;
 
-  // Escala COMPARTIDA por fitness y fatiga: el propio techo del atleta. Si la
-  // fatiga de hoy lo supera, la escala crece con ella para que la barra no
-  // mienta saturándose al 100 %.
   const pmcCurrent = pmc?.current ?? null;
-  const loadScale = pmcCurrent ? Math.max(pmcCurrent.peak, pmcCurrent.ctl, pmcCurrent.atl, 1) : 1;
 
   const acwrCls = currentACWR == null ? 'text-slate-400'
     : currentACWR > 1.5 ? 'text-rose-600 dark:text-rose-400'
@@ -315,24 +464,13 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     [hrParams?.hrmax, hrParams?.hrrest],
   );
 
-  // ── 7. Reparto por zonas de los últimos 28 días ───────────────────────────
-  const zoneDistribution = useMemo(() => {
-    if (!bounds) return { hasData: false, bounds: null, pct: [], groups: null, verdictKey: null };
-    const mix = zoneMix(runs, bounds, { days: 28, now: nowMs });
-    if (!mix.hasData) return { hasData: false, bounds, pct: [], groups: null, verdictKey: null };
-    const groups = polarizedGroups(mix.pct);
-    const verdictKey = polarizationStatus(groups.low, groups.mod, groups.high);
-    return {
-      hasData: true,
-      bounds,
-      pct: mix.pct.map(p => Math.round(p)),
-      times: mix.times,
-      totalSec: mix.totalSec,
-      groups,
-      verdictKey,
-      avgOnlySessions: mix.avgOnlySessions,
-      sessions: mix.sessions,
-    };
+  // ── 7. Reparto por zonas: últimos 28 días y semana en curso ──────────────
+  const zoneDistribution = useMemo(() => zoneWindow(runs, bounds, 28, nowMs), [runs, bounds, nowMs]);
+  // La semana va del lunes a las 00:00 hasta ahora: ventana fraccionaria en días.
+  const zoneWeek = useMemo(() => {
+    const now = new Date(nowMs);
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    return zoneWindow(runs, bounds, (nowMs - monday.getTime()) / 86400000, nowMs);
   }, [runs, bounds, nowMs]);
 
   // ── 8. Rampa semanal real (dos semanas cerradas) ──────────────────────────
@@ -461,7 +599,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     return {
       day,
       recovery,
-      cycleLabel: phase ? `Fase: ${phase.label}` : 'Fase sin determinar',
+      cycleLabel: phase ? `Forma: ${phase.label}` : 'Forma sin determinar',
       zonesLabel: recovery ? 'ZONA 1' : 'ZONAS 1 & 2',
       targetDistance: distRange,
       targetPace: paceRange,
@@ -484,6 +622,73 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
 
   // ── 10b. Qué toca hoy de verdad: Garmin > plan del Entrenador IA > automática ──
   const todaySession = useTodaySession({ advisesRest: todayWorkout.recovery, nowMs });
+
+  // ── 10c. Sin plan para hoy: la sesión del Coach IA (próximas 48 h) antes que
+  // la propuesta automática.
+  const coachSession = useMemo(
+    () => coachSessionFrom({ nextWork: ai.nextWork, meta: ai.meta, timestamp: ai.cacheTs }, nowMs),
+    [ai.nextWork, ai.meta, ai.cacheTs, nowMs],
+  );
+  const curBadge = ai.cur ? (CUR_BADGES[deriveStatusKey(ai.cur, ai.meta)] ?? null) : null;
+  const trendBadge = ai.trend ? (TREND_BADGES[deriveTrendKey(ai.trend, ai.meta)] ?? null) : null;
+  const lastActivity = useMemo(
+    () => (activities ?? []).reduce((best, a) => (!best || new Date(a.start_date) > new Date(best.start_date) ? a : best), null),
+    [activities],
+  );
+
+  // Lo que pinta la tarjeta "Sesión sugerida": mismo formato para las dos fuentes.
+  const suggested = useMemo(() => {
+    if (coachSession) {
+      const c = coachSession;
+      const ageH = Math.max(0, Math.round((nowMs - c.generatedAt) / 3600000));
+      return {
+        source: 'coach',
+        note: `Recomendada por el Coach IA (${ageH < 1 ? 'hace menos de 1 h' : `hace ${ageH} h`}).`,
+        badge: c.zone ? `${c.type ? `${c.type.toUpperCase()} · ` : ''}Z${c.zone}` : (c.type?.toUpperCase() ?? 'COACH IA'),
+        distance: c.distance || DASH,
+        pace: c.pace || DASH,
+        hr: c.hr ? `${c.hr} ppm` : DASH,
+        totalMin: c.totalMin || null,
+        segments: c.blocks.map((b) => {
+          const reps = Number(b.reps) || 1;
+          return {
+            label: String(b.phase || '').toUpperCase(),
+            detail: [
+              reps > 1 ? `${reps} × ${b.duration_min}′` : `${b.duration_min}′`,
+              b.pace,
+              b.hr ? `${b.hr} ppm` : null,
+              reps > 1 && b.recovery ? `rec. ${b.recovery}` : null,
+            ].filter(Boolean).join(' • '),
+            min: b.totalMin,
+            cls: intensityClass(Number(b.intensity) || 0),
+          };
+        }).filter((sg) => sg.min > 0),
+        calibration: 'Prescripción del Coach IA',
+        emptyMsg: 'El coach no detalló bloques: mira su plan más abajo',
+        quote: c.blocks.map((b) => b.description).filter(Boolean).join(' '),
+        conflict: todayWorkout.recovery && c.hard,
+      };
+    }
+    const st = todayWorkout.structure;
+    return {
+      source: 'auto',
+      note: `Sin entreno planificado hoy${todaySession.planExpired ? ' (tu plan del Entrenador IA ya caducó)' : ''}: propuesta automática según tu estado.`,
+      badge: todayWorkout.zonesLabel,
+      distance: todayWorkout.targetDistance,
+      pace: todayWorkout.targetPace,
+      hr: todayWorkout.targetHr,
+      totalMin: st.totalMin,
+      segments: st.totalMin != null ? [
+        { label: 'WARMUP', detail: st.warmup, min: st.warmMin, cls: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200' },
+        { label: todayWorkout.recovery ? 'TROTE REGENERATIVO' : 'RODAJE BASE CONTROLADO', detail: st.main, min: st.mainMin, cls: 'bg-blue-600 text-white' },
+        { label: 'COOL', detail: st.cool, min: st.coolMin, cls: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' },
+      ] : [],
+      calibration: todayWorkout.sampleSize > 0 ? `Calibrado con ${todayWorkout.sampleSize} rodajes` : 'Sin rodajes de referencia',
+      emptyMsg: 'Sin rodajes recientes para calibrar la sesión',
+      quote: todayWorkout.tacticalQuote,
+      conflict: false,
+    };
+  }, [coachSession, todayWorkout, todaySession.planExpired, nowMs]);
 
   // ── 11. Últimas sesiones sincronizadas ────────────────────────────────────
   const recentActivities = useMemo(() => {
@@ -512,9 +717,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         pace: formatPaceFromSpeed(r.average_speed, DASH),
         hr,
         hrZone: zoneIdx >= 0 ? `Z${zoneIdx + 1}` : null,
+        zoneIdx,
         cadence,
-        // RPE estimado SOLO cuando hay zona real que lo sostenga.
-        rpe: zoneIdx < 0 ? null : zoneIdx >= 3 ? 'RPE 8 / 10' : zoneIdx === 2 ? 'RPE 6 / 10' : 'RPE 4 / 10',
         tss: r.suffer_score ?? null,
         typeCode,
       };
@@ -546,49 +750,6 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     return { ctlSpark, atlSpark, tsbSpark, volSpark };
   }, [stats]);
 
-  const compareRows = useMemo(() => {
-    if (!stats || !briefing) return [];
-    const s = stats;
-    const g = garminStats;
-    return [
-      { label: 'Fitness (CTL)', now: fmt1(s.currentCTL), nowRaw: s.currentCTL,
-        bestYear: fmt1(s.peakCTLYear), bestAll: fmt1(s.peakCTL), bestAllRaw: s.peakCTL,
-        spark: briefing.ctlSpark, sparkColor: '#3b82f6' },
-      { label: 'Fatiga (ATL)', now: fmt1(s.currentATL), noCompare: true,
-        bestYear: DASH, bestAll: DASH, spark: briefing.atlSpark, sparkColor: '#f97316' },
-      { label: 'Forma (TSB)', now: fmt1(s.currentTSB), noCompare: true,
-        bestYear: DASH, bestAll: DASH, spark: briefing.tsbSpark, sparkColor: '#8b5cf6' },
-      { label: 'Km (última semana)', now: `${s.last7daysKm.toFixed(1)} km`, nowRaw: s.last7daysKm,
-        bestYear: `${s.peakWeekKmYear.toFixed(1)} km`, bestAll: `${s.peakWeekKm.toFixed(1)} km`, bestAllRaw: s.peakWeekKm,
-        spark: briefing.volSpark, sparkColor: '#10b981' },
-      { label: 'Desnivel mensual', now: `${Math.round(s.elevLast28)} m`, nowRaw: s.elevLast28,
-        bestYear: `${Math.round(s.peakMonthlyElevYear)} m`, bestAll: `${Math.round(s.peakMonthlyElev)} m`, bestAllRaw: s.peakMonthlyElev },
-      { label: 'Consistencia (28d)', now: `${s.activeLast28} días`, nowRaw: s.activeLast28,
-        bestYear: `${s.activeBest28Year} días`, bestAll: `${s.activeBest28All} días`, bestAllRaw: s.activeBest28All },
-      { label: 'Mejor ritmo 10k', now: paceStr(s.bestPace10kRecent), nowRaw: s.bestPace10kRecent,
-        bestYear: paceStr(s.bestPace10kYear), bestAll: paceStr(s.bestPace10kAll), bestAllRaw: s.bestPace10kAll,
-        lowerIsBetter: false },
-      // EF en m/latido (lib/efficiencyFactor): más es mejor; el récord es el mejor mes.
-      { label: 'Eficiencia aeróbica', now: s.efRecent ? `${s.efRecent.toFixed(2)} m/lat` : DASH, nowRaw: s.efRecent,
-        bestYear: s.efBestYear ? s.efBestYear.toFixed(2) : DASH,
-        bestAll: s.efBestAll ? s.efBestAll.toFixed(2) : DASH, bestAllRaw: s.efBestAll,
-        lowerIsBetter: false },
-      ...(g ? [
-        { label: 'FC Reposo', now: g.currentRHR ? `${g.currentRHR} bpm` : DASH, nowRaw: g.currentRHR,
-          bestYear: g.rhrYearMin ? `${g.rhrYearMin} bpm` : DASH,
-          bestAll: g.rhrAllTimeMin ? `${g.rhrAllTimeMin} bpm` : DASH, bestAllRaw: g.rhrAllTimeMin,
-          spark: g.rhrSparkData, sparkColor: '#ef4444', lowerIsBetter: true },
-        { label: g.hasHRV ? 'VFC (HRV)' : 'Body Battery',
-          now: g.currentRec != null ? `${fmtNum(g.currentRec, 0)}${g.hasHRV ? ' ms' : '/100'}` : DASH, nowRaw: g.currentRec,
-          bestYear: g.recYearMax != null ? fmtNum(g.recYearMax, 0) : DASH,
-          bestAll: g.recAllTimeMax != null ? fmtNum(g.recAllTimeMax, 0) : DASH, bestAllRaw: g.recAllTimeMax,
-          spark: g.recSparkData, sparkColor: '#8b5cf6' },
-      ] : []),
-    ];
-  }, [stats, briefing, garminStats]);
-
-  const [compareOpen, setCompareOpen] = useState(false);
-
   const activeAiModel = useMemo(() => cloudStorage.getItem('ai_model') || null, []);
 
   // ── "Ampliar en el chat" desde cualquier bloque de la portada ─────────────
@@ -611,7 +772,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         ask: ASKS[focus] ?? ASKS.readiness,
         // `blocks` es lo que RunQA exige para consumir la semilla: aquí van las
         // cifras REALES que está viendo el atleta en pantalla.
-        blocks: {
+        blocks: ai.cur ? { cur: ai.cur, trend: ai.trend, nextWork: ai.nextWork, lastWork: ai.lastWork } : {
           cur: [
             readiness ? `Readiness ${readiness.score}/100 — ${readiness.label}.` : 'Sin readiness calculada.',
             currentTSB != null ? `CTL ${currentCTL}, ATL ${currentATL}, TSB ${currentTSB}, ACWR ${currentACWR ?? DASH}. Fase: ${phase?.label ?? DASH}.` : 'Sin PMC.',
@@ -649,1067 +810,622 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     : DASH;
   const raceGoalTime = targetRace?.goalTimeMin ? formatMinutes(targetRace.goalTimeMin) : DASH;
 
-  const dashOffset = raceDays != null
-    ? ARC_LEN_HERO * (1 - Math.min(Math.max(raceDays, 0), COUNTDOWN_ARC_DAYS) / COUNTDOWN_ARC_DAYS)
-    : ARC_LEN_HERO;
+  // ── 14. Semana en curso: km por día, de lunes a domingo ───────────────────
+  const weekStrip = useMemo(() => {
+    const now = new Date(nowMs);
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      return { key: i, km: 0, runs: 0, isToday: d.toDateString() === now.toDateString(), future: d > now };
+    });
+    runs.forEach(r => {
+      if (!r.start_date) return;
+      const d = new Date(r.start_date);
+      // Round, no floor: un cambio de hora deja días de 23 o 25 h.
+      const idx = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - monday) / 86400000);
+      if (idx < 0 || idx > 6) return;
+      days[idx].km += (r.distance || 0) / 1000;
+      days[idx].runs += 1;
+    });
+    const totalKm = days.reduce((s, d) => s + d.km, 0);
+    return {
+      days,
+      totalKm,
+      maxKm: Math.max(...days.map(d => d.km), 1),
+      activeDays: days.filter(d => d.runs > 0).length,
+    };
+  }, [runs, nowMs]);
+
+  const readinessTone = readiness == null ? 'slate'
+    : readiness.score >= 80 ? 'emerald'
+    : readiness.score >= 62 ? 'blue'
+    : 'amber';
 
   return (
-    <div className="fade-in space-y-6 max-w-[1520px] mx-auto">
+    <div className="fade-in space-y-8 max-w-[1520px] mx-auto">
 
-      {/* ── SECCIÓN SUPERIOR: HERO DE CARRERA OBJETIVO ─────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-600 to-indigo-800 text-white shadow-xl shadow-indigo-900/10 p-6 sm:p-8">
-        {/* Resplandores ambientales y partículas sutiles */}
-        <div className="absolute -right-16 -top-24 w-96 h-96 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
-        <div className="absolute right-1/3 -bottom-20 w-80 h-80 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_60%)] pointer-events-none" />
+      {/* ── CABECERA: la fecha, de dónde salen los datos y las acciones ──────── */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+            {new Date(nowMs).toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50">Hoy</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {/* Qué fuentes hay REALMENTE detrás de la portada, no una frase fija. */}
+            {[
+              wearables.hrv ? 'VFC' : null,
+              wearables.rhr ? 'FC reposo' : null,
+              wearables.bb ? 'Body Battery' : null,
+              wearables.sleep ? 'sueño' : null,
+              currentTSB != null ? 'PMC' : null,
+            ].filter(Boolean).join(' · ') || 'Sin telemetría sincronizada'}
+            {garminStats?.lastDate ? ` · último dato Garmin ${garminStats.lastDate}` : ''}
+          </p>
+        </div>
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Columna Izquierda: Información de Carrera */}
-          <div className="flex flex-col gap-3 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white text-xs font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
-                {targetRace ? t('targets.next_race') : t('targets.no_target', 'Sin objetivo fijado')}
+        <div className="flex flex-wrap items-center gap-2">
+          {(ai.usedProvider || activeAiModel) && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-500 ${ai.loading ? 'animate-pulse' : ''}`} />
+              Coach IA • {ai.usedProvider || activeAiModel}
+              {ai.cacheTs && !ai.loading ? ` • ${formatTs(ai.cacheTs)}` : ''}
+            </span>
+          )}
+          {recalcAt && !busy && (
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+              Actualizado {new Date(recalcAt).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <CoachSettings ai={ai} />
+          {onOpenChat && (
+            <button
+              type="button"
+              onClick={onOpenChat}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-colors cursor-pointer"
+            >
+              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+              <span>Preguntar al coach</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onNavigate('calibration')}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-colors cursor-pointer"
+          >
+            Calibrar
+          </button>
+          <button
+            type="button"
+            onClick={recalculate}
+            disabled={busy || ai.loading}
+            title="Sincronizar Strava y Garmin, recalcular las métricas y pedir un análisis nuevo al coach"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 ${busy || ai.loading ? 'animate-spin' : ''}`} />
+            <span>{busy ? 'Recalculando…' : ai.loading ? 'Analizando…' : 'Recalcular'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── CARRERA OBJETIVO: una franja, no un cartel ──────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-600 to-indigo-800 text-white shadow-lg shadow-indigo-900/10 px-5 py-4 sm:px-6">
+        <div className="absolute -right-16 -top-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl bg-white/15 backdrop-blur shrink-0">
+              <span className="text-2xl font-black leading-none tabular-nums">
+                {raceDays === 0 ? '¡Hoy!' : raceDays ?? DASH}
               </span>
-              {phase && (
-                <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-xs text-blue-100 font-medium">
-                  Fase: {phase.label} ({phase.description})
-                </span>
+              {raceDays !== 0 && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200 mt-0.5">{t('targets.days_unit')}</span>
               )}
             </div>
-
-            <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+                {targetRace ? t('targets.next_race') : t('targets.no_target', 'Sin objetivo fijado')}
+                {raceWeeks != null && raceDays > 0 ? ` · ${raceWeeks} semanas` : ''}
+              </span>
+              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight leading-tight truncate">
                 {targetRace ? targetRace.name : 'Fija tu carrera objetivo'}
-              </h1>
-              <p className="mt-1 text-sm sm:text-base text-blue-100/90 font-medium">
+              </h2>
+              <p className="text-xs text-blue-100/90 font-medium truncate">
                 {targetRace
-                  ? [targetRace.location, targetRace.distance ? t(`planner.distances.${targetRace.distance}`) : null,
-                     raceDistanceKm != null ? `${raceDistanceKm} km` : null].filter(Boolean).join(' • ')
+                  ? [
+                      targetRace.date ? new Date(targetRace.date + 'T00:00:00').toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+                      targetRace.location,
+                      raceDistanceKm != null ? `${raceDistanceKm} km` : null,
+                    ].filter(Boolean).join(' • ')
                   : 'Sin carrera objetivo no hay cuenta atrás, ni ritmo meta, ni plan al que apuntar.'}
               </p>
             </div>
-
-            {/* Píldoras de detalles de carrera */}
-            {targetRace && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2">
-                <div className="flex flex-col px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-sm">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Fecha &amp; Hora</span>
-                  <span className="text-xs font-bold text-white mt-0.5">
-                    {targetRace.date
-                      ? new Date(targetRace.date + 'T00:00:00').toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' })
-                      : DASH}
-                    {targetRace.startTime ? ` • ${targetRace.startTime}` : ''}
-                  </span>
-                </div>
-                <div className="flex flex-col px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-sm">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Ritmo Objetivo</span>
-                  <span className="text-xs font-bold text-cyan-300 mt-0.5">
-                    {raceGoalPace} <span className="text-[10px] font-normal text-blue-100">/km</span>
-                  </span>
-                </div>
-                <div className="flex flex-col px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-sm col-span-2 sm:col-span-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">{t('targets.goal_time')}</span>
-                  <span className="text-xs font-bold text-emerald-300 mt-0.5">{raceGoalTime}</span>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Columna Derecha: Cuenta Atrás Radial y Botón Maestro */}
-          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-xl p-4 rounded-2xl self-start lg:self-center shadow-lg border border-white/10">
-            <div className="relative flex items-center justify-center w-24 h-24 shrink-0">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" fill="transparent" r="42" stroke="rgba(255, 255, 255, 0.2)" strokeWidth="7" />
-                <circle
-                  className="transition-all duration-1000"
-                  cx="50"
-                  cy="50"
-                  fill="transparent"
-                  r="42"
-                  stroke="#00e3fd"
-                  strokeDasharray={ARC_LEN_HERO}
-                  strokeDashoffset={dashOffset}
-                  strokeLinecap="round"
-                  strokeWidth="7"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-black leading-none text-white">
-                  {raceDays === 0 ? t('targets.today') : raceDays ?? DASH}
-                </span>
-                {raceDays !== 0 && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200 mt-0.5">
-                    {t('targets.days_unit')}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div>
-                <span className="text-xs font-bold text-cyan-300 block">
-                  {raceWeeks != null ? `${raceWeeks} SEMANAS RESTANTES` : 'SIN CUENTA ATRÁS'}
-                </span>
-                <span className="text-xs text-white/90 font-medium">
-                  {/* Pico real del histórico, no una fracción inventada del total. */}
-                  Semana pico: {stats?.peakWeekKm ? `${Math.round(stats.peakWeekKm)} km` : DASH}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => targetRace ? onNavigate(`targets/${targetRace.id}`) : onNavigate('targets')}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-900 text-xs font-bold shadow-md hover:bg-blue-50 transition-all cursor-pointer"
-              >
-                <span>{targetRace ? t('targets.open_plan') : t('targets.manage', 'Fijar objetivo')}</span>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-indigo-600" />
-              </button>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {targetRace && (
+              <>
+                <div className="px-3 py-1.5 rounded-xl bg-white/10">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-blue-200">Ritmo meta</span>
+                  <span className="text-sm font-black text-cyan-300 tabular-nums">{raceGoalPace}<span className="text-[10px] font-normal text-blue-100"> /km</span></span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-white/10">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-blue-200">{t('targets.goal_time')}</span>
+                  <span className="text-sm font-black text-emerald-300 tabular-nums">{raceGoalTime}</span>
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => targetRace ? onNavigate(`targets/${targetRace.id}`) : onNavigate('targets')}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold shadow-md hover:bg-blue-50 transition-all cursor-pointer"
+            >
+              <span>{targetRace ? t('targets.open_plan') : t('targets.manage', 'Fijar objetivo')}</span>
+              <ArrowRightIcon className="w-3.5 h-3.5 text-indigo-600" />
+            </button>
           </div>
         </div>
       </div>
 
+      {/* ═══════════ 01 · HOY: CÓMO ESTÁS Y QUÉ TOCA ═══════════ */}
+      <section className="space-y-3">
+        <SectionTitle n="01" title="Hoy" sub="cómo llegas y qué toca" />
+        <div className="flex flex-col gap-4">
 
-      {/* ── BRIEFING DE HOY: LOS CUATRO NÚMEROS DE "¿CÓMO VOY?" ───────────── */}
+          {/* Readiness: el número, las cuatro señales que lo forman y el diagnóstico */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="lg:col-span-3 flex lg:flex-col lg:items-start items-center gap-5 lg:gap-3">
+              <div className="relative w-28 h-28 shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" fill="transparent" r="50" stroke="rgba(148, 163, 184, 0.18)" strokeWidth="11" />
+                  <circle
+                    className="transition-all duration-1000"
+                    cx="60" cy="60" fill="transparent" r="50"
+                    stroke={TONE[readinessTone].stroke}
+                    strokeDasharray={ARC_LEN_READY}
+                    strokeDashoffset={ARC_LEN_READY * (1 - (readiness?.score ?? 0) / 100)}
+                    strokeLinecap="round" strokeWidth="11"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-black text-slate-900 dark:text-slate-50 leading-none tabular-nums">{readiness?.score ?? DASH}</span>
+                  <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase mt-1">ready</span>
+                </div>
+              </div>
+              <div className="min-w-0 flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Readiness</span>
+                <span className={`self-start px-2.5 py-0.5 rounded-full text-xs font-bold ${TONE[readinessTone].pill}`}>
+                  {readiness?.label ?? 'Sin datos suficientes'}
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  {readiness == null
+                    ? 'Sincroniza Garmin o acumula historial para obtener un score.'
+                    : phase ? `Forma: ${phase.label}. ${phase.description}` : 'Sin PMC todavía.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Las señales que alimentan el score, cada una contra su propia referencia */}
+            <div className="lg:col-span-4 grid grid-cols-2 gap-2.5 content-start">
+              <Signal
+                label="VFC"
+                value={wearables.hrv?.latest != null ? Math.round(wearables.hrv.latest) : DASH}
+                unit="ms"
+                note={hrvDeltaPct != null ? `${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}% vs 60 d` : (wearables.hrv?.status ?? 'Sin baseline')}
+                tone={hrvDeltaPct == null ? 'slate' : hrvDeltaPct >= -5 ? 'emerald' : hrvDeltaPct >= -12 ? 'amber' : 'rose'}
+                spark={wearables.hrvSpark}
+              />
+              <Signal
+                label="FC reposo"
+                value={wearables.rhr ? Math.round(wearables.rhr.r7) : DASH}
+                unit="ppm"
+                note={wearables.rhr ? `${wearables.rhr.r7 - wearables.rhr.r28 >= 0 ? '+' : ''}${fmt1(wearables.rhr.r7 - wearables.rhr.r28)} vs 28 d` : 'Sin datos'}
+                // Subir la FC de reposo es la mala noticia: el color va al revés que la VFC.
+                tone={!wearables.rhr ? 'slate' : wearables.rhr.r7 - wearables.rhr.r28 <= 1 ? 'emerald' : wearables.rhr.r7 - wearables.rhr.r28 <= 3 ? 'amber' : 'rose'}
+              />
+              <Signal
+                label="Sueño"
+                value={wearables.sleep?.score ?? DASH}
+                unit="/100"
+                note={wearables.sleep?.durationMin
+                  ? `${formatMinutesHm(wearables.sleep.durationMin, DASH)}${wearables.sleep.deepMin ? ` · prof. ${formatMinutesHm(wearables.sleep.deepMin, DASH)}` : ''}`
+                  : 'Sin registro'}
+                tone={wearables.sleep?.score == null ? 'slate' : wearables.sleep.score >= 75 ? 'emerald' : wearables.sleep.score >= 60 ? 'amber' : 'rose'}
+                spark={wearables.sleepSpark}
+              />
+              <Signal
+                label="Body Battery"
+                value={wearables.bb?.high ?? DASH}
+                unit="/100"
+                note={wearables.bb?.high != null && wearables.bb?.low != null ? `+${wearables.bb.high - wearables.bb.low} recargado` : 'Sin recarga'}
+                tone={wearables.bb?.high == null ? 'slate' : wearables.bb.high >= 70 ? 'emerald' : wearables.bb.high >= 45 ? 'amber' : 'rose'}
+                bar={wearables.bb?.high}
+              />
+            </div>
+
+            <div className="lg:col-span-5 flex flex-col gap-3 pt-3 lg:pt-0 lg:pl-5 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-800">
+              <CoachBanners ai={ai} />
+              <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[18px]">psychology</span>
+                <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  {ai.cur ? 'Diagnóstico del coach' : 'Diagnóstico'}
+                </h3>
+                {curBadge && <CoachBadge badge={curBadge} />}
+                <span className="ml-auto"><AskChatBtn onAsk={askCoach} focus="readiness" /></span>
+              </div>
+              <CoachText
+                ai={ai}
+                text={ai.cur}
+                accent="text-blue-500"
+                fallback={(
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {readiness == null
+                      ? 'Sin telemetría de wearable no se puede leer el estado autonómico. Sincroniza Garmin para activar este diagnóstico.'
+                      : `${readiness.label}. ${
+                          hrvDeltaPct != null
+                            ? `La VFC de los últimos 7 días está un ${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}% respecto a tu baseline de 60 días.`
+                            : 'Sin baseline de VFC suficiente para medir desviación.'
+                        }${currentTSB != null ? ` El TSB de ${currentTSB} sitúa la forma en fase "${phase?.label ?? DASH}".` : ''}`}
+                  </p>
+                )}
+              />
+              </div>
+            </div>
+          </div>
+
+          {/* Sesión de hoy. Con plan (Garmin o Entrenador IA) manda el plan; sin
+              él, la propuesta del coach o la automática, dicha como tal. */}
+          {todaySession.source === 'auto' ? (
+            <div className="flex flex-col gap-2 px-4 sm:px-5 py-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-wrap lg:flex-nowrap items-center gap-x-6 gap-y-3">
+                <div className="flex items-center gap-2.5 min-w-0 lg:w-72 shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[20px]">{todayWorkout.recovery ? 'self_improvement' : 'directions_run'}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">Sesión sugerida</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 text-[9px] font-bold truncate">
+                        {suggested.badge}
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-slate-400 truncate" title={suggested.note}>{todayWorkout.day} · {suggested.note}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-5 shrink-0">
+                  <Metric label="Distancia" value={suggested.distance} />
+                  <Metric label="Ritmo" value={suggested.pace} cls="text-blue-600 dark:text-blue-400" />
+                  <Metric label="FC" value={suggested.hr} cls="text-rose-600 dark:text-rose-400" />
+                </div>
+
+                {/* Barra segmentada: los anchos son la proporción REAL de cada bloque */}
+                <div className="flex-1 min-w-[220px] flex items-center gap-2">
+                  {suggested.segments.length > 0 ? (() => {
+                    const total = suggested.segments.reduce((acc, sg) => acc + sg.min, 0);
+                    return (
+                      <div className="flex-1 h-8 rounded-lg overflow-hidden flex gap-0.5">
+                        {suggested.segments.map((sg, i) => (
+                          <div
+                            key={i}
+                            title={`${sg.label} · ${sg.detail}`}
+                            className={`h-full min-w-0 flex items-center justify-center px-1.5 ${sg.cls}`}
+                            style={{ width: `${(sg.min / total) * 100}%` }}
+                          >
+                            <span className="text-[9px] font-bold uppercase tracking-wider truncate">{sg.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })() : (
+                    <div className="flex-1 h-8 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center text-[11px] text-slate-400 truncate px-2">
+                      {suggested.emptyMsg}
+                    </div>
+                  )}
+                  {suggested.totalMin != null && (
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 tabular-nums shrink-0">{suggested.totalMin}′</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <AskChatBtn onAsk={askCoach} focus="workout" />
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('planner')}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                  >
+                    Planificador <ArrowRightIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {suggested.conflict && (
+                <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                  El coach propone calidad, pero tu readiness o tu forma piden descargar hoy: valora cambiarla por un rodaje suave.
+                </p>
+              )}
+
+              {/* El detalle (bloques, pauta y notas del coach), plegado */}
+              {(suggested.quote || suggested.segments.length > 0 || (suggested.source === 'coach' && ai.nextWork)) && (
+                <CoachDisclosure label={`Detalle de la sesión · ${suggested.calibration}`}>
+                  <div className="flex flex-col gap-2">
+                    {suggested.segments.length > 0 && (
+                      <ul className="flex flex-col gap-1">
+                        {suggested.segments.map((sg, i) => (
+                          <li key={i} className="text-xs text-slate-600 dark:text-slate-300">
+                            <span className="font-bold">{sg.label}</span> · {sg.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {suggested.quote && <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{suggested.quote}</p>}
+                    {suggested.source === 'coach' && ai.nextWork && <CoachMD text={ai.nextWork} accent="text-blue-500" />}
+                  </div>
+                </CoachDisclosure>
+              )}
+            </div>
+          ) : (
+            <TodayPlannedSession
+              session={todaySession}
+              day={todayWorkout.day}
+              action={<AskChatBtn onAsk={askCoach} focus="workout" />}
+            />
+          )}
+        </div>
+      </section>
+
+      {/* ═══════════ 02 · CARGA: DE DÓNDE VIENES ═══════════ */}
       {stats && briefing && (
-        <div className="space-y-3">
-        <div className="flex items-center gap-2.5 px-0.5">
-          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">
-            Briefing de hoy
-          </span>
-          <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
-          <AskChatBtn onAsk={askCoach} focus="briefing" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <HeroCard
-            label="Fitness (CTL)"
-            value={fmt1(stats.currentCTL)}
-            icon={ArrowTrendingUpIcon}
-            color={stats.peakCTL > 0 && stats.currentCTL / stats.peakCTL >= 0.8 ? 'emerald'
-              : stats.peakCTL > 0 && stats.currentCTL / stats.peakCTL >= 0.5 ? 'blue' : 'amber'}
-            trendDelta={stats.currentCTL - stats.ctl7ago}
-            spark={briefing.ctlSpark}
-            subRows={[
-              { label: 'Pico histórico', value: `${fmt1(stats.peakCTL)} (${stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0}%)` },
-              { label: 'Pico este año', value: fmt1(stats.peakCTLYear) },
-              { label: 'Tendencia 28d', value: `${stats.currentCTL - stats.ctl28ago >= 0 ? '+' : ''}${fmt1(stats.currentCTL - stats.ctl28ago)}` },
-            ]}
-          />
-          <HeroCard
-            label="Forma (TSB)"
-            value={fmt1(stats.currentTSB)}
-            icon={BoltIcon}
-            color={stats.currentTSB > 5 ? 'emerald' : stats.currentTSB > -5 ? 'amber' : 'rose'}
-            spark={briefing.tsbSpark}
-            subRows={[
-              { label: 'Fatiga actual (ATL)', value: fmt1(stats.currentATL) },
-              { label: 'ACWR', value: stats.currentACWR != null ? stats.currentACWR.toFixed(2) : DASH },
-              { label: 'Días activos (7d)', value: `${stats.activeLast7} / 7` },
-            ]}
-          />
-          <HeroCard
-            label="Volumen semanal"
-            value={stats.last7daysKm.toFixed(1)}
-            unit="km"
-            icon={CalendarDaysIcon}
-            color="blue"
-            spark={briefing.volSpark}
-            subRows={[
-              { label: 'Media semanal año', value: `${stats.avgWeekKmYear.toFixed(1)} km` },
-              { label: 'Semana pico año', value: `${stats.peakWeekKmYear.toFixed(1)} km` },
-              { label: 'Semana pico total', value: `${stats.peakWeekKm.toFixed(1)} km` },
-            ]}
-          />
-        </div>
-        </div>
+        <section className="space-y-3">
+          <SectionTitle n="02" title="Carga y volumen" sub="PMC Banister · TRIMP por reserva de FC" action={<AskChatBtn onAsk={askCoach} focus="briefing" />} onMore={() => onNavigate('pmc')} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+
+            {/* Fitness: el número, su curva y cuánto queda para el propio techo */}
+            <Tile label="Fitness (CTL)" icon={ArrowTrendingUpIcon} tone="blue">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900 dark:text-slate-50 tabular-nums">{fmt1(stats.currentCTL)}</span>
+                <Delta v={stats.currentCTL - stats.ctl7ago} suffix=" 7d" />
+              </div>
+              <Spark data={briefing.ctlSpark} stroke={TONE.blue.stroke} />
+              <div className="mt-1">
+                <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <span>{stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0}% de tu pico</span>
+                  <span className="tabular-nums">{fmt1(stats.peakCTL)}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${stats.peakCTL > 0 ? Math.min(100, (stats.currentCTL / stats.peakCTL) * 100) : 0}%` }} />
+                </div>
+              </div>
+              <Rows rows={[
+                { label: 'Pico este año', value: fmt1(stats.peakCTLYear) },
+                { label: 'Tendencia 28 d', value: `${stats.currentCTL - stats.ctl28ago >= 0 ? '+' : ''}${fmt1(stats.currentCTL - stats.ctl28ago)}` },
+              ]} />
+            </Tile>
+
+            {/* Forma: el signo del TSB en escala divergente, con fatiga y riesgo debajo */}
+            <Tile label="Forma (TSB)" icon={BoltIcon} tone={stats.currentTSB > 5 ? 'emerald' : stats.currentTSB > -10 ? 'amber' : 'rose'}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+                  {stats.currentTSB >= 0 ? '+' : ''}{fmt1(stats.currentTSB)}
+                </span>
+                {phase && <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{phase.label}</span>}
+              </div>
+              <TsbGauge tsb={stats.currentTSB} />
+              <Rows rows={[
+                { label: 'Fatiga (ATL)', value: fmt1(stats.currentATL) },
+                { label: 'ACWR', value: currentACWR == null ? DASH : currentACWR.toFixed(2), cls: acwrCls },
+                { label: 'Rampa CTL', value: `${ctlRamp >= 0 ? '+' : ''}${fmt1(ctlRamp)} /sem`, cls: rampCls },
+              ]} />
+            </Tile>
+
+            {/* Semana en curso, día a día: lo que llevas y lo que te queda */}
+            <Tile label="Esta semana" icon={CalendarDaysIcon} tone="emerald">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900 dark:text-slate-50 tabular-nums">{weekStrip.totalKm.toFixed(1)}</span>
+                <span className="text-xs text-slate-400 font-semibold">km</span>
+                {stats.avgWeekKmYear > 0 && (
+                  <span className="ml-auto text-[10px] font-bold text-slate-400 tabular-nums">
+                    {Math.round((weekStrip.totalKm / stats.avgWeekKmYear) * 100)}% de tu media
+                  </span>
+                )}
+              </div>
+              <div className="flex items-end gap-1.5 h-16 mt-1">
+                {weekStrip.days.map((d, i) => (
+                  <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full">
+                    <div className="flex-1 w-full flex items-end">
+                      <div
+                        className={`w-full rounded-md ${d.km > 0 ? (d.isToday ? 'bg-emerald-500' : 'bg-emerald-400/80') : d.future ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700'}`}
+                        style={{ height: d.km > 0 ? `${Math.max(12, (d.km / weekStrip.maxKm) * 100)}%` : '6px' }}
+                        title={d.km > 0 ? `${d.km.toFixed(1)} km` : 'Sin carrera'}
+                      />
+                    </div>
+                    <span className={`text-[9px] font-bold ${d.isToday ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>{WEEKDAYS[i]}</span>
+                  </div>
+                ))}
+              </div>
+              <Rows rows={[
+                { label: 'Días con carrera', value: `${weekStrip.activeDays}` },
+                { label: 'Media semanal del año', value: `${stats.avgWeekKmYear.toFixed(1)} km` },
+              ]} />
+            </Tile>
+
+            {/* Volumen de las 8 últimas semanas: barras, que se comparan mejor que una línea */}
+            <Tile label="Volumen · 8 semanas" icon={ChartBarIcon} tone="blue">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900 dark:text-slate-50 tabular-nums">{stats.last7daysKm.toFixed(1)}</span>
+                <span className="text-xs text-slate-400 font-semibold">km · 7 d</span>
+                {weeklyRamp && (
+                  <span className={`ml-auto text-[10px] font-bold tabular-nums ${weeklyRamp.absDeltaKm >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    {weeklyRamp.absDeltaKm >= 0 ? '+' : ''}{weeklyRamp.absDeltaKm.toFixed(1)} km/sem
+                  </span>
+                )}
+              </div>
+              {(() => {
+                const max = Math.max(...briefing.volSpark.map(w => w.v), 1);
+                return (
+                  <div className="flex items-end gap-1 h-16 mt-1">
+                    {briefing.volSpark.map((w, i) => (
+                      <div key={i} className="flex-1 h-full flex items-end" title={`${w.v} km`}>
+                        <div
+                          className={`w-full rounded-sm ${i === briefing.volSpark.length - 1 ? 'bg-blue-600' : 'bg-blue-300 dark:bg-blue-800'}`}
+                          style={{ height: `${Math.max(4, (w.v / max) * 100)}%` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              <Rows rows={[
+                { label: 'Semana pico del año', value: `${stats.peakWeekKmYear.toFixed(1)} km` },
+                { label: 'Semana pico total', value: `${stats.peakWeekKm.toFixed(1)} km` },
+              ]} />
+            </Tile>
+          </div>
+        </section>
       )}
 
-      {/* ── MÓDULO 01: ESTADO FISIOLÓGICO & READINESS HUD ─────────────────── */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-5">
-        {/* Cabecera del Módulo */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-              <span className="material-symbols-outlined text-[22px]">vital_signs</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                  Estado Fisiológico &amp; Readiness
-                </h2>
-                {activeAiModel && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Coach IA • {activeAiModel}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {/* Qué fuentes hay REALMENTE detrás del score, no una frase fija. */}
-                {[
-                  wearables.hrv ? 'VFC Garmin' : null,
-                  wearables.rhr ? 'FC reposo' : null,
-                  wearables.bb ? 'Body Battery' : null,
-                  wearables.sleep ? 'sueño' : null,
-                  currentTSB != null ? 'TSB' : null,
-                ].filter(Boolean).join(' · ') || 'Sin telemetría sincronizada'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            {recalcAt && !busy && (
-              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                Actualizado {new Date(recalcAt).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={recalculate}
-              disabled={busy}
-              title="Sincronizar Strava y Garmin y recalcular todas las métricas"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
-            >
-              <ArrowPathIcon className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
-              <span>{busy ? 'Recalculando…' : 'Recalcular'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('calibration')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-            >
-              <span>Calibrar</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Layout: Indicador Radial + Diagnóstico Autonómico */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-          {/* Indicador Radial de Readiness (4 cols) */}
-          <div className="lg:col-span-4 p-5 rounded-2xl bg-gradient-to-b from-slate-50 to-indigo-50/30 dark:from-slate-800/40 dark:to-indigo-950/20 border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center justify-center gap-2">
-            <div className="relative w-44 h-44 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" fill="transparent" r="50" stroke="rgba(148, 163, 184, 0.15)" strokeWidth="10" />
-                <circle
-                  className="transition-all duration-1000"
-                  cx="60"
-                  cy="60"
-                  fill="transparent"
-                  r="50"
-                  stroke="#2563eb"
-                  strokeDasharray={ARC_LEN_READY}
-                  strokeDashoffset={ARC_LEN_READY * (1 - (readiness?.score ?? 0) / 100)}
-                  strokeLinecap="round"
-                  strokeWidth="10"
-                />
-                <circle cx="60" cy="60" fill="transparent" r="38" stroke="rgba(0, 227, 253, 0.3)" strokeDasharray="4 4" strokeWidth="2" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-black text-slate-900 dark:text-slate-50 leading-none">
-                  {readiness?.score ?? DASH}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mt-1">/ 100 READY</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-1">
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                readiness == null ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                : readiness.score >= 80 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                : readiness.score >= 62 ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-              }`}>
-                {readiness?.label ?? 'Sin datos suficientes'}
-              </span>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[260px] leading-relaxed">
-                {readiness == null
-                  ? 'Sincroniza Garmin o acumula historial para obtener un score de readiness.'
-                  : `Score determinista sobre ${[
-                      wearables.hrv && 'VFC', wearables.bb && 'Body Battery', wearables.sleep && 'sueño',
-                      wearables.rhr && 'FC reposo', currentTSB != null && 'TSB',
-                    ].filter(Boolean).length} señales.`}
-              </p>
-            </div>
-          </div>
-
-          {/* Diagnóstico Autonómico (8 cols) — construido con las cifras reales */}
-          <div className="lg:col-span-8 p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">psychology</span>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Diagnóstico Autonómico
-                </h3>
-                <AskChatBtn onAsk={askCoach} focus="readiness" />
-              </div>
-              <div className="flex items-center gap-2">
-                {garminStats?.lastDate && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    Último dato: {garminStats.lastDate}
-                  </span>
-                )}
-                {onOpenChat && (
+      {/* ═══════════ 03 · INTENSIDAD Y TENDENCIA ═══════════ */}
+      <section className="space-y-3">
+        <SectionTitle
+          n="03"
+          title="Intensidad"
+          sub={`Karvonen${hrParams?.hrmax && hrParams?.hrrest ? ` · ${hrParams.hrrest}–${hrParams.hrmax} ppm` : ''}`}
+          action={<AskChatBtn onAsk={askCoach} focus="zones" />}
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Resumen: dos barras (semana y mes). El detalle por zona, las horas y
+              los cortes de FC viven en la vista de Zonas. */}
+          <div className="lg:col-span-7 flex flex-col gap-4 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            {bounds ? (
+              <>
+                <ZoneBar label="Esta semana" mix={zoneWeek} />
+                <ZoneBar label="Últimos 28 días" mix={zoneDistribution} />
+                <div className="flex items-center gap-x-3 gap-y-1 flex-wrap pt-3 border-t border-slate-100 dark:border-slate-800">
+                  {ZONES.map(z => (
+                    <span key={z.name} className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                      <span className="w-2 h-2 rounded-full" style={{ background: z.color }} />{z.name}
+                    </span>
+                  ))}
+                  <span className="text-[10px] text-slate-400">· marca = objetivo {POLARIZED_TARGETS.low}% fácil</span>
                   <button
                     type="button"
-                    onClick={onOpenChat}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                    onClick={() => onNavigate('zones')}
+                    className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
                   >
-                    Preguntar al coach
+                    Detalle por zonas <ChevronRightIcon className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              {readiness == null
-                ? 'Sin telemetría de wearable no se puede leer el estado autonómico. Sincroniza Garmin para activar este diagnóstico.'
-                : `${readiness.label}. ${
-                    hrvDeltaPct != null
-                      ? `La VFC de los últimos 7 días está un ${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}% respecto a tu baseline de 60 días.`
-                      : 'Sin baseline de VFC suficiente para medir desviación.'
-                  }${
-                    currentTSB != null ? ` El TSB de ${currentTSB} sitúa la forma en fase "${phase?.label ?? DASH}".` : ''
-                  }`}
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              <div className="p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 flex items-start gap-2.5 shadow-xs">
-                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-black shrink-0">
-                  01
-                </span>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">VFC Nocturna vs Baseline</span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {garminStats?.currentRec != null
-                      ? `${fmtNum(garminStats.currentRec, 0)} ${garminStats.hasHRV ? 'ms' : 'pts'} vs media 60d de ${fmtNum(garminStats.rec60avg, 0)}${hrvDeltaPct != null ? ` (${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}%)` : ''}.`
-                      : 'Sin datos de VFC sincronizados.'}
-                  </span>
                 </div>
-              </div>
+              </>
+            ) : (
+              <p className="text-xs text-slate-400 py-8 text-center">Calibra FCmax y FC de reposo para ver el reparto por zonas.</p>
+            )}
+          </div>
 
-              <div className="p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 flex items-start gap-2.5 shadow-xs">
-                <span className="px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300 text-[10px] font-black shrink-0">
-                  02
-                </span>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Balance de Carga (TSB)</span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {currentTSB != null
-                      ? `TSB ${currentTSB} pts · CTL ${currentCTL} · ATL ${currentATL}. ${phase?.description ?? ''}`
-                      : 'Sin PMC calculado todavía.'}
-                  </span>
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            {/* Tendencia de los últimos 2 meses según el coach */}
+            {(ai.trend || ai.loading) && (
+              <div className="flex-1 p-5 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-indigo-500 text-[18px]">trending_up</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Tendencia · 2 meses</span>
+                  {trendBadge && <CoachBadge badge={trendBadge} className="ml-auto" />}
                 </div>
+                <CoachText ai={ai} text={ai.trend} accent="text-indigo-500" />
               </div>
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Fila de 5 Mini-Tarjetas Biométricas */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
-          {/* VFC Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">VFC (HRV)</span>
-              <span className={`w-2 h-2 rounded-full ${wearables.hrv ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            </div>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-50">
-                  {wearables.hrv?.latest != null ? Math.round(wearables.hrv.latest) : DASH}
-                </span>
-                <span className="text-xs text-slate-400 font-semibold">ms</span>
-              </div>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                {wearables.hrv?.status
-                  ? wearables.hrv.status
-                  : hrvDeltaPct != null ? `${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}% vs baseline` : 'Sin baseline'}
-              </span>
-            </div>
-            <div className="h-5 w-full pt-1">
-              {wearables.hrvSpark && (
-                <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 24">
-                  <path d={wearables.hrvSpark} fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="2.5" />
-                </svg>
-              )}
-            </div>
-          </div>
-
-          {/* Body Battery Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Body Battery</span>
-              <span className={`w-2 h-2 rounded-full ${wearables.bb ? 'bg-cyan-500' : 'bg-slate-300'}`} />
-            </div>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-50">{wearables.bb?.high ?? DASH}</span>
-                <span className="text-xs text-slate-400 font-semibold">/ 100</span>
-              </div>
-              <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
-                {wearables.bb?.high != null && wearables.bb?.low != null
-                  ? `+${wearables.bb.high - wearables.bb.low} recargado`
-                  : 'Sin recarga registrada'}
-              </span>
-            </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-              <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${wearables.bb?.high ?? 0}%` }} />
-            </div>
-          </div>
-
-          {/* Sueño Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calidad Sueño</span>
-              <span className={`w-2 h-2 rounded-full ${wearables.sleep ? 'bg-blue-500' : 'bg-slate-300'}`} />
-            </div>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-50">{wearables.sleep?.score ?? DASH}</span>
-                <span className="text-xs text-slate-400 font-semibold">/ 100</span>
-              </div>
-              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                {wearables.sleep?.durationMin
-                  ? `${formatMinutesHm(wearables.sleep.durationMin, DASH)}${wearables.sleep.deepMin ? ` • Profundo ${formatMinutesHm(wearables.sleep.deepMin, DASH)}` : ''}`
-                  : 'Sin registro de sueño'}
-              </span>
-            </div>
-            <div className="h-5 w-full pt-1">
-              {wearables.sleepSpark && (
-                <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 24">
-                  <path d={wearables.sleepSpark} fill="none" stroke="#3b82f6" strokeLinecap="round" strokeWidth="2.5" />
-                </svg>
-              )}
-            </div>
-          </div>
-
-          {/* TSB Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TSB (Estrés Bal.)</span>
-              <span className={`w-2 h-2 rounded-full ${currentTSB != null ? 'bg-amber-500' : 'bg-slate-300'}`} />
-            </div>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-50 tabular-nums">{currentTSB ?? DASH}</span>
-                <span className="text-xs text-slate-400 font-semibold">pts</span>
-              </div>
-              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">{phase?.label ?? 'Sin PMC'}</span>
-            </div>
-            {/* Barra bipolar: el ancho es |TSB| sobre una escala de ±30 pts. */}
-            <div className="relative w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-400 z-10" />
-              {currentTSB != null && (
-                <div
-                  className={`absolute top-0 bottom-0 rounded-full ${currentTSB < 0 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                  style={currentTSB < 0
-                    ? { right: '50%', width: `${Math.min(50, (Math.abs(currentTSB) / 30) * 50)}%` }
-                    : { left: '50%', width: `${Math.min(50, (currentTSB / 30) * 50)}%` }}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* ACWR Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-2 col-span-2 sm:col-span-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ratio ACWR</span>
-              <span className={`w-2 h-2 rounded-full ${currentACWR != null ? 'bg-cyan-500' : 'bg-slate-300'}`} />
-            </div>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-900 dark:text-slate-50 tabular-nums">{currentACWR ?? DASH}</span>
-                <span className="text-xs text-slate-400 font-semibold">índice</span>
-              </div>
-              <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
-                {currentACWR == null ? 'Sin PMC'
-                  : currentACWR >= 0.8 && currentACWR <= 1.3 ? 'Sweet Spot (0.8 – 1.3)'
-                  : currentACWR > 1.3 ? 'Por encima del sweet spot' : 'Por debajo del sweet spot'}
-              </span>
-            </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-              <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min(100, Math.round(((currentACWR ?? 0) / 1.6) * 100))}%` }} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── REJILLA ASIMÉTRICA: MÓDULO 02 & MÓDULO 03 (7 COLS + 5 COLS) ────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* MÓDULO 02: PRESCRIPCIÓN TÁCTICA PARA HOY (7 cols) */}
-        {/* Con plan para hoy (Garmin o Entrenador IA) manda el plan; sin él, la
-            propuesta automática de siempre, dicha como tal. */}
-        {todaySession.source === 'auto' ? (
-        <div className="lg:col-span-7 flex flex-col justify-between gap-4 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">fitness_center</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Sesión Sugerida para Hoy
-                  </h3>
-                  <span className="block text-xs text-slate-400">
-                    {todayWorkout.day} • {todayWorkout.cycleLabel}
-                  </span>
-                  <span className="block text-[11px] text-slate-400 italic">
-                    Sin entreno planificado hoy{todaySession.planExpired ? ' (tu plan del Entrenador IA ya caducó)' : ''}: propuesta automática según tu estado.
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <AskChatBtn onAsk={askCoach} focus="workout" />
-                <span className="px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 text-xs font-bold">
-                  {todayWorkout.zonesLabel}
-                </span>
-              </div>
-            </div>
-
-            {/* Cinta de Objetivos */}
-            <div className="grid grid-cols-3 gap-2 mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-center border border-slate-100 dark:border-slate-800">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Distancia</span>
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">{todayWorkout.targetDistance}</span>
-              </div>
-              <div className="flex flex-col border-x border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ritmo Objetivo</span>
-                <span className="text-sm sm:text-base font-black text-blue-600 dark:text-blue-400">{todayWorkout.targetPace}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">FC Objetivo</span>
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">{todayWorkout.targetHr}</span>
-              </div>
-            </div>
-
-            {/* Cronograma Visual de la Sesión */}
-            <div className="flex flex-col gap-2 mt-4">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
-                <span>
-                  Estructura de la Sesión
-                  {todayWorkout.structure.totalMin != null ? ` (${todayWorkout.structure.totalMin} MIN TOTAL)` : ''}
-                </span>
-                <span className="text-cyan-600 dark:text-cyan-400 font-bold">
-                  {todayWorkout.sampleSize > 0
-                    ? `Calibrado con ${todayWorkout.sampleSize} rodajes`
-                    : 'Sin rodajes de referencia'}
-                </span>
-              </div>
-
-              {/* Barra segmentada: los anchos son la proporción REAL de cada bloque */}
-              {todayWorkout.structure.totalMin != null ? (
-                <>
-                  <div className="h-12 w-full rounded-xl overflow-hidden flex shadow-inner border border-slate-200/60 dark:border-slate-700">
-                    <div
-                      className="h-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200 flex flex-col items-center justify-center px-2"
-                      style={{ width: `${(todayWorkout.structure.warmMin / todayWorkout.structure.totalMin) * 100}%` }}
-                    >
-                      <span className="text-[9px] font-bold uppercase tracking-wider leading-none">WARMUP</span>
-                      <span className="text-[10px] font-medium opacity-80">{todayWorkout.structure.warmup}</span>
-                    </div>
-                    <div
-                      className="h-full bg-blue-600 text-white flex flex-col items-center justify-center px-3 text-center"
-                      style={{ width: `${(todayWorkout.structure.mainMin / todayWorkout.structure.totalMin) * 100}%` }}
-                    >
-                      <span className="text-xs font-bold leading-none">
-                        {todayWorkout.recovery ? 'TROTE REGENERATIVO' : 'RODAJE BASE CONTROLADO'}
-                      </span>
-                      <span className="text-[10px] font-medium text-blue-100 truncate max-w-full">{todayWorkout.structure.main}</span>
-                    </div>
-                    <div
-                      className="h-full bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 flex flex-col items-center justify-center px-2"
-                      style={{ width: `${(todayWorkout.structure.coolMin / todayWorkout.structure.totalMin) * 100}%` }}
-                    >
-                      <span className="text-[9px] font-bold uppercase tracking-wider leading-none">COOL</span>
-                      <span className="text-[10px] font-medium opacity-80">{todayWorkout.structure.cool}</span>
-                    </div>
-                  </div>
-
-                  {/* Marcas de tiempo derivadas de la propia estructura */}
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1">
-                    <span>00:00</span>
-                    <span>{String(todayWorkout.structure.warmMin).padStart(2, '0')}:00</span>
-                    <span>{String(todayWorkout.structure.warmMin + todayWorkout.structure.mainMin).padStart(2, '0')}:00</span>
-                    <span>{todayWorkout.structure.totalMin}:00 Min</span>
-                  </div>
-                </>
-              ) : (
-                <div className="h-12 w-full rounded-xl border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs text-slate-400">
-                  Sin rodajes recientes para calibrar la sesión
-                </div>
-              )}
-            </div>
-
-            {/* Nota Táctica */}
-            <div className="mt-4 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-start gap-3">
-              <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px] shrink-0 mt-0.5">tips_and_updates</span>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Instrucción Táctica de Carrera</span>
-                <p className="text-xs text-slate-500 dark:text-slate-300 leading-relaxed italic">
-                  "{todayWorkout.tacticalQuote}"
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Acciones de sincronización */}
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Listo para sincronizar al reloj
-              </span>
-            </div>
+            {/* Zapatilla activa, con su desgaste como barra */}
             <button
               type="button"
-              onClick={() => onNavigate('planner')}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              onClick={() => onNavigate('gear')}
+              className="text-left p-4 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 hover:border-indigo-300 transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[16px]">send_to_mobile</span>
-              <span>Abrir en Planificador</span>
-            </button>
-          </div>
-        </div>
-        ) : (
-          <TodayPlannedSession
-            session={todaySession}
-            day={todayWorkout.day}
-            action={<AskChatBtn onAsk={askCoach} focus="workout" />}
-          />
-        )}
-
-        {/* MÓDULO 03: DISTRIBUCIÓN & CARGA (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col justify-between gap-4 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">equalizer</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Distribución &amp; Carga
-                  </h3>
-                  <span className="block text-xs text-slate-400">
-                    Últimos 28 días · Karvonen (HRR)
-                    {hrParams?.hrmax && hrParams?.hrrest ? ` · ${hrParams.hrrest}–${hrParams.hrmax} ppm` : ''}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">steps</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                    {activeShoe ? activeShoe.name : 'Sin zapatilla asignada'}
                   </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {zoneDistribution.hasData && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${VERDICT[zoneDistribution.verdictKey].cls}`}>
-                    {VERDICT[zoneDistribution.verdictKey].label}
+                {activeShoe && (
+                  <span className={`text-[10px] font-bold shrink-0 ${activeShoe.remainingPct >= 40 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    {activeShoe.remainingPct >= 40 ? 'En buen estado' : 'Revisar desgaste'}
                   </span>
                 )}
-                <AskChatBtn onAsk={askCoach} focus="zones" />
-                <button
-                  type="button"
-                  onClick={() => onNavigate('zones')}
-                  className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
-                >
-                  Zonas <ArrowRightIcon className="w-3 h-3" />
-                </button>
               </div>
-            </div>
-
-            {/* Barra de Distribución Polarizada */}
-            <div className="flex flex-col gap-2 mt-4">
-              {zoneDistribution.hasData ? (
+              {activeShoe ? (
                 <>
-                  <div className="flex items-end justify-between gap-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-black leading-none text-emerald-600 dark:text-emerald-400 tabular-nums">
-                        {Math.round(zoneDistribution.groups.low)}%
-                      </span>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">fácil (Z1–Z2)</span>
-                    </div>
-                    <span className="text-[11px] text-slate-400 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
-                  </div>
-
-                  {/* Dos lecturas del mismo reparto: las cinco zonas y, debajo, su
-                      agrupación polarizada. La marca vertical es el objetivo de
-                      volumen fácil: el veredicto se VE, no hay que creerse la pastilla. */}
-                  <div className="relative">
-                    <div className="h-4 w-full rounded-lg overflow-hidden flex bg-slate-100 dark:bg-slate-800">
-                      {ZONES.map((z, i) => {
-                        const b = zoneDistribution.bounds[i];
-                        const range = b.lo <= 0 ? `< ${b.hi + 1}` : b.hi >= 999 ? `≥ ${b.lo}` : `${b.lo}–${b.hi}`;
-                        return (
-                          <div
-                            key={z.name}
-                            className="h-full transition-all duration-300"
-                            style={{ width: `${zoneDistribution.pct[i]}%`, background: z.color }}
-                            title={`${z.name} ${z.role} · ${zoneDistribution.pct[i]}% · ${hoursStr(zoneDistribution.times[i])} · ${range} ppm`}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div className="h-1.5 mt-1 rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
-                      {GROUPS.map(g => (
-                        <div
-                          key={g.key}
-                          style={{ width: `${zoneDistribution.groups[g.key]}%`, background: g.color }}
-                          title={`${g.label} (${g.sub}) · ${zoneDistribution.groups[g.key]}%`}
-                        />
-                      ))}
-                    </div>
+                  <div className="h-2 mt-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                     <div
-                      className="absolute -top-1 bottom-0 w-px bg-slate-800/70 dark:bg-slate-300/70"
-                      style={{ left: `${POLARIZED_TARGETS.low}%` }}
-                      title={`Objetivo: ${POLARIZED_TARGETS.low}% del tiempo en fácil`}
+                      className={`h-full rounded-full ${activeShoe.remainingPct >= 40 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                      style={{ width: `${100 - activeShoe.remainingPct}%` }}
                     />
                   </div>
-
-                  {/* Leyenda: % y HORAS por zona, con los cortes de la calibración real */}
-                  <div className="grid grid-cols-5 gap-1.5 pt-1">
-                    {ZONES.map((z, i) => {
-                      const b = zoneDistribution.bounds[i];
-                      const range = i === 0 ? `<${b.hi + 1}` : i === 4 ? `>${b.lo - 1}` : `${b.lo}–${b.hi}`;
-                      return (
-                        <div key={z.name} className="min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: z.color }} />
-                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate">{z.name}</span>
-                          </div>
-                          <div className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums leading-tight">
-                            {zoneDistribution.pct[i]}%
-                          </div>
-                          <div className="text-[10px] text-slate-400 tabular-nums">{hoursStr(zoneDistribution.times[i])}</div>
-                          <div className="text-[9px] text-slate-300 dark:text-slate-600 tabular-nums">{range}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center gap-x-4 gap-y-1 flex-wrap pt-3 border-t border-slate-100 dark:border-slate-800">
-                    {GROUPS.map(g => (
-                      <span key={g.key} className="text-[11px] text-slate-400">
-                        {g.label} <span className={`font-black tabular-nums ${g.text}`}>{zoneDistribution.groups[g.key]}%</span>
-                      </span>
-                    ))}
-                    <span className="text-[10px] text-slate-300 dark:text-slate-600 ml-auto">
-                      {zoneDistribution.sessions} sesiones · {hoursStr(zoneDistribution.totalSec)} con FC
-                      {zoneDistribution.avgOnlySessions > 0 && ` · ${zoneDistribution.avgOnlySessions} sin parciales`}
-                    </span>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-1 tabular-nums">
+                    <span>{activeShoe.km.toLocaleString(lang)} km usados</span>
+                    <span>vida {activeShoe.lifeKm.toLocaleString(lang)} km · quedan {activeShoe.remainingPct}%</span>
                   </div>
                 </>
               ) : (
-                <p className="text-xs text-slate-400 py-4 text-center">
-                  {bounds
-                    ? 'Sin sesiones con FC en los últimos 28 días.'
-                    : 'Calibra FCmax y FC de reposo para ver el reparto por zonas.'}
-                </p>
+                <p className="text-[11px] text-slate-400 mt-1">Asigna material a tus actividades de Strava para seguir su desgaste.</p>
               )}
-            </div>
-
-            {/* ── Carga contra la propia capacidad ──────────────────────────
-                Fitness y fatiga contra la MISMA escala —el techo del atleta—,
-                que es lo que hace visible el hueco entre ellas; y ese hueco es
-                el TSB. Un "84/100" y un "94/110" con denominadores inventados
-                no comparan nada. */}
-            <div className="flex flex-col gap-3 mt-4 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Carga y forma
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-slate-400">PMC Banister · TRIMP por reserva de FC</span>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('pmc')}
-                    className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
-                  >
-                    PMC <ArrowRightIcon className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-
-              {pmcCurrent == null ? (
-                <p className="text-xs text-slate-400 py-4 text-center">Aún no hay carga suficiente para el modelo.</p>
-              ) : (
-                <>
-                  {/* Barra CTL */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-600" />
-                        Forma física (CTL)
-                      </span>
-                      <span className="text-slate-400">
-                        <span className="font-black text-slate-800 dark:text-slate-100 text-sm tabular-nums">{fmt1(pmcCurrent.ctl)}</span>
-                        <span className="ml-1.5 text-[11px]">{pmcCurrent.pctPeak}% de tu pico {fmt1(pmcCurrent.peak)}</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(2, Math.min(100, (pmcCurrent.ctl / loadScale) * 100))}%` }} />
-                    </div>
-                  </div>
-
-                  {/* Barra ATL — misma escala que CTL, a propósito */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-orange-400" />
-                        Fatiga (ATL)
-                      </span>
-                      <span className="text-slate-400">
-                        <span className="font-black text-slate-800 dark:text-slate-100 text-sm tabular-nums">{fmt1(pmcCurrent.atl)}</span>
-                        <span className="ml-1.5 text-[11px]">{Math.round((pmcCurrent.atl / loadScale) * 100)}% de la misma escala</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-orange-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(2, Math.min(100, (pmcCurrent.atl / loadScale) * 100))}%` }} />
-                    </div>
-                  </div>
-
-                  {/* Frescura (TSB) en escala divergente: lo que se lee es el signo
-                      y la distancia al cero, no el número suelto. */}
-                  <div className="mt-1">
-                    <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Frescura (TSB)</span>
-                      <span className="text-sm font-black text-slate-800 dark:text-slate-100 tabular-nums">
-                        {pmcCurrent.tsb >= 0 ? '+' : ''}{fmt1(pmcCurrent.tsb)}
-                      </span>
-                    </div>
-                    {(() => {
-                      // La escala se abre si el TSB se sale de ±30, para que el
-                      // punto nunca se quede clavado en el extremo.
-                      const span = Math.max(30, Math.ceil(Math.abs(pmcCurrent.tsb) / 10) * 10);
-                      const left = 50 + (Math.max(-span, Math.min(span, pmcCurrent.tsb)) / span) * 50;
-                      return (
-                        <div className="relative h-4">
-                          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full overflow-hidden flex">
-                            <div className="w-[33%] bg-rose-100 dark:bg-rose-950/60" title="Fatiga alta" />
-                            <div className="w-[17%] bg-orange-100 dark:bg-orange-950/60" title="Bloque de carga" />
-                            <div className="w-[25%] bg-emerald-100 dark:bg-emerald-950/60" title="Rango productivo" />
-                            <div className="w-[25%] bg-sky-100 dark:bg-sky-950/60" title="Fresco / afinado" />
-                          </div>
-                          <div className="absolute top-0 bottom-0 w-px bg-slate-300 dark:bg-slate-600" style={{ left: '50%' }} />
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white ring-2 ring-slate-700 dark:ring-slate-300 shadow"
-                            style={{ left: `${left}%` }}
-                            title={`TSB ${fmt1(pmcCurrent.tsb)}`}
-                          />
-                        </div>
-                      );
-                    })()}
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                      <span>fatiga</span><span>equilibrio</span><span>fresco</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-                    <span className="text-slate-400">
-                      ACWR <span className={`font-black tabular-nums ${acwrCls}`}>{currentACWR == null ? DASH : currentACWR.toFixed(2)}</span>
-                    </span>
-                    <span className="text-slate-400">
-                      Rampa <span className={`font-black tabular-nums ${rampCls}`}>{ctlRamp >= 0 ? '+' : ''}{fmt1(ctlRamp)}</span> CTL/sem
-                    </span>
-                    <span className="text-slate-400">
-                      7 d <span className="font-black tabular-nums text-slate-600 dark:text-slate-300">{pmcCurrent.ctlTrend7 >= 0 ? '+' : ''}{fmt1(pmcCurrent.ctlTrend7)}</span>
-                    </span>
-                    <span className="text-slate-400">
-                      {/* Rampa de VOLUMEN entre las dos últimas semanas cerradas */}
-                      Volumen <span className="font-black tabular-nums text-slate-600 dark:text-slate-300">
-                        {weeklyRamp ? `${weeklyRamp.absDeltaKm >= 0 ? '+' : ''}${weeklyRamp.absDeltaKm.toFixed(1)} km` : DASH}
-                      </span>/sem
-                    </span>
-                    <span className="text-slate-300 dark:text-slate-600 ml-auto hidden xl:inline">{phase?.description}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Estado de Zapatilla Activa */}
-          <div
-            onClick={() => onNavigate('gear')}
-            className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 cursor-pointer hover:border-indigo-300 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">directions_run</span>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  {activeShoe ? `Zapatilla Activa: ${activeShoe.name}` : 'Sin zapatilla asignada'}
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  {activeShoe
-                    ? `${activeShoe.km.toLocaleString()} km de ${activeShoe.lifeKm.toLocaleString()} • Vida restante ${activeShoe.remainingPct}%`
-                    : 'Asigna material a tus actividades de Strava para seguir su desgaste'}
-                </span>
-              </div>
-            </div>
-            {activeShoe && (
-              <span className={`text-[10px] font-bold px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 ${
-                activeShoe.remainingPct >= 40 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
-              }`}>
-                {activeShoe.remainingPct >= 40 ? 'RODAJE OK' : 'REVISAR DESGASTE'}
-              </span>
-            )}
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── ÚLTIMAS SESIONES SINCRONIZADAS ──────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">
-            Últimas Sesiones Sincronizadas
-          </h3>
-          <button
-            type="button"
-            onClick={() => onNavigate('log')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 cursor-pointer"
-          >
-            <span>Ver historial completo ({runs.length} actividades)</span>
-            <ChevronRightIcon className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                <th className="py-2.5 px-3">Fecha &amp; Sesión</th>
-                <th className="py-2.5 px-3">Distancia</th>
-                <th className="py-2.5 px-3">Ritmo Medio</th>
-                <th className="py-2.5 px-3">FC Media</th>
-                <th className="py-2.5 px-3">Cadencia</th>
-                <th className="py-2.5 px-3">Sensación</th>
-                <th className="py-2.5 px-3 text-right">Carga (TSS)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
-              {recentActivities.map(a => (
-                <tr key={a.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3 px-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[10px] ${
-                        a.typeCode === 'INT' ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
-                        : a.typeCode === 'LSD' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                        : a.typeCode === 'REC' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300'
-                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
-                      }`}>
-                        {a.typeCode}
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs">
-                          {a.name}
-                        </span>
-                        <span className="text-[11px] text-slate-400">{a.dateLabel}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
-                    {a.distKm} km
-                  </td>
-                  <td className="py-3 px-3 font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                    {a.pace} /km
-                  </td>
-                  <td className="py-3 px-3 tabular-nums text-slate-700 dark:text-slate-300">
-                    {a.hr != null ? <>{a.hr} ppm {a.hrZone && <span className="text-[10px] font-bold text-slate-400">({a.hrZone})</span>}</> : DASH}
-                  </td>
-                  <td className="py-3 px-3 tabular-nums text-slate-600 dark:text-slate-400">
-                    {a.cadence != null ? `${a.cadence} spm` : DASH}
-                  </td>
-                  <td className="py-3 px-3">
-                    {a.rpe ? (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-[10px] font-bold">
-                        {a.rpe}
-                      </span>
-                    ) : <span className="text-slate-400">{DASH}</span>}
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-slate-800 dark:text-slate-200 tabular-nums">
-                    {a.tss ?? DASH}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── ANÁLISIS DEL COACH IA ───────────────────────────────────────────
-          Componente propio: ya habla el mismo lenguaje visual que esta portada
-          (rounded-2xl, dark:, kinetic-gradient), así que entra tal cual. */}
-      {activities.length > 0 && <AIInsights activities={activities} onOpenChat={onOpenChat} />}
-
-      {/* ── ESTADO ACTUAL VS MEJOR HISTÓRICO (PLEGADO) ──────────────────────
-          Va plegado porque la portada ya contesta "¿cómo voy?" con el briefing
-          de arriba; esto es para cuando quieres saber respecto a QUÉ. */}
-      {compareRows.length > 0 && (
+      {/* ═══════════ 04 · ÚLTIMAS SESIONES ═══════════ */}
+      <section className="space-y-3">
+        <SectionTitle n="04" title="Últimas sesiones" sub={`${runs.length} carreras en el historial`} onMore={() => onNavigate('log')} />
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setCompareOpen(o => !o)}
-            aria-expanded={compareOpen}
-            className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 flex items-center justify-center">
-                <HeartIcon className="w-4 h-4" />
-              </div>
-              <div className="text-left">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Estado actual vs mejor histórico</h3>
-                <span className="block text-xs text-slate-400">{compareRows.length} métricas · tendencia de 8 semanas</span>
-              </div>
-            </div>
-            <ChevronRightIcon className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${compareOpen ? 'rotate-90' : ''}`} />
-          </button>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {recentActivities.map(a => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => onNavigate(`activity/${a.id}`)}
+                  className="w-full text-left flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-[10px] shrink-0 ${TYPE_CLS[a.typeCode]}`}>
+                    {a.typeCode}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{a.name}</span>
+                    <span className="block text-[11px] text-slate-400">{a.dateLabel}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-0.5 text-right shrink-0">
+                    <Metric label="Distancia" value={`${a.distKm} km`} />
+                    <Metric label="Ritmo" value={`${a.pace} /km`} cls="text-blue-600 dark:text-blue-400" />
+                    <Metric
+                      label="FC media"
+                      className="hidden sm:block"
+                      value={a.hr != null ? (
+                        <span className="inline-flex items-center gap-1">
+                          {a.zoneIdx >= 0 && <span className="w-2 h-2 rounded-full" style={{ background: ZONES[a.zoneIdx].color }} />}
+                          {a.hr}{a.hrZone && <span className="text-[10px] text-slate-400">{a.hrZone}</span>}
+                        </span>
+                      ) : DASH}
+                    />
+                    <Metric label="Esfuerzo" className="hidden sm:block" value={a.tss ?? DASH} />
+                  </div>
+                  <ChevronRightIcon className="w-4 h-4 text-slate-300 shrink-0" />
+                </button>
+              </li>
+            ))}
+          </ul>
 
-          {compareOpen && (
-            <div className="px-5 sm:px-6 pb-5 overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse min-w-[620px]">
-                <thead>
-                  <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-2.5 px-3 w-48">Métrica</th>
-                    <th className="py-2.5 px-3 text-right">Ahora</th>
-                    <th className="py-2.5 px-3 text-right">Mejor año</th>
-                    <th className="py-2.5 px-3 text-right">Pico histórico</th>
-                    <th className="py-2.5 px-3 text-right">% pico</th>
-                    <th className="py-2.5 px-3 text-center">Tendencia 8s</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {compareRows.map(row => (
-                    <tr key={row.label} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.label}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-100 tabular-nums">{row.now}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-500 dark:text-slate-400 tabular-nums">{row.bestYear}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-500 dark:text-slate-400 tabular-nums">{row.bestAll}</td>
-                      <td className="py-2.5 px-3 text-right">
-                        {row.noCompare
-                          ? <span className="text-slate-300 dark:text-slate-600">{DASH}</span>
-                          : <PctPill now={row.nowRaw} best={row.bestAllRaw} lowerIsBetter={row.lowerIsBetter} />}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex justify-center items-center">
-                          <RowSparkline data={row.spark} color={row.sparkColor} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {(ai.lastWork || ai.loading) && (
+            <div className="m-4 sm:m-5 p-3.5 rounded-xl bg-amber-50/40 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/40">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <span className="material-symbols-outlined text-amber-500 text-[18px] shrink-0">local_fire_department</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 shrink-0">Ejecución · Coach IA</span>
+                {lastActivity?.name && <span className="text-[11px] text-slate-400 truncate">{lastActivity.name}</span>}
+              </div>
+              <CoachText ai={ai} text={ai.lastWork} accent="text-amber-500" />
             </div>
           )}
         </div>
-      )}
-
-      {/* ── SECCIÓN MARCAS PERSONALES (PERSONAL BESTS) ─────────────────────── */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('dashboard.personal_bests')}</h3>
-            <p className="text-[11px] text-slate-400">
-              {t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}
-            </p>
-          </div>
-          <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
-        </div>
-        <PersonalBests activities={runs} horizontal />
-      </div>
+      </section>
 
     </div>
   );

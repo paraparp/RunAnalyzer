@@ -48,8 +48,12 @@ function mergeActivity(prev, next) {
  * Baja las actividades de Garmin y las persiste mezcladas con las guardadas.
  * Devuelve el array resultante, o null si no se pudo sincronizar (en cuyo caso
  * lo almacenado queda intacto).
+ *
+ * `enrichDetail` es cuántas pide con detalle (una petición a Garmin cada una):
+ * sin él decide el servidor. El sync rápido lo baja para no pagar el backfill del
+ * histórico en cada entrada; el completo lo deja alto para avanzarlo.
  */
-export async function syncGarminActivities(username, password, { limit = 200 } = {}) {
+export async function syncGarminActivities(username, password, { limit = 200, enrichDetail } = {}) {
   const stored = readStoredGarminActivities();
   try {
     const res = await fetch('/api/garmin/activities', {
@@ -58,6 +62,7 @@ export async function syncGarminActivities(username, password, { limit = 200 } =
       body: JSON.stringify({
         username, password, limit,
         enrichedIds: enrichedGarminIds(stored),
+        ...(Number.isFinite(enrichDetail) ? { enrichDetail } : {}),
       }),
     });
     const json = await res.json();

@@ -35,7 +35,9 @@ export const slimActivity = (act, fallback = {}) => {
 // splits_metric, laps ni best_efforts). Este merge conserva el detalle ya
 // enriquecido y persistido de cada actividad, de modo que el sync NO borre los
 // parciales que costó traer. Clave para que el dato viva de forma estable en Supabase.
-const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts', 'stream_gap'];
+// `hr_effort` faltaba: cada refresco del listado lo borraba y el enriquecido en
+// segundo plano volvía a bajar los streams de hasta 30 carreras para recalcularlo.
+const ENRICHED_FIELDS = ['splits_metric', 'laps', 'best_efforts', 'flat_efforts', 'stream_gap', 'hr_effort'];
 
 export const mergeEnrichedActivities = (fresh, existing) => {
   const byId = new Map((existing || []).map(a => [a.id, a]));
@@ -51,6 +53,48 @@ export const mergeEnrichedActivities = (fresh, existing) => {
     }
     return merged;
   });
+};
+
+// ¿Trae el summary nuevo algún valor distinto del guardado? `resource_state` y
+// `map` no cuentan: el guardado puede ser el detalle (state 3, map recortado) y
+// compararlos marcaría como cambiada cada actividad enriquecida.
+const summaryDiffers = (fresh, old) => Object.keys(fresh).some(
+  (k) => k !== 'resource_state' && k !== 'map' && JSON.stringify(fresh[k]) !== JSON.stringify(old[k])
+);
+
+/**
+ * Sync incremental: mete en lo guardado las actividades recién bajadas (nuevas o
+ * editadas) SIN tocar el resto. A diferencia de `mergeEnrichedActivities`, que
+ * sustituye el listado entero, aquí lo que no viene se queda como estaba.
+ *
+ * La guardada manda en todo lo que el summary no trae (detalle, enriquecido); el
+ * summary, en lo que sí trae (nombre editado, tipo…). Devuelve `changed`, cuántas
+ * entraron o cambiaron, para no reescribir en Supabase el blob entero si es 0.
+ */
+export const upsertActivities = (fresh, existing, { limit = Infinity } = {}) => {
+  const byId = new Map((existing || []).map(a => [a.id, a]));
+  let changed = 0;
+  for (const f of fresh || []) {
+    const old = byId.get(f.id);
+    if (old && !summaryDiffers(f, old)) continue;
+    byId.set(f.id, old ? { ...old, ...slimActivity(f, old) } : f);
+    changed++;
+  }
+  if (!changed) return { activities: existing || [], changed };
+  const activities = [...byId.values()]
+    .sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)))
+    .slice(0, limit);
+  return { activities, changed };
+};
+
+/** Epoch (s) del inicio de la actividad más reciente guardada, o null. */
+export const newestStartEpoch = (activities) => {
+  let max = null;
+  for (const a of activities || []) {
+    const t = Date.parse(a?.start_date);
+    if (Number.isFinite(t) && (max == null || t > max)) max = t;
+  }
+  return max == null ? null : Math.floor(max / 1000);
 };
 
 /** Guardado tolerante: si se excede la cuota, la app sigue con el dato en memoria. */

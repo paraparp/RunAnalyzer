@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text, Select, SelectItem } from '@tremor/react';
 import { TrophyIcon } from '@heroicons/react/24/outline';
+import PersonalBests from './PersonalBests';
 import { formatDuration, formatPaceFromMinPerKm } from '../lib/timeFormat';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -207,10 +208,28 @@ export default function RaceDetector({ activities }) {
     </div>
   );
 
+  // Las marcas personales salen de cualquier sesión, no solo de las carreras
+  // detectadas, así que se enseñan también cuando no hay ninguna carrera.
+  const personalBests = (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('dashboard.personal_bests')}</h3>
+          <p className="text-[11px] text-slate-400">
+            {t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}
+          </p>
+        </div>
+        <TrophyIcon className="w-5 h-5 text-amber-400 shrink-0" />
+      </div>
+      <PersonalBests activities={activities} horizontal />
+    </div>
+  );
+
   if (!races.length) {
     return (
       <div className="space-y-6 max-w-6xl mx-auto fade-in">
         {header}
+        {personalBests}
         <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center text-slate-400">
           <p className="text-sm">{t('races.no_data')}</p>
           <p className="text-xs mt-2">{t('races.no_data_hint')}</p>
@@ -222,6 +241,7 @@ export default function RaceDetector({ activities }) {
   return (
     <div className="space-y-6 max-w-6xl mx-auto fade-in">
       {header}
+      {personalBests}
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">

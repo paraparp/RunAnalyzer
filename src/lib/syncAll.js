@@ -4,7 +4,7 @@
 //
 // Antes había tres caminos que hacían casi lo mismo: el efecto de montaje
 // ("autosync" al entrar), el botón de la barra y el backfill de GarminCardiac.
-// "Casi" es el problema: divergían en tres cosas que sí se notan.
+// "Casi" es el problema: divergían en cosas que sí se notan.
 //
 //   1) **Garmin colgaba de Strava.** Todo el sync de entrada vivía dentro de un
 //      `if (savedStrava)`, y el del botón arrancaba con `if (!stravaData) return`.
@@ -15,44 +15,63 @@
 //   2) **Un token sin refresh se tragaba el resto.** Al caducar sin
 //      `refreshToken`, el camino de entrada hacía `return` antes de tocar Garmin.
 //      Ahora desconectar Strava es el resultado de SU carril, no el final del sync.
-//   3) **La frescura se decidía distinto.** El botón bajaba Strava siempre; la
-//      entrada, solo si `lastFetchDate` no era de hoy. Esa diferencia es
-//      deliberada (el rate-limit de Strava no perdona un refresco por navegación)
-//      y ahora es un parámetro, `force`, en vez de dos cuerpos de función.
+//
+// Dos velocidades:
+//   - **Rápido** (entrada a la app y botón de la barra): mira el último dato
+//     guardado y va solo a por lo NUEVO. Strava pide las actividades posteriores
+//     a la última guardada (`after`, una petición) y Garmin la salud desde el
+//     último día guardado y las últimas pocas actividades. Sin novedades, no
+//     escribe nada.
+//   - **Completo** (`full`, panel de usuario): vuelve a bajar el listado entero
+//     de Strava —recoge borradas, subidas tardías y ediciones antiguas— y avanza
+//     el backfill del detalle de Garmin.
 //
 // El enriquecido pesado (splits, tramos llanos) NO vive aquí: se dispara con
-// `onActivities`, en segundo plano y sin bloquear. Lo que sí vive aquí es que se
-// dispare IGUAL viniendo de la entrada o del botón.
+// `onActivities`, en segundo plano y sin bloquear.
 // ============================================================================
 import { getActivities, refreshAccessToken } from '../services/strava';
 import {
   readStravaData, persistStravaData, clearStravaData,
-  mergeEnrichedActivities, todayStamp,
+  mergeEnrichedActivities, upsertActivities, newestStartEpoch, todayStamp,
 } from './stravaStore';
 import {
   readGarminCreds, garminSyncDays, saveGarminHealth, SYNC_COMPLETE_EVENT,
 } from './garminHealthStore';
 import { syncGarminActivities } from './garminActivitiesSync';
 
-/** Cuántas actividades de Strava se piden en cada refresco. */
+/** Cuántas actividades de Strava se guardan como mucho. */
 const STRAVA_LIMIT = 1000;
+
+// Solape del incremental: `after` va una semana antes de la última guardada, para
+// recoger lo subido con retraso y las ediciones recientes (nombre, tipo). Sigue
+// cabiendo en una sola página.
+const STRAVA_OVERLAP_S = 7 * 86400;
+
+// Actividades de Garmin por sync: [listadas, con detalle]. El rápido solo mira
+// las últimas (lo nuevo, con detalle ya); el completo recorre más y rellena el
+// histórico pendiente.
+const GARMIN_QUICK = { limit: 30, enrichDetail: 10 };
+const GARMIN_FULL = { limit: 300, enrichDetail: 40 };
+
+// Días de salud que revisa el completo aunque el incremental diga menos: rehace
+// los días que Garmin terminó de escribir después (sueño, HRV de la noche).
+const GARMIN_FULL_HEALTH_DAYS = 30;
 
 const isAuthError = (msg = '') => /401|refresh/i.test(String(msg));
 
 /**
- * Carril Strava: refresca el token si toca, baja el listado y lo MEZCLA con lo
- * guardado (el listado viene sin detalle: ver `mergeEnrichedActivities`).
+ * Carril Strava: refresca el token si toca y trae lo nuevo (o el listado entero
+ * con `full`), MEZCLADO con lo guardado para no perder el detalle enriquecido.
  *
- * Devuelve `{ status, data, activities, accessToken }`. `status` es
- * 'disconnected' (sin conexión guardada o token irrecuperable), 'fresh' (ya se
- * bajó hoy y no se fuerza), 'synced' o 'error'.
+ * Devuelve `{ status, data, activities, accessToken, changed }`. `status` es
+ * 'disconnected' (sin conexión guardada o token irrecuperable), 'synced' o
+ * 'error'. `changed` es cuántas actividades entraron o cambiaron.
  */
-async function syncStrava({ force, onData, onDisconnected }) {
+async function syncStrava({ full, onData, onDisconnected }) {
   const stored = readStravaData();
   if (!stored?.accessToken) return { status: 'disconnected' };
 
   let current = { ...stored };
-  let refreshed = false;
   try {
     if (current.expiresAt && Date.now() / 1000 >= current.expiresAt) {
       if (!current.refreshToken) {
@@ -67,24 +86,32 @@ async function syncStrava({ force, onData, onDisconnected }) {
         refreshToken: tokens.refresh_token,
         expiresAt: tokens.expires_at,
       };
-      refreshed = true;
       persistStravaData(current);
       onData?.(current);
     }
 
-    // La entrada a la app no vuelve a bajar el listado si ya se bajó hoy; el
-    // botón sí (es lo que el usuario está pidiendo explícitamente).
-    const today = todayStamp();
-    if (!force && !refreshed && current.lastFetchDate === today) {
-      return { status: 'fresh', data: current, activities: current.activities, accessToken: current.accessToken };
+    const newest = newestStartEpoch(current.activities);
+    let activities;
+    let changed;
+    if (full || newest == null) {
+      const fresh = await getActivities(current.accessToken, STRAVA_LIMIT);
+      activities = mergeEnrichedActivities(fresh, current.activities);
+      changed = fresh.length;
+    } else {
+      const fresh = await getActivities(current.accessToken, STRAVA_LIMIT, { after: newest - STRAVA_OVERLAP_S });
+      ({ activities, changed } = upsertActivities(fresh, current.activities, { limit: STRAVA_LIMIT }));
     }
 
-    const fresh = await getActivities(current.accessToken, STRAVA_LIMIT);
-    const activities = mergeEnrichedActivities(fresh, current.activities);
+    const today = todayStamp();
+    // Sin novedades y ya marcado hoy: nada que escribir. Reescribir aquí subiría
+    // a Supabase el blob entero (MBs) y repintaría toda la app por nada.
+    if (!changed && current.lastFetchDate === today) {
+      return { status: 'synced', data: current, activities: current.activities, accessToken: current.accessToken, changed: 0 };
+    }
     const updated = { ...current, activities, lastFetchDate: today };
     persistStravaData(updated);
     onData?.(updated);
-    return { status: 'synced', data: updated, activities, accessToken: updated.accessToken };
+    return { status: 'synced', data: updated, activities, accessToken: updated.accessToken, changed };
   } catch (e) {
     // Un 401 o un refresh rechazado significa que la conexión ya no vale: se
     // olvida para que la UI ofrezca reconectar. Cualquier otro fallo (red,
@@ -104,14 +131,17 @@ async function syncStrava({ force, onData, onDisconnected }) {
  * después las actividades con running dynamics, que reaprovechan las mismas
  * credenciales. Las actividades son best-effort: un fallo ahí no invalida la
  * salud que ya se guardó.
+ *
+ * Las dos llamadas van en serie a propósito: cada una hace login en Garmin, y dos
+ * logins simultáneos con la misma cuenta son lo que acaba en 403.
  */
-async function syncGarmin({ onHealth }) {
+async function syncGarmin({ full, onHealth }) {
   const creds = readGarminCreds();
   if (!creds) return { status: 'disconnected' };
 
   const out = { status: 'synced' };
   try {
-    const days = garminSyncDays();
+    const days = full ? Math.max(garminSyncDays(), GARMIN_FULL_HEALTH_DAYS) : garminSyncDays();
     const res = await fetch('/api/garmin/health/recent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -129,7 +159,7 @@ async function syncGarmin({ onHealth }) {
   }
 
   try {
-    const activities = await syncGarminActivities(creds.username, creds.password);
+    const activities = await syncGarminActivities(creds.username, creds.password, full ? GARMIN_FULL : GARMIN_QUICK);
     out.activities = activities?.length ?? 0;
   } catch (e) {
     console.warn('[sync] actividades de Garmin fallaron', e.message);
@@ -140,32 +170,38 @@ async function syncGarmin({ onHealth }) {
 
 /**
  * Sincroniza TODO lo que la app guarda de terceros. Es el único punto de entrada:
- * lo llaman el arranque del Dashboard (`force: false`) y el botón de la barra
- * (`force: true`).
+ * lo llaman el arranque del Dashboard y el botón de la barra (rápido; el botón
+ * con `force`) y el panel de usuario (`full`).
  *
- * Los dos carriles corren en SERIE y a propósito: Strava primero, Garmin después.
- * En paralelo se solapan dos tandas de peticiones a terceros (el carril de Garmin
- * hace login + salud + actividades) y es la forma más rápida de comerse un
- * rate-limit de los dos a la vez.
+ * Los dos carriles corren EN PARALELO: son proveedores distintos con cuotas
+ * distintas, así que esperar a Strava para empezar Garmin solo sumaba tiempos.
  *
  * Nunca lanza: devuelve el estado de cada carril para que la UI pueda contarlo.
  */
 export async function syncAll({
   force = false,
+  full = false,
   onStravaData,
   onStravaDisconnected,
   onGarminHealth,
   onActivities,
 } = {}) {
-  const strava = await syncStrava({ force, onData: onStravaData, onDisconnected: onStravaDisconnected });
-
-  // El enriquecido en segundo plano solo tiene sentido con listado nuevo y token
-  // vivo. Deliberadamente sin `await`: no debe retrasar el carril de Garmin.
-  if (strava.status === 'synced' && strava.accessToken) {
-    onActivities?.(strava.activities, strava.accessToken);
-  }
-
-  const garmin = await syncGarmin({ onHealth: onGarminHealth });
+  const stravaLane = syncStrava({ full, onData: onStravaData, onDisconnected: onStravaDisconnected })
+    .then((strava) => {
+      // El enriquecido en segundo plano (splits, streams) gasta hasta ~90 de las
+      // 100 peticiones que Strava da por cuarto de hora. Al entrar solo se lanza
+      // si hay actividades nuevas: recargar la app no debe comerse la cuota. Con
+      // los botones (`force`/`full`) sí, para ir completando el histórico.
+      // Sin `await` desde quien lo recibe: no debe retrasar el final del sync.
+      if (strava.status === 'synced' && strava.accessToken && (force || full || strava.changed > 0)) {
+        onActivities?.(strava.activities, strava.accessToken);
+      }
+      return strava;
+    });
+  const [strava, garmin] = await Promise.all([
+    stravaLane,
+    syncGarmin({ full, onHealth: onGarminHealth }),
+  ]);
 
   // Un solo aviso al final, con los dos carriles ya escritos: es el que despierta
   // a las vistas que leen de cloudStorage (GarminCardiac, VO2Max, wearable, AI…).

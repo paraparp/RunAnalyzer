@@ -29,8 +29,8 @@ const StravaCallback = ({ onConnect }) => {
                 const stats = await getAthleteStats(tokenData.access_token, tokenData.athlete.id);
 
                 setStatus('Descargando actividades (0/1000)...');
-                const activities = await getActivities(tokenData.access_token, 1000, (current, total) => {
-                    setStatus(`Descargando actividades (${current}/${total})...`);
+                const activities = await getActivities(tokenData.access_token, 1000, {
+                    onProgress: (current, total) => setStatus(`Descargando actividades (${current}/${total})...`),
                 });
 
                 setStatus('Guardando datos...');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planDayFor, resolveTodaySession, workoutBlocks } from './todaySession';
+import { planDayFor, resolveTodaySession, workoutBlocks, coachSessionFrom } from './todaySession';
 
 // Plan generado el lunes 21-sep-2026: cubre del 21 al 27.
 const plan = {
@@ -74,5 +74,34 @@ describe('resolveTodaySession', () => {
     });
     expect(s.isRace).toBe(true);
     expect(s.conflict).toBe(true);
+  });
+});
+
+describe('coachSessionFrom', () => {
+  const now = Date.UTC(2026, 8, 27, 8);
+  const cache = {
+    timestamp: now - 3 * 3600 * 1000,
+    nextWork: '',
+    meta: {
+      sesion: {
+        tipo: 'Intervalos', distancia: '8-10 km', ritmo: '3:37-3:53 min/km', zona: 'Zona 4 · 169-183 ppm',
+        structured_workout: [
+          { phase: 'Calentamiento', duration_min: 15, intensity: 2, pace: '5:26/km' },
+          { phase: 'Series', duration_min: 4, reps: 4, intensity: 4, pace: '3:37/km', hr: '169-183', recovery: '90" trote' },
+          { phase: 'Vuelta a la calma', duration_min: 10, intensity: 1 },
+        ],
+      },
+    },
+  };
+
+  it('saca la prescripción del coach con sus bloques', () => {
+    const c = coachSessionFrom(cache, now);
+    expect(c).toMatchObject({ type: 'Intervalos', distance: '8-10 km', pace: '3:37-3:53', hr: '169-183', zone: 4, totalMin: 41, hard: true });
+    expect(c.blocks).toHaveLength(3);
+  });
+
+  it('caduca a las 48 h y sin caché no hay sesión', () => {
+    expect(coachSessionFrom({ ...cache, timestamp: now - 49 * 3600 * 1000 }, now)).toBeNull();
+    expect(coachSessionFrom(null, now)).toBeNull();
   });
 });

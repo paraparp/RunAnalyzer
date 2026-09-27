@@ -109,34 +109,61 @@ export const getActivityStreams = async (accessToken, activityId) => {
     return response.json();
 };
 
-export const getActivities = async (accessToken, count = 10, onProgress) => {
-    let allActivities = [];
-    let page = 1;
-    const perPage = 200; // Strava max per_page
+const PER_PAGE = 200; // Strava max per_page
 
-    while (allActivities.length < count) {
-        const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}&page=${page}`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
-        });
+const fetchActivitiesPage = async (accessToken, page, after) => {
+    const params = new URLSearchParams({ per_page: String(PER_PAGE), page: String(page) });
+    if (after != null) params.set('after', String(after));
+    const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?${params}`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch activities: ' + response.status);
+    if (!response.ok) {
+        throw new Error('Failed to fetch activities: ' + response.status);
+    }
+    return response.json();
+};
+
+/**
+ * Listado de actividades (summaries), hasta `count`.
+ *
+ * `after` (epoch en segundos) pide solo las que empiezan después: es el sync
+ * incremental, que casi siempre cabe en UNA página. Sin `after` es el listado
+ * completo: la primera página va sola (a la mayoría de atletas les basta) y, si
+ * viene llena, el resto se pide EN PARALELO — antes eran 5 peticiones en fila.
+ */
+export const getActivities = async (accessToken, count = 10, { after, onProgress } = {}) => {
+    const pages = Math.max(1, Math.ceil(count / PER_PAGE));
+    let loaded = 0;
+    const tick = (batch) => {
+        loaded += batch.length;
+        onProgress?.(Math.min(loaded, count), count);
+        return batch;
+    };
+
+    const first = tick(await fetchActivitiesPage(accessToken, 1, after));
+    const all = [...first];
+    if (first.length < PER_PAGE || pages === 1) return all.slice(0, count);
+
+    if (after != null) {
+        // Incremental con más de una página llena (meses sin sincronizar): en fila,
+        // porque no se sabe cuántas hay y cada una vacía gasta cuota de Strava.
+        for (let page = 2; page <= pages; page++) {
+            const batch = tick(await fetchActivitiesPage(accessToken, page, after));
+            all.push(...batch);
+            if (batch.length < PER_PAGE) break;
         }
-
-        const activities = await response.json();
-
-        if (activities.length === 0) {
-            break;
-        }
-
-        allActivities = [...allActivities, ...activities];
-        if (onProgress) {
-            onProgress(Math.min(allActivities.length, count), count);
-        }
-        page++;
+        return all.slice(0, count);
     }
 
-    return allActivities.slice(0, count);
+    const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) => fetchActivitiesPage(accessToken, i + 2).then(tick))
+    );
+    for (const batch of rest) {
+        all.push(...batch);
+        if (batch.length < PER_PAGE) break;
+    }
+    return all.slice(0, count);
 };
