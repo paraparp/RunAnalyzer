@@ -1,6 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import {
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
+} from 'recharts';
 import ActivitySplits from './ActivitySplits';
 import { karvonenBounds } from '../lib/hrZones';
 import { ZONES } from '../lib/zoneColors';
@@ -125,8 +129,117 @@ function WeatherBlock({ weather, t }) {
   );
 }
 
-function SimilarBlock({ similar, onOpenActivity, t, locale }) {
+// La sesión abierta se pinta en azul; el resto del grupo en gris: lo que se lee es
+// dónde cae ESTA sesión dentro de su historia, no las otras entre sí.
+const OWN = '#2563eb';
+const PEER = '#94a3b8';
+
+/** La sesión abierta con la misma forma que las del grupo, para mezclarla con ellas. */
+function ownRow(activity, gap, ownEf) {
+  const moving = activity.moving_time || activity.elapsed_time || 0;
+  return {
+    id: activity.id,
+    date: activity.start_date,
+    name: activity.name,
+    distance_m: activity.distance,
+    speed_ms: moving > 0 ? activity.distance / moving : null,
+    gap_speed_ms: gap?.speed_ms ?? null,
+    avg_hr: activity.average_heartrate ?? null,
+    efficiency: ownEf,
+    current: true,
+  };
+}
+
+function SimilarTooltip({ active, payload, t, locale }) {
+  if (!active || !payload?.length) return null;
+  const s = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 truncate max-w-[220px]">{s.current ? t('session.this_session') : s.name}</p>
+      <p className="text-slate-400 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
+      <p className="font-semibold tabular-nums text-slate-900">{s.efficiency.toFixed(2)} m/lat</p>
+      <p className="tabular-nums text-slate-500">
+        {formatPaceFromSpeed(s.speed_ms)}/km{s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
+      </p>
+    </div>
+  );
+}
+
+function SimilarChart({ points, median, onOpenActivity, t, locale }) {
+  const dot = ({ cx, cy, payload }) => (
+    <circle
+      key={payload.id}
+      cx={cx} cy={cy}
+      r={payload.current ? 6 : 3.5}
+      fill={payload.current ? OWN : PEER}
+      stroke="#fff" strokeWidth={2}
+      style={{ cursor: payload.current ? 'default' : 'pointer' }}
+      onClick={() => !payload.current && onOpenActivity(payload.id)}
+    />
+  );
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <ComposedChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+        <XAxis
+          dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']}
+          tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'short', year: '2-digit' })}
+          tick={{ fontSize: 10, fill: '#64748b' }} minTickGap={24}
+        />
+        <YAxis
+          domain={[(min) => Math.floor((min - 0.05) * 10) / 10, (max) => Math.ceil((max + 0.05) * 10) / 10]}
+          tickFormatter={(v) => v.toFixed(1)}
+          width={32} tick={{ fontSize: 10, fill: '#64748b' }}
+        />
+        <RechartsTooltip content={<SimilarTooltip t={t} locale={locale} />} />
+        {median != null && <ReferenceLine y={median} stroke={PEER} strokeDasharray="4 4" />}
+        <Line
+          type="linear" dataKey="efficiency" stroke="#cbd5e1" strokeWidth={1.5}
+          dot={dot} activeDot={false} isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+function SimilarRow({ s, onOpenActivity, t, locale }) {
+  const base = 'flex items-center gap-3 px-3 py-2 rounded-lg';
+  const Tag = s.current ? 'div' : 'button';
+  return (
+    <Tag
+      {...(s.current ? {} : { type: 'button', onClick: () => onOpenActivity(s.id) })}
+      className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'}`}
+    >
+      <span className={`w-14 shrink-0 text-[11px] tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-400'}`}>
+        {new Date(s.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' })}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700'}`}>
+          {s.current ? t('session.this_session') : s.name}
+        </span>
+        <span className="block truncate text-[11px] tabular-nums text-slate-400">
+          {(s.distance_m / 1000).toFixed(1)} km · {formatPaceFromSpeed(s.speed_ms)}/km
+          {s.gap_speed_ms ? ` · GAP ${formatPaceFromSpeed(s.gap_speed_ms)}` : ''}
+          {s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
+        </span>
+      </span>
+      <span className={`shrink-0 text-right text-sm font-black tabular-nums ${s.current ? 'text-blue-700' : 'text-slate-800'}`}>
+        {s.efficiency != null ? s.efficiency.toFixed(2) : '—'}
+        <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">m/lat</span>
+      </span>
+    </Tag>
+  );
+}
+
+function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
   if (!similar || similar.n === 0) return <Empty>{t('session.no_similar')}</Empty>;
+  const own = ownRow(activity, gap, similar.own_ef);
+  const points = [...similar.history, own]
+    .filter((s) => s.efficiency != null)
+    .map((s) => ({ ...s, t: new Date(s.date).getTime() }))
+    .sort((a, b) => a.t - b.t);
+  // La sesión abierta va en la lista en su sitio cronológico, entre las demás.
+  const rows = [...similar.sessions, own].sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
     <>
       <p className="text-xs text-slate-500 mb-3">
@@ -136,34 +249,20 @@ function SimilarBlock({ similar, onOpenActivity, t, locale }) {
           hr: similar.criteria.hr_tol_bpm ?? '—',
         })}
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-widest text-slate-400">
-              <th className="text-left font-bold py-1.5">{t('session.col_date')}</th>
-              <th className="text-left font-bold py-1.5">{t('session.col_name')}</th>
-              <th className="text-right font-bold py-1.5">km</th>
-              <th className="text-right font-bold py-1.5">{t('session.col_pace')}</th>
-              <th className="text-right font-bold py-1.5">GAP</th>
-              <th className="text-right font-bold py-1.5">{t('session.col_hr')}</th>
-              <th className="text-right font-bold py-1.5">m/lat</th>
-            </tr>
-          </thead>
-          <tbody>
-            {similar.sessions.map((s) => (
-              <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => onOpenActivity(s.id)}>
-                <td className="py-1.5 tabular-nums text-slate-500 whitespace-nowrap">{new Date(s.date).toLocaleDateString(locale)}</td>
-                <td className="py-1.5 text-slate-700 truncate max-w-[180px]">{s.name}</td>
-                <td className="py-1.5 text-right tabular-nums">{(s.distance_m / 1000).toFixed(1)}</td>
-                <td className="py-1.5 text-right tabular-nums">{formatPaceFromSpeed(s.speed_ms)}</td>
-                <td className="py-1.5 text-right tabular-nums">{s.gap_speed_ms ? formatPaceFromSpeed(s.gap_speed_ms) : '—'}</td>
-                <td className="py-1.5 text-right tabular-nums">{s.avg_hr ? Math.round(s.avg_hr) : '—'}</td>
-                <td className="py-1.5 text-right tabular-nums font-semibold">{s.efficiency != null ? s.efficiency.toFixed(2) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {points.length >= 2 && (
+        <div className="mb-4">
+          <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
+          <p className="text-[11px] text-slate-400 mt-1">{t('session.similar_chart_hint')}</p>
+        </div>
+      )}
+      <div className="space-y-0.5">
+        {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
       </div>
+      {similar.n > similar.sessions.length && (
+        <p className="text-[11px] text-slate-400 mt-2">
+          {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
+        </p>
+      )}
     </>
   );
 }
@@ -313,7 +412,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
 
       {!isRace(activity) && (
         <Card title={t('session.similar_title')}>
-          <SimilarBlock similar={similar} onOpenActivity={onOpenActivity} t={t} locale={locale} />
+          <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
         </Card>
       )}
     </div>

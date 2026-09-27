@@ -613,7 +613,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
         {/* Scrollable Content */}
         <main className="flex-1 min-h-0 overflow-y-auto">
-          <div className="mx-auto w-full p-4 max-w-[1400px] lg:p-8 space-y-6">
+          <div className={`mx-auto w-full p-4 lg:p-8 space-y-6 ${currentView === 'dashboard' ? 'max-w-[2200px]' : 'max-w-[1400px]'}`}>
 
             {currentView === 'dashboard' && (
               <TodayView

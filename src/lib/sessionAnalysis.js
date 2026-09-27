@@ -145,6 +145,8 @@ export function findSimilarSessions(activity, all, {
 
   return {
     sessions: matched.slice(0, limit),
+    // Todas, no solo las `limit` más recientes: la gráfica de evolución las necesita.
+    history: matched,
     n: matched.length,
     median_ef: medianEf,
     median_speed_ms: median(speeds),
