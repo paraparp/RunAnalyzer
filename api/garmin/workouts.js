@@ -8,12 +8,15 @@
 // en user_storage) y nunca salen hacia el cliente.
 //
 //   GET    → entrenos ya guardados en Garmin (para comprobar qué hay).
+//   GET ?planned=1 → calendario: entrenos y carreras agendados (la portada lo usa
+//            para saber qué toca hoy).
 //   POST   → { days: [...] } crea y agenda una o varias sesiones del plan.
 //   DELETE → ?workout_id=… borra uno (deshacer un envío).
 // ============================================================================
 import { ensureAuth } from '../_lib/auth.js';
 import { createWorkout, deleteWorkout, listWorkouts } from '../_lib/garmin-write.js';
 import { planDayToWorkoutSpec, isRestDay } from '../_lib/plan-to-garmin.js';
+import { getPlannedWorkouts } from '../_lib/garmin-live.js';
 
 export const config = { maxDuration: 60 };
 
@@ -28,6 +31,9 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    if (req.method === 'GET' && req.query?.planned) {
+      return res.json(await getPlannedWorkouts(user.id, { months: 1 }));
+    }
     if (req.method === 'GET') {
       const limit = Number(req.query?.limit) || 20;
       return res.json(await listWorkouts(user.id, { limit }));

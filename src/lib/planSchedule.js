@@ -56,3 +56,13 @@ export function nextDateForDay(name, from = new Date()) {
   base.setDate(base.getDate() + ((idx - base.getDay() + 7) % 7));
   return toISODate(base);
 }
+
+/**
+ * Día del plan sin sesión que correr: descanso declarado, o sin estructura. Lo
+ * comparten la portada (sesión de hoy) y el envío a Garmin (api/_lib/plan-to-garmin).
+ */
+export function isRestDay(day) {
+  if (!day) return true;
+  if (/descanso|reposo|\brest\b|\boff\b/.test(norm(day.type))) return true;
+  return !Array.isArray(day.structured_workout) || day.structured_workout.length === 0;
+}

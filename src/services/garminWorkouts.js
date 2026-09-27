@@ -37,3 +37,18 @@ export async function pushPlanDays(days, { signal } = {}) {
   if (!res.ok) throw new Error(data.error || `Error ${res.status} al hablar con Garmin.`);
   return data;
 }
+
+/**
+ * Calendario de Garmin del mes en curso: entrenos y carreras agendados
+ * (`{ count, planned: [{ date, title, is_race, ... }] }`). Lo usa la portada para
+ * saber qué toca hoy.
+ */
+export async function fetchPlannedWorkouts({ signal } = {}) {
+  const res = await fetch('/api/garmin/workouts?planned=1', {
+    headers: await authHeaders(),
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status} al leer el calendario de Garmin.`);
+  return data;
+}

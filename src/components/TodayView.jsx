@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import cloudStorage from '../lib/cloudStorage';
 import {
   TrophyIcon,
-  FireIcon,
   ArrowTrendingUpIcon,
   ArrowRightIcon,
   ChevronRightIcon,
@@ -17,6 +16,8 @@ import { OVERRIDES_EVENT } from '../lib/hrOverrides';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useGarminWearableData from '../hooks/useGarminWearableData';
 import { computeStats, computeGarminStats, loadPhase, formZone, isRun, paceStr, fmt1 } from '../lib/statusStats';
+import useTodaySession from '../hooks/useTodaySession';
+import TodayPlannedSession from './TodayPlannedSession';
 import { computeReadiness } from '../lib/athleteContext';
 import { getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
@@ -481,6 +482,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     };
   }, [runs, bounds, readiness, currentTSB, phase, nowMs]);
 
+  // ── 10b. Qué toca hoy de verdad: Garmin > plan del Entrenador IA > automática ──
+  const todaySession = useTodaySession({ advisesRest: todayWorkout.recovery, nowMs });
+
   // ── 11. Últimas sesiones sincronizadas ────────────────────────────────────
   const recentActivities = useMemo(() => {
     return runs.slice(0, 5).map(r => {
@@ -776,7 +780,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
           <AskChatBtn onAsk={askCoach} focus="briefing" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <HeroCard
             label="Fitness (CTL)"
             value={fmt1(stats.currentCTL)}
@@ -814,18 +818,6 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               { label: 'Media semanal año', value: `${stats.avgWeekKmYear.toFixed(1)} km` },
               { label: 'Semana pico año', value: `${stats.peakWeekKmYear.toFixed(1)} km` },
               { label: 'Semana pico total', value: `${stats.peakWeekKm.toFixed(1)} km` },
-            ]}
-          />
-          <HeroCard
-            label="Mejor ritmo reciente"
-            value={paceStr(stats.bestPace10kRecent) !== DASH ? paceStr(stats.bestPace10kRecent) : paceStr(stats.bestPace5kRecent)}
-            unit={paceStr(stats.bestPace10kRecent) !== DASH ? '/km 10k' : '/km 5k'}
-            icon={FireIcon}
-            color="amber"
-            subRows={[
-              { label: 'PB 10k este año', value: paceStr(stats.bestPace10kYear) },
-              { label: 'PB 10k histórico', value: paceStr(stats.bestPace10kAll) },
-              { label: 'Racha actual', value: `${stats.streak} días` },
             ]}
           />
         </div>
@@ -1144,6 +1136,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       {/* ── REJILLA ASIMÉTRICA: MÓDULO 02 & MÓDULO 03 (7 COLS + 5 COLS) ────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* MÓDULO 02: PRESCRIPCIÓN TÁCTICA PARA HOY (7 cols) */}
+        {/* Con plan para hoy (Garmin o Entrenador IA) manda el plan; sin él, la
+            propuesta automática de siempre, dicha como tal. */}
+        {todaySession.source === 'auto' ? (
         <div className="lg:col-span-7 flex flex-col justify-between gap-4 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1157,6 +1152,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   </h3>
                   <span className="block text-xs text-slate-400">
                     {todayWorkout.day} • {todayWorkout.cycleLabel}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 italic">
+                    Sin entreno planificado hoy{todaySession.planExpired ? ' (tu plan del Entrenador IA ya caducó)' : ''}: propuesta automática según tu estado.
                   </span>
                 </div>
               </div>
@@ -1272,6 +1270,13 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             </button>
           </div>
         </div>
+        ) : (
+          <TodayPlannedSession
+            session={todaySession}
+            day={todayWorkout.day}
+            action={<AskChatBtn onAsk={askCoach} focus="workout" />}
+          />
+        )}
 
         {/* MÓDULO 03: DISTRIBUCIÓN & CARGA (5 cols) */}
         <div className="lg:col-span-5 flex flex-col justify-between gap-4 p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

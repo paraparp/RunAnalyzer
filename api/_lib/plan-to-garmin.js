@@ -13,6 +13,8 @@
 // Garmin admite UN objetivo por step: si el bloque trae ritmo y FC se usa el
 // ritmo (lo mas especifico que prescribe el plan) y la FC queda en la
 // descripcion, que si es libre.
+import { isRestDay } from '../../src/lib/planSchedule.js';
+
 const PACE_WINDOW_SEC = 5;   // ventana por defecto alrededor de un ritmo unico
 const HR_WINDOW_BPM = 5;     // idem para una FC unica
 const MAX_NAME = 60;
@@ -34,12 +36,9 @@ export function phaseKind(phase) {
   return 'interval';
 }
 
-/** Dia sin sesion que correr (descanso, o sin estructura que enviar). */
-export function isRestDay(day) {
-  if (!day) return true;
-  if (/descanso|reposo|\brest\b|\boff\b/.test(norm(day.type))) return true;
-  return !Array.isArray(day.structured_workout) || day.structured_workout.length === 0;
-}
+// "Dia de descanso" vive en src/lib/planSchedule: la portada (sesion de hoy) y el
+// envio a Garmin tienen que decidir igual que dia no se corre.
+export { isRestDay };
 
 const round = (n, d = 2) => parseFloat(Number(n).toFixed(d));
 

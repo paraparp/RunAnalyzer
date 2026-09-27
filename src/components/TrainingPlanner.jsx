@@ -12,6 +12,22 @@ import { buildPrompt, buildPlainActivityLog } from '../lib/athleteContext';
 import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
 import { pushPlanDays } from '../services/garminWorkouts';
+import cloudStorage from '../lib/cloudStorage';
+import { AI_PLAN_KEY, planDayFor } from '../lib/todaySession';
+import { toISODate } from '../lib/planSchedule';
+
+// Último plan guardado, si aún cubre la semana en curso. Se guarda para que la
+// portada sepa qué toca hoy y para que el plan no se pierda al recargar.
+function readSavedPlan() {
+    try {
+        const saved = JSON.parse(cloudStorage.getItem(AI_PLAN_KEY) || 'null');
+        if (!saved?.plan) return null;
+        const { expired } = planDayFor(saved, toISODate(new Date()));
+        return expired ? null : saved.plan;
+    } catch {
+        return null;
+    }
+}
 
 // Prompt del plan — vive en código y siempre en español (antes estaba duplicado
 // en i18n en dos idiomas que podían divergir y mezclaba idioma con el
@@ -79,7 +95,7 @@ const TrainingPlanner = ({ activities }) => {
     // Modelo IA: preferencia global (se cambia en el menú de usuario).
     const [selectedModel] = useAIModel();
     const [loading, setLoading] = useState(false);
-    const [plan, setPlan] = useState(null);
+    const [plan, setPlan] = useState(readSavedPlan);
     const [error, setError] = useState('');
 
     // Envío del plan al reloj. `pushingKey` es 'week' o el índice del día en curso
@@ -147,6 +163,11 @@ const TrainingPlanner = ({ activities }) => {
             // 0.5: la prescripción debe ser consistente entre ejecuciones, no creativa.
             const object = await generateAIObjectWithFallback({ ...parseModelValue(selectedModel), prompt, temperature: 0.5, schema: 'plan', signal: controller.signal });
             setPlan(object);
+            cloudStorage.setItem(AI_PLAN_KEY, JSON.stringify({
+                plan: object,
+                generated_at: toISODate(new Date()),
+                race_id: selectedRace?.id ?? null,
+            }));
             setLoading(false);
         } catch (err) {
             if (err?.name === 'AbortError') return; // desmontado o cancelado
