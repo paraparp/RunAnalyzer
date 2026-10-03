@@ -1,12 +1,17 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowLeftIcon, ArrowTopRightOnSquareIcon, ChevronLeftIcon, ChevronRightIcon,
+  ArrowTrendingUpIcon, ArrowTrendingDownIcon, HeartIcon, SunIcon, MapIcon, BoltIcon,
+} from '@heroicons/react/24/outline';
+import { activityNeighbors } from '../lib/activityNeighbors';
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 import ActivitySplits from './ActivitySplits';
-import { karvonenBounds } from '../lib/hrZones';
+import RouteMap from './RouteMap';
+import { karvonenBounds, classifyHR } from '../lib/hrZones';
 import { ZONES } from '../lib/zoneColors';
 import { formatDuration, formatPaceFromSpeed } from '../lib/timeFormat';
 import { readStoredGarminActivities } from '../lib/garminActivitiesSync';
@@ -27,24 +32,104 @@ const LEVEL_TONE = {
   very_high: 'text-rose-600',
 };
 
+// Mismo semáforo que LEVEL_TONE, en versión pastilla para los veredictos.
+const LEVEL_PILL = {
+  excellent: 'bg-emerald-50 text-emerald-600',
+  good: 'bg-emerald-50 text-emerald-600',
+  normal: 'bg-amber-50 text-amber-600',
+  high: 'bg-orange-50 text-orange-600',
+  very_high: 'bg-rose-50 text-rose-600',
+};
+
 const fmt1 = (v) => (v == null ? '—' : v.toFixed(1));
 const signed = (v, d = 1) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(d)}`);
+// Strava da la cadencia de carrera por pierna; Garmin, por minuto de ambas.
+const spm = (c) => (c ? Math.round(c < 120 ? c * 2 : c) : null);
 
-function Card({ title, children, className = '' }) {
+function Card({ id, title, aside, children, className = '', flush = false }) {
   return (
-    <section className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 ${className}`}>
-      {title && <h3 className="text-sm font-bold text-slate-800 mb-3">{title}</h3>}
-      {children}
+    <section id={id} className={`scroll-mt-20 bg-white rounded-xl border border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${className}`}>
+      {title && (
+        <header className="flex items-center justify-between gap-3 px-5 h-11 border-b border-slate-100">
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+          {aside}
+        </header>
+      )}
+      <div className={flush ? '' : 'p-5'}>{children}</div>
     </section>
   );
 }
 
-function Kpi({ label, value, hint }) {
+/** Bloque temático de la cabecera: una cifra protagonista y sus secundarias. */
+function StatGroup({ Icon, accent, label, value, unit, caption, items, children }) {
+  return (
+    <div className="min-w-0 bg-white px-5 py-4 flex flex-col">
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md ${accent}`}><Icon className="w-3.5 h-3.5" /></span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{label}</span>
+      </div>
+      <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
+        <span className="text-[32px] leading-none font-bold tracking-tight text-slate-900">{value}</span>
+        {unit && <span className="text-sm font-semibold text-slate-400">{unit}</span>}
+        {caption && <span className="text-[11px] text-slate-400 truncate">{caption}</span>}
+      </div>
+      {children}
+      <dl className="mt-auto pt-3 grid grid-cols-2 gap-3">
+        {items.map((it) => (
+          <div key={it.label} className="min-w-0" title={it.title}>
+            <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">{it.label}</dt>
+            <dd className="text-sm font-semibold tabular-nums text-slate-800 truncate">
+              {it.value}{it.unit && <span className="ml-0.5 text-[11px] font-medium text-slate-400">{it.unit}</span>}
+            </dd>
+            {it.hint && <dd className="text-[10px] text-slate-400 truncate">{it.hint}</dd>}
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * FC media y máxima sobre las cinco zonas del atleta (mismos límites Karvonen que
+ * el resto de la app). La escala arranca en el 50% de la reserva: por debajo no hay
+ * nada que leer en una sesión de carrera.
+ */
+function HrStrip({ avg, max, hrmax, hrrest, t }) {
+  if (!avg || !hrmax || !hrrest) return null;
+  const bounds = karvonenBounds({ hrmax, hrrest });
+  const lo = Math.round(hrrest + 0.5 * (hrmax - hrrest));
+  const hi = Math.max(hrmax, max || 0);
+  const pos = (hr) => `${Math.max(0, Math.min(100, ((hr - lo) / (hi - lo)) * 100))}%`;
+  const edges = [lo, ...bounds.slice(1).map((b) => b.lo), hi];
+  const zone = ZONES[classifyHR(avg, bounds) + 1];
+  return (
+    <div className="mt-3">
+      <div className="relative h-2">
+        <div className="absolute inset-0 flex rounded-full overflow-hidden">
+          {[1, 2, 3, 4, 5].map((z, i) => (
+            <div key={z} style={{ width: `${((edges[i + 1] - edges[i]) / (hi - lo)) * 100}%`, background: ZONES[z].color, opacity: 0.35 }} />
+          ))}
+        </div>
+        {max && (
+          <span className="absolute top-1/2 w-0.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded bg-slate-500" style={{ left: pos(max) }} title={`${t('session.max')} ${Math.round(max)}`} />
+        )}
+        <span className="absolute top-1/2 w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow" style={{ left: pos(avg), background: zone.color }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] font-semibold">
+        {[1, 2, 3, 4, 5].map((z) => (
+          <span key={z} style={{ color: ZONES[z].text, opacity: z === classifyHR(avg, bounds) + 1 ? 1 : 0.45 }}>{ZONES[z].label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, hint, size = 'md' }) {
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
-      <div className="text-xl font-black tabular-nums text-slate-900 truncate">{value}</div>
-      {hint && <div className="text-[11px] text-slate-400 truncate">{hint}</div>}
+      <div className={`font-black tabular-nums text-slate-900 truncate ${size === 'lg' ? 'text-3xl leading-tight' : 'text-lg'}`}>{value}</div>
+      {hint && <div className="text-[11px] text-slate-400 truncate" title={hint}>{hint}</div>}
     </div>
   );
 }
@@ -55,29 +140,48 @@ function Empty({ children }) {
 
 function ZonesBlock({ zones, t }) {
   if (!zones) return <Empty>{t('session.no_hr')}</Empty>;
+  const top = Math.max(...zones.pct);
+  const groups = [
+    { key: 'low', cls: 'bg-sky-50 text-sky-700' },
+    { key: 'mod', cls: 'bg-amber-50 text-amber-700' },
+    { key: 'high', cls: 'bg-rose-50 text-rose-700' },
+  ];
   return (
     <>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
         {zones.pct.map((p, i) => p > 0 && (
-          <div key={i} style={{ width: `${p}%`, background: ZONES[i + 1].color }} title={`${ZONES[i + 1].label} ${p}%`} />
+          <div key={i} style={{ width: `${p}%`, background: ZONES[i + 1].color }} title={`${ZONES[i + 1].label} ${Math.round(p)}%`} />
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-2">
-        {zones.pct.map((p, i) => (
-          <div key={i} className="text-center">
-            <div className="text-[10px] font-black" style={{ color: ZONES[i + 1].text }}>{ZONES[i + 1].label}</div>
-            <div className="text-sm font-bold tabular-nums text-slate-800">{Math.round(p)}%</div>
-            <div className="text-[10px] tabular-nums text-slate-400">{formatDuration(zones.times[i])}</div>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-xs text-slate-500">
-        {t('session.polarized', {
-          low: Math.round(zones.groups.low), mod: Math.round(zones.groups.mod), high: Math.round(zones.groups.high),
+      <div className="mt-4 space-y-2">
+        {zones.pct.map((p, i) => {
+          const dominant = p > 0 && p === top;
+          return (
+            <div key={i} className="flex items-center gap-3">
+              <span className="w-7 shrink-0 text-[11px] font-black" style={{ color: ZONES[i + 1].text }}>{ZONES[i + 1].label}</span>
+              <div className="relative h-5 flex-1 rounded bg-slate-50">
+                <div
+                  className="absolute inset-y-0 left-0 rounded transition-[width] duration-500"
+                  style={{ width: `${Math.max(p, p > 0 ? 1 : 0)}%`, background: ZONES[i + 1].color, opacity: dominant ? 1 : 0.7 }}
+                />
+              </div>
+              <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${dominant ? 'font-black text-slate-900' : 'font-semibold text-slate-600'}`}>
+                {Math.round(p)}%
+              </span>
+              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{formatDuration(zones.times[i])}</span>
+            </div>
+          );
         })}
-      </p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {groups.map(({ key, cls }) => (
+          <span key={key} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums ${cls}`}>
+            {t(`session.group_${key}`)} {Math.round(zones.groups[key])}%
+          </span>
+        ))}
+      </div>
       {zones.resolution === 'average' && (
-        <p className="mt-1 text-[11px] text-amber-600">{t('session.zones_average_only')}</p>
+        <p className="mt-2 text-[11px] text-amber-600">{t('session.zones_average_only')}</p>
       )}
     </>
   );
@@ -85,20 +189,20 @@ function ZonesBlock({ zones, t }) {
 
 function DecouplingRow({ label, d, t }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-2 last:border-0">
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
       <div className="min-w-0">
         <div className="text-xs font-semibold text-slate-700">{label}</div>
         {d.pct != null && (
-          <div className="text-[11px] text-slate-400 truncate">
-            {d.initial.window}: {Math.round(d.initial.avg_hr)} ppm @ {formatPaceFromSpeed(d.initial.avg_speed_ms)}
-            {' → '}
-            {d.final.window}: {Math.round(d.final.avg_hr)} ppm @ {formatPaceFromSpeed(d.final.avg_speed_ms)}
+          <div className="mt-0.5 text-[11px] text-slate-500 tabular-nums">
+            <span className="whitespace-nowrap">{d.initial.window}: {Math.round(d.initial.avg_hr)} ppm @ {formatPaceFromSpeed(d.initial.avg_speed_ms)}</span>
+            <span className="text-slate-300"> → </span>
+            <span className="whitespace-nowrap">{d.final.window}: {Math.round(d.final.avg_hr)} ppm @ {formatPaceFromSpeed(d.final.avg_speed_ms)}</span>
           </div>
         )}
       </div>
       {d.pct != null ? (
         <div className="text-right shrink-0">
-          <div className={`text-lg font-black tabular-nums ${LEVEL_TONE[d.level]}`}>{signed(d.pct)}%</div>
+          <div className={`text-xl font-black tabular-nums ${LEVEL_TONE[d.level]}`}>{signed(d.pct)}%</div>
           <div className={`text-[10px] font-bold uppercase ${LEVEL_TONE[d.level]}`}>{t(`decoupling.levels.${d.level}`)}</div>
         </div>
       ) : (
@@ -112,7 +216,7 @@ function WeatherBlock({ weather, t }) {
   if (!weather) return <Empty>{t('session.no_weather')}</Empty>;
   if (!weather.wbgt_plausible) return <Empty>{t('session.weather_implausible')}</Empty>;
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-5">
       <Kpi label={t('session.temp')} value={`${fmt1(weather.temp_c)} °C`} hint={weather.humidity_pct != null ? `${Math.round(weather.humidity_pct)}% HR` : null} />
       <Kpi label="WBGT" value={`${fmt1(weather.wbgt_c)} °C`} hint={weather.dew_point_c != null ? `${t('session.dew_point')} ${fmt1(weather.dew_point_c)} °C` : null} />
       <Kpi
@@ -178,7 +282,7 @@ function SimilarChart({ points, median, onOpenActivity, t, locale }) {
     />
   );
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
         <XAxis
@@ -203,18 +307,18 @@ function SimilarChart({ points, median, onOpenActivity, t, locale }) {
 }
 
 function SimilarRow({ s, onOpenActivity, t, locale }) {
-  const base = 'flex items-center gap-3 px-3 py-2 rounded-lg';
+  const base = 'group flex items-center gap-3 px-3 py-2 rounded-lg';
   const Tag = s.current ? 'div' : 'button';
   return (
     <Tag
       {...(s.current ? {} : { type: 'button', onClick: () => onOpenActivity(s.id) })}
-      className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'}`}
+      className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-500'}`}
     >
       <span className={`w-14 shrink-0 text-[11px] tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-400'}`}>
         {new Date(s.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700'}`}>
+        <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700 group-hover:text-blue-700'}`}>
           {s.current ? t('session.this_session') : s.name}
         </span>
         <span className="block truncate text-[11px] tabular-nums text-slate-400">
@@ -227,6 +331,7 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
         {s.efficiency != null ? s.efficiency.toFixed(2) : '—'}
         <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">m/lat</span>
       </span>
+      {!s.current && <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-blue-500" />}
     </Tag>
   );
 }
@@ -242,38 +347,108 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
   const rows = [...similar.sessions, own].sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
     <>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-slate-500 mb-4">
         {t('session.similar_criteria', {
           n: similar.n,
           dist: similar.criteria.distance_tol_pct,
           hr: similar.criteria.hr_tol_bpm ?? '—',
         })}
       </p>
-      {points.length >= 2 && (
-        <div className="mb-4">
-          <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-          <p className="text-[11px] text-slate-400 mt-1">{t('session.similar_chart_hint')}</p>
+      <div className="grid gap-6 lg:grid-cols-5">
+        {points.length >= 2 && (
+          <div className="lg:col-span-3">
+            <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
+            <p className="text-[11px] text-slate-400 mt-1">{t('session.similar_chart_hint')}</p>
+          </div>
+        )}
+        <div className={points.length >= 2 ? 'lg:col-span-2' : 'lg:col-span-5'}>
+          <div className="space-y-0.5 lg:max-h-[260px] lg:overflow-y-auto lg:pr-1">
+            {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
+          </div>
+          {similar.n > similar.sessions.length && (
+            <p className="text-[11px] text-slate-400 mt-2">
+              {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
+            </p>
+          )}
         </div>
-      )}
-      <div className="space-y-0.5">
-        {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
       </div>
-      {similar.n > similar.sessions.length && (
-        <p className="text-[11px] text-slate-400 mt-2">
-          {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
-        </p>
-      )}
     </>
   );
 }
 
-export default function SessionView({ activityId, activities, hrParams, onBack, onOpenActivity, onEnrichActivity }) {
+/** Indicador compacto del veredicto: cifra + lectura; lleva a su sección. */
+function Insight({ Icon, tone, valueTone, label, value, sub, title, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className="group flex items-center gap-3 bg-white px-5 py-2.5 text-left hover:bg-slate-50 transition-colors"
+    >
+      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${tone}`}>
+        <Icon className="w-4 h-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 truncate">{label}</span>
+        <span className="flex items-baseline gap-1.5">
+          <span className={`text-base font-bold tabular-nums ${valueTone}`}>{value}</span>
+          <span className="text-[11px] text-slate-500 truncate first-letter:uppercase">{sub}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function StepButton({ target, label, dir, onStep, locale }) {
+  const Icon = dir === 'prev' ? ChevronLeftIcon : ChevronRightIcon;
+  const key = dir === 'prev' ? '←' : '→';
+  return (
+    <button
+      type="button"
+      disabled={!target}
+      onClick={() => target && onStep?.(target.id)}
+      aria-label={label}
+      title={target
+        ? `${label} (${key}): ${target.name} · ${new Date(target.start_date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : label}
+      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors"
+    >
+      {dir === 'prev' && <Icon className="w-3.5 h-3.5" />}
+      <span className="hidden md:inline">{label}</span>
+      {dir === 'next' && <Icon className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+export default function SessionView({ activityId, activities, hrParams, onBack, onOpenActivity, onStepActivity, onEnrichActivity }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
+  const rootRef = useRef(null);
   const activity = useMemo(
     () => activities.find((a) => String(a.id) === String(activityId)) ?? null,
     [activities, activityId],
   );
+
+  // El componente se monta de nuevo en cada sesión (key=id): al pasar a la
+  // siguiente se vuelve arriba en lugar de aterrizar a media página.
+  useEffect(() => {
+    rootRef.current?.closest('main')?.scrollTo({ top: 0 });
+  }, []);
+
+  // Anterior / siguiente en el tiempo, sin volver a la bitácora. También con ← →.
+  const { prev, next } = useMemo(() => activityNeighbors(activity, activities), [activity, activities]);
+  const step = onStepActivity ?? onOpenActivity;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.key === 'Escape') { onBack?.(); return; }
+      const target = e.key === 'ArrowLeft' ? prev : e.key === 'ArrowRight' ? next : null;
+      if (target) step?.(target.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [prev, next, step, onBack]);
 
   // Trae el detalle (vueltas, parciales, mejores esfuerzos) si aún no está: lo mismo
   // que hace la bitácora al desplegar una fila. Es idempotente.
@@ -310,111 +485,231 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
   const moving = activity.moving_time || activity.elapsed_time || 0;
   const speed = moving > 0 ? activity.distance / moving : 0;
   const { gap, zones, decoupling, efficiency, weather, similar } = model;
+  const race = isRace(activity);
   // Sin vueltas del reloj se cae a los parciales por km, que no traen `lap_index`.
   const splits = activity.laps?.length
     ? activity.laps
     : activity.splits_metric?.map((s) => ({ ...s, lap_index: s.split }));
+  const polyline = activity.map?.summary_polyline || activity.map?.polyline || null;
+  const start = new Date(activity.start_date);
+  const cadence = spm(activity.average_cadence);
+
+  const showHeat = weather?.wbgt_plausible && weather.heat_penalty_session_pct != null && weather.heat_penalty_session_pct >= 0.5;
+  const stoppedLong = activity.elapsed_time && activity.elapsed_time - moving > 60;
+
+  // Veredicto (§6.3): cada indicador es la cifra y su lectura; la frase completa
+  // va en el title y el clic lleva a la sección que lo explica.
+  const insights = [
+    similar?.ef_delta_pct != null && {
+      key: 'ef',
+      Icon: similar.ef_delta_pct >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
+      tone: similar.ef_delta_pct >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
+      valueTone: similar.ef_delta_pct >= 0 ? 'text-emerald-600' : 'text-rose-600',
+      label: t('session.insight_efficiency'),
+      value: `${signed(similar.ef_delta_pct)}%`,
+      sub: t('session.insight_rank', { rank: similar.rank, total: similar.n + 1 }),
+      title: t('session.verdict_efficiency', { delta: signed(similar.ef_delta_pct), n: similar.n, rank: similar.rank, total: similar.n + 1 }),
+      target: 'similar',
+    },
+    decoupling.halves.pct != null && {
+      key: 'dec',
+      Icon: HeartIcon,
+      tone: LEVEL_PILL[decoupling.halves.level] ?? 'bg-slate-50 text-slate-600',
+      valueTone: LEVEL_TONE[decoupling.halves.level],
+      label: t('session.decoupling_title'),
+      value: `${signed(decoupling.halves.pct)}%`,
+      sub: t(`decoupling.levels.${decoupling.halves.level}`),
+      title: t('session.verdict_decoupling', { pct: signed(decoupling.halves.pct), level: t(`decoupling.levels.${decoupling.halves.level}`).toLowerCase() }),
+      target: 'decoupling',
+    },
+    showHeat && {
+      key: 'heat',
+      Icon: SunIcon,
+      tone: 'bg-amber-50 text-amber-600',
+      valueTone: 'text-amber-600',
+      label: t('session.insight_heat'),
+      value: `${fmt1(weather.heat_penalty_session_pct)}%`,
+      sub: `WBGT ${fmt1(weather.wbgt_c)} °C`,
+      title: t('session.verdict_heat', { wbgt: fmt1(weather.wbgt_c), pct: fmt1(weather.heat_penalty_session_pct) }),
+      target: 'weather',
+    },
+  ].filter(Boolean);
+  const INSIGHT_COLS = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
+
+  // Orden del índice = orden de lectura: columna principal y luego lateral.
+  const sections = [
+    { id: 'splits', label: t('session.splits_title') },
+    ...(race ? [] : [{ id: 'similar', label: t('session.similar_title') }]),
+    { id: 'zones', label: t('session.zones_title') },
+    { id: 'decoupling', label: t('session.decoupling_title') },
+    { id: 'efficiency', label: t('session.efficiency_title') },
+    { id: 'weather', label: t('session.weather_title') },
+  ];
+  const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
-    <div className="space-y-6">
-      {/* ── Cabecera ─────────────────────────────────────────────────────── */}
-      <Card>
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div className="min-w-0">
-            <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-blue-600 mb-2">
-              <ArrowLeftIcon className="w-3.5 h-3.5" /> {t('session.back')}
-            </button>
-            <h1 className="text-xl font-black text-slate-900 truncate">
-              {activity.name}
-              {isRace(activity) && <span className="ml-2 align-middle px-1.5 py-px rounded text-[10px] font-bold bg-amber-400 text-white uppercase">Race</span>}
-            </h1>
-            <p className="text-xs text-slate-500">
-              {new Date(activity.start_date).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' })}
-            </p>
-          </div>
-          <a
-            href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-[#fc4c02] hover:underline"
+    <div ref={rootRef} className="space-y-5">
+      {/* ── Barra fija: volver, secciones y anterior/siguiente ─────────────── */}
+      <nav className="sticky top-0 z-30 -mx-4 lg:-mx-8 -mt-4 lg:-mt-8 px-4 lg:px-8 py-2.5 bg-[#f4f6fb]/85 backdrop-blur-md border-b border-slate-200/70">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            title={`${t('session.back')} (Esc)`}
+            className="inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded-lg text-xs font-semibold text-slate-600 hover:bg-white hover:text-blue-600 transition-colors shrink-0"
           >
-            Strava <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
-          </a>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <Kpi label={t('session.distance')} value={`${(activity.distance / 1000).toFixed(2)} km`} />
-          <Kpi label={t('session.moving_time')} value={formatDuration(moving)}
-            hint={activity.elapsed_time && activity.elapsed_time - moving > 60 ? `${t('session.elapsed')} ${formatDuration(activity.elapsed_time)}` : null} />
-          <Kpi label={t('session.pace')} value={`${formatPaceFromSpeed(speed)}/km`} />
-          <Kpi label="GAP" value={gap ? `${formatPaceFromSpeed(gap.speed_ms)}/km` : '—'}
-            hint={gap ? t(`session.gap_source.${gap.source}`) : null} />
-          <Kpi label={t('session.avg_hr')} value={activity.average_heartrate ? `${Math.round(activity.average_heartrate)} ppm` : '—'}
-            hint={activity.max_heartrate ? `${t('session.max')} ${Math.round(activity.max_heartrate)}` : null} />
-          <Kpi label={t('session.elevation')} value={`${Math.round(activity.total_elevation_gain || 0)} m`} />
-        </div>
-      </Card>
-
-      {/* ── Veredicto: una frase derivada, no generada (§6.3) ───────────── */}
-      {(similar?.ef_delta_pct != null || decoupling.halves.pct != null) && (
-        <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-5 py-3 text-sm text-slate-700 space-y-1">
-          {similar?.ef_delta_pct != null && (
-            <p>
-              {t('session.verdict_efficiency', {
-                delta: signed(similar.ef_delta_pct),
-                n: similar.n,
-                rank: similar.rank,
-                total: similar.n + 1,
-              })}
-            </p>
-          )}
-          {decoupling.halves.pct != null && (
-            <p>
-              {t('session.verdict_decoupling', {
-                pct: signed(decoupling.halves.pct),
-                level: t(`decoupling.levels.${decoupling.halves.level}`).toLowerCase(),
-              })}
-            </p>
-          )}
-          {weather?.wbgt_plausible && weather.heat_penalty_session_pct != null && weather.heat_penalty_session_pct >= 0.5 && (
-            <p>{t('session.verdict_heat', { wbgt: fmt1(weather.wbgt_c), pct: fmt1(weather.heat_penalty_session_pct) })}</p>
-          )}
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title={t('session.zones_title')}>
-          <ZonesBlock zones={zones} t={t} />
-        </Card>
-
-        <Card title={t('session.decoupling_title')}>
-          <DecouplingRow label={t('session.decoupling_halves')} d={decoupling.halves} t={t} />
-          <DecouplingRow label={t('session.decoupling_durability')} d={decoupling.durability} t={t} />
-        </Card>
-
-        <Card title={t('session.efficiency_title')}>
-          <div className="grid grid-cols-2 gap-4">
-            <Kpi label={t('session.ef_whole')} value={efficiency.whole != null ? `${efficiency.whole.toFixed(2)} m/lat` : '—'}
-              hint={similar?.median_ef ? `${t('session.median_similar')} ${similar.median_ef.toFixed(2)}` : null} />
-            <Kpi label={t('session.ef_aerobic')} value={efficiency.aerobic != null ? `${efficiency.aerobic.toFixed(2)} m/lat` : '—'}
-              hint={efficiency.aerobic == null ? t('session.ef_aerobic_na') : t('session.ef_aerobic_hint')} />
+            <ArrowLeftIcon className="w-4 h-4" /> <span className="hidden sm:inline">{t('session.back')}</span>
+          </button>
+          <span className="hidden sm:block w-px h-5 bg-slate-200 shrink-0" />
+          <div className="flex-1 min-w-0 flex gap-1 overflow-x-auto [scrollbar-width:none]">
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => jump(s.id)}
+                className="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
-        </Card>
+          <div className="flex items-center gap-1 shrink-0">
+            <StepButton target={prev} label={t('session.prev')} dir="prev" onStep={step} locale={locale} />
+            <StepButton target={next} label={t('session.next')} dir="next" onStep={step} locale={locale} />
+          </div>
+        </div>
+      </nav>
 
-        <Card title={t('session.weather_title')}>
-          <WeatherBlock weather={weather} t={t} />
-        </Card>
+      {/* ── Cabecera: identidad, cifras, veredicto y recorrido ─────────────── */}
+      <section className="flex flex-col lg:flex-row bg-white rounded-xl border border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                <span className="first-letter:uppercase">
+                  {start.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="tabular-nums">{start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
+                {race && (
+                  <span className="px-1.5 py-px rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800">{t('session.race')}</span>
+                )}
+              </div>
+              <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 break-words">{activity.name}</h1>
+            </div>
+            <a
+              href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-[#fc4c02] hover:text-[#fc4c02] transition-colors shrink-0"
+            >
+              {t('session.open_strava')} <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          {/* gap-px sobre fondo gris dibuja los separadores entre bloques */}
+          <div className="grid sm:grid-cols-3 gap-px bg-slate-100 border-t border-slate-100">
+            <StatGroup
+              Icon={MapIcon} accent="bg-blue-50 text-blue-600" label={t('session.grp_volume')}
+              value={(activity.distance / 1000).toFixed(2)} unit="km"
+              items={[
+                { label: t('session.moving_time'), value: formatDuration(moving),
+                  hint: stoppedLong ? `${t('session.elapsed')} ${formatDuration(activity.elapsed_time)}` : null },
+                { label: t('session.elevation'), value: Math.round(activity.total_elevation_gain || 0), unit: 'm' },
+              ]}
+            />
+            <StatGroup
+              Icon={BoltIcon} accent="bg-violet-50 text-violet-600" label={t('session.grp_pace')}
+              value={formatPaceFromSpeed(speed)} unit="/km"
+              items={[
+                { label: 'GAP', value: gap ? formatPaceFromSpeed(gap.speed_ms) : '—', unit: gap ? '/km' : null,
+                  title: gap ? t(`session.gap_source.${gap.source}`) : undefined },
+                { label: t('session.cadence'), value: cadence ?? '—', unit: cadence ? 'spm' : null },
+              ]}
+            />
+            <StatGroup
+              Icon={HeartIcon} accent="bg-rose-50 text-rose-600" label={t('session.grp_effort')}
+              value={activity.average_heartrate ? Math.round(activity.average_heartrate) : '—'}
+              unit={activity.average_heartrate ? 'ppm' : null}
+              caption={activity.average_heartrate ? t('session.avg_word') : null}
+              items={[
+                { label: t('session.hr_max'), value: activity.max_heartrate ? Math.round(activity.max_heartrate) : '—', unit: activity.max_heartrate ? 'ppm' : null },
+                { label: t('session.calories'), value: activity.calories ? Math.round(activity.calories) : '—', unit: activity.calories ? 'kcal' : null },
+              ]}
+            >
+              <HrStrip avg={activity.average_heartrate} max={activity.max_heartrate} hrmax={hrmax} hrrest={hrrest} t={t} />
+            </StatGroup>
+          </div>
+        </div>
+
+        {/* Columna derecha: recorrido y, debajo, el veredicto apilado */}
+        {(polyline || insights.length > 0) && (
+          <div className="flex flex-col lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100">
+            {polyline && (
+              <RouteMap encoded={polyline} className="relative h-64 lg:h-auto lg:flex-1 lg:min-h-[240px] bg-slate-50" />
+            )}
+            {insights.length > 0 && (
+              <div className={`grid gap-px bg-slate-100 border-t border-slate-100 ${INSIGHT_COLS[insights.length]} lg:grid-cols-1 ${polyline ? '' : 'lg:border-t-0 lg:flex-1'}`}>
+                {insights.map(({ key, target, ...rest }) => (
+                  <Insight key={key} {...rest} onClick={() => jump(target)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-3 items-start">
+        {/* ── Columna principal: el detalle de la sesión y su comparativa ──── */}
+        <div className="lg:col-span-2 space-y-5 min-w-0">
+          <Card id="splits" title={t('session.splits_title')}>
+            {splits?.length
+              ? <ActivitySplits splits={splits} hrParams={hrParams} bestEfforts={activity.best_efforts}
+                  similarActivities={activity.similar_activities} splitsMetric={activity.splits_metric} />
+              : <Empty>{t('session.no_splits')}</Empty>}
+          </Card>
+
+          {!race && (
+            <Card id="similar" title={t('session.similar_title')}>
+              <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
+            </Card>
+          )}
+        </div>
+
+        {/* ── Lateral: fisiología y condiciones ───────────────────────────── */}
+        <aside className="space-y-5 min-w-0">
+          <Card id="zones" title={t('session.zones_title')}>
+            <ZonesBlock zones={zones} t={t} />
+          </Card>
+
+          <Card id="decoupling" title={t('session.decoupling_title')}>
+            <div className="space-y-2">
+              <DecouplingRow label={t('session.decoupling_halves')} d={decoupling.halves} t={t} />
+              <DecouplingRow label={t('session.decoupling_durability')} d={decoupling.durability} t={t} />
+            </div>
+          </Card>
+
+          <Card
+            id="efficiency"
+            title={t('session.efficiency_title')}
+            aside={similar?.ef_delta_pct != null && (
+              <span className={`text-[11px] font-bold tabular-nums ${similar.ef_delta_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {signed(similar.ef_delta_pct)}% {t('session.vs_median')}
+              </span>
+            )}
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <Kpi label={t('session.ef_whole')} value={efficiency.whole != null ? `${efficiency.whole.toFixed(2)} m/lat` : '—'}
+                hint={similar?.median_ef ? `${t('session.median_similar')} ${similar.median_ef.toFixed(2)}` : null} />
+              <Kpi label={t('session.ef_aerobic')} value={efficiency.aerobic != null ? `${efficiency.aerobic.toFixed(2)} m/lat` : '—'}
+                hint={efficiency.aerobic == null ? t('session.ef_aerobic_na') : t('session.ef_aerobic_hint')} />
+            </div>
+          </Card>
+
+          <Card id="weather" title={t('session.weather_title')}>
+            <WeatherBlock weather={weather} t={t} />
+          </Card>
+        </aside>
       </div>
 
-      <Card title={t('session.splits_title')}>
-        {splits?.length
-          ? <ActivitySplits splits={splits} hrParams={hrParams} bestEfforts={activity.best_efforts}
-              similarActivities={activity.similar_activities} splitsMetric={activity.splits_metric} />
-          : <Empty>{t('session.no_splits')}</Empty>}
-      </Card>
-
-      {!isRace(activity) && (
-        <Card title={t('session.similar_title')}>
-          <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-        </Card>
-      )}
+      <p className="hidden lg:block text-center text-[11px] text-slate-400">{t('session.keys_hint')}</p>
     </div>
   );
 }

@@ -178,7 +178,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
                     style={{
                       height: `${pct}%`,
                       background: isHover ? cfg.hover : cfg.bar,
-                      borderRadius: '3px 3px 0 0',
+                      borderRadius: 'var(--radius) var(--radius) 0 0',
                     }}
                   />
                 </div>

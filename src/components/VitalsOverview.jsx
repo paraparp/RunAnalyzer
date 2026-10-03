@@ -208,7 +208,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
           {bands.length > 0 && (
             <span
               title="Franja verde: tramos con eficiencia aeróbica ≥ 85 % de tu máximo histórico"
-              className="self-center w-3 h-3 rounded-[3px] bg-emerald-500/20 ring-1 ring-emerald-500/30 shrink-0 cursor-help"
+              className="self-center w-3 h-3 rounded bg-emerald-500/20 ring-1 ring-emerald-500/30 shrink-0 cursor-help"
             />
           )}
         </div>

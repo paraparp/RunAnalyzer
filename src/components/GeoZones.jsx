@@ -1042,7 +1042,7 @@ export default function GeoZones({ activities }) {
                                     celda. El color da la lectura y el tooltip el dato. */}
                                 <div
                                   title={`${monthNames[m]} · ${fmtKm(km, lang)} km`}
-                                  className="h-6 rounded-[3px]"
+                                  className="h-6 rounded"
                                   style={{ background: km > 0 ? tint(color, 15 + (km / seasonMax) * 85) : tint('#94a3b8', 8) }}
                                 />
                               </td>
@@ -1058,7 +1058,7 @@ export default function GeoZones({ activities }) {
                   <span>{t('geozones.season_less')}</span>
                   <span className="flex gap-0.5">
                     {[8, 30, 55, 80, 100].map(p => (
-                      <span key={p} className="h-3 w-5 rounded-[2px]" style={{ background: tint('#64748b', p) }} />
+                      <span key={p} className="h-3 w-5 rounded" style={{ background: tint('#64748b', p) }} />
                     ))}
                   </span>
                   <span>{t('geozones.season_more', { km: fmtKm(seasonMax, lang) })}</span>

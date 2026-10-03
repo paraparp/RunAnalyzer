@@ -74,7 +74,7 @@ export function RouteShape({ encoded, className = '' }) {
   try { pts = encoded ? polyline.decode(encoded) : []; } catch { pts = []; }
   if (pts.length < 2) {
     return (
-      <div className={`flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-400 ${className}`}>
+      <div className={`flex items-center justify-center rounded bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-400 ${className}`}>
         Sin recorrido GPS
       </div>
     );
@@ -90,7 +90,7 @@ export function RouteShape({ encoded, className = '' }) {
   const d = P.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
   const [sx, sy] = P[0], [ex, ey] = P[P.length - 1];
   return (
-    <svg viewBox={`0 0 ${S} ${S}`} className={`rounded-xl bg-slate-50 dark:bg-slate-800/50 ${className}`} role="img" aria-label="Recorrido de la carrera">
+    <svg viewBox={`0 0 ${S} ${S}`} className={`rounded bg-slate-50 dark:bg-slate-800/50 ${className}`} role="img" aria-label="Recorrido de la carrera">
       <path d={d} fill="none" stroke="#2563eb" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={sx} cy={sy} r="2.4" fill="#10b981" stroke="white" strokeWidth="0.8" />
       <circle cx={ex} cy={ey} r="2.4" fill="#0f172a" stroke="white" strokeWidth="0.8" />
@@ -111,7 +111,7 @@ export function WorkoutProfile({ segments }) {
         return (
           <div key={i} className="h-full min-w-0 flex flex-col justify-end" style={{ width: `${(sg.min / total) * 100}%` }} title={`${sg.label} · ${sg.detail}`}>
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate mb-1 px-0.5">{Math.round(sg.min)}′</span>
-            <div className="rounded-md" style={{ height: `${18 + z * 14}%`, background: ZONE_COLORS[z - 1] }} />
+            <div className="rounded" style={{ height: `${18 + z * 14}%`, background: ZONE_COLORS[z - 1] }} />
             <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate mt-1.5 px-0.5 first-letter:uppercase lowercase">{sg.label}</span>
           </div>
         );
@@ -129,7 +129,7 @@ export function DetailLink({ onClick, children, dark = false }) {
       onClick={onClick}
       className={`group shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 cursor-pointer ${dark
         ? 'rounded-full px-3 py-1.5 bg-white/10 text-white hover:bg-white hover:text-slate-900 transition-colors'
-        : 'rounded-md text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}`}
+        : 'rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}`}
     >
       {children}
       <ChevronRightIcon className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -141,7 +141,7 @@ export function DetailLink({ onClick, children, dark = false }) {
 // jerarquía la pone la pista de arriba, no cada caja.
 export function Panel({ title, sub, link, className = '', children }) {
   return (
-    <section className={`flex flex-col min-w-0 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${className}`}>
+    <section className={`flex flex-col min-w-0 rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${className}`}>
       <header className="flex items-baseline gap-2 px-5 pt-4 pb-3">
         <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">{title}</h3>
         {sub && <span className="hidden sm:inline text-xs text-slate-400 truncate">{sub}</span>}

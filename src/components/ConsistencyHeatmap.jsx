@@ -300,7 +300,7 @@ export default function ConsistencyHeatmap({ activities }) {
                       <motion.div
                         key={di}
                         whileHover={{ scale: 1.3, zIndex: 10 }}
-                        className={`w-[12px] h-[12px] rounded-[2px] ${colorClass} transition-colors cursor-pointer shadow-sm`}
+                        className={`w-[12px] h-[12px] rounded ${colorClass} transition-colors cursor-pointer shadow-sm`}
                         title={tooltipText}
                       />
                     );

@@ -188,7 +188,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                                 width={46}
                             />
                             <RechartsTooltip
-                                contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+                                contentStyle={{ borderRadius: 'var(--radius)', border: '1px solid #e2e8f0', fontSize: 12 }}
                                 labelFormatter={(v) => fmtTime(v)}
                                 formatter={(value, name, item) => [
                                     `${fmtPace(value)}/km`,

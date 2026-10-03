@@ -133,12 +133,17 @@ export default {
                 "dark-tremor-dropdown": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -1px rgb(0 0 0 / 0.06)",
             },
             borderRadius: {
-                "tremor-small": "0.375rem",
-                "tremor-default": "0.5rem",
+                // Radio global: se controla con --radius en src/index.css
+                "tremor-small": "var(--radius)",
+                "tremor-default": "var(--radius)",
                 "tremor-full": "9999px",
-                "DEFAULT": "0.125rem",
-                "lg": "0.25rem",
-                "xl": "0.5rem",
+                "DEFAULT": "var(--radius)",
+                "sm": "var(--radius)",
+                "md": "var(--radius)",
+                "lg": "var(--radius)",
+                "xl": "var(--radius)",
+                "2xl": "var(--radius)",
+                "3xl": "var(--radius)",
                 "full": "0.75rem",
             },
             fontFamily: {

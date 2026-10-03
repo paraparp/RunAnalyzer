@@ -15,6 +15,7 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --font-main: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --sidebar-width: 260px;
+  --radius: 2px;
 }
 
 body {
@@ -151,7 +152,7 @@ body {
 
 /* Cards */
 .tremor-Card-root {
-  border-radius: 12px !important;
+  border-radius: var(--radius) !important;
   border: 1px solid rgba(226,232,240,0.7) !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
   background: #ffffff !important;

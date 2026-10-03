@@ -410,6 +410,9 @@ const Dashboard = ({ user, handleLogout }) => {
   const currentNavItem = navItems.find(item => item.id === navView);
   const pageTitle = currentNavItem ? t(`nav.${currentNavItem.id}`) : t('nav.dashboard');
   const openActivity = useCallback((id) => navigate(`/activity/${id}`), [navigate]);
+  // Anterior/siguiente desde la ficha: sustituye la entrada del historial para que
+  // "Volver" siga llevando a la bitácora y no recorra todas las sesiones vistas.
+  const stepActivity = useCallback((id) => navigate(`/activity/${id}`, { replace: true }), [navigate]);
   // Volver es "atrás" si se llegó navegando; si se entró por la URL directa, atrás
   // saldría de la app, así que se cae a la bitácora.
   const goBackFromActivity = useCallback(
@@ -644,8 +647,8 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
-                log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onEnrichActivity={handleFetchDetails} onOpenActivity={openActivity} />,
-                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} onBack={goBackFromActivity} onOpenActivity={openActivity} onEnrichActivity={handleFetchDetails} />,
+                log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onOpenActivity={openActivity} />,
+                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,

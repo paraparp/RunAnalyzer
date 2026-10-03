@@ -65,7 +65,7 @@ const hoursStr = (sec) => {
 // ─── átomos ──────────────────────────────────────────────────────────────────
 
 function Pill({ children, cls }) {
-  return <span className={`shrink-0 px-2 py-0.5 rounded-md ring-1 text-[11px] font-bold ${cls}`}>{children}</span>;
+  return <span className={`shrink-0 px-2 py-0.5 rounded ring-1 text-[11px] font-bold ${cls}`}>{children}</span>;
 }
 
 function PanelHead({ icon: Icon, title, scope, badge, onOpen, openLabel }) {
@@ -191,7 +191,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 objetivo de volumen fácil: el veredicto se VE, no hay que
                 creerse la pastilla. */}
             <div className="relative">
-              <div className="h-4 rounded-lg bg-slate-100 overflow-hidden flex">
+              <div className="h-4 rounded bg-slate-100 overflow-hidden flex">
                 {ZONES.map((z, i) => (
                   <div
                     key={z.key}

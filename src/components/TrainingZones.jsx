@@ -442,7 +442,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                   <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} unit={evoMode === 'pct' ? '%' : 'h'} domain={evoMode === 'pct' ? [0, 100] : undefined} />
                   <RechartsTooltip
-                    contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                    contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 'var(--radius)', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                     formatter={(v, name) => [`${v}${evoMode === 'pct' ? '%' : 'h'}`, name]}
                   />
                   {model.zones.filter(z => !hiddenZones.has(z.name)).map(z => (

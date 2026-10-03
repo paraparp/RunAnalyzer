@@ -91,7 +91,7 @@ const HRZonesCard = ({ sci }) => {
   return (
     <details className="group">
       <summary className="flex items-center gap-2.5 mb-3 px-0.5 cursor-pointer list-none">
-        <span className="w-2 h-2 rounded-[3px] shrink-0 bg-rose-500" />
+        <span className="w-2 h-2 rounded shrink-0 bg-rose-500" />
         <span className="font-mono text-[10px] font-bold text-slate-300 dark:text-slate-600 tabular-nums shrink-0">FC</span>
         <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">
           Zonas de Entrenamiento
