@@ -187,31 +187,6 @@ function ZonesBlock({ zones, t }) {
   );
 }
 
-function DecouplingRow({ label, d, t }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
-      <div className="min-w-0">
-        <div className="text-xs font-semibold text-slate-700">{label}</div>
-        {d.pct != null && (
-          <div className="mt-0.5 text-[11px] text-slate-500 tabular-nums">
-            <span className="whitespace-nowrap">{d.initial.window}: {Math.round(d.initial.avg_hr)} ppm @ {formatPaceFromSpeed(d.initial.avg_speed_ms)}</span>
-            <span className="text-slate-300"> → </span>
-            <span className="whitespace-nowrap">{d.final.window}: {Math.round(d.final.avg_hr)} ppm @ {formatPaceFromSpeed(d.final.avg_speed_ms)}</span>
-          </div>
-        )}
-      </div>
-      {d.pct != null ? (
-        <div className="text-right shrink-0">
-          <div className={`text-xl font-black tabular-nums ${LEVEL_TONE[d.level]}`}>{signed(d.pct)}%</div>
-          <div className={`text-[10px] font-bold uppercase ${LEVEL_TONE[d.level]}`}>{t(`decoupling.levels.${d.level}`)}</div>
-        </div>
-      ) : (
-        <span className="text-[11px] italic text-slate-400 text-right">{t(`session.decoupling_reason.${d.reason}`)}</span>
-      )}
-    </div>
-  );
-}
-
 function WeatherBlock({ weather, t }) {
   if (!weather) return <Empty>{t('session.no_weather')}</Empty>;
   if (!weather.wbgt_plausible) return <Empty>{t('session.weather_implausible')}</Empty>;
@@ -377,25 +352,26 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
 }
 
 /** Indicador compacto del veredicto: cifra + lectura; lleva a su sección. */
-function Insight({ Icon, tone, valueTone, label, value, sub, title, onClick }) {
+function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Tag
+      {...(onClick ? { type: 'button', onClick } : {})}
       title={title}
-      className="group flex items-center gap-3 bg-white px-5 py-2.5 text-left hover:bg-slate-50 transition-colors"
+      className={`flex items-start gap-3 bg-white px-5 py-3 text-left ${onClick ? 'hover:bg-slate-50 transition-colors' : ''}`}
     >
-      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${tone}`}>
+      <span className={`mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${tone}`}>
         <Icon className="w-4 h-4" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 truncate">{label}</span>
         <span className="flex items-baseline gap-1.5">
-          <span className={`text-base font-bold tabular-nums ${valueTone}`}>{value}</span>
-          <span className="text-[11px] text-slate-500 truncate first-letter:uppercase">{sub}</span>
+          <span className={`text-lg font-bold tabular-nums ${valueTone}`}>{value}</span>
+          <span className="text-xs font-medium text-slate-600 truncate first-letter:uppercase">{sub}</span>
         </span>
+        {extra && <span className="block text-[11px] tabular-nums text-slate-400 truncate">{extra}</span>}
       </span>
-    </button>
+    </Tag>
   );
 }
 
@@ -499,28 +475,44 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
 
   // Veredicto (§6.3): cada indicador es la cifra y su lectura; la frase completa
   // va en el title y el clic lleva a la sección que lo explica.
+  const efDelta = similar?.ef_delta_pct;
+  const decH = decoupling.halves;
+  const decD = decoupling.durability;
+  const windows = (d) => (d.pct != null
+    ? `${d.initial.window}: ${Math.round(d.initial.avg_hr)} ppm @ ${formatPaceFromSpeed(d.initial.avg_speed_ms)} → ${d.final.window}: ${Math.round(d.final.avg_hr)} ppm @ ${formatPaceFromSpeed(d.final.avg_speed_ms)}`
+    : t(`session.decoupling_reason.${d.reason}`));
   const insights = [
-    similar?.ef_delta_pct != null && {
+    efficiency.whole != null && {
       key: 'ef',
-      Icon: similar.ef_delta_pct >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
-      tone: similar.ef_delta_pct >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
-      valueTone: similar.ef_delta_pct >= 0 ? 'text-emerald-600' : 'text-rose-600',
-      label: t('session.insight_efficiency'),
-      value: `${signed(similar.ef_delta_pct)}%`,
-      sub: t('session.insight_rank', { rank: similar.rank, total: similar.n + 1 }),
-      title: t('session.verdict_efficiency', { delta: signed(similar.ef_delta_pct), n: similar.n, rank: similar.rank, total: similar.n + 1 }),
-      target: 'similar',
+      Icon: efDelta == null || efDelta >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
+      tone: efDelta == null ? 'bg-slate-50 text-slate-600' : efDelta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
+      valueTone: efDelta == null ? 'text-slate-900' : efDelta >= 0 ? 'text-emerald-600' : 'text-rose-600',
+      label: t('session.efficiency_title'),
+      value: efDelta != null ? `${signed(efDelta)}%` : `${efficiency.whole.toFixed(2)}`,
+      sub: efDelta != null ? t('session.insight_vs_similar', { rank: similar.rank, total: similar.n + 1 }) : 'm/lat',
+      extra: [
+        efDelta != null && `EF ${efficiency.whole.toFixed(2)} m/lat`,
+        efficiency.aerobic != null && `${t('session.ef_aerobic_short')} ${efficiency.aerobic.toFixed(2)}`,
+        similar?.median_ef && `${t('session.median_short')} ${similar.median_ef.toFixed(2)}`,
+      ].filter(Boolean).join(' · ') || null,
+      title: efDelta != null
+        ? t('session.verdict_efficiency', { delta: signed(efDelta), n: similar.n, rank: similar.rank, total: similar.n + 1 })
+        : t('session.ef_aerobic_hint'),
+      target: efDelta != null ? 'similar' : null,
     },
-    decoupling.halves.pct != null && {
+    {
       key: 'dec',
       Icon: HeartIcon,
-      tone: LEVEL_PILL[decoupling.halves.level] ?? 'bg-slate-50 text-slate-600',
-      valueTone: LEVEL_TONE[decoupling.halves.level],
+      tone: LEVEL_PILL[decH.level] ?? 'bg-slate-50 text-slate-600',
+      valueTone: LEVEL_TONE[decH.level] ?? 'text-slate-400',
       label: t('session.decoupling_title'),
-      value: `${signed(decoupling.halves.pct)}%`,
-      sub: t(`decoupling.levels.${decoupling.halves.level}`),
-      title: t('session.verdict_decoupling', { pct: signed(decoupling.halves.pct), level: t(`decoupling.levels.${decoupling.halves.level}`).toLowerCase() }),
-      target: 'decoupling',
+      value: decH.pct != null ? `${signed(decH.pct)}%` : '—',
+      sub: decH.pct != null ? t(`decoupling.levels.${decH.level}`) : t(`session.decoupling_reason.${decH.reason}`),
+      extra: decD.pct != null
+        ? `${t('session.durability_short')} ${signed(decD.pct)}% · ${t(`decoupling.levels.${decD.level}`).toLowerCase()}`
+        : null,
+      title: `${t('session.decoupling_halves')}: ${windows(decH)}\n${t('session.decoupling_durability')}: ${windows(decD)}`,
+      target: null,
     },
     showHeat && {
       key: 'heat',
@@ -538,11 +530,9 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
 
   // Orden del índice = orden de lectura: columna principal y luego lateral.
   const sections = [
-    { id: 'splits', label: t('session.splits_title') },
+    { id: 'pace', label: t('session.pace_title') },
+    { id: 'hr', label: t('session.hr_title') },
     ...(race ? [] : [{ id: 'similar', label: t('session.similar_title') }]),
-    { id: 'zones', label: t('session.zones_title') },
-    { id: 'decoupling', label: t('session.decoupling_title') },
-    { id: 'efficiency', label: t('session.efficiency_title') },
     { id: 'weather', label: t('session.weather_title') },
   ];
   const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -648,7 +638,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
             {insights.length > 0 && (
               <div className={`grid gap-px bg-slate-100 border-t border-slate-100 ${INSIGHT_COLS[insights.length]} lg:grid-cols-1 ${polyline ? '' : 'lg:border-t-0 lg:flex-1'}`}>
                 {insights.map(({ key, target, ...rest }) => (
-                  <Insight key={key} {...rest} onClick={() => jump(target)} />
+                  <Insight key={key} {...rest} onClick={target ? () => jump(target) : undefined} />
                 ))}
               </div>
             )}
@@ -656,57 +646,39 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
         )}
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-3 items-start">
-        {/* ── Columna principal: el detalle de la sesión y su comparativa ──── */}
-        <div className="lg:col-span-2 space-y-5 min-w-0">
-          <Card id="splits" title={t('session.splits_title')}>
+      {/* ── Ritmo: parciales, tabla y mejores esfuerzos ─────────────────── */}
+      <Card id="pace" title={t('session.pace_title')}>
+        {splits?.length
+          ? <ActivitySplits mode="pace" splits={splits} hrParams={hrParams} bestEfforts={activity.best_efforts}
+              similarActivities={activity.similar_activities} splitsMetric={activity.splits_metric} />
+          : <Empty>{t('session.no_splits')}</Empty>}
+      </Card>
+
+      {/* ── Frecuencia cardíaca: FC por parcial y tiempo en zona ────────── */}
+      <Card id="hr" title={t('session.hr_title')}>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 min-w-0">
             {splits?.length
-              ? <ActivitySplits splits={splits} hrParams={hrParams} bestEfforts={activity.best_efforts}
-                  similarActivities={activity.similar_activities} splitsMetric={activity.splits_metric} />
+              ? <ActivitySplits mode="hr" splits={splits} hrParams={hrParams} splitsMetric={activity.splits_metric} />
               : <Empty>{t('session.no_splits')}</Empty>}
-          </Card>
-
-          {!race && (
-            <Card id="similar" title={t('session.similar_title')}>
-              <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-            </Card>
-          )}
-        </div>
-
-        {/* ── Lateral: fisiología y condiciones ───────────────────────────── */}
-        <aside className="space-y-5 min-w-0">
-          <Card id="zones" title={t('session.zones_title')}>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">{t('session.zones_title')}</p>
             <ZonesBlock zones={zones} t={t} />
-          </Card>
+          </div>
+        </div>
+      </Card>
 
-          <Card id="decoupling" title={t('session.decoupling_title')}>
-            <div className="space-y-2">
-              <DecouplingRow label={t('session.decoupling_halves')} d={decoupling.halves} t={t} />
-              <DecouplingRow label={t('session.decoupling_durability')} d={decoupling.durability} t={t} />
-            </div>
+      {/* ── Contexto: con qué se compara y en qué condiciones ───────────── */}
+      <div className="grid gap-5 lg:grid-cols-3 items-start">
+        {!race && (
+          <Card id="similar" title={t('session.similar_title')} className="lg:col-span-2 min-w-0">
+            <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
           </Card>
-
-          <Card
-            id="efficiency"
-            title={t('session.efficiency_title')}
-            aside={similar?.ef_delta_pct != null && (
-              <span className={`text-[11px] font-bold tabular-nums ${similar.ef_delta_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {signed(similar.ef_delta_pct)}% {t('session.vs_median')}
-              </span>
-            )}
-          >
-            <div className="grid grid-cols-2 gap-4">
-              <Kpi label={t('session.ef_whole')} value={efficiency.whole != null ? `${efficiency.whole.toFixed(2)} m/lat` : '—'}
-                hint={similar?.median_ef ? `${t('session.median_similar')} ${similar.median_ef.toFixed(2)}` : null} />
-              <Kpi label={t('session.ef_aerobic')} value={efficiency.aerobic != null ? `${efficiency.aerobic.toFixed(2)} m/lat` : '—'}
-                hint={efficiency.aerobic == null ? t('session.ef_aerobic_na') : t('session.ef_aerobic_hint')} />
-            </div>
-          </Card>
-
-          <Card id="weather" title={t('session.weather_title')}>
-            <WeatherBlock weather={weather} t={t} />
-          </Card>
-        </aside>
+        )}
+        <Card id="weather" title={t('session.weather_title')} className="min-w-0">
+          <WeatherBlock weather={weather} t={t} />
+        </Card>
       </div>
 
       <p className="hidden lg:block text-center text-[11px] text-slate-400">{t('session.keys_hint')}</p>
