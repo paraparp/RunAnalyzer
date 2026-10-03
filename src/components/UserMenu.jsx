@@ -151,7 +151,7 @@ export default function UserMenu({
               )}
             </div>
           </div>
-          <div className="text-slate-400 shrink-0">
+          <div className="text-slate-500 shrink-0">
             {isOpen ? (
               <ChevronDownIcon className="w-4 h-4" />
             ) : (
@@ -241,12 +241,12 @@ export default function UserMenu({
                         setIsOpen(false);
                         navigate('/connections');
                       }}
-                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
                       title="Garmin no conectado · Haz clic para vincular en Ajustes › Conexiones"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                       Garmin
-                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-normal">off</span>
+                      <span className="text-[9px] text-slate-500 dark:text-slate-500 font-normal">off</span>
                     </button>
                   )}
                 </div>
@@ -292,7 +292,7 @@ export default function UserMenu({
                   disabled={isSyncing}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
                     isSyncing
-                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed'
                       : 'bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/40'
                   }`}
                 >

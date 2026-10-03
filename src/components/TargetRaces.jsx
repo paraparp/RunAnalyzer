@@ -143,13 +143,13 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                     <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight truncate">{race.name}</h3>
                     <Chip className="bg-slate-50 text-slate-500 ring-slate-100 hidden sm:inline-block">{t(`targets.fmt_${format}`)}</Chip>
                     {race.date && (
-                        <span className="text-xs font-bold text-slate-400 hidden md:inline shrink-0">
+                        <span className="text-xs font-bold text-slate-500 hidden md:inline shrink-0">
                             {new Date(race.date + 'T00:00:00').toLocaleDateString()}
                             {race.startTime ? ` · ${race.startTime}` : ''}
                         </span>
                     )}
                     {planUpdatedLabel(race, t) && (
-                        <span className="text-[11px] font-bold text-slate-400 hidden lg:inline shrink-0">
+                        <span className="text-[11px] font-bold text-slate-500 hidden lg:inline shrink-0">
                             · {planUpdatedLabel(race, t)}
                         </span>
                     )}
@@ -167,7 +167,7 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                     <button
                         type="button"
                         onClick={toggleFullscreen}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                         title={isFs ? t('targets.exit_fullscreen') : t('targets.fullscreen')}
                     >
                         {isFs ? <ArrowsPointingInIcon className="w-5 h-5" /> : <ArrowsPointingOutIcon className="w-5 h-5" />}
@@ -175,7 +175,7 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                         title={t('targets.close')}
                     >
                         <XMarkIcon className="w-5 h-5" />
@@ -194,10 +194,10 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
 /** Dato suelto de la tarjeta: etiqueta pequeña arriba, valor grande abajo. */
 const Stat = ({ label, value, sub, tone = 'text-slate-900' }) => (
     <div className="min-w-0">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
         <p className={`text-sm font-black tabular-nums truncate ${tone}`}>
             {value}
-            {sub && <span className="ml-1 text-[11px] font-bold text-slate-400">{sub}</span>}
+            {sub && <span className="ml-1 text-[11px] font-bold text-slate-500">{sub}</span>}
         </p>
     </div>
 );
@@ -223,7 +223,7 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
             ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
             : result?.achieved === false
                 ? 'bg-rose-50 text-rose-500 border-rose-100'
-                : 'bg-slate-50 text-slate-400 border-slate-100')
+                : 'bg-slate-50 text-slate-500 border-slate-100')
         : isPrimary
             ? 'bg-amber-50 text-amber-600 border-amber-100'
             : 'bg-blue-50 text-blue-600 border-blue-100';
@@ -346,14 +346,14 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                         </button>
                         <button
                             onClick={() => onEdit(race)}
-                            className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title={t('targets.edit')}
                         >
                             <PencilSquareIcon className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => onDelete(race.id)}
-                            className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                             title={t('targets.delete')}
                         >
                             <TrashIcon className="w-4 h-4" />
@@ -375,7 +375,7 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
                         </button>
                         {!open && planUpdatedLabel(race, t) && (
-                            <span className="text-[10px] font-bold text-slate-400 truncate">{planUpdatedLabel(race, t)}</span>
+                            <span className="text-[10px] font-bold text-slate-500 truncate">{planUpdatedLabel(race, t)}</span>
                         )}
                         {open && (
                             <div className="flex items-center gap-2">
@@ -603,7 +603,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div className="lg:col-span-2">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.name')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.name')}</label>
                                 <input
                                     type="text"
                                     value={form.name}
@@ -613,7 +613,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.date')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.date')}</label>
                                 <input
                                     type="date"
                                     value={form.date}
@@ -622,17 +622,17 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.start_time')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.start_time')}</label>
                                 <input
                                     type="time"
                                     value={form.startTime}
                                     onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
                                     className={inputClass}
                                 />
-                                <p className="mt-1.5 text-[10px] font-medium text-slate-400 leading-snug">{t('targets.start_time_hint')}</p>
+                                <p className="mt-1.5 text-[10px] font-medium text-slate-500 leading-snug">{t('targets.start_time_hint')}</p>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.distance')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.distance')}</label>
                                 <Select value={form.distance} onValueChange={changeDistance} enableClear={false}>
                                     <SelectItem value="5k">{t('planner.distances.5k')}</SelectItem>
                                     <SelectItem value="10k">{t('planner.distances.10k')}</SelectItem>
@@ -641,7 +641,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 </Select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.goal_time')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.goal_time')}</label>
                                 <input
                                     type="text"
                                     value={form.time}
@@ -651,7 +651,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('targets.goal_pace')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.goal_pace')}</label>
                                 <input
                                     type="text"
                                     value={form.pace}
@@ -659,13 +659,13 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                     placeholder={t('targets.goal_pace_ph')}
                                     className={inputClass}
                                 />
-                                <p className="mt-2 text-[11px] font-medium text-slate-400">{t('targets.pace_hint')}</p>
+                                <p className="mt-2 text-[11px] font-medium text-slate-500">{t('targets.pace_hint')}</p>
                             </div>
                         </div>
 
                         <div>
                             <div className="flex items-center justify-between gap-3 mb-2">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('targets.plan')}</label>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('targets.plan')}</label>
                                 <div className="flex items-center gap-2">
                                     <Chip className="bg-slate-50 text-slate-500 ring-slate-100">{t(`targets.fmt_${formFormat}`)}</Chip>
                                     {isRenderable(formFormat) && (
@@ -692,7 +692,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                     className={`${inputClass} font-mono text-xs leading-relaxed resize-y`}
                                 />
                             )}
-                            <p className="mt-2 text-xs font-medium text-slate-400">{t('targets.plan_hint')}</p>
+                            <p className="mt-2 text-xs font-medium text-slate-500">{t('targets.plan_hint')}</p>
                         </div>
 
                         {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
@@ -747,10 +747,10 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                         {upcoming.length > 0 && (
                             <section className="space-y-3">
                                 <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                         {t('targets.upcoming')} · {upcoming.length}
                                     </h3>
-                                    <p className="text-[11px] font-medium text-slate-400">{t('targets.primary_hint')}</p>
+                                    <p className="text-[11px] font-medium text-slate-500">{t('targets.primary_hint')}</p>
                                 </div>
                                 <div className="space-y-4">{upcoming.map(renderCard)}</div>
                             </section>
@@ -760,7 +760,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                             <section className="space-y-3">
                                 <button
                                     onClick={() => setShowPast(v => !v)}
-                                    className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 hover:text-slate-600 transition-colors"
+                                    className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 hover:text-slate-600 transition-colors"
                                 >
                                     {t('targets.past_section')} · {past.length}
                                     <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />

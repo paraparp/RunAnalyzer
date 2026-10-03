@@ -147,10 +147,10 @@ const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 p
   'motion-reduce:transition-none dark:border-slate-600 dark:text-slate-200 ' +
   `dark:enabled:hover:bg-slate-800 ${FOCUS}`;
 
-const ICON_BTN = 'rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 ' +
+const ICON_BTN = 'rounded p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 ' +
   `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
 
-const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500';
+const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500';
 
 // Una sola rejilla para la cabecera y para cada fila: es lo que alinea las
 // columnas entre filas. Por debajo de lg la fila se deshace en un flex que
@@ -175,7 +175,7 @@ function Kpi({ label, value, hint }) {
       <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
         {value}
       </div>
-      {hint && <div className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{hint}</div>}
+      {hint && <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">{hint}</div>}
     </div>
   );
 }
@@ -284,7 +284,7 @@ function LayerToggle({ on, onClick, children }) {
       className={`rounded-full border px-2.5 py-1 text-xs font-medium transition motion-reduce:transition-none ${FOCUS}
                   ${on
           ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
-          : 'border-slate-200 text-slate-400 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
+          : 'border-slate-200 text-slate-500 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
     >
       {children}
     </button>
@@ -294,7 +294,7 @@ function LayerToggle({ on, onClick, children }) {
 /** Texto secundario de una entrada de menú: qué hace, en una línea. */
 function MenuHint({ children }) {
   return (
-    <span className="mt-0.5 block text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+    <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-500">
       {children}
     </span>
   );
@@ -660,14 +660,14 @@ export default function GeoZones({ activities }) {
           <div>
             <div className="mb-1 flex items-baseline gap-1.5">
               <span className={LABEL}>{t('geozones.radius')}</span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">km</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-500">km</span>
             </div>
             <RadiusPicker
               value={radiusKm}
               onChange={(v) => patchStore({ radiusKm: v })}
               label={t('geozones.radius')}
             />
-            <p className="mt-1.5 max-w-[17rem] text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+            <p className="mt-1.5 max-w-[17rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-500">
               {t('geozones.radius_hint', { km: fmtKm(radiusKm, lang) })}
             </p>
           </div>
@@ -914,7 +914,7 @@ export default function GeoZones({ activities }) {
                             <Badge size="xs" color="amber">{t('geozones.dormant_badge')}</Badge>
                           )}
                         </div>
-                        <div className="mt-0.5 truncate pl-1 text-xs text-slate-400 dark:text-slate-500">
+                        <div className="mt-0.5 truncate pl-1 text-xs text-slate-500 dark:text-slate-500">
                           {contexts[z.key] || `${z.centroid[0].toFixed(3)}, ${z.centroid[1].toFixed(3)}`}
                         </div>
                       </div>
@@ -925,8 +925,8 @@ export default function GeoZones({ activities }) {
                       <span className="text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
                         {fmtKm(z.distanceKm, lang)}
                       </span>
-                      <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">km</span>
-                      <span className="ml-2 text-xs tabular-nums text-slate-400 dark:text-slate-500">
+                      <span className="ml-1 text-xs text-slate-500 dark:text-slate-500">km</span>
+                      <span className="ml-2 text-xs tabular-nums text-slate-500 dark:text-slate-500">
                         {z.pct.toFixed(1)} %
                       </span>
                     </div>

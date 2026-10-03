@@ -32,10 +32,10 @@ const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
       className="bg-white/60 backdrop-blur-3xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 p-5 flex flex-col gap-2 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300 relative overflow-hidden"
     >
       <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-2xl ${accentMap[accent] || "bg-slate-100"}`} />
-      <span className="text-xs text-slate-400 font-semibold tracking-wider uppercase relative z-10">{label}</span>
+      <span className="text-xs text-slate-500 font-semibold tracking-wider uppercase relative z-10">{label}</span>
       <div className={`text-3xl font-extrabold leading-tight tracking-tight relative z-10 ${colorMap[accent] || "text-slate-800"}`}>
         {value}
-        {unit && <span className="text-sm font-semibold text-slate-400 ml-1">{unit}</span>}
+        {unit && <span className="text-sm font-semibold text-slate-500 ml-1">{unit}</span>}
       </div>
       {sub && <span className="text-xs font-medium text-slate-500 relative z-10">{sub}</span>}
     </motion.div>
@@ -60,7 +60,7 @@ export default function GarminSleep() {
 
   if (!sleepData?.length) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+      <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
         Todavía no hay datos de sueño de Garmin. Sincroniza en Ajustes › Conexiones.
       </div>
     );
@@ -113,7 +113,7 @@ function SleepSection({ sleepData }) {
         </div>
         <div>
           <h2 className="text-base font-bold text-slate-900 leading-tight">Sueño · Garmin</h2>
-          <p className="text-xs text-slate-400">Estadísticas semanales</p>
+          <p className="text-xs text-slate-500">Estadísticas semanales</p>
         </div>
       </div>
 
@@ -152,7 +152,7 @@ function SleepSection({ sleepData }) {
               </button>
             ))}
           </div>
-          <span className="ml-auto text-xs text-slate-400">últimas {recentWeeks.length} semanas</span>
+          <span className="ml-auto text-xs text-slate-500">últimas {recentWeeks.length} semanas</span>
         </div>
 
         {view === 'score' ? (
@@ -172,7 +172,7 @@ function SleepSection({ sleepData }) {
                   active && payload?.length ? (
                     <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="bg-white/90 backdrop-blur-xl border border-white/40 rounded-2xl p-4 text-xs shadow-xl">
                       <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">Sem {label}</p>
-                      <p className="text-indigo-600 font-extrabold text-lg">{payload[0]?.value} <span className="text-sm font-semibold text-slate-400">/ 100</span></p>
+                      <p className="text-indigo-600 font-extrabold text-lg">{payload[0]?.value} <span className="text-sm font-semibold text-slate-500">/ 100</span></p>
                       {payload[0]?.payload?.dur && <p className="text-slate-500 font-medium mt-1">{fmtDur(payload[0].payload.dur)}</p>}
                     </motion.div>
                   ) : null
@@ -188,7 +188,7 @@ function SleepSection({ sleepData }) {
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
               <YAxis tickFormatter={v => `${Math.floor(v/60)}h`} tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
               <Tooltip
                 content={({ active, payload, label }) =>

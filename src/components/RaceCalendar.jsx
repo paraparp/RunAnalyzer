@@ -62,7 +62,7 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
     const toneOf = (race) => {
         if (race.id === primaryId) return { dot: 'bg-amber-400 ring-amber-100', text: 'text-amber-700' };
         const left = daysUntil(race.date);
-        if (left != null && left < 0) return { dot: 'bg-slate-300 ring-slate-100', text: 'text-slate-400' };
+        if (left != null && left < 0) return { dot: 'bg-slate-300 ring-slate-100', text: 'text-slate-500' };
         return { dot: 'bg-blue-500 ring-blue-100', text: 'text-blue-700' };
     };
 
@@ -75,7 +75,7 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
                         <div className="flex items-baseline gap-3 mb-1.5">
                             <span className="text-xs font-black text-slate-900 tabular-nums">{year}</span>
                             {yearRaces.length > 0 && (
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                                     {yearRaces.length}
                                 </span>
                             )}
@@ -86,7 +86,7 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
                             <div className="absolute inset-0 grid grid-cols-12">
                                 {months.map((m, i) => (
                                     <div key={i} className={`flex items-end justify-center pb-0.5 ${i ? 'border-l border-slate-200/70' : ''}`}>
-                                        <span className="text-[8px] font-black uppercase text-slate-300">{m}</span>
+                                        <span className="text-[8px] font-black uppercase text-slate-500">{m}</span>
                                     </div>
                                 ))}
                             </div>
@@ -130,12 +130,12 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
                                         >
                                             <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
                                             {r.id === primaryId && <StarSolidIcon className="w-3 h-3 text-amber-500" />}
-                                            <span className="text-[10px] font-black tabular-nums text-slate-400">
+                                            <span className="text-[10px] font-black tabular-nums text-slate-500">
                                                 {r._d.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}
                                             </span>
                                             <span className={`text-xs font-bold truncate max-w-[11rem] ${tone.text}`}>{r.name}</span>
                                             {left != null && left >= 0 && (
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
                                                     {left === 0 ? t('targets.today') : `${left}d`}
                                                 </span>
                                             )}
@@ -150,7 +150,7 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
 
             {undated.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-100">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-300 mr-1">{t('targets.no_date')}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mr-1">{t('targets.no_date')}</span>
                     {undated.map((r) => (
                         <button
                             key={r.id}

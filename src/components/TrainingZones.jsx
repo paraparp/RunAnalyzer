@@ -227,31 +227,31 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_max')}</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t('zones.fc_max')}</p>
               <Badge color={maxOv ? 'violet' : 'sky'} size="xs">{maxOv ? t('zones.manual') : t('zones.auto')}</Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.fc_rest')}</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t('zones.fc_rest')}</p>
               <Badge color={restOv ? 'violet' : autoRest.source === 'garmin' ? 'sky' : 'slate'} size="xs">
                 {restOv ? t('zones.manual') : autoRest.source === 'garmin' ? 'Garmin' : t('zones.default_val')}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('zones.lthr')}</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t('zones.lthr')}</p>
               <Badge color={lthrOv ? 'violet' : confColor} size="xs">
                 {lthrOv ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr} <span className="text-xs font-medium text-slate-400">{t('zones.bpm')}</span></p>
-            <p className="text-[10px] text-slate-400 mt-0.5 truncate">{lthrOv ? t('zones.manual') : methodText}</p>
+            <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
+            <p className="text-[10px] text-slate-500 mt-0.5 truncate">{lthrOv ? t('zones.manual') : methodText}</p>
           </div>
         </div>
 
@@ -273,7 +273,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div className="flex-1 min-w-0">
             <Title className="text-slate-800 font-bold">{model.name}</Title>
-            <Text className="text-slate-400 text-[11px] mt-0.5 font-medium">{model.ref}</Text>
+            <Text className="text-slate-500 text-[11px] mt-0.5 font-medium">{model.ref}</Text>
             <Text className="text-slate-500 text-sm mt-1">{model.desc}</Text>
           </div>
         </div>
@@ -291,11 +291,11 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-700">{z.label}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{z.desc}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{z.desc}</p>
               </div>
               <div className="text-right shrink-0">
                 <p className="text-xs font-bold text-slate-700 tabular-nums">{bpmRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
-                <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">{pctMaxRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
+                <p className="text-[10px] text-slate-500 tabular-nums mt-0.5">{pctMaxRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
               </div>
             </div>
           ))}
@@ -313,7 +313,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
               colapsa en UNA zona, lo que infla Z2 y borra el Z1 del calentamiento.
               Decirlo es la diferencia entre un % medido y un % supuesto. */}
           {mix.hasData && (
-            <p className={`text-[11px] mt-1.5 font-medium ${mix.avgOnlySessions ? 'text-amber-600' : 'text-slate-400'}`}>
+            <p className={`text-[11px] mt-1.5 font-medium ${mix.avgOnlySessions ? 'text-amber-600' : 'text-slate-500'}`}>
               {mix.avgOnlySessions
                 ? t('zones.resolution_partial', { avg: mix.avgOnlySessions, total: mix.sessions })
                 : t('zones.resolution_full', { total: mix.sessions })}
@@ -322,7 +322,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
 
         {zoneStats.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">{t('hr_analysis.no_data')}</div>
+          <div className="text-center py-10 text-slate-500 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <div className="space-y-4">
             {zoneStats.map((z) => {
@@ -335,16 +335,16 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                       <div className="w-2.5 h-2.5 rounded-full" style={{ background: z.color }} />
                       <span className="text-xs font-bold text-slate-700">{z.name}</span>
                       <span className="text-xs text-slate-500">{z.label}</span>
-                      <span className="text-[10px] text-slate-400 tabular-nums">{bpmRange(z.lo ?? 0, z.hi ?? 999)}</span>
+                      <span className="text-[10px] text-slate-500 tabular-nums">{bpmRange(z.lo ?? 0, z.hi ?? 999)}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       {z.target && (
-                        <span className={`text-[10px] font-semibold ${overTarget ? 'text-rose-500' : underTarget ? 'text-amber-500' : 'text-slate-400'}`}>
+                        <span className={`text-[10px] font-semibold ${overTarget ? 'text-rose-500' : underTarget ? 'text-amber-500' : 'text-slate-500'}`}>
                           {t('zones.target_label')} {z.target}%
                         </span>
                       )}
                       <span className="text-xs font-bold text-slate-700 tabular-nums w-10 text-right">{z.pct}%</span>
-                      <span className="text-xs text-slate-400 tabular-nums w-10 text-right">{z.hours}h</span>
+                      <span className="text-xs text-slate-500 tabular-nums w-10 text-right">{z.hours}h</span>
                     </div>
                   </div>
                   <div className="relative h-7 bg-slate-100 rounded-lg overflow-hidden">
@@ -409,7 +409,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
 
         {evolutionData.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">{t('hr_analysis.no_data')}</div>
+          <div className="text-center py-10 text-slate-500 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <>
             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -439,8 +439,8 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={evolutionData} barSize={groupBy === 'week' ? 9 : 18}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} unit={evoMode === 'pct' ? '%' : 'h'} domain={evoMode === 'pct' ? [0, 100] : undefined} />
+                  <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} unit={evoMode === 'pct' ? '%' : 'h'} domain={evoMode === 'pct' ? [0, 100] : undefined} />
                   <RechartsTooltip
                     contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 'var(--radius)', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                     formatter={(v, name) => [`${v}${evoMode === 'pct' ? '%' : 'h'}`, name]}
@@ -469,7 +469,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
               <div key={row.label} className="text-center p-4 rounded-xl" style={{ background: row.bg, border: `1px solid ${row.border}` }}>
                 <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: row.color }}>{row.label}</p>
                 <p className="text-2xl font-bold tabular-nums" style={{ color: row.color }}>{row.val.toFixed(0)}%</p>
-                <p className="text-[10px] mt-0.5 text-slate-400">{t('zones.target_label')} {row.target}</p>
+                <p className="text-[10px] mt-0.5 text-slate-500">{t('zones.target_label')} {row.target}</p>
               </div>
             ))}
           </div>
@@ -487,7 +487,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
 
           {/* Reference note */}
           <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-            <p className="text-[10px] text-slate-400 leading-relaxed">
+            <p className="text-[10px] text-slate-500 leading-relaxed">
               <span className="font-semibold text-slate-500">{t('zones.scientific_base')}:</span>{' '}
               {t('hr_analysis.seiler_scientific_base')}
             </p>

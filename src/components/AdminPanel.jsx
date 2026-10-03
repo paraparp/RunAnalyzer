@@ -66,7 +66,7 @@ const Pill = ({ children, className = '' }) => (
 
 const Stat = ({ label, value }) => (
   <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-3">
-    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
     <div className="text-xl font-bold text-slate-900 mt-0.5">{value}</div>
   </div>
 );
@@ -106,7 +106,7 @@ const UsersTab = ({ data, reload }) => {
       <div className="bg-white rounded-2xl ring-1 ring-slate-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
+            <tr className="text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-100">
               <th className="text-left font-semibold px-4 py-3">Usuario</th>
               <th className="text-left font-semibold px-4 py-3">Último acceso</th>
               <th className="text-left font-semibold px-4 py-3">Alta</th>
@@ -127,7 +127,7 @@ const UsersTab = ({ data, reload }) => {
                         {u.name || u.email}
                         {u.is_admin && <Pill className="bg-blue-50 text-blue-700 ring-blue-200">admin</Pill>}
                       </div>
-                      <div className="text-xs text-slate-400 truncate">{u.email}</div>
+                      <div className="text-xs text-slate-500 truncate">{u.email}</div>
                     </div>
                   </div>
                 </td>
@@ -135,7 +135,7 @@ const UsersTab = ({ data, reload }) => {
                 <td className="px-4 py-3 text-slate-600">{fmtDate(u.created_at)}</td>
                 <td className="px-4 py-3 text-right text-slate-600">
                   {fmtBytes(u.bytes)}
-                  <span className="text-xs text-slate-400"> · {u.keys} claves</span>
+                  <span className="text-xs text-slate-500"> · {u.keys} claves</span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">
@@ -212,7 +212,7 @@ const IssuesTab = ({ data, reload, usersById }) => {
       {error && <ErrorBanner message={error} />}
 
       {shown.length === 0 && (
-        <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-10 text-center text-sm text-slate-400">
+        <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-10 text-center text-sm text-slate-500">
           Nada por aquí. El agente escribe en este buzón cuando encuentra algo raro en los datos o en las tools.
         </div>
       )}
@@ -231,7 +231,7 @@ const IssuesTab = ({ data, reload, usersById }) => {
                   {e.occurrences > 1 && <Pill className="bg-rose-50 text-rose-700 ring-rose-200">×{e.occurrences}</Pill>}
                 </div>
               </div>
-              <div className="text-right text-xs text-slate-400 shrink-0">
+              <div className="text-right text-xs text-slate-500 shrink-0">
                 <div>{fmtDate(e.last_seen_at ?? e.created_at)}</div>
                 <div className="truncate max-w-[160px]">{usersById.get(e.user_id)?.email ?? String(e.user_id).slice(0, 8)}</div>
               </div>
@@ -272,7 +272,7 @@ const Flag = ({ label, on }) => (
     {on
       ? <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
       : <XCircleIcon className="w-4 h-4 text-slate-300 shrink-0" />}
-    <span className={on ? 'text-slate-700' : 'text-slate-400'}>{label}</span>
+    <span className={on ? 'text-slate-700' : 'text-slate-500'}>{label}</span>
   </div>
 );
 
@@ -289,17 +289,17 @@ const SystemTab = ({ data }) => {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {groups.map(([title, flags]) => (
           <div key={title} className="bg-white rounded-2xl ring-1 ring-slate-200 p-4 space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
             {flags.map(([label, on]) => <Flag key={label} label={label} on={on} />)}
           </div>
         ))}
       </div>
       <div className="bg-white rounded-2xl ring-1 ring-slate-200 p-4 text-sm text-slate-600">
         <span className="font-semibold text-slate-900">Runtime</span>
-        <span className="text-slate-400"> · </span>
+        <span className="text-slate-500"> · </span>
         Node {data.runtime.node} · {data.runtime.env}{data.runtime.region ? ` · ${data.runtime.region}` : ''}
       </div>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Solo se indica si cada variable está definida; sus valores no salen nunca del servidor.
       </p>
     </div>
@@ -387,7 +387,7 @@ export default function AdminPanel() {
       {error && <ErrorBanner message={error} />}
 
       {loading && !overview ? (
-        <div className="flex items-center gap-2 text-sm text-slate-400 py-10 justify-center">
+        <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
           <ArrowPathIcon className="w-5 h-5 animate-spin" /> Cargando…
         </div>
       ) : (

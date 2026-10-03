@@ -183,7 +183,7 @@ Devuelve las mismas ${model.items.length} distancias con:
                         <Text className="text-slate-500 dark:text-slate-400 mb-2">
                             Aún no se puede predecir: {model.reason || 'faltan esfuerzos máximos en el histórico'}.
                         </Text>
-                        <Text className="text-xs text-slate-400 dark:text-slate-500">
+                        <Text className="text-xs text-slate-500 dark:text-slate-500">
                             La predicción se ancla en tu mejor esfuerzo sostenido (de 3,5 min a 3,8 h) del último año.
                         </Text>
                     </div>
@@ -217,13 +217,13 @@ Devuelve las mismas ${model.items.length} distancias con:
                                     </Flex>
                                     <Metric className="mt-2 text-slate-900 dark:text-slate-50">{formatDuration(pred.timeSeconds)}</Metric>
                                     <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
-                                    <Text className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                    <Text className="text-[11px] text-slate-500 dark:text-slate-500 mt-2">
                                         {Object.keys(pred.models).map(k => MODEL_LABEL[k]).join(' · ')}
                                         {pred.baseTimeSeconds != null && pred.baseTimeSeconds !== pred.timeSeconds &&
                                             ` · ajustado desde ${formatDuration(pred.baseTimeSeconds)}`}
                                     </Text>
                                     {pred.rationale && (
-                                        <Text className="text-xs text-slate-400 dark:text-slate-500 mt-2 leading-snug">{pred.rationale}</Text>
+                                        <Text className="text-xs text-slate-500 dark:text-slate-500 mt-2 leading-snug">{pred.rationale}</Text>
                                     )}
                                     {goal && (
                                         <div className={`mt-3 flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2 py-1.5 ${goal.delta <= 0
@@ -281,7 +281,7 @@ Devuelve las mismas ${model.items.length} distancias con:
                     </Card>
 
                     <Flex justifyContent="between" alignItems="center" className="flex-wrap gap-2">
-                        <Text className="text-xs text-slate-400 dark:text-slate-500">
+                        <Text className="text-xs text-slate-500 dark:text-slate-500">
                             {generatedAt && `Análisis de las ${generatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · `}
                             Estimación en llano; no sustituye un test de campo.
                         </Text>

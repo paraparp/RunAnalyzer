@@ -139,7 +139,7 @@ export default function CardiacDecoupling({ activities }) {
 
   if (!decouplingData.length) {
     return (
-      <div className="text-center py-12 text-slate-400">
+      <div className="text-center py-12 text-slate-500">
         <p className="text-sm">{t('decoupling.no_data')}</p>
         <p className="text-xs mt-2">{t('decoupling.no_data_hint')}</p>
       </div>
@@ -151,34 +151,34 @@ export default function CardiacDecoupling({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.sessions_analyzed')}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.sessions_analyzed')}</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.total}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.with_complete_data')}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.with_complete_data')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.last_5_avg')}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.last_5_avg')}</p>
           <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5Color }}>{stats.avgLast5}%</p>
           <p className="text-[10px] font-semibold mt-0.5" style={{ color: stats.levelLast5Color }}>
             {stats.levelLast5Key ? t(`decoupling.levels.${stats.levelLast5Key}`) : ''}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.best_session')}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.best_session')}</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.bestDc}%</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.min_decoupling')}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.min_decoupling')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.global_avg')}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.global_avg')}</p>
           <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avgAll}%</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.all_sessions')}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.all_sessions')}</p>
         </div>
         {stats.improving !== null && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t('decoupling.trend')}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.trend')}</p>
             <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
               {stats.improving ? `↗ ${t('decoupling.improving')}` : `↘ ${t('decoupling.worsening')}`}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
           </div>
         )}
       </div>
@@ -203,13 +203,13 @@ export default function CardiacDecoupling({ activities }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="dateLabel"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 type="category"
                 allowDuplicatedCategory={false}
               />
               <YAxis
                 dataKey="decoupling"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 domain={[0, 'auto']}
                 unit="%"
               />
@@ -237,14 +237,14 @@ export default function CardiacDecoupling({ activities }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="duration"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 type="number"
                 unit=" min"
                 name="Duración"
               />
               <YAxis
                 dataKey="decoupling"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 domain={[0, 'auto']}
                 unit="%"
                 name="Decoupling"
@@ -270,8 +270,8 @@ export default function CardiacDecoupling({ activities }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} domain={[0, 'auto']} unit="%" />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 'auto']} unit="%" />
                 <RechartsTooltip
                   formatter={(val) => [`${val}%`, 'Avg Decoupling']}
                   contentStyle={{ fontSize: 12 }}

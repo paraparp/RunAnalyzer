@@ -31,7 +31,7 @@ function Header({ session, day, action }) {
         </div>
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
-          <span className="block text-xs text-slate-400">{day} • {SOURCE_LABEL[session.source]}</span>
+          <span className="block text-xs text-slate-500">{day} • {SOURCE_LABEL[session.source]}</span>
         </div>
       </div>
       {action}
@@ -85,11 +85,11 @@ export default function TodayPlannedSession({ session, day, action }) {
           {(session.dist || session.time || session.totalMin > 0) && (
             <div className="grid grid-cols-2 gap-2 p-3 rounded bg-slate-50 dark:bg-slate-800/60 text-center border border-slate-100 dark:border-slate-800">
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Distancia</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Distancia</span>
                 <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">{session.dist ?? '—'}</span>
               </div>
               <div className="flex flex-col border-l border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Duración</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Duración</span>
                 <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">
                   {session.time ?? (session.totalMin > 0 ? `${session.totalMin} min` : '—')}
                 </span>
@@ -117,7 +117,7 @@ export default function TodayPlannedSession({ session, day, action }) {
                   <li key={i} className="flex items-baseline justify-between gap-3 text-xs">
                     <span className="font-semibold text-slate-700 dark:text-slate-200">
                       {b.reps ? `${b.reps} × ${b.duration_min}′ ` : `${b.duration_min}′ `}{b.phase}
-                      {b.recovery && <span className="font-normal text-slate-400"> · rec. {b.recovery}</span>}
+                      {b.recovery && <span className="font-normal text-slate-500"> · rec. {b.recovery}</span>}
                     </span>
                     <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
                       {[b.pace, b.hr && `${b.hr} ppm`].filter(Boolean).join(' · ')}

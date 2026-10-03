@@ -431,7 +431,7 @@ const Dashboard = ({ user, handleLogout }) => {
             <Logo className="w-11 h-11 rounded-2xl ring-1 ring-blue-100 shadow-sm shadow-blue-500/10" />
             <div className="leading-none">
               <div className="text-[18px] font-black italic tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 bg-clip-text text-transparent">RunAnalyzer</div>
-              <div className="text-[9.5px] font-semibold uppercase tracking-[0.18em] text-slate-400 mt-1.5">AI Running Analytics</div>
+              <div className="text-[9.5px] font-semibold uppercase tracking-[0.18em] text-slate-500 mt-1.5">AI Running Analytics</div>
             </div>
           </div>
         </div>
@@ -632,7 +632,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {SCOPED_VIEWS.has(currentView) && (
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('time_scope.label')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('time_scope.label')}</span>
                 <TimeScopeSelector />
               </div>
             )}
@@ -709,7 +709,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 <ChatBubbleLeftRightIcon className="w-4 h-4 text-blue-600 shrink-0" />
                 <h2 className="text-sm font-bold text-slate-900 truncate">{t('nav.qa')}</h2>
                 {currentNavItem && (
-                  <span className="hidden sm:inline text-xs text-slate-400 truncate">
+                  <span className="hidden sm:inline text-xs text-slate-500 truncate">
                     · {t(`nav.${currentNavItem.id}`)}
                   </span>
                 )}
@@ -717,7 +717,7 @@ const Dashboard = ({ user, handleLogout }) => {
               <button
                 onClick={() => setChatOpen(false)}
                 aria-label={t('topbar.close', 'Cerrar')}
-                className="p-1.5 -mr-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                className="p-1.5 -mr-1 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -803,7 +803,7 @@ function App() {
             <LandingPage />
           ) : !storageReady ? (
             <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-              <div className="flex flex-col items-center gap-3 text-slate-400">
+              <div className="flex flex-col items-center gap-3 text-slate-500">
                 <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-500" />
                 <span className="text-sm font-medium">Cargando tus datos…</span>
               </div>

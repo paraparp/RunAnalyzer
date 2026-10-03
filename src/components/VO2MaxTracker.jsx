@@ -299,14 +299,14 @@ function CustomTooltip({ active, payload }) {
       {d.vo2max !== undefined && (
         <p className="text-blue-600 font-bold">
           VO2max: {d.vo2max} ml/kg/min
-          {d.confidence !== undefined && <span className="text-slate-400 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
+          {d.confidence !== undefined && <span className="text-slate-500 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
         </p>
       )}
       {d.vo2avg !== undefined && <p className="text-blue-500">Media ponderada: {d.vo2avg}</p>}
       {d.methods && d.methods.length > 0 && (
         <div className="mt-1 pt-1 border-t border-slate-100">
           {d.methods.map((m, i) => (
-            <p key={i} className="text-slate-400">
+            <p key={i} className="text-slate-500">
               {m.method}: {Math.round(m.value * 10) / 10} <span className="opacity-60">(w={m.weight.toFixed(1)})</span>
             </p>
           ))}
@@ -314,7 +314,7 @@ function CustomTooltip({ active, payload }) {
       )}
       {d.avgVO2 !== undefined && <p className="text-blue-600 font-bold">Media: {d.avgVO2}</p>}
       {d.bestVO2 !== undefined && <p className="text-emerald-600">Mejor: {d.bestVO2}</p>}
-      {d.sessions !== undefined && <p className="text-slate-400">{d.sessions} sesiones</p>}
+      {d.sessions !== undefined && <p className="text-slate-500">{d.sessions} sesiones</p>}
     </div>
   );
 }
@@ -599,7 +599,7 @@ export default function VO2MaxTracker({ activities }) {
 
   if (!stats) {
     return (
-      <div className="text-center py-12 text-slate-400">
+      <div className="text-center py-12 text-slate-500">
         <p className="text-sm">{t('vo2.no_data', 'No hay datos suficientes para estimar tu VO2max.')}</p>
         <p className="text-xs mt-2">{t('vo2.no_data_desc', 'Se necesitan actividades de +10 min con datos de frecuencia cardíaca.')}</p>
       </div>
@@ -689,17 +689,17 @@ export default function VO2MaxTracker({ activities }) {
           ].map((card, idx) => (
             <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm transition-all hover:shadow-md group">
               <div className="flex justify-between items-start mb-3">
-                <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                   {card.icon && <card.icon className="w-5 h-5" />}
                 </div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <p className={`text-2xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
               </div>
               {card.sub && (
-                <div className="mt-2 text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                <div className="mt-2 text-[9px] font-bold text-slate-500 flex items-center gap-1">
                   <div className="w-1 h-1 rounded-full bg-slate-200" />
                   {card.sub}
                 </div>
@@ -722,7 +722,7 @@ export default function VO2MaxTracker({ activities }) {
               <span className="font-black text-lg leading-none">{stats.methodCounts[m.key] || 0}</span>
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-0.5">{m.label}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 mb-0.5">{m.label}</p>
               <p className="text-xs font-bold text-slate-600">{m.desc}</p>
             </div>
           </div>
@@ -783,13 +783,13 @@ export default function VO2MaxTracker({ activities }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="dateLabel"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 interval={Math.max(0, Math.floor(trendData.length / 14))}
               />
               <YAxis
                 domain={['dataMin - 3', 'dataMax + 3']}
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
-                label={{ value: 'ml/kg/min', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
+                label={{ value: 'ml/kg/min', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10 }}
               />
               <RechartsTooltip content={<CustomTooltip />} />
 
@@ -829,10 +829,10 @@ export default function VO2MaxTracker({ activities }) {
             <ResponsiveContainer width="100%" height="100%" minHeight={280}>
               <ComposedChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#64748b' }} />
                 <YAxis
                   domain={['dataMin - 2', 'dataMax + 2']}
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                 />
                 <RechartsTooltip content={<CustomTooltip />} />
                 <Area
@@ -882,7 +882,7 @@ export default function VO2MaxTracker({ activities }) {
               >
                 <p className="text-xs font-bold" style={{ color: tier.color }}>{tier.label}</p>
                 <p className="text-lg font-black text-slate-800 tabular-nums mt-1">{tier.range}</p>
-                <p className="text-[9px] text-slate-400">ml/kg/min</p>
+                <p className="text-[9px] text-slate-500">ml/kg/min</p>
                 {isActive && <p className="text-[9px] font-bold mt-1" style={{ color: tier.color }}>Tu nivel</p>}
               </div>
             );
@@ -935,7 +935,7 @@ export default function VO2MaxTracker({ activities }) {
               <li><span className="font-semibold text-slate-600">EWMA temporal:</span> sesiones recientes pesan más en la media móvil</li>
             </ul>
           </div>
-          <p className="text-[10px] text-slate-400 mt-2">
+          <p className="text-[10px] text-slate-500 mt-2">
             Validación Firstbeat (2017): MAPE ~5% vs lab VO2max en 2690 sesiones de 79 corredores.
             La precisión depende de un sensor de FC fiable y una FCmax bien calibrada.
           </p>

@@ -54,7 +54,7 @@ const PeriodSelector = ({ value, onChange, label }) => {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
-        <span className="text-xs text-slate-400 flex items-center gap-1.5">
+        <span className="text-xs text-slate-500 flex items-center gap-1.5">
           <span className="font-semibold text-slate-700">{value} días</span>
           {value > 30 && (
             <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md font-medium">
@@ -102,7 +102,7 @@ const SectionCard = ({ icon: Icon, tint, title, subtitle, children, right = null
         </div>
         <div>
           <h2 className="text-base font-bold text-slate-900 leading-tight">{title}</h2>
-          {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
         </div>
       </div>
       {right}
@@ -200,11 +200,11 @@ export default function Connections({ stravaData, onConnectStrava }) {
         {stravaConnected ? (
           <div className="flex flex-wrap gap-2.5 text-xs">
             <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-              <span className="text-slate-400">Actividades guardadas </span>
+              <span className="text-slate-500">Actividades guardadas </span>
               <span className="font-bold text-slate-700 tabular-nums">{stravaCount}</span>
             </span>
             <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-              <span className="text-slate-400">Último listado </span>
+              <span className="text-slate-500">Último listado </span>
               <span className="font-bold text-slate-700">{stravaData?.lastFetchDate ?? '—'}</span>
             </span>
           </div>
@@ -303,7 +303,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
               </button>
             </form>
 
-            <p className="text-xs text-slate-400 text-center">
+            <p className="text-xs text-slate-500 text-center">
               Servidor proxy requerido:{' '}
               <code className="bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">npm run server</code>
             </p>
@@ -312,19 +312,19 @@ export default function Connections({ stravaData, onConnectStrava }) {
           <>
             <div className="flex flex-wrap gap-2.5 text-xs">
               <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-400">Cuenta </span>
+                <span className="text-slate-500">Cuenta </span>
                 <span className="font-bold text-slate-700">{creds?.username ?? '—'}</span>
               </span>
               <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-400">Días de salud </span>
+                <span className="text-slate-500">Días de salud </span>
                 <span className="font-bold text-slate-700 tabular-nums">{data.length}</span>
               </span>
               <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-400">Noches de sueño </span>
+                <span className="text-slate-500">Noches de sueño </span>
                 <span className="font-bold text-slate-700 tabular-nums">{sleepData?.length ?? 0}</span>
               </span>
               <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-400">Último sync </span>
+                <span className="text-slate-500">Último sync </span>
                 <span className="font-bold text-slate-700">{lastSync ?? '—'}</span>
               </span>
             </div>
@@ -389,7 +389,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
         )}
       </SectionCard>
 
-      <p className="text-xs text-slate-400 leading-relaxed">
+      <p className="text-xs text-slate-500 leading-relaxed">
         El botón de sincronizar de la barra superior refresca los dos carriles a la vez (Strava y
         después Garmin). El sync de aquí es el específico de la salud de Garmin, con el período que
         elijas.

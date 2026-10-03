@@ -236,7 +236,7 @@ const ModelSelector = ({
             return (
               <div key={g.provider} className="space-y-1.5">
                 {/* Encabezado del Proveedor */}
-                <div className="flex items-center justify-between px-1.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <div className="flex items-center justify-between px-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">
                   <div className="flex items-center gap-1.5">
                     <IconComponent className="w-3 h-3 text-slate-500 dark:text-slate-400" />
                     <span>{meta.label}</span>
@@ -299,7 +299,7 @@ const ModelSelector = ({
           })}
 
           {filteredGroups.length === 0 && (
-            <p className="text-xs text-center text-slate-400 py-3">
+            <p className="text-xs text-center text-slate-500 py-3">
               No se encontraron modelos con "{searchQuery}"
             </p>
           )}
@@ -313,11 +313,11 @@ const ModelSelector = ({
     <div className={`space-y-2 ${className}`}>
       {showLabel && (
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Motor IA
           </span>
           {isLoading && (
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 animate-pulse">
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 animate-pulse">
               <ArrowPathIcon className="w-2.5 h-2.5 animate-spin" />
               <span>Sincronizando</span>
             </div>
@@ -360,14 +360,14 @@ const ModelSelector = ({
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">
+            <p className="text-[11px] text-slate-500 truncate mt-0.5">
               {currentMeta.label} · {currentMeta.hint}
             </p>
           </div>
         </div>
 
         {/* Indicador de alternancia */}
-        <div className="flex items-center gap-1 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0">
+        <div className="flex items-center gap-1 text-slate-500 group-hover:text-blue-500 transition-colors shrink-0">
           <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
             {isExpanded ? 'Cerrar' : 'Cambiar'}
           </span>

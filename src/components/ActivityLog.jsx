@@ -80,7 +80,7 @@ const StravaLink = ({ id, label }) => (
 
 // FC media coloreada por zona de Karvonen (misma paleta que los parciales).
 const HrValue = ({ hr, bounds, t, className = 'text-sm' }) => {
-  if (!hr) return <span className={`${className} tabular-nums text-slate-400`}>-</span>;
+  if (!hr) return <span className={`${className} tabular-nums text-slate-500`}>-</span>;
   const z = bounds ? ZONES[classifyHR(hr, bounds) + 1] : null;
   if (!z) return <span className={`${className} tabular-nums text-slate-500`}>{Math.round(hr)}</span>;
   return (
@@ -111,14 +111,14 @@ const RangeFilter = ({ icon: Icon, tone, title, hint, unit, range, onChange, typ
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-bold text-slate-700 leading-none">{title}</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>
+        <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p>
       </div>
     </div>
     <div className="flex items-center gap-1.5">
       <div className="flex-1"><RangeInput type={type} step={step} ring={tone.ring} placeholder={placeholders[0]} value={range.min} onChange={(v) => onChange({ ...range, min: v })} /></div>
       <div className="w-4 h-px bg-slate-300 shrink-0"></div>
       <div className="flex-1"><RangeInput type={type} step={step} ring={tone.ring} placeholder={placeholders[1]} value={range.max} onChange={(v) => onChange({ ...range, max: v })} /></div>
-      <span className="text-[10px] font-medium text-slate-400 shrink-0">{unit}</span>
+      <span className="text-[10px] font-medium text-slate-500 shrink-0">{unit}</span>
     </div>
   </div>
 );
@@ -291,7 +291,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
             <p className="text-sm font-semibold text-slate-700">{t('activity_log.activities', { count: sortedActivities.length })}</p>
-            <p className="text-xs text-slate-400 tabular-nums">
+            <p className="text-xs text-slate-500 tabular-nums">
               {fmtNum(summary.distance / 1000)} km · {formatDurationHm(summary.time)} · +{fmtNum(summary.elevation)} m
             </p>
             {activeFilterCount > 0 && (
@@ -355,7 +355,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-bold text-slate-700 leading-none">{t('activity_log.sports')}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[10px] text-slate-500 mt-0.5">
                       {selectedSports === null ? t('activity_log.sports_default') : t('activity_log.activities', { count: dashboardActivities.length })}
                     </p>
                   </div>
@@ -418,7 +418,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div>
             <h3 className="text-sm font-bold text-slate-800">{t('dashboard.monthly_progress')}</h3>
-            <p className="text-[11px] text-slate-400">{t('dashboard.annual_distribution')}</p>
+            <p className="text-[11px] text-slate-500">{t('dashboard.annual_distribution')}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
@@ -442,7 +442,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
 
       <CollapsibleSection title={t('dashboard.activities')}>
         {sortedActivities.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">{t('activity_log.empty')}</p>
+          <p className="py-8 text-center text-sm text-slate-500">{t('activity_log.empty')}</p>
         )}
 
         {/* Móvil: una tarjeta por actividad en vez de 10 columnas con scroll lateral. */}
@@ -454,7 +454,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-sm font-semibold text-slate-800 truncate">{a.name}</span>
                   {sportBadge(a)}
-                  <span className="ml-auto shrink-0 text-[11px] text-slate-400 tabular-nums">{formatDate(a.start_date)}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-slate-500 tabular-nums">{formatDate(a.start_date)}</span>
                   <StravaLink id={a.id} label={t('activity_log.open_strava')} />
                 </div>
                 <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-600 tabular-nums">
@@ -462,7 +462,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                   <span>{formatDurationHm(movingSecs(a))}</span>
                   <span>{formatPaceFromSpeed(a.distance / movingSecs(a))} /km</span>
                   <HrValue hr={a.average_heartrate} bounds={hrBounds} t={t} className="text-xs" />
-                  <span className="ml-auto text-slate-400">+{Math.round(a.total_elevation_gain || 0)} m</span>
+                  <span className="ml-auto text-slate-500">+{Math.round(a.total_elevation_gain || 0)} m</span>
                 </div>
               </button>
             </li>
@@ -540,7 +540,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                         }>
                           {activity.suffer_score}
                         </Badge>
-                      ) : <span className="text-sm text-slate-400">-</span>}
+                      ) : <span className="text-sm text-slate-500">-</span>}
                     </TableCell>
                     <TableCell className="text-right px-2">
                       <span className="text-sm tabular-nums text-slate-500">{Math.round(activity.total_elevation_gain || 0)}</span>
@@ -558,7 +558,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
         {/* Paginación */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-            <span className="text-xs text-slate-400 tabular-nums">
+            <span className="text-xs text-slate-500 tabular-nums">
               {(page - 1) * ACTIVITIES_PAGE_SIZE + 1}–{Math.min(page * ACTIVITIES_PAGE_SIZE, sortedActivities.length)} / {sortedActivities.length}
             </span>
             <div className="flex items-center gap-1">

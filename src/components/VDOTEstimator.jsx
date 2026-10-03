@@ -229,15 +229,15 @@ export default function VDOTEstimator({ activities }) {
                 const est = vdotEstimates.find(e => e.distance === range.name);
                 return (
                   <div key={range.name} className={`rounded-xl border p-3 ${est ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{range.name}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{range.name}</p>
                     {est ? (
                       <>
                         <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{est.vdot}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{formatDuration(est.normalizedTime)}</p>
-                        <p className="text-[10px] text-slate-400">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{formatDuration(est.normalizedTime)}</p>
+                        <p className="text-[10px] text-slate-500">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                       </>
                     ) : (
-                      <p className="text-xs text-slate-400 mt-1">Sin datos</p>
+                      <p className="text-xs text-slate-500 mt-1">Sin datos</p>
                     )}
                   </div>
                 );
@@ -274,7 +274,7 @@ export default function VDOTEstimator({ activities }) {
                 <YAxis
                   domain={['dataMin - 2', 'dataMax + 2']}
                   tick={{ fill: '#64748b', fontSize: 11 }}
-                  label={{ value: 'VDOT', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 }}
+                  label={{ value: 'VDOT', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
                 />
                 {bestVDOT && (
                   <ReferenceLine
@@ -348,20 +348,20 @@ export default function VDOTEstimator({ activities }) {
       <Card className="shadow-lg border-slate-200">
         <div className="space-y-2">
           <Text className="text-slate-500 text-xs font-semibold">¿Qué muestra esta página?</Text>
-          <Text className="text-slate-400 text-xs leading-relaxed">
+          <Text className="text-slate-500 text-xs leading-relaxed">
             <span className="font-medium text-slate-500">① VDOT actual</span> — Tu índice de forma aeróbica (tu <span className="font-semibold text-slate-500">VO₂max funcional</span> en ml/kg/min).
             Se calcula desde tu mejor marca en cada distancia estándar. Cuanto más alto, mejor forma.
           </Text>
-          <Text className="text-slate-400 text-xs leading-relaxed">
+          <Text className="text-slate-500 text-xs leading-relaxed">
             <span className="font-medium text-slate-500">② Evolución</span> — Cómo ha cambiado tu VDOT a lo largo del tiempo, útil para ver si estás progresando.
           </Text>
-          <Text className="text-slate-400 text-xs leading-relaxed">
+          <Text className="text-slate-500 text-xs leading-relaxed">
             <span className="font-medium text-slate-500">③ Ritmos de entrenamiento</span> — Los ritmos por km recomendados para cada tipo de sesión (fácil, maratón, umbral, intervalos, series) según tu nivel actual.
           </Text>
-          <Text className="text-slate-400 text-xs leading-relaxed">
+          <Text className="text-slate-500 text-xs leading-relaxed">
             <span className="font-medium text-slate-500">④ Predicciones</span> — Los tiempos que deberías poder hacer en cada distancia con tu forma actual, según el modelo.
           </Text>
-          <Text className="text-slate-400 text-[10px] leading-relaxed mt-2 border-t border-slate-100 pt-2">
+          <Text className="text-slate-500 text-[10px] leading-relaxed mt-2 border-t border-slate-100 pt-2">
             <span className="font-semibold text-slate-500">Metodología:</span> Fórmula Daniels-Gilbert (1979) · <span className="italic">Daniels' Running Formula</span>.
             Válido para esfuerzos de carrera entre ~3.5 y ~230 minutos.
           </Text>

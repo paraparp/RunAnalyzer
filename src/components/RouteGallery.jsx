@@ -14,7 +14,7 @@ const THEMES = {
         border: 'border-slate-200',
         textTitle: 'text-slate-900',
         textData: 'text-slate-800',
-        textMeta: 'text-slate-400',
+        textMeta: 'text-slate-500',
         dot: 'bg-slate-300',
         stroke: '#0f172a', // very dark slate
         backdrop: '#f8fafc',
@@ -185,7 +185,7 @@ export default function RouteGallery({ activities }) {
           
           <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4 shrink-0">
             <div>
-              <Text className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest flex items-center gap-1">
+              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest flex items-center gap-1">
                 <SwatchIcon className="w-3 h-3" /> Tema Original
               </Text>
               <Select value={activeTheme} onValueChange={setActiveTheme} enableClear={false} className="w-full sm:w-40 font-semibold shadow-sm">
@@ -195,7 +195,7 @@ export default function RouteGallery({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest">Mostrar</Text>
+              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">Mostrar</Text>
               <Select value={filter} onValueChange={setFilter} enableClear={false} className="w-full sm:w-40 font-semibold shadow-sm">
                 <SelectItem value="longest">Distancia Máx</SelectItem>
                 <SelectItem value="fastest">Velocidad Punta</SelectItem>

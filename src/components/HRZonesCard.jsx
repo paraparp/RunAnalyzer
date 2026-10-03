@@ -92,20 +92,20 @@ const HRZonesCard = ({ sci }) => {
     <details className="group">
       <summary className="flex items-center gap-2.5 mb-3 px-0.5 cursor-pointer list-none">
         <span className="w-2 h-2 rounded shrink-0 bg-rose-500" />
-        <span className="font-mono text-[10px] font-bold text-slate-300 dark:text-slate-600 tabular-nums shrink-0">FC</span>
+        <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-600 tabular-nums shrink-0">FC</span>
         <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">
           Zonas de Entrenamiento
         </span>
-        <span className="font-mono text-[10px] text-slate-400 shrink-0">
+        <span className="font-mono text-[10px] text-slate-500 shrink-0">
           <span className="text-slate-500 dark:text-slate-400">Karvonen</span>
           <span className="mx-1 text-slate-300 dark:text-slate-700">·</span>
           <span>reserva {fcmax - (fcRest || DEFAULT_REST_HR)} ppm</span>
         </span>
         <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0 group-open:hidden">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 shrink-0 group-open:hidden">
           Ver zonas
         </span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0 hidden group-open:inline">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 shrink-0 hidden group-open:inline">
           Ocultar
         </span>
       </summary>
@@ -115,9 +115,9 @@ const HRZonesCard = ({ sci }) => {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[10px] font-mono text-slate-500 dark:text-slate-400">
           <span className="flex items-center gap-1">
             <HeartIcon className="w-3 h-3 text-rose-400" />
-            <span className="font-bold uppercase tracking-wider text-slate-400">FCmax</span> {fcmax} ppm
+            <span className="font-bold uppercase tracking-wider text-slate-500">FCmax</span> {fcmax} ppm
           </span>
-          {fcRest && <span><span className="font-bold uppercase tracking-wider text-slate-400">Reposo</span> {fcRest} ppm</span>}
+          {fcRest && <span><span className="font-bold uppercase tracking-wider text-slate-500">Reposo</span> {fcRest} ppm</span>}
           {lt1 && <span className="text-sky-600 dark:text-sky-400"><span className="font-bold uppercase tracking-wider opacity-70">LT1</span> {lt1} ppm</span>}
           {lt2 && <span className="text-rose-500 dark:text-rose-400"><span className="font-bold uppercase tracking-wider opacity-70">LT2</span> {lt2} ppm</span>}
         </div>
@@ -133,8 +133,8 @@ const HRZonesCard = ({ sci }) => {
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className={`text-[11px] font-black ${z.text}`}>{z.name}</span>
                     <span className="font-mono text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
-                      {ppm(i)} <span className="text-[9px] font-medium text-slate-400">ppm</span>
-                      {p && <span className="ml-2 text-[10px] font-medium text-slate-400">{p}</span>}
+                      {ppm(i)} <span className="text-[9px] font-medium text-slate-500">ppm</span>
+                      {p && <span className="ml-2 text-[10px] font-medium text-slate-500">{p}</span>}
                     </span>
                   </div>
                   <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 mt-0.5">{z.role}</p>

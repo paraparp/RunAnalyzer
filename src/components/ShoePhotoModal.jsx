@@ -239,7 +239,7 @@ export default function ShoePhotoModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="p-1.5 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -272,7 +272,7 @@ export default function ShoePhotoModal({
                 ) : (
                   <div className="flex flex-col items-center justify-center text-slate-300">
                     <PhotoIcon className="w-12 h-12 stroke-1" />
-                    <span className="text-xs font-bold uppercase tracking-wider mt-1 text-slate-400">
+                    <span className="text-xs font-bold uppercase tracking-wider mt-1 text-slate-500">
                       {brandInfo.brand}
                     </span>
                   </div>
@@ -344,14 +344,14 @@ export default function ShoePhotoModal({
                         type="button"
                         onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setFlipH(false); }}
                         title={t('gear.photos.reset_frame')}
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors ml-0.5"
+                        className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors ml-0.5"
                       >
                         <ArrowPathIcon className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
 
-                  <p className="text-[10px] font-medium text-slate-400">
+                  <p className="text-[10px] font-medium text-slate-500">
                     {t('gear.photos.drag_hint')}
                   </p>
                 </div>
@@ -424,7 +424,7 @@ export default function ShoePhotoModal({
                 <p className="text-xs font-bold text-slate-700">
                   {t('gear.photos.drop_hint')}
                 </p>
-                <p className="text-[11px] font-medium text-slate-400 mt-1">
+                <p className="text-[11px] font-medium text-slate-500 mt-1">
                   {t('gear.photos.drop_subhint')}
                 </p>
               </div>
@@ -450,7 +450,7 @@ export default function ShoePhotoModal({
                     {t('gear.photos.preview')}
                   </button>
                 </div>
-                <p className="text-[11px] font-medium text-slate-400">
+                <p className="text-[11px] font-medium text-slate-500">
                   {t('gear.photos.url_hint')}
                 </p>
               </div>

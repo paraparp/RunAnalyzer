@@ -87,7 +87,7 @@ const parseInline = (text) => {
         } else if (m[2] !== undefined) {
             parts.push(<strong key={key++} className="font-semibold text-slate-900">{m[2]}</strong>);
         } else if (m[3] !== undefined) {
-            parts.push(<span key={key++} className="line-through text-slate-400">{m[3]}</span>);
+            parts.push(<span key={key++} className="line-through text-slate-500">{m[3]}</span>);
         } else if (m[4] !== undefined) {
             // Solo esquemas seguros: un enlace del plan puede venir del MCP.
             const href = /^(https?:|mailto:)/i.test(m[5]) ? m[5] : null;
@@ -140,7 +140,7 @@ const renderItems = (items, keyBase = 'l') => {
                                 <span className={`mt-[3px] w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center text-[9px] font-black ${g.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 text-transparent'}`}>
                                     ✓
                                 </span>
-                                <span className={g.checked ? 'text-slate-400 line-through' : ''}>{parseInline(g.text)}</span>
+                                <span className={g.checked ? 'text-slate-500 line-through' : ''}>{parseInline(g.text)}</span>
                             </span>
                         ) : parseInline(g.text)}
                         {g.children.length > 0 && renderItems(g.children, `${keyBase}-${nodes.length}-${gi}`)}

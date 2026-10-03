@@ -96,7 +96,7 @@ export default function GlobalHeatmap({ activities }) {
           
           <div className="w-full xl:w-auto grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
             <div>
-              <Text className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest">{t('maps.base_map')}</Text>
+              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.base_map')}</Text>
               <Select value={baseMap} onValueChange={setBaseMap} enableClear={false} className="w-full sm:w-40 font-medium shadow-sm">
                 <SelectItem value="dark"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-800"></span>{t('maps.dark')}</span></SelectItem>
                 <SelectItem value="light"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-200 border border-slate-300"></span>{t('maps.light')}</span></SelectItem>
@@ -104,7 +104,7 @@ export default function GlobalHeatmap({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest">{t('maps.filter')}</Text>
+              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.filter')}</Text>
               <Select value={filterType} onValueChange={setFilterType} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="all">{t('maps.all')}</SelectItem>
                 <SelectItem value="run">{t('maps.road')}</SelectItem>
@@ -113,7 +113,7 @@ export default function GlobalHeatmap({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-widest">{t('maps.color_mode')}</Text>
+              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.color_mode')}</Text>
               <Select value={colorMode} onValueChange={setColorMode} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="heatmap"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-500"></div>{t('maps.density')}</span></SelectItem>
                 <SelectItem value="pace"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-green-500 to-red-500"></div>{t('maps.pace')}</span></SelectItem>

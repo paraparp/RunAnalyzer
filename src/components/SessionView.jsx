@@ -70,18 +70,18 @@ function StatGroup({ Icon, accent, label, value, unit, caption, items, children 
       </div>
       <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
         <span className="text-[32px] leading-none font-bold tracking-tight text-slate-900">{value}</span>
-        {unit && <span className="text-sm font-semibold text-slate-400">{unit}</span>}
-        {caption && <span className="text-[11px] text-slate-400 truncate">{caption}</span>}
+        {unit && <span className="text-sm font-semibold text-slate-500">{unit}</span>}
+        {caption && <span className="text-[11px] text-slate-500 truncate">{caption}</span>}
       </div>
       {children}
       <dl className="mt-auto pt-3 grid grid-cols-2 gap-3">
         {items.map((it) => (
           <div key={it.label} className="min-w-0" title={it.title}>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">{it.label}</dt>
+            <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 truncate">{it.label}</dt>
             <dd className="text-sm font-semibold tabular-nums text-slate-800 truncate">
-              {it.value}{it.unit && <span className="ml-0.5 text-[11px] font-medium text-slate-400">{it.unit}</span>}
+              {it.value}{it.unit && <span className="ml-0.5 text-[11px] font-medium text-slate-500">{it.unit}</span>}
             </dd>
-            {it.hint && <dd className="text-[10px] text-slate-400 truncate">{it.hint}</dd>}
+            {it.hint && <dd className="text-[10px] text-slate-500 truncate">{it.hint}</dd>}
           </div>
         ))}
       </dl>
@@ -127,15 +127,15 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
 function Kpi({ label, value, hint, size = 'md' }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
       <div className={`font-black tabular-nums text-slate-900 truncate ${size === 'lg' ? 'text-3xl leading-tight' : 'text-lg'}`}>{value}</div>
-      {hint && <div className="text-[11px] text-slate-400 truncate" title={hint}>{hint}</div>}
+      {hint && <div className="text-[11px] text-slate-500 truncate" title={hint}>{hint}</div>}
     </div>
   );
 }
 
 function Empty({ children }) {
-  return <p className="text-xs italic text-slate-400">{children}</p>;
+  return <p className="text-xs italic text-slate-500">{children}</p>;
 }
 
 function ZonesBlock({ zones, t }) {
@@ -168,7 +168,7 @@ function ZonesBlock({ zones, t }) {
               <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${dominant ? 'font-black text-slate-900' : 'font-semibold text-slate-600'}`}>
                 {Math.round(p)}%
               </span>
-              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-slate-400">{formatDuration(zones.times[i])}</span>
+              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-slate-500">{formatDuration(zones.times[i])}</span>
             </div>
           );
         })}
@@ -235,7 +235,7 @@ function SimilarTooltip({ active, payload, t, locale }) {
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
       <p className="font-bold text-slate-700 truncate max-w-[220px]">{s.current ? t('session.this_session') : s.name}</p>
-      <p className="text-slate-400 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
+      <p className="text-slate-500 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
       <p className="font-semibold tabular-nums text-slate-900">{s.efficiency.toFixed(2)} m/lat</p>
       <p className="tabular-nums text-slate-500">
         {formatPaceFromSpeed(s.speed_ms)}/km{s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
@@ -289,14 +289,14 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
       {...(s.current ? {} : { type: 'button', onClick: () => onOpenActivity(s.id) })}
       className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-500'}`}
     >
-      <span className={`w-14 shrink-0 text-[11px] tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-400'}`}>
+      <span className={`w-14 shrink-0 text-[11px] tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-500'}`}>
         {new Date(s.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700 group-hover:text-blue-700'}`}>
           {s.current ? t('session.this_session') : s.name}
         </span>
-        <span className="block truncate text-[11px] tabular-nums text-slate-400">
+        <span className="block truncate text-[11px] tabular-nums text-slate-500">
           {(s.distance_m / 1000).toFixed(1)} km · {formatPaceFromSpeed(s.speed_ms)}/km
           {s.gap_speed_ms ? ` · GAP ${formatPaceFromSpeed(s.gap_speed_ms)}` : ''}
           {s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
@@ -304,7 +304,7 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
       </span>
       <span className={`shrink-0 text-right text-sm font-black tabular-nums ${s.current ? 'text-blue-700' : 'text-slate-800'}`}>
         {s.efficiency != null ? s.efficiency.toFixed(2) : '—'}
-        <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">m/lat</span>
+        <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">m/lat</span>
       </span>
       {!s.current && <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-blue-500" />}
     </Tag>
@@ -333,7 +333,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
         {points.length >= 2 && (
           <div className="lg:col-span-3">
             <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-            <p className="text-[11px] text-slate-400 mt-1">{t('session.similar_chart_hint')}</p>
+            <p className="text-[11px] text-slate-500 mt-1">{t('session.similar_chart_hint')}</p>
           </div>
         )}
         <div className={points.length >= 2 ? 'lg:col-span-2' : 'lg:col-span-5'}>
@@ -341,7 +341,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
             {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
           </div>
           {similar.n > similar.sessions.length && (
-            <p className="text-[11px] text-slate-400 mt-2">
+            <p className="text-[11px] text-slate-500 mt-2">
               {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
             </p>
           )}
@@ -364,12 +364,12 @@ function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onCli
         <Icon className="w-4 h-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 truncate">{label}</span>
+        <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 truncate">{label}</span>
         <span className="flex items-baseline gap-1.5">
           <span className={`text-lg font-bold tabular-nums ${valueTone}`}>{value}</span>
           <span className="text-xs font-medium text-slate-600 truncate first-letter:uppercase">{sub}</span>
         </span>
-        {extra && <span className="block text-[11px] tabular-nums text-slate-400 truncate">{extra}</span>}
+        {extra && <span className="block text-[11px] tabular-nums text-slate-500 truncate">{extra}</span>}
       </span>
     </Tag>
   );
@@ -504,7 +504,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
       key: 'dec',
       Icon: HeartIcon,
       tone: LEVEL_PILL[decH.level] ?? 'bg-slate-50 text-slate-600',
-      valueTone: LEVEL_TONE[decH.level] ?? 'text-slate-400',
+      valueTone: LEVEL_TONE[decH.level] ?? 'text-slate-500',
       label: t('session.decoupling_title'),
       value: decH.pct != null ? `${signed(decH.pct)}%` : '—',
       sub: decH.pct != null ? t(`decoupling.levels.${decH.level}`) : t(`session.decoupling_reason.${decH.reason}`),
@@ -663,7 +663,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
               : <Empty>{t('session.no_splits')}</Empty>}
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">{t('session.zones_title')}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-3">{t('session.zones_title')}</p>
             <ZonesBlock zones={zones} t={t} />
           </div>
         </div>
@@ -681,7 +681,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
         </Card>
       </div>
 
-      <p className="hidden lg:block text-center text-[11px] text-slate-400">{t('session.keys_hint')}</p>
+      <p className="hidden lg:block text-center text-[11px] text-slate-500">{t('session.keys_hint')}</p>
     </div>
   );
 }

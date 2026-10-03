@@ -74,7 +74,7 @@ const AIInsights = ({ activities, ai, onOpenChat }) => {
 
       {/* ═══════════ 04 · FUENTES — pie único: qué se analizó, cuándo y con qué ═══════════ */}
       <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-[10px] font-semibold text-slate-400">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-[10px] font-semibold text-slate-500">
           <span className="flex items-center gap-1.5">
             <ClockIcon className="w-3.5 h-3.5 shrink-0" />
             {sortedActivities.length} sesiones analizadas
@@ -106,7 +106,7 @@ const AIInsights = ({ activities, ai, onOpenChat }) => {
 
             return (
               <div key={a.id} title={tooltipParts.join('\n')} className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 rounded-md cursor-help hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <span className="font-mono text-[9px] text-slate-400 font-medium border-r border-slate-200 dark:border-slate-700 pr-1.5">
+                <span className="font-mono text-[9px] text-slate-500 font-medium border-r border-slate-200 dark:border-slate-700 pr-1.5">
                   {new Date(a.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 </span>
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
@@ -116,12 +116,12 @@ const AIInsights = ({ activities, ai, onOpenChat }) => {
                   </span>
                 </span>
                 {a.moving_time > 0 && a.distance > 0 && RUN_TYPES.includes(a.type) && (
-                  <span className="font-mono text-[9px] text-slate-400 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5 tabular-nums">
+                  <span className="font-mono text-[9px] text-slate-500 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5 tabular-nums">
                     {`${paceStr((a.moving_time / 60) / (a.distance / 1000))}/km`}
                   </span>
                 )}
                 {a.moving_time > 0 && a.distance > 0 && RIDE_TYPES.includes(a.type) && (
-                  <span className="font-mono text-[9px] text-slate-400 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5 tabular-nums">
+                  <span className="font-mono text-[9px] text-slate-500 font-medium border-l border-slate-200 dark:border-slate-700 pl-1.5 tabular-nums">
                     {((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1)} km/h
                   </span>
                 )}

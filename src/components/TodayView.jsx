@@ -89,7 +89,7 @@ const TONE = {
   blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: '#2563eb', text: 'text-blue-600 dark:text-blue-400',       pill: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
   amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: '#f59e0b', text: 'text-amber-600 dark:text-amber-400',     pill: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
   rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: '#f43f5e', text: 'text-rose-600 dark:text-rose-400',       pill: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
-  slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           stroke: '#94a3b8', text: 'text-slate-400',                         pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
+  slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           stroke: '#94a3b8', text: 'text-slate-500',                         pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 
@@ -99,7 +99,7 @@ const HERO_TEXT = {
   blue:    'text-sky-300',
   amber:   'text-amber-300',
   rose:    'text-rose-300',
-  slate:   'text-slate-400',
+  slate:   'text-slate-500',
 };
 
 // Una señal del readiness en la cabecera: valor, lectura contra su referencia
@@ -187,11 +187,11 @@ function ZoneStack({ label, mix }) {
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm text-slate-600 dark:text-slate-300">{label}</span>
         {mix.hasData ? (
-          <span className="text-xs text-slate-400 tabular-nums">
+          <span className="text-xs text-slate-500 tabular-nums">
             <b className="text-slate-900 dark:text-slate-100">{Math.round(mix.groups.low)} %</b> fácil en {hoursStr(mix.totalSec)}
           </span>
         ) : (
-          <span className="text-xs text-slate-400">Sin sesiones con FC</span>
+          <span className="text-xs text-slate-500">Sin sesiones con FC</span>
         )}
       </div>
       <div className="relative">
@@ -1051,7 +1051,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               note={phase?.description}
             >
               <Scale value={tsbValue} min={-tsbSpan} max={tsbSpan} bands={TSB_BANDS} />
-              <div className="flex justify-between text-[11px] text-slate-400 -mt-1">
+              <div className="flex justify-between text-[11px] text-slate-500 -mt-1">
                 <span>Fatiga</span><span>Fresco</span>
               </div>
             </LoadGauge>
@@ -1065,7 +1065,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               link={<DetailLink onClick={() => onNavigate('injury')}>Ver riesgo</DetailLink>}
             >
               <Scale value={currentACWR} min={0.4} max={acwrMax} bands={ACWR_BANDS} />
-              <div className="flex justify-between text-[11px] text-slate-400 -mt-1 tabular-nums">
+              <div className="flex justify-between text-[11px] text-slate-500 -mt-1 tabular-nums">
                 <span>0,4</span><span>0,8</span><span>1,3</span><span>{acwrMax.toFixed(1).replace('.', ',')}</span>
               </div>
             </LoadGauge>
@@ -1078,7 +1078,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               note={`${stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0} % de tu pico histórico (${fmtDec(stats.peakCTL)}). Pico de este año: ${fmtDec(stats.peakCTLYear)}.`}
             >
               <Scale value={stats.currentCTL} min={0} max={Math.max(stats.peakCTL, stats.currentCTL, 1)} bands={[{ to: Infinity, color: '#60a5fa' }]} />
-              <div className="flex justify-between text-[11px] text-slate-400 -mt-1">
+              <div className="flex justify-between text-[11px] text-slate-500 -mt-1">
                 <span>0</span><span>Tu pico</span>
               </div>
             </LoadGauge>
@@ -1130,7 +1130,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                           title={d.km > 0 ? `${d.km.toFixed(1)} km` : 'Sin carrera'}
                         />
                       </div>
-                      <span className={`text-xs ${d.isToday ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-400'}`}>{WEEKDAYS[i]}</span>
+                      <span className={`text-xs ${d.isToday ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-500'}`}>{WEEKDAYS[i]}</span>
                     </div>
                   ))}
                 </div>
@@ -1143,7 +1143,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                       )}
                       {briefing.volSpark.map((w, i) => (
                         <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`${w.v} km`}>
-                          <span className="text-[11px] text-slate-400 tabular-nums">{w.v}</span>
+                          <span className="text-[11px] text-slate-500 tabular-nums">{w.v}</span>
                           <div
                             className={`w-2 rounded-full ${i === briefing.volSpark.length - 1 ? 'bg-slate-900 dark:bg-white' : 'bg-slate-300 dark:bg-slate-700'}`}
                             style={{ height: `${Math.max(3, (w.v / volMax) * 80)}%` }}
@@ -1151,14 +1151,14 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                         </div>
                       ))}
                     </div>
-                    <span className="text-xs text-slate-400 mt-1">8 últimas semanas{volAvg > 0 ? `, media del año ${volAvg.toFixed(0)} km` : ''}</span>
+                    <span className="text-xs text-slate-500 mt-1">8 últimas semanas{volAvg > 0 ? `, media del año ${volAvg.toFixed(0)} km` : ''}</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
         ) : (
-          <p className="py-6 text-sm text-slate-400">Aún no hay historial suficiente para el modelo de carga.</p>
+          <p className="py-6 text-sm text-slate-500">Aún no hay historial suficiente para el modelo de carga.</p>
         )}
       </Panel>
 
@@ -1174,9 +1174,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             >
               <p className={`${DISPLAY} text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50`}>
                 {todayWorkout.recovery ? 'Trote regenerativo' : suggested.source === 'coach' ? 'Sesión del coach' : 'Rodaje base'}
-                <span className="ml-2 align-middle text-xs font-semibold text-slate-400">{suggested.badge}</span>
+                <span className="ml-2 align-middle text-xs font-semibold text-slate-500">{suggested.badge}</span>
               </p>
-              <p className="text-xs text-slate-400 mt-1">{suggested.note}</p>
+              <p className="text-xs text-slate-500 mt-1">{suggested.note}</p>
 
               <dl className="grid grid-cols-3 gap-3 mt-4">
                 {[
@@ -1185,7 +1185,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   { label: 'Pulso', value: suggested.hr },
                 ].map(m => (
                   <div key={m.label} className="min-w-0">
-                    <dt className="text-xs text-slate-400">{m.label}</dt>
+                    <dt className="text-xs text-slate-500">{m.label}</dt>
                     <dd className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 truncate">{m.value}</dd>
                   </div>
                 ))}
@@ -1195,7 +1195,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 {suggested.segments.length > 0 ? (
                   <WorkoutProfile segments={suggested.segments} />
                 ) : (
-                  <p className="h-28 rounded border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs text-slate-400 px-3 text-center">
+                  <p className="h-28 rounded border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs text-slate-500 px-3 text-center">
                     {suggested.emptyMsg}
                   </p>
                 )}
@@ -1208,7 +1208,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               )}
 
               <div className="mt-auto pt-4 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   {suggested.totalMin != null ? `${suggested.totalMin} min en total. ` : ''}{suggested.calibration}.
                 </span>
                 <AskChatBtn onAsk={askCoach} focus="workout" />
@@ -1258,7 +1258,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 onClick={() => { setCoachTab(tb.id); setCoachExpanded(false); }}
                 className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${coachTab === tb.id
                   ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white'
-                  : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
                 {tb.label}
               </button>
@@ -1276,7 +1276,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 text={activeCoachTab.text}
                 accent={activeCoachTab.accent}
                 fallback={activeCoachTab.id === 'cur' ? diagFallback : (
-                  <p className="text-sm text-slate-400">El coach aún no ha hecho este análisis. Pulsa «Recalcular» para pedirlo.</p>
+                  <p className="text-sm text-slate-500">El coach aún no ha hecho este análisis. Pulsa «Recalcular» para pedirlo.</p>
                 )}
               />
               {coachLong && !coachExpanded && (
@@ -1308,7 +1308,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           )}
         >
           {!lastRun ? (
-            <p className="py-6 text-sm text-slate-400">Aún no hay carreras sincronizadas.</p>
+            <p className="py-6 text-sm text-slate-500">Aún no hay carreras sincronizadas.</p>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <button
@@ -1323,7 +1323,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               <div className="lg:col-span-5 flex flex-col gap-4 min-w-0">
                 <div className="min-w-0">
                   <p className={`${DISPLAY} text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 truncate`}>{lastRun.name}</p>
-                  <p className="text-xs text-slate-400 first-letter:uppercase">
+                  <p className="text-xs text-slate-500 first-letter:uppercase">
                     {lastRun.date.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' })}, {lastRun.date.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -1342,11 +1342,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                     { label: 'Cadencia', value: lastRun.cadence ?? DASH, unit: lastRun.cadence != null ? 'spm' : null },
                   ].map(m => (
                     <div key={m.label} className="min-w-0">
-                      <dt className="text-xs text-slate-400">{m.label}</dt>
+                      <dt className="text-xs text-slate-500">{m.label}</dt>
                       <dd className="flex items-baseline gap-1 min-w-0">
                         {m.dot && <span className="w-2 h-2 rounded-full shrink-0 self-center" style={{ background: m.dot }} />}
                         <span className={`${DISPLAY} text-lg font-extrabold tabular-nums text-slate-900 dark:text-slate-50`}>{m.value}</span>
-                        {m.unit && <span className="text-xs text-slate-400 truncate">{m.unit}</span>}
+                        {m.unit && <span className="text-xs text-slate-500 truncate">{m.unit}</span>}
                       </dd>
                     </div>
                   ))}
@@ -1357,7 +1357,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   const lo = Math.min(...speeds), hi = Math.max(...speeds), span = hi - lo || 1;
                   return (
                     <div>
-                      <p className="text-xs text-slate-400 mb-1.5">Ritmo por kilómetro (más alto, más rápido; color por zona de FC)</p>
+                      <p className="text-xs text-slate-500 mb-1.5">Ritmo por kilómetro (más alto, más rápido; color por zona de FC)</p>
                       <div className="flex items-end gap-1 h-16">
                         {lastRun.splits.map((sp, i) => (
                           <div
@@ -1379,14 +1379,14 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   <AskChatBtn onAsk={askCoach} focus="briefing" />
                 </div>
                 {lastActivity && lastActivity.id !== lastRun.id && ai.lastWork && (
-                  <p className="text-xs text-slate-400">El análisis del coach es de tu última actividad, «{lastActivity.name}».</p>
+                  <p className="text-xs text-slate-500">El análisis del coach es de tu última actividad, «{lastActivity.name}».</p>
                 )}
                 <div className="max-h-64 overflow-y-auto pr-1">
                   <CoachText
                     ai={ai}
                     text={ai.lastWork}
                     accent="text-amber-500"
-                    fallback={<p className="text-sm text-slate-400">El coach aún no ha analizado esta sesión. Pulsa «Recalcular» para pedirlo.</p>}
+                    fallback={<p className="text-sm text-slate-500">El coach aún no ha analizado esta sesión. Pulsa «Recalcular» para pedirlo.</p>}
                   />
                 </div>
               </div>

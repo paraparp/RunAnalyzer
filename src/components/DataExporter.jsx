@@ -705,7 +705,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                     >
                                         <ArrowPathIcon className={`w-3.5 h-3.5 ${enrichingId === a.id ? 'animate-spin' : ''}`} />
                                         <span className="truncate max-w-[12rem]">{a.name}</span>
-                                        <span className="text-slate-400">{new Date(a.start_date).toLocaleDateString('es-ES')}</span>
+                                        <span className="text-slate-500">{new Date(a.start_date).toLocaleDateString('es-ES')}</span>
                                     </button>
                                 ))}
                             </div>
@@ -720,7 +720,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 )}
 
                 {/* Footer stats */}
-                <div className="mt-3 flex justify-between items-center text-slate-400 text-xs">
+                <div className="mt-3 flex justify-between items-center text-slate-500 text-xs">
                     <div className="flex gap-3">
                         <span>
                             Caracteres: <span className="font-bold text-slate-600">{exportedData.length.toLocaleString()}</span>

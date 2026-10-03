@@ -17,12 +17,12 @@ const labelOf = (id) => CANON_EFFORTS.find((e) => e.id === id)?.label || id;
 
 const Metric = ({ label, value, unit, hint, tone = 'text-slate-900' }) => (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">{label}</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{label}</p>
         <p className={`text-3xl font-black tabular-nums leading-none ${tone}`}>
             {value}
-            {unit && <span className="text-sm font-bold text-slate-400 ml-1">{unit}</span>}
+            {unit && <span className="text-sm font-bold text-slate-500 ml-1">{unit}</span>}
         </p>
-        {hint && <p className="text-[11px] font-medium text-slate-400 mt-2">{hint}</p>}
+        {hint && <p className="text-[11px] font-medium text-slate-500 mt-2">{hint}</p>}
     </div>
 );
 
@@ -105,7 +105,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('cs.no_fit_title')}</h3>
                     <p className="text-slate-500 font-medium max-w-md mx-auto">{t('cs.no_fit_desc')}</p>
                     {curve.length > 0 && (
-                        <p className="text-xs font-bold text-slate-400 mt-4">
+                        <p className="text-xs font-bold text-slate-500 mt-4">
                             {t('cs.no_fit_found', { count: curve.length })}
                         </p>
                     )}
@@ -163,7 +163,7 @@ const CriticalSpeed = ({ activities = [] }) => {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{t('cs.curve_title')}</h3>
-                    <p className="text-[11px] font-medium text-slate-400">{t('cs.curve_legend')}</p>
+                    <p className="text-[11px] font-medium text-slate-500">{t('cs.curve_legend')}</p>
                 </div>
                 <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
@@ -176,14 +176,14 @@ const CriticalSpeed = ({ activities = [] }) => {
                                 domain={[90, 14400]}
                                 ticks={[120, 300, 600, 1200, 1800, 3600, 7200, 14400]}
                                 tickFormatter={(v) => (v >= 3600 ? `${v / 3600}h` : `${Math.round(v / 60)}′`)}
-                                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }}
+                                tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                                 stroke="#cbd5e1"
                             />
                             <YAxis
                                 reversed
                                 domain={['auto', 'auto']}
                                 tickFormatter={(v) => fmtPace(v)}
-                                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }}
+                                tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                                 stroke="#cbd5e1"
                                 width={46}
                             />
@@ -217,7 +217,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                     </ResponsiveContainer>
                 </div>
                 {fit3p && (
-                    <p className="text-[11px] font-medium text-slate-400 mt-3">
+                    <p className="text-[11px] font-medium text-slate-500 mt-3">
                         {t('cs.model_3p_note', { n: fit3p.n })}
                     </p>
                 )}
@@ -233,7 +233,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                             <span
                                 key={p.id}
                                 title={`${p.activity_name || ''} · ${p.date}`}
-                                className={`inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full ring-1 ${used ? 'bg-violet-50 ring-violet-200 text-violet-700' : 'bg-white ring-slate-200 text-slate-400'}`}
+                                className={`inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full ring-1 ${used ? 'bg-violet-50 ring-violet-200 text-violet-700' : 'bg-white ring-slate-200 text-slate-500'}`}
                             >
                                 <span className="text-[10px] font-black uppercase tracking-widest">{labelOf(p.id)}</span>
                                 <span className="text-xs font-bold tabular-nums">{fmtTime(p.time_s)}</span>
@@ -242,7 +242,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                         );
                     })}
                 </div>
-                <p className="text-[11px] font-medium text-slate-400 mt-4">{t('cs.efforts_hint')}</p>
+                <p className="text-[11px] font-medium text-slate-500 mt-4">{t('cs.efforts_hint')}</p>
             </div>
         </div>
     );

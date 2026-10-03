@@ -203,7 +203,7 @@ export default function InjuryRisk({ activities }) {
 
   if (!activities || activities.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-400">
+      <div className="text-center py-12 text-slate-500">
         <p className="text-sm">No hay datos suficientes para evaluar el riesgo de lesión.</p>
       </div>
     );
@@ -234,7 +234,7 @@ export default function InjuryRisk({ activities }) {
             </svg>
             <div className="absolute bottom-2 text-center">
               <p className="text-6xl font-black tabular-nums tracking-tighter" style={{ color: level.color }}>{riskScore}</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 -mt-1">Puntos Riesgo</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 -mt-1">Puntos Riesgo</p>
             </div>
           </div>
           
@@ -288,11 +288,11 @@ export default function InjuryRisk({ activities }) {
               <div key={f.name} className="group">
                 <div className="flex justify-between items-end mb-2">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{f.name}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{f.name}</p>
                     <p className="text-xs font-bold text-slate-700">{f.value}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400">{t('injury.factors.impact')} {f.weight}</p>
+                    <p className="text-[10px] font-black text-slate-500">{t('injury.factors.impact')} {f.weight}</p>
                     <p className="text-sm font-black" style={{ color: fLevel.color }}>{t('injury.factors.score')} {f.risk}</p>
                   </div>
                 </div>
@@ -302,7 +302,7 @@ export default function InjuryRisk({ activities }) {
                     style={{ width: `${f.risk}%`, backgroundColor: fLevel.color }}
                   />
                 </div>
-                <p className="mt-2 text-[10px] font-medium text-slate-400 group-hover:text-slate-600 transition-colors">
+                <p className="mt-2 text-[10px] font-medium text-slate-500 group-hover:text-slate-600 transition-colors">
                   {f.detail}
                 </p>
               </div>
@@ -318,15 +318,15 @@ export default function InjuryRisk({ activities }) {
             <ExclamationTriangleIcon className="w-4 h-4 text-slate-400" />
             {t('injury.context.title')}
           </h3>
-          <p className="text-[11px] text-slate-400 font-medium mb-4">{t('injury.context.desc')}</p>
+          <p className="text-[11px] text-slate-500 font-medium mb-4">{t('injury.context.desc')}</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-4">
             {context.map(c => (
               <div key={c.name}>
                 <div className="flex justify-between items-baseline">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{c.name}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{c.name}</p>
                   <p className="text-sm font-black text-slate-500 tabular-nums">{c.value}</p>
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-slate-400 leading-relaxed">{c.detail}</p>
+                <p className="mt-1 text-[10px] font-medium text-slate-500 leading-relaxed">{c.detail}</p>
               </div>
             ))}
           </div>
@@ -342,8 +342,8 @@ export default function InjuryRisk({ activities }) {
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={historyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#64748b' }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
                 <RechartsTooltip
                   formatter={(val, name) => {
                     if (name === 'risk') return [`${val}`, t('injury.risk_label')];
@@ -403,7 +403,7 @@ export default function InjuryRisk({ activities }) {
             (acoplamiento matemático entre carga aguda y crónica, y sensibilidad extrema a la ventana elegida).
             Ese peso lo asume la rampa de CTL, que mide la misma progresión sin dividir una media por otra que la contiene.
           </p>
-          <p className="text-xs text-slate-400 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
+          <p className="text-xs text-slate-500 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
         </div>
       </Card>
     </div>

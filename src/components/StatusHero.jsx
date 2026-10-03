@@ -272,12 +272,12 @@ export default function StatusHero({ activities }) {
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-slate-100">
-              <th className="text-left py-2 px-2 text-xs font-bold uppercase text-slate-400 w-48">Métrica</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-400">Ahora</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-400">Mejor año</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-400">Pico histórico</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-400">% pico</th>
-              <th className="text-center py-2 px-3 text-xs font-bold uppercase text-slate-400">Tendencia 8s</th>
+              <th className="text-left py-2 px-2 text-xs font-bold uppercase text-slate-500 w-48">Métrica</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Ahora</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Mejor año</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Pico histórico</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">% pico</th>
+              <th className="text-center py-2 px-3 text-xs font-bold uppercase text-slate-500">Tendencia 8s</th>
             </tr>
           </thead>
           <tbody>

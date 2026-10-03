@@ -25,7 +25,7 @@ function CustomTooltip({ active, payload }) {
            <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
            <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
         </div>
-        <div className="mt-2 text-[10px] text-slate-400 font-medium">
+        <div className="mt-2 text-[10px] text-slate-500 font-medium">
           (Clic para abrir en Strava)
         </div>
       </div>
@@ -116,14 +116,14 @@ export default function TechniqueAnalysis({ activities }) {
           ].map((card, i) => (
             <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
                <div className="flex justify-between items-start mb-3">
-                  <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+                  <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                      <card.icon className="w-5 h-5" />
                   </div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
                </div>
                <div className="flex items-baseline gap-1.5">
                   <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{card.unit}</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
                </div>
             </div>
           ))}
@@ -147,13 +147,13 @@ export default function TechniqueAnalysis({ activities }) {
           <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100 shrink-0">
              <button 
                 onClick={() => setFlatOnly(false)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
              >
                 Todo
              </button>
              <button 
                 onClick={() => setFlatOnly(true)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
              >
                 Solo Llanas
              </button>
@@ -162,7 +162,7 @@ export default function TechniqueAnalysis({ activities }) {
 
         {uniqueYears.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Años:</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Años:</span>
             {uniqueYears.map(year => {
               const colorIdx = year % YEAR_COLORS.length;
               const isSelected = !deselectedYears.has(year);
@@ -178,7 +178,7 @@ export default function TechniqueAnalysis({ activities }) {
                   className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-colors cursor-pointer ${isSelected ? 'bg-slate-50 border-slate-200 hover:bg-slate-100' : 'bg-transparent border-dashed border-slate-200 opacity-60 hover:opacity-100'}`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: isSelected ? YEAR_COLORS[colorIdx] : '#cbd5e1' }}></span>
-                  <span className={`text-xs font-medium ${isSelected ? 'text-slate-600' : 'text-slate-400'}`}>{year}</span>
+                  <span className={`text-xs font-medium ${isSelected ? 'text-slate-600' : 'text-slate-500'}`}>{year}</span>
                 </button>
               );
             })}
@@ -197,7 +197,7 @@ export default function TechniqueAnalysis({ activities }) {
                  domain={['dataMin', 'dataMax']}
                  tickFormatter={(val) => formatPaceFromMinPerKm(val)}
                  reversed={true}
-                 tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                 tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
                  axisLine={{ stroke: '#f1f5f9' }}
                  tickLine={false}
                />
@@ -206,7 +206,7 @@ export default function TechniqueAnalysis({ activities }) {
                  dataKey="Cadencia" 
                  name="Cadencia" 
                  domain={['dataMin - 5', 'dataMax + 5']}
-                 tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }}
+                 tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
                  axisLine={false}
                  tickLine={false}
                />

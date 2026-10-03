@@ -153,10 +153,10 @@ const MiniMetric = ({ label, value, unit, colorClass="text-slate-700", trend = n
 
   return (
     <div className="flex flex-col bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/50">
-      <span className="text-[10px] uppercase text-slate-400 font-bold mb-1 tracking-wider">{label}</span>
+      <span className="text-[10px] uppercase text-slate-500 font-bold mb-1 tracking-wider">{label}</span>
       <div className="flex items-baseline gap-0.5">
         <span className={`text-xl sm:text-2xl font-extrabold leading-none tracking-tight ${colorClass}`}>{value ?? '—'}</span>
-        {value != null && unit && <span className="text-[10px] text-slate-400 font-semibold ml-0.5">{unit}</span>}
+        {value != null && unit && <span className="text-[10px] text-slate-500 font-semibold ml-0.5">{unit}</span>}
         {trendIndicator}
       </div>
     </div>
@@ -485,7 +485,7 @@ export default function GarminCardiac({ onOpenConnections }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900 leading-tight">Monitor Cardíaco · Garmin</h2>
-            <p className="text-xs text-slate-400">FC reposo + VFC nocturna</p>
+            <p className="text-xs text-slate-500">FC reposo + VFC nocturna</p>
           </div>
         </div>
 
@@ -532,7 +532,7 @@ export default function GarminCardiac({ onOpenConnections }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900 leading-tight">Monitor Cardíaco · Garmin</h2>
-            {lastSync && <p className="text-xs text-slate-400">Sync: {lastSync}</p>}
+            {lastSync && <p className="text-xs text-slate-500">Sync: {lastSync}</p>}
           </div>
         </div>
 
@@ -554,7 +554,7 @@ export default function GarminCardiac({ onOpenConnections }) {
         <span className="text-slate-500">Conectado como</span>
         <span className="font-semibold text-slate-700">{creds?.username}</span>
         <span className="text-slate-300">·</span>
-        <span className="text-slate-400">{data.length} días de datos</span>
+        <span className="text-slate-500">{data.length} días de datos</span>
         {stats?.latestStatus && (
           <>
             <span className="text-slate-300">·</span>
@@ -623,7 +623,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   <span className="text-3xl font-black text-slate-800 tracking-tight leading-none">
                     {latestReadiness}
                   </span>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Readiness</span>
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-1">Readiness</span>
                 </div>
               </div>
               <div className="mt-3 text-center">
@@ -639,7 +639,7 @@ export default function GarminCardiac({ onOpenConnections }) {
             <div className="flex-1 w-full space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 leading-tight">Recovery & Readiness Details</h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
                   Combinación algorítmica de VFC, FC reposo, Sueño y Body Battery basada en tus datos de las últimas 3 semanas (21 días).
                 </p>
               </div>
@@ -736,11 +736,11 @@ export default function GarminCardiac({ onOpenConnections }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2.5 bg-slate-50/30 p-2.5 rounded-2xl border border-slate-100/50 text-slate-400">
+                  <div className="flex items-center gap-2.5 bg-slate-50/30 p-2.5 rounded-2xl border border-slate-100/50 text-slate-500">
                     <MoonIcon className="w-4 h-4 shrink-0 text-slate-300" />
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold block truncate">Sueño</span>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Sin wearables</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Sin wearables</p>
                     </div>
                   </div>
                 )}
@@ -778,7 +778,7 @@ export default function GarminCardiac({ onOpenConnections }) {
         {stats?.hasHRV && (
           <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">VFC nocturna</span>
+              <span className="text-xs text-slate-500 font-semibold tracking-wide uppercase">VFC nocturna</span>
               {stats.latestStatus && <HrvStatusBadge status={stats.latestStatus} />}
             </div>
             
@@ -819,7 +819,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                 
                 return (
                   <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                       <span>Zonas VFC</span>
                       <span className="text-emerald-600 font-extrabold">Equilibrio: {balancedLow}–{balancedUpper} ms</span>
                     </div>
@@ -844,7 +844,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                     </div>
                     
                     {/* Helper description pointing status */}
-                    <p className="text-[10px] text-slate-400 leading-normal">
+                    <p className="text-[10px] text-slate-500 leading-normal">
                       Tu VFC de hoy (<strong className="text-slate-600">{hrv} ms</strong>) se encuentra{' '}
                       {stats.latestStatus === 'BALANCED' 
                         ? <span className="text-emerald-600 font-bold">dentro</span> 
@@ -854,17 +854,17 @@ export default function GarminCardiac({ onOpenConnections }) {
                   </div>
                 );
               })() : (
-                <div className="text-[10px] text-slate-400 text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <div className="text-[10px] text-slate-500 text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   Recopilando datos para establecer tu línea base de 21 días
                 </div>
               )}
               
-              <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-slate-100/60">
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1.5 border-t border-slate-100/60">
                 <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgHRV} ms</span></span>
               </div>
 
               {stats.bestHRVMonth && (
-                <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
+                <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-500">
                   <span className="text-emerald-600">↑ Mejor: <span className="font-semibold">{stats.bestHRVMonth.label}</span> · {stats.bestHRVMonth.avgHRV}</span>
                   <span className="text-slate-300">·</span>
                   <span className="text-orange-500">↓ Peor: <span className="font-semibold">{stats.worstHRVMonth.label}</span> · {stats.worstHRVMonth.avgHRV}</span>
@@ -891,7 +891,7 @@ export default function GarminCardiac({ onOpenConnections }) {
           return (
             <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">FC Reposo</span>
+                <span className="text-xs text-slate-500 font-semibold tracking-wide uppercase">FC Reposo</span>
                 {stats.avg21HR && stats.avgHR && (
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${+stats.avg21HR > +stats.avgHR ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                     {+stats.avg21HR > +stats.avgHR ? '▲ Alta' : '▼ Baja'} {Math.abs(+stats.avg21HR - +stats.avgHR).toFixed(1)} vs media
@@ -925,7 +925,7 @@ export default function GarminCardiac({ onOpenConnections }) {
               {/* Upgraded Premium RHR Baseline Gauge Slider */}
               <div className="space-y-2 pt-2 border-t border-slate-100/60">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                     <span>Zonas FC Reposo</span>
                     <span className="text-emerald-600 font-extrabold font-extrabold">Equilibrio: {balancedLow}–{balancedUpper} ppm</span>
                   </div>
@@ -950,7 +950,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   </div>
                   
                   {/* Helper description pointing status */}
-                  <p className="text-[10px] text-slate-400 leading-normal">
+                  <p className="text-[10px] text-slate-500 leading-normal">
                     Tu pulso basal hoy (<strong className="text-slate-600">{hr} ppm</strong>) está{' '}
                     {hr > balancedUpper 
                       ? <span className="text-rose-500 font-bold">elevado</span> 
@@ -961,14 +961,14 @@ export default function GarminCardiac({ onOpenConnections }) {
                   </p>
                 </div>
                 
-                <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-slate-100/60">
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1.5 border-t border-slate-100/60">
                   <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgHR} ppm</span></span>
                   <span className={`font-semibold ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
                     {trendHRSign}{stats.trendHR} ppm/año
                   </span>
                 </div>
                 {stats.bestHRMonth && (
-                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
+                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-500">
                     <span className="text-emerald-600">↓ Mejor: <span className="font-semibold">{stats.bestHRMonth.label}</span> · {stats.bestHRMonth.avgHR}</span>
                     <span className="text-slate-300">·</span>
                     <span className="text-orange-500">↑ Peor: <span className="font-semibold">{stats.worstHRMonth.label}</span> · {stats.worstHRMonth.avgHR}</span>
@@ -983,9 +983,9 @@ export default function GarminCardiac({ onOpenConnections }) {
         {stats?.hasBB && (
           <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Body Battery (Máx)</span>
+              <span className="text-xs text-slate-500 font-semibold tracking-wide uppercase">Body Battery (Máx)</span>
               {stats.latestBBLow != null && (
-                <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                   Mín hoy: {stats.latestBBLow}
                 </span>
               )}
@@ -1012,7 +1012,7 @@ export default function GarminCardiac({ onOpenConnections }) {
             {/* Upgraded Premium Battery Gauge widget */}
             <div className="space-y-2 pt-2 border-t border-slate-100/60">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Carga & Descarga diaria</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Carga & Descarga diaria</span>
                 <div className="relative w-full h-[18px] bg-slate-100 rounded-lg border border-slate-200/60 p-0.5 overflow-hidden flex items-center shadow-inner">
                   {/* Filled battery capacity */}
                   <div 
@@ -1041,11 +1041,11 @@ export default function GarminCardiac({ onOpenConnections }) {
               </div>
               
               <div className="space-y-1.5 pt-1.5 border-t border-slate-100/60">
-                <div className="flex items-center justify-between text-xs text-slate-400">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Media histórica: <span className="font-semibold text-slate-600">{stats.avgBBHigh}/100</span></span>
                 </div>
                 {stats.bestBBMonth && (
-                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-400">
+                  <div className="flex gap-3 text-[10px] pt-1.5 border-t border-slate-100/60 text-slate-500">
                     <span className="text-emerald-600">↑ Mejor: <span className="font-semibold">{stats.bestBBMonth.label}</span> · {stats.bestBBMonth.avgBB}</span>
                     <span className="text-slate-300">·</span>
                     <span className="text-orange-500">↓ Peor: <span className="font-semibold">{stats.worstBBMonth.label}</span> · {stats.worstBBMonth.avgBB}</span>
@@ -1062,12 +1062,12 @@ export default function GarminCardiac({ onOpenConnections }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {stats?.hasHRV && (
             <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
-              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Tendencia VFC</span>
+              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Tendencia VFC</span>
               <div className="flex items-baseline gap-1">
                 <div className={`text-2xl font-black leading-none ${trendHRVAccent === 'blue' ? 'text-blue-500' : 'text-orange-500'}`}>
                   {trendHRVSign}{stats.trendHRV ?? '—'}
                 </div>
-                {stats.trendHRV && <span className="text-[10px] font-bold text-slate-400">ms/año</span>}
+                {stats.trendHRV && <span className="text-[10px] font-bold text-slate-500">ms/año</span>}
               </div>
               <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
                 {+stats.trendHRV > 0 
@@ -1079,12 +1079,12 @@ export default function GarminCardiac({ onOpenConnections }) {
           )}
           {stats?.hasHR && (
             <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
-              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Tendencia FC</span>
+              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Tendencia FC</span>
               <div className="flex items-baseline gap-1">
                 <div className={`text-2xl font-black leading-none ${trendHRAccent === 'red' ? 'text-red-500' : 'text-blue-500'}`}>
                   {trendHRSign}{stats.trendHR ?? '—'}
                 </div>
-                {stats.trendHR && <span className="text-[10px] font-bold text-slate-400">ppm/año</span>}
+                {stats.trendHR && <span className="text-[10px] font-bold text-slate-500">ppm/año</span>}
               </div>
               <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
                 {+stats.trendHR > 0 
@@ -1096,7 +1096,7 @@ export default function GarminCardiac({ onOpenConnections }) {
           )}
           {stats?.hasHRV && stats?.hasHR && stats.corr && (
             <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
-              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Correlación VFC↔FC</span>
+              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Correlación VFC↔FC</span>
               <div className={`text-2xl font-black leading-none ${Math.abs(+stats.corr) > 0.6 ? 'text-indigo-600' : 'text-slate-500'}`}>
                 r = {stats.corr}
               </div>
@@ -1110,7 +1110,7 @@ export default function GarminCardiac({ onOpenConnections }) {
           )}
           {stats?.hasHRV && stats?.avg21HRV && stats?.avgHRV && (
             <div className="bg-white/70 backdrop-blur-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 rounded-3xl p-4 flex flex-col gap-2 hover:bg-slate-50 transition-colors">
-              <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">VFC 21d vs histórica</span>
+              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">VFC 21d vs histórica</span>
               {(() => {
                 const delta = (+stats.avg21HRV - +stats.avgHRV).toFixed(1);
                 const pct   = ((+stats.avg21HRV - +stats.avgHRV) / +stats.avgHRV * 100).toFixed(0);
@@ -1144,7 +1144,7 @@ export default function GarminCardiac({ onOpenConnections }) {
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">Tendencias Cardíacas</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                   {[showHRV && stats?.hasHRV && 'VFC nocturna', showHR && stats?.hasHR && 'FC reposo', showReadiness && 'Readiness', showSleep && sleepData?.length && 'Sueño'].filter(Boolean).join(' · ') || 'Selecciona métricas abajo'}
                 </p>
               </div>
@@ -1174,7 +1174,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                     showReadiness
                       ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full transition-colors ${showReadiness ? 'bg-amber-400' : 'bg-slate-300'}`} />
@@ -1187,7 +1187,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                     showHRV
                       ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full transition-colors ${showHRV ? 'bg-blue-500' : 'bg-slate-300'}`} />
@@ -1200,7 +1200,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                     showHR
                       ? 'bg-orange-50 text-orange-700 border-orange-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full transition-colors ${showHR ? 'bg-orange-400' : 'bg-slate-300'}`} />
@@ -1214,7 +1214,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                       showBBHigh
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                     }`}
                   >
                     <span className={`w-2 h-2 rounded-full transition-colors ${showBBHigh ? 'bg-emerald-500' : 'bg-slate-300'}`} />
@@ -1225,7 +1225,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed transition-all duration-150 ${
                       showBBLow
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                     }`}
                   >
                     <span className={`w-2 h-2 rounded-full transition-colors ${showBBLow ? 'bg-emerald-400' : 'bg-slate-300'}`} />
@@ -1239,7 +1239,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                     showSleep
                       ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full transition-colors ${showSleep ? 'bg-indigo-500' : 'bg-slate-300'}`} />
@@ -1267,7 +1267,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
                   showBaseline
                     ? 'bg-slate-100 text-slate-700 border-slate-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                    : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                 }`}
               >
                 <span className="w-4 border-t border-dashed border-current inline-block" />
@@ -1277,7 +1277,7 @@ export default function GarminCardiac({ onOpenConnections }) {
 
             {/* Reference zone legend */}
             {!useNorm && (stats?.hasHR || stats?.hasHRV) && (
-              <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-400 font-medium">
+              <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-500 font-medium">
                 {stats?.hasHR && showHR && stats.minHRYear && (
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-2.5 rounded-sm bg-emerald-50 border border-emerald-200 inline-block" />
@@ -1341,11 +1341,11 @@ export default function GarminCardiac({ onOpenConnections }) {
                   yAxisId="norm"
                   domain={[0, 100]}
                   ticks={[0, 25, 50, 75, 100]}
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={v => `${v}%`}
-                  label={{ value: '% hist.', angle: -90, position: 'insideLeft', offset: 8, style: { fill: '#94a3b8', fontSize: 9 } }}
+                  label={{ value: '% hist.', angle: -90, position: 'insideLeft', offset: 8, style: { fill: '#64748b', fontSize: 9 } }}
                 />
               ) : (
                 <>
@@ -1575,7 +1575,7 @@ export default function GarminCardiac({ onOpenConnections }) {
 
           {stats?.hasHRV && stats?.hasHR && stats.corr && (
             <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-100">
-              <span className="text-xs text-slate-400">Correlación VFC↔FC:</span>
+              <span className="text-xs text-slate-500">Correlación VFC↔FC:</span>
               <span className="text-xs font-bold text-blue-600">r = {stats.corr}</span>
               {+stats.corr < -0.5 && (
                 <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">relación inversa — señal fisiológica correcta</span>
@@ -1602,7 +1602,7 @@ export default function GarminCardiac({ onOpenConnections }) {
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">Índice de Adaptación</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">VFC − FC Reposo · valores altos indican mejor recuperación</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">VFC − FC Reposo · valores altos indican mejor recuperación</p>
               </div>
               <div className="flex items-center gap-2 self-start">
                 <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
@@ -1640,7 +1640,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                 </defs>
                 <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" strokeOpacity={0.8} vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
                 {adaptationLimits && (
                   <>
                     <ReferenceArea y1={adaptationLimits.lower} y2={adaptationLimits.upper} fill="#94a3b8" fillOpacity={0.05} />
@@ -1658,7 +1658,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                             {p.dataKey === 'hrvMinusHr' ? 'Adaptación:' : 'Media 7d:'} {p.value}
                           </p>
                         ))}
-                        <p className="text-slate-400 text-[10px] mt-1">VFC - FC</p>
+                        <p className="text-slate-500 text-[10px] mt-1">VFC - FC</p>
                       </div>
                     ) : null
                   }

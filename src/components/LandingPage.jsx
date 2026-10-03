@@ -132,7 +132,7 @@ const LandingPage = () => {
                             animate={{ opacity: 1, y: 0, rotate: -6 }}
                             transition={{ duration: 0.9, delay: 0.7, type: "spring" }}
                             className="absolute left-0 top-6 w-52 bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
-                            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-3">VO2max</p>
+                            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-3">VO2max</p>
                             <div className="flex items-center justify-center my-1">
                                 <svg width="96" height="96" viewBox="0 0 96 96">
                                     <circle cx="48" cy="48" r="38" fill="none" stroke="#e2e8f0" strokeWidth="8" />
@@ -143,7 +143,7 @@ const LandingPage = () => {
                                         transition={{ duration: 1.4, delay: 1.0, ease: "easeOut" }}
                                         transform="rotate(-90 48 48)" />
                                     <text x="48" y="44" textAnchor="middle" className="font-black" fill="#0f172a" fontSize="18" fontWeight="900">58.4</text>
-                                    <text x="48" y="58" textAnchor="middle" fill="#94a3b8" fontSize="8">ml/kg/min</text>
+                                    <text x="48" y="58" textAnchor="middle" fill="#64748b" fontSize="8">ml/kg/min</text>
                                 </svg>
                             </div>
                             <div className="mt-1 text-center">
@@ -175,7 +175,7 @@ const LandingPage = () => {
                                     initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: 1.2 + i * 0.1 }}
                                     className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                                    <span className="text-slate-400 text-xs font-semibold">{r.dist}</span>
+                                    <span className="text-slate-500 text-xs font-semibold">{r.dist}</span>
                                     <span className={`text-sm font-black tabular-nums ${r.color}`}>{r.time}</span>
                                 </motion.div>
                             ))}
@@ -213,7 +213,7 @@ const LandingPage = () => {
                             </div>
                             <div className="flex items-end gap-1 mb-2">
                                 <span className="text-3xl font-black text-amber-500 tabular-nums leading-none">24</span>
-                                <span className="text-slate-400 text-xs mb-1">/ 100</span>
+                                <span className="text-slate-500 text-xs mb-1">/ 100</span>
                             </div>
                             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                                 <motion.div initial={{ width: 0 }} animate={{ width: '24%' }}
@@ -230,10 +230,10 @@ const LandingPage = () => {
                             transition={{ duration: 0.8, delay: 1.3, type: "spring" }}
                             className="absolute right-14 bottom-4 w-48 bg-white rounded-2xl border border-slate-200 shadow-lg p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">Avg HR</p>
+                                <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">Avg HR</p>
                                 <HeartIcon className="w-3.5 h-3.5 text-rose-400" />
                             </div>
-                            <p className="text-3xl font-black text-rose-500 tabular-nums leading-none mb-2">148 <span className="text-sm text-slate-400 font-semibold">bpm</span></p>
+                            <p className="text-3xl font-black text-rose-500 tabular-nums leading-none mb-2">148 <span className="text-sm text-slate-500 font-semibold">bpm</span></p>
                             <svg viewBox="0 0 120 32" className="w-full" fill="none">
                                 <motion.polyline
                                     points="0,16 10,16 14,6 18,26 22,16 32,16 38,16 44,10 50,22 56,16 66,16 72,4 76,28 80,16 90,16 96,12 100,20 104,16 120,16"
@@ -336,7 +336,7 @@ const LandingPage = () => {
                                         viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
                                         className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
                                         <p className={`text-xl font-black tabular-nums ${s.color}`}>{s.val}</p>
-                                        <p className="text-slate-400 text-[10px] font-semibold mt-0.5">{s.label}</p>
+                                        <p className="text-slate-500 text-[10px] font-semibold mt-0.5">{s.label}</p>
                                     </motion.div>
                                 ))}
                             </div>
@@ -553,7 +553,7 @@ const LandingPage = () => {
                                 transition={{ delay: i * 0.15 }}
                                 className="text-center">
                                 <p className={`text-3xl md:text-4xl font-black tracking-tighter ${stat.color}`}>{stat.end}</p>
-                                <p className="text-slate-400 text-xs font-semibold mt-1">{stat.label}</p>
+                                <p className="text-slate-500 text-xs font-semibold mt-1">{stat.label}</p>
                             </motion.div>
                         ))}
                     </motion.div>
@@ -602,7 +602,7 @@ const LandingPage = () => {
                                     </div>
                                     <div>
                                         <p className="text-sm font-black text-slate-900 leading-tight">{review.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{review.role}</p>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{review.role}</p>
                                     </div>
                                     <div className="ml-auto flex gap-0.5">
                                         {[...Array(5)].map((_, s) => (
@@ -655,12 +655,12 @@ const LandingPage = () => {
                 <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Logo className="w-7 h-7 opacity-70" />
-                        <span className="text-slate-400 text-sm font-bold tracking-tight">RunAnalyzer</span>
+                        <span className="text-slate-500 text-sm font-bold tracking-tight">RunAnalyzer</span>
                     </div>
-                    <p className="text-slate-300 text-xs">Running Data Intelligence · 2026</p>
+                    <p className="text-slate-500 text-xs">Running Data Intelligence · 2026</p>
                     <div className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-slate-400 text-xs">
+                        <span className="text-slate-500 text-xs">
                             {tx(lang, 'Powered by Strava API & Gemini AI', 'Potenciado por Strava API & Gemini AI')}
                         </span>
                     </div>
@@ -779,14 +779,14 @@ const LTChart = () => {
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
                 <div>
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">
                         Threshold Pace
                     </p>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-black text-indigo-600 tabular-nums">
                             {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
-                        <span className="text-slate-400 text-sm">/km</span>
+                        <span className="text-slate-500 text-sm">/km</span>
                         <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100">
                             ↑ {formatPaceFromSecPerKm(vals[0])} → {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
@@ -816,7 +816,7 @@ const LTChart = () => {
                             <line x1={PL} y1={gy} x2={W - PR} y2={gy}
                                 stroke="#f1f5f9" strokeWidth="1" />
                             <text x={PL - 6} y={gy + 4} textAnchor="end"
-                                fill="#94a3b8" fontSize="8" fontWeight="600">
+                                fill="#64748b" fontSize="8" fontWeight="600">
                                 {formatPaceFromSecPerKm(paceVal)}
                             </text>
                         </g>
@@ -860,14 +860,14 @@ const LTChart = () => {
                 {/* Month labels */}
                 {LT_DATA.map((d, i) => (
                     <text key={i} x={x(i)} y={H - 6} textAnchor="middle"
-                        fill="#94a3b8" fontSize="8" fontWeight="600">
+                        fill="#64748b" fontSize="8" fontWeight="600">
                         {d.m}
                     </text>
                 ))}
             </svg>
 
             {/* Footer note */}
-            <p className="text-slate-400 text-[10px] text-center mt-3 font-medium">
+            <p className="text-slate-500 text-[10px] text-center mt-3 font-medium">
                 Estimated automatically · No lab test required
             </p>
         </div>

@@ -443,7 +443,7 @@ INSTRUCCIONES:
                                 ))}
                             </div>
                             {garmin && garminPeriod !== 'none' && (
-                                <span className="text-xs text-slate-400">
+                                <span className="text-xs text-slate-500">
                                     {[...garmin].filter(d => {
                                         const c = new Date(); c.setDate(c.getDate() - (garminPeriod === '30d' ? 30 : 90));
                                         return new Date(d.date) >= c;
@@ -474,7 +474,7 @@ INSTRUCCIONES:
                         <button
                             onClick={() => copyMessage(seedToText(seed), 'seed')}
                             title="Copiar contexto"
-                            className="ml-auto shrink-0 text-slate-400 hover:text-blue-600 transition-colors"
+                            className="ml-auto shrink-0 text-slate-500 hover:text-blue-600 transition-colors"
                         >
                             {copiedIdx === 'seed'
                                 ? <CheckIcon className="w-4 h-4 text-emerald-500" />
@@ -483,7 +483,7 @@ INSTRUCCIONES:
                         <button
                             onClick={() => setSeed(null)}
                             title="Quitar contexto"
-                            className="shrink-0 text-slate-400 hover:text-rose-500 transition-colors"
+                            className="shrink-0 text-slate-500 hover:text-rose-500 transition-colors"
                         >
                             <TrashIcon className="w-4 h-4" />
                         </button>
@@ -566,7 +566,7 @@ INSTRUCCIONES:
                                             </div>
                                             {/* Meta + actions */}
                                             <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                                                <span className="text-xs text-slate-400">
+                                                <span className="text-xs text-slate-500">
                                                     {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 {!isUser && msg.content && !streaming && (
@@ -576,7 +576,7 @@ INSTRUCCIONES:
                                                             type="button"
                                                             onClick={() => copyMessage(msg.content, idx)}
                                                             title="Copiar respuesta"
-                                                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                                         >
                                                             {copiedIdx === idx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
                                                         </button>
@@ -586,7 +586,7 @@ INSTRUCCIONES:
                                                                 onClick={regenerate}
                                                                 disabled={loading}
                                                                 title="Regenerar respuesta"
-                                                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
+                                                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
                                                             >
                                                                 <ArrowPathIcon className="w-3.5 h-3.5" />
                                                             </button>
@@ -667,7 +667,7 @@ INSTRUCCIONES:
                                 <button
                                     type="button"
                                     onClick={clearConversation}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                     title="Limpiar conversación"
                                 >
                                     <TrashIcon className="w-4 h-4" />
@@ -697,7 +697,7 @@ INSTRUCCIONES:
                             </Button>
                         )}
                     </form>
-                    <p className="hidden sm:block text-xs text-slate-400 mt-2 text-center">
+                    <p className="hidden sm:block text-xs text-slate-500 mt-2 text-center">
                         Enter para enviar • Shift+Enter para nueva línea
                     </p>
                 </div>

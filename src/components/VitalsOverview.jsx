@@ -132,13 +132,13 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
   if (!active || !payload?.length) return null;
   const pt = payload[0]?.payload;
   if (!pt || pt.ms == null) return null;
-  const U = unit ? <span className="text-slate-400 font-medium ml-0.5">{unit}</span> : null;
+  const U = unit ? <span className="text-slate-500 font-medium ml-0.5">{unit}</span> : null;
   return (
     <div className="bg-white/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
       <p className="font-semibold text-slate-500">{fmtDateFull(pt.ms)}</p>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
         {metric}
-        {inverted && <span className="normal-case font-medium text-slate-400"> · eje invertido</span>}
+        {inverted && <span className="normal-case font-medium text-slate-500"> · eje invertido</span>}
       </p>
       {pt.smooth != null && (
         <div className="flex items-center justify-between gap-4">
@@ -148,7 +148,7 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
       )}
       {pt.raw != null && (
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-400">Diario</span>
+          <span className="text-slate-500">Diario</span>
           <span className="font-semibold text-slate-600">{pt.raw}{U}</span>
         </div>
       )}
@@ -194,14 +194,14 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">{title}</h3>
-            <p className="text-[11px] text-slate-400 truncate">{subtitle}</p>
+            <p className="text-[11px] text-slate-500 truncate">{subtitle}</p>
           </div>
         </div>
         <div className="flex items-baseline gap-2 shrink-0">
           {current != null && (
             <span className="text-2xl font-extrabold tracking-tight text-slate-900">
               {current}
-              {unit && <span className="text-xs font-semibold text-slate-400 ml-0.5">{unit}</span>}
+              {unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
             </span>
           )}
           {trendBadge}
@@ -236,7 +236,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                 ticks={ticks}
                 allowDataOverflow
                 tickFormatter={xFmt}
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#64748b" }}
                 axisLine={false}
                 tickLine={false}
                 minTickGap={20}
@@ -244,7 +244,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               <YAxis
                 domain={[`dataMin - ${yPad}`, `dataMax + ${yPad}`]}
                 reversed={invertY}
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#64748b" }}
                 axisLine={false}
                 tickLine={false}
                 width={decimals > 0 ? 40 : 34}
@@ -299,7 +299,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full flex items-center justify-center text-xs text-slate-400">Sin datos en este período</div>
+          <div className="h-full flex items-center justify-center text-xs text-slate-500">Sin datos en este período</div>
         )}
       </div>
     </div>
@@ -483,7 +483,7 @@ export default function VitalsOverview({ activities = [] }) {
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900 leading-tight">Resumen Vital</h2>
-            <p className="text-xs text-slate-400">VFC · FC reposo · VO₂max submáximo en paralelo</p>
+            <p className="text-xs text-slate-500">VFC · FC reposo · VO₂max submáximo en paralelo</p>
           </div>
         </div>
 
@@ -663,11 +663,11 @@ export default function VitalsOverview({ activities = [] }) {
             <span className="inline-block w-4 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/30" />
             <span>
               Franja verde = eficiencia aeróbica ≥ 85 % de tu máximo histórico
-              <span className="text-slate-400"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
+              <span className="text-slate-500"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
             </span>
           </div>
         )}
-        <p className="text-[11px] text-slate-400 text-center">
+        <p className="text-[11px] text-slate-500 text-center">
           Las líneas punteadas marcan el máx/mín del período. Los ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad.
         </p>
       </div>

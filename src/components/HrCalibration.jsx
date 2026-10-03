@@ -17,11 +17,11 @@ import { estimateLTHR, HR_LIMITS } from '../lib/hrZones';
 const Field = ({ label, badge, badgeColor, value, caption, inputValue, placeholder, onChange, invalid, invalidText, help }) => (
   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
     <div className="flex items-center justify-between mb-2">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</p>
       <Badge color={badgeColor} size="xs">{badge}</Badge>
     </div>
     <p className="text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
-    <p className="text-[10px] text-slate-400 mt-0.5">{caption}</p>
+    <p className="text-[10px] text-slate-500 mt-0.5">{caption}</p>
     <input
       type="number"
       placeholder={placeholder}
@@ -34,7 +34,7 @@ const Field = ({ label, badge, badgeColor, value, caption, inputValue, placehold
       }`}
     />
     {invalid && <p className="text-[9px] text-rose-500 mt-1">{invalidText}</p>}
-    <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">{help}</p>
+    <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed">{help}</p>
   </div>
 );
 
@@ -131,7 +131,7 @@ export default function HrCalibration({ hrParams }) {
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+      <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
         {t('calibration.scope')}
       </p>
     </Card>

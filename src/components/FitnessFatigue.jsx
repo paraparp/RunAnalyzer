@@ -50,7 +50,7 @@ function PMCTooltip({ active, payload, label }) {
       <div className="px-4 py-2.5 space-y-1.5">
         {day?.load > 0 && (
           <div className="flex justify-between items-center">
-            <span className="text-[11px] text-slate-400 font-medium">{es ? 'Carga' : 'Load'}</span>
+            <span className="text-[11px] text-slate-500 font-medium">{es ? 'Carga' : 'Load'}</span>
             <span className="text-[12px] font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
           </div>
         )}
@@ -74,19 +74,19 @@ function PMCTooltip({ active, payload, label }) {
       </div>
       {acts.length > 0 && (
         <div className="border-t border-slate-100 px-4 py-2.5">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{es ? 'Actividades' : 'Activities'}</p>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">{es ? 'Actividades' : 'Activities'}</p>
           <div className="space-y-2.5">
             {acts.map((a, i) => (
               <div key={i}>
                 <div className="flex justify-between items-baseline gap-2">
                   <span className="text-[12px] font-bold text-slate-800 truncate">{a.name}</span>
-                  <span className="text-[11px] text-slate-400 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
+                  <span className="text-[11px] text-slate-500 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                  {fmtDur(a.moving_time)    && <span className="text-[10px] text-slate-400">⏱ {fmtDur(a.moving_time)}</span>}
-                  {fmtPace(a.average_speed) && <span className="text-[10px] text-slate-400">⚡ {fmtPace(a.average_speed)}/km</span>}
-                  {a.average_heartrate      && <span className="text-[10px] text-slate-400">❤️ {Math.round(a.average_heartrate)} bpm</span>}
-                  {a.suffer_score           && <span className="text-[10px] text-slate-400">🔥 SS: {a.suffer_score}</span>}
+                  {fmtDur(a.moving_time)    && <span className="text-[10px] text-slate-500">⏱ {fmtDur(a.moving_time)}</span>}
+                  {fmtPace(a.average_speed) && <span className="text-[10px] text-slate-500">⚡ {fmtPace(a.average_speed)}/km</span>}
+                  {a.average_heartrate      && <span className="text-[10px] text-slate-500">❤️ {Math.round(a.average_heartrate)} bpm</span>}
+                  {a.suffer_score           && <span className="text-[10px] text-slate-500">🔥 SS: {a.suffer_score}</span>}
                 </div>
               </div>
             ))}
@@ -113,7 +113,7 @@ function ScatterTooltip({ active, payload }) {
         <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
         <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
       </div>
-      <p className="text-[10px] text-slate-400 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
+      <p className="text-[10px] text-slate-500 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
     </div>
   );
 }
@@ -322,10 +322,10 @@ export default function FitnessFatigue({ activities }) {
         ].map((card, i) => (
           <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
             <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-slate-600 transition-colors">
+              <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                 <card.icon className="w-5 h-5" />
               </div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">{card.label}</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
             </div>
             <div className="flex items-baseline gap-2">
               <p className={`text-3xl font-black tabular-nums ${card.color}`}>{card.value}</p>
@@ -336,7 +336,7 @@ export default function FitnessFatigue({ activities }) {
               )}
             </div>
             <div className="mt-4 space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-tighter text-slate-400">{card.sub}</div>
+              <div className="text-[10px] font-black uppercase tracking-tighter text-slate-500">{card.sub}</div>
               {card.progress !== undefined && (
                 <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
                   <div className={`h-full rounded-full transition-all duration-700 ${card.color.replace('text-', 'bg-')}`} style={{ width: `${card.progress}%` }} />
@@ -363,7 +363,7 @@ export default function FitnessFatigue({ activities }) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
           <div>
             <Title className="text-slate-800 font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
-            <Text className="text-slate-400 text-xs">{t('fitness.pmc.desc')}</Text>
+            <Text className="text-slate-500 text-xs">{t('fitness.pmc.desc')}</Text>
           </div>
           <div className="flex items-center gap-2">
             {months != null && (
@@ -397,7 +397,7 @@ export default function FitnessFatigue({ activities }) {
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-blue-300 opacity-70" />
-            <span className="text-[11px] text-slate-400 font-medium">{t('fitness.pmc.daily_load')}</span>
+            <span className="text-[11px] text-slate-500 font-medium">{t('fitness.pmc.daily_load')}</span>
           </div>
         </div>
 
@@ -413,7 +413,7 @@ export default function FitnessFatigue({ activities }) {
               </defs>
               <CartesianGrid strokeDasharray="2 8" stroke="#e2e8f0" vertical={false} />
               <XAxis dataKey="date" hide />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} width={36}
+              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} width={36}
                 domain={[0, d => Math.round(d * 1.15)]} tickCount={5} />
               <RechartsTooltip content={<PMCTooltip />} />
               <Line type="monotone" dataKey="Fatiga" name={t('fitness.atl')}
@@ -471,7 +471,7 @@ export default function FitnessFatigue({ activities }) {
         {/* Divider */}
         <div className="flex items-center gap-3 my-3">
           <div className="h-px flex-1 bg-slate-100" />
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
             TSB — {es ? 'Forma del Día' : 'Daily Form'}
           </span>
           <div className="flex items-center gap-1">
@@ -498,9 +498,9 @@ export default function FitnessFatigue({ activities }) {
               <ReferenceArea y1={-30} y2={-10} fill="#ffedd5" fillOpacity={0.85} ifOverflow="hidden" />
               <ReferenceArea y1={-80} y2={-30} fill="#fee2e2" fillOpacity={0.85} ifOverflow="hidden" />
               <CartesianGrid strokeDasharray="2 8" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false}
+              <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false}
                 axisLine={{ stroke: '#e2e8f0' }} tickFormatter={xTickFormatter} interval={xInterval} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false}
+              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false}
                 width={36} domain={[-80, 80]} tickCount={5} />
               <ReferenceLine y={0} stroke="#64748b" strokeWidth={1.5} />
               <RechartsTooltip content={<PMCTooltip />} />
@@ -518,7 +518,7 @@ export default function FitnessFatigue({ activities }) {
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {new Date(selectedDay.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
-              <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+              <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                 <XMarkIcon className="w-4 h-4" />
               </button>
             </div>
@@ -530,7 +530,7 @@ export default function FitnessFatigue({ activities }) {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-slate-400">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-slate-500">
                       {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
                       {isRun(a)
                         ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)

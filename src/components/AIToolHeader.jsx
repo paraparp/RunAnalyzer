@@ -13,7 +13,7 @@ const AIToolHeader = ({ icon: Icon = SparklesIcon, title, subtitle, children }) 
         </div>
         <div className="min-w-0">
           <p className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-slate-100 leading-tight truncate">{title}</p>
-          {subtitle && <p className="text-[11px] text-slate-400 font-semibold mt-0.5 truncate">{subtitle}</p>}
+          {subtitle && <p className="text-[11px] text-slate-500 font-semibold mt-0.5 truncate">{subtitle}</p>}
         </div>
       </div>
       {children && <div className="flex flex-wrap items-center gap-2 shrink-0">{children}</div>}

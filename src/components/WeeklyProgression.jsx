@@ -22,14 +22,14 @@ function CustomTooltip({ active, payload }) {
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
       <p className="font-bold text-slate-700 mb-1">
-        {d.label} (S{d.week}){d.isPartial && <span className="text-slate-400 font-medium"> · en curso</span>}
+        {d.label} (S{d.week}){d.isPartial && <span className="text-slate-500 font-medium"> · en curso</span>}
       </p>
       <p className="text-blue-600">Distancia: <span className="font-bold">{d.km.toFixed(1)} km</span></p>
       <p className="text-slate-500">Sesiones: {d.sessions} | Desnivel: {Math.round(d.elevation)}m</p>
       {d.load > 0 && <p className="text-slate-500">Carga: <span className="font-bold">{Math.round(d.load)}</span></p>}
       {d.avg4w != null && <p className="text-slate-500">Media 4 sem cerradas: {d.avg4w} km</p>}
       {d.isPartial ? (
-        <p className="text-slate-400 italic">Semana incompleta: no se compara</p>
+        <p className="text-slate-500 italic">Semana incompleta: no se compara</p>
       ) : d.change !== 0 && (
         <p className={d.exceeds10 ? 'text-rose-600 font-bold' : 'text-slate-500'}>
           Cambio: {d.change > 0 ? '+' : ''}{d.change}% ({d.absDeltaKm > 0 ? '+' : ''}{d.absDeltaKm.toFixed(1)} km)
@@ -195,7 +195,7 @@ export default function WeeklyProgression({ activities }) {
 
   if (!weeklyData.length || !stats) {
     return (
-      <div className="text-center py-12 text-slate-400">
+      <div className="text-center py-12 text-slate-500">
         <p className="text-sm">No hay datos suficientes para mostrar la progresión semanal.</p>
       </div>
     );
@@ -207,38 +207,38 @@ export default function WeeklyProgression({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Última semana cerrada</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Última semana cerrada</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.lastClosedKm.toFixed(1)}</p>
-          <p className={`text-[10px] mt-0.5 font-semibold ${stats.lastClosedChange > 10 ? 'text-rose-500' : stats.lastClosedChange > 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
+          <p className={`text-[10px] mt-0.5 font-semibold ${stats.lastClosedChange > 10 ? 'text-rose-500' : stats.lastClosedChange > 0 ? 'text-emerald-500' : 'text-slate-500'}`}>
             {stats.lastClosedChange > 0 ? '+' : ''}{stats.lastClosedChange}% vs anterior
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">En curso</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">En curso</p>
           <p className="text-2xl font-black text-slate-500 tabular-nums">
             {stats.partialKm == null ? '—' : stats.partialKm.toFixed(1)}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">km hasta hoy (sin comparar)</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">km hasta hoy (sin comparar)</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Media 4 semanas</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Media 4 semanas</p>
           <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.avg4weeks.toFixed(1)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">km/semana</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">km/semana</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Racha activa</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Racha activa</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.streak}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">semanas consecutivas</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">semanas consecutivas</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Semana pico</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Semana pico</p>
           <p className="text-2xl font-black text-amber-600 tabular-nums">{stats.maxWeek.toFixed(1)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{stats.maxWeekLabel}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{stats.maxWeekLabel}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Alertas +10%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Alertas +10%</p>
           <p className={`text-2xl font-black tabular-nums ${stats.exceedCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{stats.exceedCount}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">de {stats.totalWeeks} semanas</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">de {stats.totalWeeks} semanas</p>
         </div>
       </div>
 
@@ -257,10 +257,10 @@ export default function WeeklyProgression({ activities }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 interval={Math.max(0, Math.floor(weeklyData.length / 12))}
               />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
               <RechartsTooltip content={<CustomTooltip />} />
               <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={24}>
                 {weeklyData.map((entry, idx) => (
@@ -294,8 +294,8 @@ export default function WeeklyProgression({ activities }) {
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <ComposedChart data={weeklyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={Math.max(0, Math.floor(weeklyData.length / 12))} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={35} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} interval={Math.max(0, Math.floor(weeklyData.length / 12))} />
+                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={35} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 <Bar dataKey="load" radius={[4, 4, 0, 0]} maxBarSize={24}>
                   {weeklyData.map((entry, idx) => (

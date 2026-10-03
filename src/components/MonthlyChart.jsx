@@ -123,7 +123,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6" aria-hidden>
           {gridVals.map((gv, gi) => (
             <div key={gi} className="flex items-center gap-2 w-full">
-              <span className="text-[9px] text-slate-300 font-medium w-7 text-right shrink-0 leading-none">
+              <span className="text-[9px] text-slate-500 font-medium w-7 text-right shrink-0 leading-none">
                 {gv}
               </span>
               <div className="flex-1 border-t border-dashed border-slate-100" />
@@ -131,7 +131,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
           ))}
           {/* Zero line */}
           <div className="flex items-center gap-2 w-full">
-            <span className="text-[9px] text-slate-300 font-medium w-7 text-right shrink-0 leading-none">0</span>
+            <span className="text-[9px] text-slate-500 font-medium w-7 text-right shrink-0 leading-none">0</span>
             <div className="flex-1 border-t border-slate-200" />
           </div>
         </div>

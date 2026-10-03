@@ -329,7 +329,7 @@ export default function HRAnalysis({ activities }) {
 
     if (!processedData) {
         return (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-slate-500">
                 <HeartIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                 <p className="text-sm">{t('hr_analysis.no_data')}</p>
                 <p className="text-xs mt-1">{t('hr_analysis.check_hr')}</p>
@@ -373,7 +373,7 @@ export default function HRAnalysis({ activities }) {
                             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300
                                 ${activeTab === t.id
                                     ? "bg-slate-900 text-white shadow-lg shadow-slate-200 scale-105"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-white"
+                                    : "text-slate-500 hover:text-slate-600 hover:bg-white"
                                 }`}
                         >
                             {t.label}
@@ -385,14 +385,14 @@ export default function HRAnalysis({ activities }) {
                     solo limita cuántas se dibujan, porque los gráficos van sesión a sesión. */}
                 <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-2xl px-4 h-[48px] shadow-sm">
                     <ClockIcon className="w-4 h-4 text-slate-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('hr_analysis.filters.last')}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('hr_analysis.filters.last')}</span>
                     <input
                         type="number"
                         value={lastNRuns}
                         onChange={(e) => setLastNRuns(Math.max(1, parseInt(e.target.value) || 0))}
                         className="w-10 text-sm font-black text-slate-900 bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
                     />
-                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
+                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
                 </div>
             </div>
 
@@ -448,15 +448,15 @@ export default function HRAnalysis({ activities }) {
                                   <div className={`p-2 rounded-xl ${card.bg} ${card.color} transition-transform group-hover:scale-110`}>
                                       <card.icon className="w-5 h-5" />
                                   </div>
-                                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{card.label}</div>
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{card.label}</div>
                                 </div>
                                 <div className="flex items-baseline gap-1.5">
                                     <span className={`text-3xl font-black text-slate-900 tabular-nums leading-none`}>
                                         {card.value}
                                     </span>
-                                    <span className="text-xs font-bold text-slate-400 capitalize">{card.unit}</span>
+                                    <span className="text-xs font-bold text-slate-500 capitalize">{card.unit}</span>
                                 </div>
-                                <div className="text-[11px] font-bold text-slate-400 mt-3 flex items-center gap-1.5">
+                                <div className="text-[11px] font-bold text-slate-500 mt-3 flex items-center gap-1.5">
                                   <div className="w-1 h-1 rounded-full bg-slate-200" />
                                   {card.sub}
                                 </div>
@@ -468,21 +468,21 @@ export default function HRAnalysis({ activities }) {
                     {diagnosis.recentCount >= 2 && Math.abs(diagnosis.hrDeviation) > 2 && (
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                             <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-sm">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">FC Rodaje Base</div>
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">FC Rodaje Base</div>
                                 <div className="text-2xl font-extrabold text-slate-700 tabular-nums">
-                                    {Math.round(stats.avgHrAll - diagnosis.hrDeviation)} <span className="text-xs font-normal text-slate-400">bpm</span>
+                                    {Math.round(stats.avgHrAll - diagnosis.hrDeviation)} <span className="text-xs font-normal text-slate-500">bpm</span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 mt-1">Nivel histórico de referencia</div>
+                                <div className="text-[10px] text-slate-500 mt-1">Nivel histórico de referencia</div>
                             </div>
                             <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-sm">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">FC Rodaje Reciente</div>
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">FC Rodaje Reciente</div>
                                 <div className="text-2xl font-extrabold text-rose-600 tabular-nums">
-                                    {Math.round(stats.avgHrAll)} <span className="text-xs font-normal text-slate-400">bpm</span>
+                                    {Math.round(stats.avgHrAll)} <span className="text-xs font-normal text-slate-500">bpm</span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 mt-1">Últimas {diagnosis.recentCount} sesiones (GAP similar)</div>
+                                <div className="text-[10px] text-slate-500 mt-1">Últimas {diagnosis.recentCount} sesiones (GAP similar)</div>
                             </div>
                             <div className={`rounded-xl p-4 border ${diagnosis.hrDeviation > 5 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} col-span-2 lg:col-span-1 shadow-sm`}>
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Desviación detectada</div>
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Desviación detectada</div>
                                 <div className={`text-2xl font-extrabold tabular-nums ${diagnosis.hrDeviation > 5 ? 'text-rose-600' : 'text-slate-700'}`}>
                                     {diagnosis.hrDeviation > 0 ? '+' : ''}{Math.round(diagnosis.hrDeviation)} <span className="text-xs font-normal opacity-70">bpm</span>
                                 </div>
@@ -496,13 +496,13 @@ export default function HRAnalysis({ activities }) {
                     {/* Timeline Chart */}
                     <div className="bg-white rounded-xl border border-slate-200/80 p-5">
                         <h3 className="text-sm font-bold text-slate-800 mb-0.5">FC Media por Sesión</h3>
-                        <p className="text-[11px] text-slate-400 mb-4">Color = mes · Tamaño proporcional a distancia</p>
+                        <p className="text-[11px] text-slate-500 mb-4">Color = mes · Tamaño proporcional a distancia</p>
                         <ResponsiveContainer width="100%" height={280}>
                             <ComposedChart data={timeline.map((r, i) => ({ ...r, idx: i }))}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
                                 <XAxis
                                     dataKey="dateShort"
-                                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                                    tick={{ fontSize: 10, fill: "#64748b" }}
                                     interval={Math.max(0, Math.floor(timeline.length / 10))}
                                 />
                                 <YAxis
@@ -510,7 +510,7 @@ export default function HRAnalysis({ activities }) {
                                         (dataMin) => Math.floor(dataMin / 5) * 5 - 5,
                                         (dataMax) => Math.ceil(dataMax / 5) * 5 + 5
                                     ]}
-                                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                    tick={{ fontSize: 11, fill: "#64748b" }}
                                 />
                                 <Tooltip content={<CustomTooltipTimeline />} />
                                 <ReferenceLine y={Math.round(stats.medianHr)} stroke="#2563eb" strokeDasharray="5 5" strokeOpacity={0.4} />
@@ -566,7 +566,7 @@ export default function HRAnalysis({ activities }) {
                 <div className="space-y-5">
                     <div className="bg-white rounded-xl border border-slate-200/80 p-5">
                         <h3 className="text-sm font-bold text-slate-800 mb-0.5">FC Media vs GAP (Ritmo Ajustado)</h3>
-                        <p className="text-[11px] text-slate-400 mb-4">Todas las carreras &gt;3km · Velocidad ajustada por desnivel (GAP) · Mismo GAP → ¿FC más alta en ciertos meses?</p>
+                        <p className="text-[11px] text-slate-500 mb-4">Todas las carreras &gt;3km · Velocidad ajustada por desnivel (GAP) · Mismo GAP → ¿FC más alta en ciertos meses?</p>
                         {scatterData.length > 0 ? (
                             <>
                                 <ResponsiveContainer width="100%" height={320}>
@@ -578,8 +578,8 @@ export default function HRAnalysis({ activities }) {
                                             name="Velocidad"
                                             unit=" m/s"
                                             domain={["auto", "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: "GAP Velocidad (m/s) →", position: "bottom", offset: 0, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            tick={{ fontSize: 11, fill: "#64748b" }}
+                                            label={{ value: "GAP Velocidad (m/s) →", position: "bottom", offset: 0, style: { fontSize: 11, fill: "#64748b" } }}
                                         />
                                         <YAxis
                                             type="number"
@@ -587,8 +587,8 @@ export default function HRAnalysis({ activities }) {
                                             name="FC media"
                                             unit=" bpm"
                                             domain={["auto", "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: "FC (bpm) →", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            tick={{ fontSize: 11, fill: "#64748b" }}
+                                            label={{ value: "FC (bpm) →", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#64748b" } }}
                                         />
                                         <Tooltip content={<CustomTooltipScatter />} />
                                         <Scatter
@@ -625,11 +625,11 @@ export default function HRAnalysis({ activities }) {
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-400 text-center py-8">No hay suficientes carreras llanas con FC para mostrar.</p>
+                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes carreras llanas con FC para mostrar.</p>
                         )}
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-[13px] leading-relaxed text-slate-600">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-[13px] leading-relaxed text-blue-950/80">
                         <strong className="text-blue-600">💡 Cómo leer:</strong> Si para la misma velocidad tu FC sube con el tiempo, puede indicar fatiga acumulada, deshidratación o cambio de condiciones. Los puntos del mismo color (mes) deberían agruparse.
                     </div>
                 </div>
@@ -643,7 +643,7 @@ export default function HRAnalysis({ activities }) {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-800 mb-0.5">Eficiencia Cardíaca</h3>
-                                <p className="text-[11px] text-slate-400">
+                                <p className="text-[11px] text-slate-500">
                                     Carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km).
                                     {effMetric === "hre" ? " Menos latidos/km = más eficiente." : " Más metros por latido = más eficiente."}
                                 </p>
@@ -678,13 +678,13 @@ export default function HRAnalysis({ activities }) {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
                                         <XAxis
                                             dataKey="dateShort"
-                                            tick={{ fontSize: 10, fill: "#94a3b8" }}
+                                            tick={{ fontSize: 10, fill: "#64748b" }}
                                             interval={Math.max(0, Math.floor(efficiencyData.length / 10))}
                                         />
                                         <YAxis
                                             domain={["auto", "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                            label={{ value: effMetric === "hre" ? "Latidos/km" : "Metros por latido", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            tick={{ fontSize: 11, fill: "#64748b" }}
+                                            label={{ value: effMetric === "hre" ? "Latidos/km" : "Metros por latido", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#64748b" } }}
                                         />
                                         <Tooltip content={({ active, payload }) => {
                                             if (active && payload?.[0]) {
@@ -755,7 +755,7 @@ export default function HRAnalysis({ activities }) {
                                         ];
                                     })().map((card, i) => (
                                         <div key={i} className={`${card.bg} rounded-xl p-3.5 border ${card.border}`}>
-                                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">{card.label}</div>
+                                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-1.5">{card.label}</div>
                                             <div className={`text-xl font-extrabold tabular-nums ${card.color}`}>{card.value}</div>
                                             <div className="text-[11px] text-slate-500 mt-1">{card.sub}</div>
                                         </div>
@@ -763,11 +763,11 @@ export default function HRAnalysis({ activities }) {
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-400 text-center py-8">No hay suficientes carreras llanas con FC para calcular eficiencia.</p>
+                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes carreras llanas con FC para calcular eficiencia.</p>
                         )}
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-[13px] leading-relaxed text-slate-600">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-[13px] leading-relaxed text-blue-950/80">
                         {effMetric === "hre" ? (
                             <><strong className="text-cyan-600">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-[11px] bg-white/60 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
                         ) : (
@@ -780,7 +780,7 @@ export default function HRAnalysis({ activities }) {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-800 mb-0.5">Ritmo a 150 BPM (Fase Base)</h3>
-                                <p className="text-[11px] text-slate-400">
+                                <p className="text-[11px] text-slate-500">
                                     En tiradas llanas (&gt;6km). Muestra el rendimiento aeróbico sin deriva cardíaca (km 1-6). Menor tiempo = mejor forma.
                                 </p>
                             </div>
@@ -792,15 +792,15 @@ export default function HRAnalysis({ activities }) {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
                                         <XAxis
                                             dataKey="dateShort"
-                                            tick={{ fontSize: 10, fill: "#94a3b8" }}
+                                            tick={{ fontSize: 10, fill: "#64748b" }}
                                             interval={Math.max(0, Math.floor(pace150Data.length / 10))}
                                         />
                                         <YAxis
                                             domain={["auto", "auto"]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                            tick={{ fontSize: 11, fill: "#64748b" }}
                                             tickFormatter={(val) => formatPaceFromMinPerKm(val)}
                                             reversed={true}
-                                            label={{ value: "Ritmo (min/km)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#94a3b8" } }}
+                                            label={{ value: "Ritmo (min/km)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "#64748b" } }}
                                         />
                                         <Tooltip content={({ active, payload }) => {
                                             if (active && payload?.[0]) {
@@ -842,12 +842,12 @@ export default function HRAnalysis({ activities }) {
                                         />
                                     </ComposedChart>
                                 </ResponsiveContainer>
-                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-4 text-[13px] leading-relaxed text-slate-600">
-                                    <strong className="text-emerald-600">📈 Ritmo a 150 BPM:</strong> Calcula a qué ritmo correrías a 150 pulsaciones exactamente, aislando la deriva cardíaca (fatiga) al medir solo los primeros 6 km. Una línea descendente significa que puedes correr más rápido con el mismo pulso.
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-4 text-[13px] leading-relaxed text-emerald-950/80">
+                                    <strong className="text-emerald-700">📈 Ritmo a 150 BPM:</strong> Calcula a qué ritmo correrías a 150 pulsaciones exactamente, aislando la deriva cardíaca (fatiga) al medir solo los primeros 6 km. Una línea descendente significa que puedes correr más rápido con el mismo pulso.
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-400 text-center py-8">No hay suficientes tiradas llanas con datos por parciales para calcular el ritmo a 150 BPM.</p>
+                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes tiradas llanas con datos por parciales para calcular el ritmo a 150 BPM.</p>
                         )}
                     </div>
                 </div>
@@ -936,7 +936,7 @@ export default function HRAnalysis({ activities }) {
                         </div>
                     </div>
 
-                    <p className="text-[11px] text-slate-400 italic text-center px-4">
+                    <p className="text-[11px] text-slate-500 italic text-center px-4">
                         * Este diagnóstico es orientativo basado en algoritmos de datos Strava y no sustituye el criterio de un profesional médico o de cardiología deportiva.
                     </p>
                 </div>

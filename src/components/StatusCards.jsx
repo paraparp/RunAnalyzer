@@ -41,18 +41,18 @@ export function PhaseBanner({ tsb, acwr, garmin }) {
       </div>
       <div className="flex items-center gap-4 text-xs flex-wrap">
         <div className="text-center">
-          <div className="text-slate-400 uppercase font-bold tracking-wide">TSB</div>
+          <div className="text-slate-500 uppercase font-bold tracking-wide">TSB</div>
           <div className={`text-xl font-black ${color}`}>{fmt1(tsb)}</div>
         </div>
         <div className="text-center">
-          <div className="text-slate-400 uppercase font-bold tracking-wide">ACWR</div>
+          <div className="text-slate-500 uppercase font-bold tracking-wide">ACWR</div>
           <div className={`text-xl font-black ${acwr > 1.5 ? 'text-rose-600' : acwr > 1.3 ? 'text-amber-600' : 'text-slate-700'}`}>
             {acwr.toFixed(2)}
           </div>
         </div>
         {garmin?.currentRHR != null && (
           <div className="text-center">
-            <div className="text-slate-400 uppercase font-bold tracking-wide">FC Reposo</div>
+            <div className="text-slate-500 uppercase font-bold tracking-wide">FC Reposo</div>
             <div className={`text-xl font-black ${
               garmin.rhrAllTimeMin && garmin.currentRHR <= garmin.rhrAllTimeMin + 3 ? 'text-emerald-600'
               : garmin.currentRHR > (garmin.rhr28avg || garmin.currentRHR) + 5 ? 'text-rose-600'
@@ -64,7 +64,7 @@ export function PhaseBanner({ tsb, acwr, garmin }) {
         )}
         {garmin?.currentRec != null && (
           <div className="text-center">
-            <div className="text-slate-400 uppercase font-bold tracking-wide">
+            <div className="text-slate-500 uppercase font-bold tracking-wide">
               {garmin.hasHRV ? 'VFC (RMSSD)' : 'Body Battery'}
             </div>
             {garmin.hasHRV ? (
@@ -128,12 +128,12 @@ export function HeroCard({ label, value, unit, subRows, trendDelta, icon: Icon, 
   return (
     <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <Text className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</Text>
+        <Text className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</Text>
         {Icon && <div className={`p-1.5 rounded-lg ${c.bg}`}><Icon className={`w-4 h-4 ${c.icon}`} /></div>}
       </div>
       <div className="flex items-end gap-2">
         <span className={`text-4xl font-black leading-none ${c.text}`}>{value}</span>
-        {unit && <span className="text-sm font-semibold text-slate-400 pb-0.5">{unit}</span>}
+        {unit && <span className="text-sm font-semibold text-slate-500 pb-0.5">{unit}</span>}
         {trendDelta != null && (
           <span className={`ml-1 pb-0.5 text-xs font-bold flex items-center gap-0.5 ${trendDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
             {trendDelta >= 0 ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
@@ -144,7 +144,7 @@ export function HeroCard({ label, value, unit, subRows, trendDelta, icon: Icon, 
       <div className="space-y-1 border-t border-slate-100 pt-3">
         {subRows.map((row, i) => (
           <div key={i} className="flex justify-between items-center text-xs">
-            <span className="text-slate-400">{row.label}</span>
+            <span className="text-slate-500">{row.label}</span>
             <span className="font-semibold text-slate-600">{row.value}</span>
           </div>
         ))}

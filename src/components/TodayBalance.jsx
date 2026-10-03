@@ -73,10 +73,10 @@ function PanelHead({ icon: Icon, title, scope, badge, onOpen, openLabel }) {
     <div className="flex items-start justify-between gap-3 mb-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+          <Icon className="w-4 h-4 text-slate-500 shrink-0" />
           <h3 className="text-sm font-bold text-slate-800 truncate">{title}</h3>
         </div>
-        <p className="text-[11px] text-slate-400 mt-0.5">{scope}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{scope}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {badge}
@@ -102,7 +102,7 @@ function ScaleBar({ label, value, pct, bar, note }) {
     <div>
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="text-xs font-semibold text-slate-600">{label}</span>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-500">
           <span className="font-black text-slate-800 text-sm tabular-nums">{value}</span>
           {note && <span className="ml-1.5">{note}</span>}
         </span>
@@ -145,7 +145,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
   const scale = cur ? Math.max(cur.peak, cur.ctl, cur.atl, 1) : 1;
 
   const acwr = cur?.acwr ?? null;
-  const acwrCls = acwr == null ? 'text-slate-400'
+  const acwrCls = acwr == null ? 'text-slate-500'
     : acwr > 1.5 ? 'text-rose-600'
     : acwr > 1.3 ? 'text-amber-600'
     : acwr < 0.8 ? 'text-sky-600'
@@ -171,7 +171,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
         />
 
         {!mix?.hasData ? (
-          <p className="text-xs text-slate-400 py-6 text-center">
+          <p className="text-xs text-slate-500 py-6 text-center">
             Sin sesiones con frecuencia cardíaca en los últimos {WINDOW_DAYS} días.
           </p>
         ) : (
@@ -183,7 +183,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 </span>
                 <span className="text-xs font-semibold text-slate-500">fácil (Z1–Z2)</span>
               </div>
-              <span className="text-[11px] text-slate-400 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
+              <span className="text-[11px] text-slate-500 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
             </div>
 
             {/* Dos lecturas del mismo reparto: las cinco zonas de Karvonen y,
@@ -224,18 +224,18 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                     <span className="text-[10px] font-bold text-slate-500 truncate">{z.name}</span>
                   </div>
                   <div className="text-sm font-black text-slate-700 tabular-nums leading-tight">{mix.pct[i]}%</div>
-                  <div className="text-[10px] text-slate-400 tabular-nums">{hoursStr(mix.times[i])}</div>
+                  <div className="text-[10px] text-slate-500 tabular-nums">{hoursStr(mix.times[i])}</div>
                 </div>
               ))}
             </div>
 
             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-3 pt-3 border-t border-slate-100">
               {GROUPS.map((g) => (
-                <span key={g.key} className="text-[11px] text-slate-400">
+                <span key={g.key} className="text-[11px] text-slate-500">
                   {g.label} <span className={`font-black tabular-nums ${g.text}`}>{groups[g.key]}%</span>
                 </span>
               ))}
-              <span className="text-[10px] text-slate-300 ml-auto">
+              <span className="text-[10px] text-slate-500 ml-auto">
                 {mix.sessions} sesiones · {hoursStr(mix.totalSec)} con FC
                 {mix.avgOnlySessions > 0 && ` · ${mix.avgOnlySessions} sin parciales`}
               </span>
@@ -256,7 +256,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
         />
 
         {!cur ? (
-          <p className="text-xs text-slate-400 py-6 text-center">Aún no hay carga suficiente para el modelo.</p>
+          <p className="text-xs text-slate-500 py-6 text-center">Aún no hay carga suficiente para el modelo.</p>
         ) : (
           <>
             <div className="space-y-3">
@@ -307,22 +307,22 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                   </div>
                 );
               })()}
-              <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
                 <span>fatiga</span><span>equilibrio</span><span>fresco</span>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-100 text-[11px]">
-              <span className="text-slate-400">
+              <span className="text-slate-500">
                 ACWR <span className={`font-black tabular-nums ${acwrCls}`}>{acwr == null ? '—' : acwr.toFixed(2)}</span>
               </span>
-              <span className="text-slate-400">
+              <span className="text-slate-500">
                 Rampa <span className={`font-black tabular-nums ${rampCls}`}>{ramp >= 0 ? '+' : ''}{fmt1(ramp)}</span> CTL/sem
               </span>
-              <span className="text-slate-400">
+              <span className="text-slate-500">
                 7 d <span className="font-black tabular-nums text-slate-600">{cur.ctlTrend7 >= 0 ? '+' : ''}{fmt1(cur.ctlTrend7)}</span>
               </span>
-              <span className="text-slate-300 ml-auto hidden xl:inline">{phase?.description}</span>
+              <span className="text-slate-500 ml-auto hidden xl:inline">{phase?.description}</span>
             </div>
           </>
         )}

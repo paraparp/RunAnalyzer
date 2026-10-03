@@ -50,7 +50,7 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
 // ── Disclosure: lo que es referencia o detalle largo no compite con el foco ──
 export const CoachDisclosure = ({ label, children, className = '' }) => (
   <details className={`group rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 ${className}`}>
-    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-[9px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
       <span className="transition-transform group-open:rotate-90 text-slate-300 dark:text-slate-600">▸</span>
       {label}
     </summary>
@@ -130,7 +130,7 @@ export function CoachSettings({ ai }) {
           type="button"
           onClick={copyPrompt}
           title="Copiar el prompt enviado a la IA"
-          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
           {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
         </button>
@@ -153,7 +153,7 @@ export function CoachSettings({ ai }) {
         {open && (
           <div role="dialog" aria-label="Ajustes del análisis IA" className="absolute right-0 top-full mt-2 w-60 z-30 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-md p-4 space-y-3">
             <div>
-              <label htmlFor="ai-weekly-target" className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Correr / semana</label>
+              <label htmlFor="ai-weekly-target" className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Correr / semana</label>
               <select
                 id="ai-weekly-target"
                 value={weeklyTarget}
@@ -167,7 +167,7 @@ export function CoachSettings({ ai }) {
                 ))}
               </select>
             </div>
-            <p className="text-[9px] text-slate-400 font-semibold leading-snug">
+            <p className="text-[9px] text-slate-500 font-semibold leading-snug">
               Los cambios se aplican al pulsar «Recalcular».
             </p>
             {goal && (
