@@ -13,11 +13,12 @@ import { normalizeWeatherTemps, wbgtFromCelsius } from '../lib/weather';
 import cloudStorage from '../lib/cloudStorage';
 import { scopeFromISO } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Serie única y color único: lo que se compara es un mismo número consigo mismo a lo
 // largo del tiempo, no varias entidades entre sí.
-const LINE = '#2563eb';
-const BAND = '#93c5fd';
+const LINE = COLORS.signal;
+const BAND = COLORS.signalPale;
 
 
 /** WBGT de una actividad de Garmin, con el mismo árbitro de unidades que el MCP. */
@@ -149,7 +150,7 @@ export default function AerobicForm({ activities }) {
         </div>
         {result.excluded.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 p-4 max-w-md mx-auto">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+            <p className="text-label font-bold uppercase text-slate-500 mb-2">
               {t('aerobic_form.excluded', { count: result.excluded.length })}
             </p>
             <ReasonList excluded={result.excluded} t={t} />
@@ -174,14 +175,14 @@ export default function AerobicForm({ activities }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">
             {t('aerobic_form.current')}
           </p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{last.hr_at_ref}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">± {last.se} bpm · n={last.n}</p>
+          <p className="text-xs text-slate-500 mt-0.5">± {last.se} bpm · n={last.n}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">
             {t('aerobic_form.change')}
           </p>
           <p className={`text-2xl font-black tabular-nums ${
@@ -190,25 +191,25 @@ export default function AerobicForm({ activities }) {
           }`}>
             {result.change_bpm > 0 ? '+' : ''}{result.change_bpm ?? '—'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {result.change_robust === false
               ? t('aerobic_form.not_robust')
               : improving ? t('aerobic_form.improving') : t('aerobic_form.worsening')}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">
             {t('aerobic_form.reference')}
           </p>
           <p className="text-2xl font-black text-slate-700 tabular-nums">{refLabel}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('aerobic_form.reference_hint')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('aerobic_form.reference_hint')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">
             {t('aerobic_form.sessions_used')}
           </p>
           <p className="text-2xl font-black text-slate-700 tabular-nums">{result.n_sessions}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {t('aerobic_form.residual', { sd: result.residual_sd_bpm })}
           </p>
         </div>
@@ -241,16 +242,16 @@ export default function AerobicForm({ activities }) {
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <ResponsiveContainer width="100%" height={320}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+            <XAxis dataKey="label" tick={AXIS_TICK} />
             {/* Dominio con funciones y enteros: en string ('dataMin - 3') Recharts
                 repartía ticks como 149,99999998 y la etiqueta se salía del hueco. */}
             <YAxis
               domain={[(min) => Math.floor(min - 2), (max) => Math.ceil(max + 2)]}
               allowDecimals={false}
               width={44}
-              tick={{ fontSize: 11, fill: '#64748b' }}
-              label={{ value: 'bpm', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }}
+              tick={AXIS_TICK}
+              label={{ value: 'bpm', angle: -90, position: 'insideLeft', fontSize: 11, fill: COLORS.inkMuted }}
             />
             <RechartsTooltip content={<ChartTooltip axis={axis} t={t} />} />
             <Area
@@ -266,20 +267,20 @@ export default function AerobicForm({ activities }) {
               dataKey="hr_at_ref"
               stroke={LINE}
               strokeWidth={2}
-              dot={{ r: 4, fill: LINE, stroke: '#fff', strokeWidth: 2 }}
+              dot={{ r: 4, fill: LINE, stroke: COLORS.paper, strokeWidth: 2 }}
               activeDot={{ r: 6 }}
               isAnimationActive={false}
             />
           </ComposedChart>
         </ResponsiveContainer>
-        <p className="text-[11px] text-slate-500 mt-2">{t('aerobic_form.chart_hint')}</p>
+        <p className="text-xs text-slate-500 mt-2">{t('aerobic_form.chart_hint')}</p>
       </div>
 
       <CollapsibleSection title={t('aerobic_form.detail')} defaultOpen={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-500 uppercase tracking-wider text-[10px]">
+              <tr className="text-left text-slate-500 uppercase text-label">
                 <th className="py-2">{t('aerobic_form.period')}</th>
                 <th className="py-2 text-right">{t('aerobic_form.hr_at_ref')}</th>
                 <th className="py-2 text-right">n</th>
@@ -312,7 +313,7 @@ export default function AerobicForm({ activities }) {
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-slate-500 mt-3">
+        <p className="text-xs text-slate-500 mt-3">
           {axis === 'gap'
             ? t('aerobic_form.slope_hint_gap', {
               bpm: result.slope_bpm_per_10s_per_km,
@@ -334,11 +335,11 @@ export default function AerobicForm({ activities }) {
       >
         <ReasonList excluded={result.excluded} t={t} />
         {pending > 0 && (
-          <p className="text-[11px] text-slate-500 mt-3">{t('aerobic_form.pending', { count: pending })}</p>
+          <p className="text-xs text-slate-500 mt-3">{t('aerobic_form.pending', { count: pending })}</p>
         )}
       </CollapsibleSection>
 
-      <p className="text-[11px] text-slate-500">{t('aerobic_form.caveat')}</p>
+      <p className="text-xs text-slate-500">{t('aerobic_form.caveat')}</p>
     </div>
   );
 }

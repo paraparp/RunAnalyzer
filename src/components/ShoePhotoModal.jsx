@@ -225,7 +225,7 @@ export default function ShoePhotoModal({
           <div className="p-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${brandInfo.bg} ${brandInfo.text} border ${brandInfo.border}`}>
+                <span className={`px-2 py-0.5 rounded-md text-label font-bold uppercase ${brandInfo.bg} ${brandInfo.text} border ${brandInfo.border}`}>
                   {brandInfo.brand}
                 </span>
                 <h3 className="text-lg font-black text-slate-900 tracking-tight">
@@ -320,7 +320,7 @@ export default function ShoePhotoModal({
                       <MagnifyingGlassPlusIcon className="w-4 h-4" />
                     </button>
 
-                    <span className="text-[11px] font-black tabular-nums text-slate-700 min-w-[32px] text-right">
+                    <span className="text-xs font-black tabular-nums text-slate-700 min-w-[32px] text-right">
                       {zoom.toFixed(2)}×
                     </span>
 
@@ -335,7 +335,7 @@ export default function ShoePhotoModal({
                         }`}
                     >
                       <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
-                      <span className="text-[10px] hidden sm:inline">{t('gear.photos.flip')}</span>
+                      <span className="text-xs hidden sm:inline">{t('gear.photos.flip')}</span>
                     </button>
 
                     {/* Botón Restablecer encuadre */}
@@ -351,21 +351,21 @@ export default function ShoePhotoModal({
                     )}
                   </div>
 
-                  <p className="text-[10px] font-medium text-slate-500">
+                  <p className="text-xs font-medium text-slate-500">
                     {t('gear.photos.drag_hint')}
                   </p>
                 </div>
               )}
 
               {optimizedKb !== null && (
-                <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
                   <CheckCircleIcon className="w-3.5 h-3.5" />
                   <span>{t('gear.photos.optimized_badge', { kb: optimizedKb })}</span>
                 </div>
               )}
 
               {errorMsg && (
-                <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
                   <ExclamationCircleIcon className="w-3.5 h-3.5" />
                   <span>{errorMsg}</span>
                 </div>
@@ -424,7 +424,7 @@ export default function ShoePhotoModal({
                 <p className="text-xs font-bold text-slate-700">
                   {t('gear.photos.drop_hint')}
                 </p>
-                <p className="text-[11px] font-medium text-slate-500 mt-1">
+                <p className="text-xs font-medium text-slate-500 mt-1">
                   {t('gear.photos.drop_subhint')}
                 </p>
               </div>
@@ -450,7 +450,7 @@ export default function ShoePhotoModal({
                     {t('gear.photos.preview')}
                   </button>
                 </div>
-                <p className="text-[11px] font-medium text-slate-500">
+                <p className="text-xs font-medium text-slate-500">
                   {t('gear.photos.url_hint')}
                 </p>
               </div>

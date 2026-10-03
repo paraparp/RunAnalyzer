@@ -19,7 +19,7 @@ export default function VersionBadge({ className = '' }) {
   return (
     <div
       title={tooltip || undefined}
-      className={`select-none text-[9.5px] font-medium tracking-tight tabular-nums text-slate-300 hover:text-slate-500 dark:text-slate-700 dark:hover:text-slate-500 transition-colors cursor-default ${className}`}
+      className={`select-none text-xs font-medium tracking-tight tabular-nums text-slate-300 hover:text-slate-500 dark:text-slate-700 dark:hover:text-slate-500 transition-colors cursor-default ${className}`}
     >
       {versionLabel}
     </div>

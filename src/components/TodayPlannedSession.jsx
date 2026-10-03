@@ -85,11 +85,11 @@ export default function TodayPlannedSession({ session, day, action }) {
           {(session.dist || session.time || session.totalMin > 0) && (
             <div className="grid grid-cols-2 gap-2 p-3 rounded bg-slate-50 dark:bg-slate-800/60 text-center border border-slate-100 dark:border-slate-800">
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Distancia</span>
+                <span className="text-label font-bold uppercase text-slate-500">Distancia</span>
                 <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">{session.dist ?? '—'}</span>
               </div>
               <div className="flex flex-col border-l border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Duración</span>
+                <span className="text-label font-bold uppercase text-slate-500">Duración</span>
                 <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">
                   {session.time ?? (session.totalMin > 0 ? `${session.totalMin} min` : '—')}
                 </span>
@@ -105,7 +105,7 @@ export default function TodayPlannedSession({ session, day, action }) {
                   <div
                     key={i}
                     title={`${b.phase} · ${b.totalMin} min`}
-                    className={`h-full flex items-center justify-center px-1 text-[9px] font-bold uppercase truncate ${INTENSITY_CLS[b.intensity] ?? INTENSITY_CLS[2]}`}
+                    className={`h-full flex items-center justify-center px-1 text-label font-bold uppercase truncate ${INTENSITY_CLS[b.intensity] ?? INTENSITY_CLS[2]}`}
                     style={{ width: `${(b.totalMin / session.totalMin) * 100}%` }}
                   >
                     {b.totalMin / session.totalMin > 0.12 ? b.phase : ''}
@@ -129,7 +129,7 @@ export default function TodayPlannedSession({ session, day, action }) {
           )}
 
           {session.hrvGuidance && (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">{session.hrvGuidance}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">{session.hrvGuidance}</p>
           )}
         </>
       )}

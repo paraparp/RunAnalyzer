@@ -16,12 +16,13 @@ import { activityDayKey, dayKey } from '../lib/trainingLoad';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { isoWeekKey } from '../lib/isoWeek';
 import { weeklyVolumeRamp } from '../lib/weeklyVolume';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 function getRiskLevel(score, t) {
-  if (score < 35) return { label: t('injury.risk_levels.low'), color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
-  if (score < 55) return { label: t('injury.risk_levels.moderate'), color: '#f59e0b', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' };
-  if (score < 75) return { label: t('injury.risk_levels.high'), color: '#f97316', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' };
-  return { label: t('injury.risk_levels.very_high'), color: '#ef4444', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' };
+  if (score < 35) return { label: t('injury.risk_levels.low'), color: COLORS.good, bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
+  if (score < 55) return { label: t('injury.risk_levels.moderate'), color: COLORS.caution, bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' };
+  if (score < 75) return { label: t('injury.risk_levels.high'), color: COLORS.elevated, bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' };
+  return { label: t('injury.risk_levels.very_high'), color: COLORS.risk, bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' };
 }
 
 export default function InjuryRisk({ activities }) {
@@ -213,7 +214,7 @@ export default function InjuryRisk({ activities }) {
     <div className="space-y-6">
       {/* Main risk gauge */}
       {/* Main risk gauge */}
-      <div className={`bg-white rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50 relative overflow-hidden group`}>
+      <div className={`bg-white rounded-3xl border border-slate-100 p-8 shadow-xl relative overflow-hidden group`}>
         <div className="absolute top-0 right-0 p-8 opacity-5 transition-transform group-hover:scale-110">
            <ShieldExclamationIcon className="w-32 h-32 text-slate-900" />
         </div>
@@ -221,7 +222,7 @@ export default function InjuryRisk({ activities }) {
         <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
           <div className="relative inline-flex flex-col items-center">
             <svg width="220" height="120" viewBox="0 0 220 120" className="drop-shadow-sm">
-              <path d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="#f1f5f9" strokeWidth="16" strokeLinecap="round" />
+              <path d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke={COLORS.hairlineSoft} strokeWidth="16" strokeLinecap="round" />
               <path
                 d="M 20 110 A 90 90 0 0 1 200 110"
                 fill="none"
@@ -234,7 +235,7 @@ export default function InjuryRisk({ activities }) {
             </svg>
             <div className="absolute bottom-2 text-center">
               <p className="text-6xl font-black tabular-nums tracking-tighter" style={{ color: level.color }}>{riskScore}</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 -mt-1">Puntos Riesgo</p>
+              <p className="text-label font-bold uppercase text-slate-500 -mt-1">Puntos Riesgo</p>
             </div>
           </div>
           
@@ -265,7 +266,7 @@ export default function InjuryRisk({ activities }) {
             className="absolute top-0 bottom-0 w-2 bg-slate-900 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 delay-300"
             style={{ left: `${riskScore}%`, transform: 'translateX(-50%)' }}
           />
-          <div className="absolute inset-0 flex items-center justify-between px-6 text-[10px] font-black uppercase tracking-widest text-slate-500 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-between px-6 text-label font-bold uppercase text-slate-500 pointer-events-none">
             <span>{t('injury.risk_levels.safe')}</span>
             <span>{t('injury.risk_levels.alert')}</span>
             <span>{t('injury.risk_levels.loaded')}</span>
@@ -288,11 +289,11 @@ export default function InjuryRisk({ activities }) {
               <div key={f.name} className="group">
                 <div className="flex justify-between items-end mb-2">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{f.name}</p>
+                    <p className="text-label font-bold uppercase text-slate-500 mb-0.5">{f.name}</p>
                     <p className="text-xs font-bold text-slate-700">{f.value}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-500">{t('injury.factors.impact')} {f.weight}</p>
+                    <p className="text-xs font-black text-slate-500">{t('injury.factors.impact')} {f.weight}</p>
                     <p className="text-sm font-black" style={{ color: fLevel.color }}>{t('injury.factors.score')} {f.risk}</p>
                   </div>
                 </div>
@@ -302,7 +303,7 @@ export default function InjuryRisk({ activities }) {
                     style={{ width: `${f.risk}%`, backgroundColor: fLevel.color }}
                   />
                 </div>
-                <p className="mt-2 text-[10px] font-medium text-slate-500 group-hover:text-slate-600 transition-colors">
+                <p className="mt-2 text-xs font-medium text-slate-500 group-hover:text-slate-600 transition-colors">
                   {f.detail}
                 </p>
               </div>
@@ -314,19 +315,19 @@ export default function InjuryRisk({ activities }) {
       {/* Señales de contexto — se muestran, no puntúan */}
       {context.length > 0 && (
         <div className="bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 p-6">
-          <h3 className="text-slate-500 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2">
+          <h3 className="text-slate-500 font-bold text-label uppercase mb-4 flex items-center gap-2">
             <ExclamationTriangleIcon className="w-4 h-4 text-slate-400" />
             {t('injury.context.title')}
           </h3>
-          <p className="text-[11px] text-slate-500 font-medium mb-4">{t('injury.context.desc')}</p>
+          <p className="text-xs text-slate-500 font-medium mb-4">{t('injury.context.desc')}</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-4">
             {context.map(c => (
               <div key={c.name}>
                 <div className="flex justify-between items-baseline">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{c.name}</p>
+                  <p className="text-label font-bold uppercase text-slate-500">{c.name}</p>
                   <p className="text-sm font-black text-slate-500 tabular-nums">{c.value}</p>
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-slate-500 leading-relaxed">{c.detail}</p>
+                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">{c.detail}</p>
               </div>
             ))}
           </div>
@@ -341,9 +342,9 @@ export default function InjuryRisk({ activities }) {
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={historyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+                <XAxis dataKey="week" tick={AXIS_TICK} />
+                <YAxis domain={[0, 100]} tick={AXIS_TICK} />
                 <RechartsTooltip
                   formatter={(val, name) => {
                     if (name === 'risk') return [`${val}`, t('injury.risk_label')];
@@ -352,11 +353,11 @@ export default function InjuryRisk({ activities }) {
                   }}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <ReferenceArea y1={0} y2={35} fill="#10b981" fillOpacity={0.06} />
-                <ReferenceArea y1={35} y2={55} fill="#f59e0b" fillOpacity={0.06} />
-                <ReferenceArea y1={55} y2={75} fill="#f97316" fillOpacity={0.06} />
-                <ReferenceArea y1={75} y2={100} fill="#ef4444" fillOpacity={0.06} />
-                <Line type="monotone" dataKey="risk" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
+                <ReferenceArea y1={0} y2={35} fill={COLORS.good} fillOpacity={0.06} />
+                <ReferenceArea y1={35} y2={55} fill={COLORS.caution} fillOpacity={0.06} />
+                <ReferenceArea y1={55} y2={75} fill={COLORS.elevated} fillOpacity={0.06} />
+                <ReferenceArea y1={75} y2={100} fill={COLORS.risk} fillOpacity={0.06} />
+                <Line type="monotone" dataKey="risk" stroke={COLORS.signal} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -365,7 +366,7 @@ export default function InjuryRisk({ activities }) {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <div className={`rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50 ${riskScore < 35 ? 'bg-white border-l-[12px] border-l-emerald-500' : 'bg-white border-l-[12px] border-l-amber-500'}`}>
+        <div className={`rounded-3xl border border-slate-100 p-8 shadow-xl ${riskScore < 35 ? 'bg-white border-l-[12px] border-l-emerald-500' : 'bg-white border-l-[12px] border-l-amber-500'}`}>
            <div className="flex gap-6 items-start">
              <div className={`p-4 rounded-2xl shrink-0 ${riskScore < 35 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                 {riskScore < 35 ? <ShieldCheckIcon className="w-8 h-8" /> : <ExclamationCircleIcon className="w-8 h-8" />}
@@ -375,7 +376,7 @@ export default function InjuryRisk({ activities }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {recommendations.map((rec, i) => (
                     <div key={i} className="flex items-start gap-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
-                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${riskScore < 35 ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{i + 1}</span>
+                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${riskScore < 35 ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{i + 1}</span>
                        <p className="text-sm font-bold text-slate-600 leading-snug">{rec}</p>
                     </div>
                   ))}

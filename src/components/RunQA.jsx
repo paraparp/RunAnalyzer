@@ -12,9 +12,9 @@ import { formatDuration } from '../lib/timeFormat';
 // Typing indicator component
 const TypingIndicator = () => (
     <div className="flex items-center gap-1 px-2 py-1">
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
     </div>
 );
 
@@ -358,7 +358,7 @@ INSTRUCCIONES:
                         </div>
                         <div className="min-w-0">
                             <p className="text-sm font-black uppercase tracking-tight text-slate-800 leading-tight truncate">Pregunta sobre tus Carreras</p>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
                                 <BoltIcon className="w-3 h-3" />
                                 {selectedCount} carreras cargadas
                             </span>
@@ -391,7 +391,7 @@ INSTRUCCIONES:
                     <div className={`${configOpen ? 'flex' : 'hidden'} lg:flex flex-wrap items-center gap-2`}>
                         {/* Filter mode toggle + selector */}
                         {/* Toggle buttons */}
-                        <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[11px] font-medium flex-shrink-0">
+                        <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium flex-shrink-0">
                             <button
                                 onClick={() => setFilterMode('count')}
                                 className={`px-2.5 py-1.5 transition-colors ${filterMode === 'count' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
@@ -426,8 +426,8 @@ INSTRUCCIONES:
 
                         {/* Garmin period selector */}
                         <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-slate-500 flex-shrink-0">Garmin</span>
-                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[11px] font-medium">
+                            <span className="text-xs text-slate-500 flex-shrink-0">Garmin</span>
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium">
                                 {[
                                     { value: 'none', label: 'Sin datos' },
                                     { value: '30d', label: '30 días' },
@@ -509,13 +509,13 @@ INSTRUCCIONES:
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-blue-200 rounded-full blur-md opacity-50 animate-pulse" />
-                                    <div className="relative p-1.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg shadow">
+                                    <div className="relative p-1.5 bg-blue-600 rounded-lg shadow">
                                         <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
                                 </div>
                                 <h3 className="text-sm sm:text-base font-bold text-slate-800">¿Qué quieres saber?</h3>
                             </div>
-                            <Text className="text-slate-500 mb-3 text-center max-w-md text-[11px] sm:text-xs">
+                            <Text className="text-slate-500 mb-3 text-center max-w-md text-xs sm:text-xs">
                                 Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
@@ -544,7 +544,7 @@ INSTRUCCIONES:
                                         {/* Avatar — oculto en móvil para ganar ancho de burbuja */}
                                         <div className={`flex-shrink-0 w-8 h-8 rounded-full hidden sm:flex items-center justify-center shadow-sm ${isUser
                                                 ? 'bg-blue-600 text-white text-xs font-bold'
-                                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                                : 'bg-blue-600 text-white'
                                             }`}>
                                             {isUser ? 'Tú' : <SparklesIcon className="w-4 h-4" />}
                                         </div>
@@ -602,7 +602,7 @@ INSTRUCCIONES:
                             {/* Loading indicator (only before the assistant bubble appears) */}
                             {loading && (conversation.length === 0 || conversation[conversation.length - 1].role !== 'assistant' || conversation[conversation.length - 1].content === '') && (
                                 <div className="flex gap-2 sm:gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 hidden sm:flex items-center justify-center shadow-sm">
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 hidden sm:flex items-center justify-center shadow-sm">
                                         <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="bg-white ring-1 ring-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">

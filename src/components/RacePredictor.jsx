@@ -217,7 +217,7 @@ Devuelve las mismas ${model.items.length} distancias con:
                                     </Flex>
                                     <Metric className="mt-2 text-slate-900 dark:text-slate-50">{formatDuration(pred.timeSeconds)}</Metric>
                                     <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
-                                    <Text className="text-[11px] text-slate-500 dark:text-slate-500 mt-2">
+                                    <Text className="text-xs text-slate-500 dark:text-slate-500 mt-2">
                                         {Object.keys(pred.models).map(k => MODEL_LABEL[k]).join(' · ')}
                                         {pred.baseTimeSeconds != null && pred.baseTimeSeconds !== pred.timeSeconds &&
                                             ` · ajustado desde ${formatDuration(pred.baseTimeSeconds)}`}
@@ -248,7 +248,7 @@ Devuelve las mismas ${model.items.length} distancias con:
                                     <span className="w-28 shrink-0 text-sm font-medium text-slate-600 dark:text-slate-300">{p.label}</span>
                                     <div className="flex-1 h-6 rounded-md bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                         <div
-                                            className="h-full rounded-md bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500"
+                                            className="h-full rounded-md bg-blue-600 transition-all duration-500"
                                             style={{ width: `${(p.paceSec / maxPace) * 100}%` }}
                                         />
                                     </div>

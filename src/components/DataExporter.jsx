@@ -469,7 +469,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             <AdjustmentsHorizontalIcon className="w-4 h-4" />
                             Filtros avanzados
                             {(Number(minDist) > 0 || Number(minElev) > 0 || Number(minHR) > 0 || Number(maxHR) > 0) && (
-                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">activos</span>
+                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">activos</span>
                             )}
                             <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                         </button>

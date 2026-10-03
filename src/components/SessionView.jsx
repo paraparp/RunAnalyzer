@@ -19,6 +19,7 @@ import { matchGarminByStart } from '../lib/hrSource';
 import {
   findSimilarSessions, isRace, sessionDecoupling, sessionEfficiency, sessionGap, sessionWeather, sessionZones,
 } from '../lib/sessionAnalysis';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Vista de sesión (/activity/:id): "¿qué pasó en este entreno?" en una página.
 // Todos los números salen de lib/sessionAnalysis, que a su vez delega en el módulo
@@ -51,7 +52,7 @@ function Card({ id, title, aside, children, className = '', flush = false }) {
     <section id={id} className={`scroll-mt-20 bg-white rounded-xl border border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${className}`}>
       {title && (
         <header className="flex items-center justify-between gap-3 px-5 h-11 border-b border-slate-100">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+          <h3 className="text-label font-bold uppercase text-slate-500">{title}</h3>
           {aside}
         </header>
       )}
@@ -66,22 +67,22 @@ function StatGroup({ Icon, accent, label, value, unit, caption, items, children 
     <div className="min-w-0 bg-white px-5 py-4 flex flex-col">
       <div className="flex items-center gap-2">
         <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md ${accent}`}><Icon className="w-3.5 h-3.5" /></span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{label}</span>
+        <span className="text-label font-bold uppercase text-slate-500">{label}</span>
       </div>
       <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
         <span className="text-[32px] leading-none font-bold tracking-tight text-slate-900">{value}</span>
         {unit && <span className="text-sm font-semibold text-slate-500">{unit}</span>}
-        {caption && <span className="text-[11px] text-slate-500 truncate">{caption}</span>}
+        {caption && <span className="text-xs text-slate-500 truncate">{caption}</span>}
       </div>
       {children}
       <dl className="mt-auto pt-3 grid grid-cols-2 gap-3">
         {items.map((it) => (
           <div key={it.label} className="min-w-0" title={it.title}>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 truncate">{it.label}</dt>
+            <dt className="text-label font-bold uppercase text-slate-500 truncate">{it.label}</dt>
             <dd className="text-sm font-semibold tabular-nums text-slate-800 truncate">
-              {it.value}{it.unit && <span className="ml-0.5 text-[11px] font-medium text-slate-500">{it.unit}</span>}
+              {it.value}{it.unit && <span className="ml-0.5 text-xs font-medium text-slate-500">{it.unit}</span>}
             </dd>
-            {it.hint && <dd className="text-[10px] text-slate-500 truncate">{it.hint}</dd>}
+            {it.hint && <dd className="text-xs text-slate-500 truncate">{it.hint}</dd>}
           </div>
         ))}
       </dl>
@@ -115,7 +116,7 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
         )}
         <span className="absolute top-1/2 w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow" style={{ left: pos(avg), background: zone.color }} />
       </div>
-      <div className="mt-1 flex justify-between text-[10px] font-semibold">
+      <div className="mt-1 flex justify-between text-xs font-semibold">
         {[1, 2, 3, 4, 5].map((z) => (
           <span key={z} style={{ color: ZONES[z].text, opacity: z === classifyHR(avg, bounds) + 1 ? 1 : 0.45 }}>{ZONES[z].label}</span>
         ))}
@@ -127,9 +128,9 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
 function Kpi({ label, value, hint, size = 'md' }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
+      <div className="text-label font-bold uppercase text-slate-500">{label}</div>
       <div className={`font-black tabular-nums text-slate-900 truncate ${size === 'lg' ? 'text-3xl leading-tight' : 'text-lg'}`}>{value}</div>
-      {hint && <div className="text-[11px] text-slate-500 truncate" title={hint}>{hint}</div>}
+      {hint && <div className="text-xs text-slate-500 truncate" title={hint}>{hint}</div>}
     </div>
   );
 }
@@ -158,7 +159,7 @@ function ZonesBlock({ zones, t }) {
           const dominant = p > 0 && p === top;
           return (
             <div key={i} className="flex items-center gap-3">
-              <span className="w-7 shrink-0 text-[11px] font-black" style={{ color: ZONES[i + 1].text }}>{ZONES[i + 1].label}</span>
+              <span className="w-7 shrink-0 text-xs font-black" style={{ color: ZONES[i + 1].text }}>{ZONES[i + 1].label}</span>
               <div className="relative h-5 flex-1 rounded bg-slate-50">
                 <div
                   className="absolute inset-y-0 left-0 rounded transition-[width] duration-500"
@@ -168,20 +169,20 @@ function ZonesBlock({ zones, t }) {
               <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${dominant ? 'font-black text-slate-900' : 'font-semibold text-slate-600'}`}>
                 {Math.round(p)}%
               </span>
-              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-slate-500">{formatDuration(zones.times[i])}</span>
+              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-500">{formatDuration(zones.times[i])}</span>
             </div>
           );
         })}
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
         {groups.map(({ key, cls }) => (
-          <span key={key} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums ${cls}`}>
+          <span key={key} className={`px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums ${cls}`}>
             {t(`session.group_${key}`)} {Math.round(zones.groups[key])}%
           </span>
         ))}
       </div>
       {zones.resolution === 'average' && (
-        <p className="mt-2 text-[11px] text-amber-600">{t('session.zones_average_only')}</p>
+        <p className="mt-2 text-xs text-amber-600">{t('session.zones_average_only')}</p>
       )}
     </>
   );
@@ -210,8 +211,8 @@ function WeatherBlock({ weather, t }) {
 
 // La sesión abierta se pinta en azul; el resto del grupo en gris: lo que se lee es
 // dónde cae ESTA sesión dentro de su historia, no las otras entre sí.
-const OWN = '#2563eb';
-const PEER = '#94a3b8';
+const OWN = COLORS.signal;
+const PEER = COLORS.inkFaint;
 
 /** La sesión abierta con la misma forma que las del grupo, para mezclarla con ellas. */
 function ownRow(activity, gap, ownEf) {
@@ -251,7 +252,7 @@ function SimilarChart({ points, median, onOpenActivity, t, locale }) {
       cx={cx} cy={cy}
       r={payload.current ? 6 : 3.5}
       fill={payload.current ? OWN : PEER}
-      stroke="#fff" strokeWidth={2}
+      stroke={COLORS.paper} strokeWidth={2}
       style={{ cursor: payload.current ? 'default' : 'pointer' }}
       onClick={() => !payload.current && onOpenActivity(payload.id)}
     />
@@ -259,21 +260,21 @@ function SimilarChart({ points, median, onOpenActivity, t, locale }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
         <XAxis
           dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']}
           tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'short', year: '2-digit' })}
-          tick={{ fontSize: 10, fill: '#64748b' }} minTickGap={24}
+          tick={AXIS_TICK} minTickGap={24}
         />
         <YAxis
           domain={[(min) => Math.floor((min - 0.05) * 10) / 10, (max) => Math.ceil((max + 0.05) * 10) / 10]}
           tickFormatter={(v) => v.toFixed(1)}
-          width={32} tick={{ fontSize: 10, fill: '#64748b' }}
+          width={32} tick={AXIS_TICK}
         />
         <RechartsTooltip content={<SimilarTooltip t={t} locale={locale} />} />
         {median != null && <ReferenceLine y={median} stroke={PEER} strokeDasharray="4 4" />}
         <Line
-          type="linear" dataKey="efficiency" stroke="#cbd5e1" strokeWidth={1.5}
+          type="linear" dataKey="efficiency" stroke={COLORS.hairlineStrong} strokeWidth={1.5}
           dot={dot} activeDot={false} isAnimationActive={false}
         />
       </ComposedChart>
@@ -289,14 +290,14 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
       {...(s.current ? {} : { type: 'button', onClick: () => onOpenActivity(s.id) })}
       className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-500'}`}
     >
-      <span className={`w-14 shrink-0 text-[11px] tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-500'}`}>
+      <span className={`w-14 shrink-0 text-xs tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-500'}`}>
         {new Date(s.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700 group-hover:text-blue-700'}`}>
           {s.current ? t('session.this_session') : s.name}
         </span>
-        <span className="block truncate text-[11px] tabular-nums text-slate-500">
+        <span className="block truncate text-xs tabular-nums text-slate-500">
           {(s.distance_m / 1000).toFixed(1)} km · {formatPaceFromSpeed(s.speed_ms)}/km
           {s.gap_speed_ms ? ` · GAP ${formatPaceFromSpeed(s.gap_speed_ms)}` : ''}
           {s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
@@ -304,7 +305,7 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
       </span>
       <span className={`shrink-0 text-right text-sm font-black tabular-nums ${s.current ? 'text-blue-700' : 'text-slate-800'}`}>
         {s.efficiency != null ? s.efficiency.toFixed(2) : '—'}
-        <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">m/lat</span>
+        <span className="block text-label font-bold uppercase text-slate-500">m/lat</span>
       </span>
       {!s.current && <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-blue-500" />}
     </Tag>
@@ -333,7 +334,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
         {points.length >= 2 && (
           <div className="lg:col-span-3">
             <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-            <p className="text-[11px] text-slate-500 mt-1">{t('session.similar_chart_hint')}</p>
+            <p className="text-xs text-slate-500 mt-1">{t('session.similar_chart_hint')}</p>
           </div>
         )}
         <div className={points.length >= 2 ? 'lg:col-span-2' : 'lg:col-span-5'}>
@@ -341,7 +342,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
             {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
           </div>
           {similar.n > similar.sessions.length && (
-            <p className="text-[11px] text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2">
               {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
             </p>
           )}
@@ -364,12 +365,12 @@ function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onCli
         <Icon className="w-4 h-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 truncate">{label}</span>
+        <span className="block text-label font-bold uppercase text-slate-500 truncate">{label}</span>
         <span className="flex items-baseline gap-1.5">
           <span className={`text-lg font-bold tabular-nums ${valueTone}`}>{value}</span>
           <span className="text-xs font-medium text-slate-600 truncate first-letter:uppercase">{sub}</span>
         </span>
-        {extra && <span className="block text-[11px] tabular-nums text-slate-500 truncate">{extra}</span>}
+        {extra && <span className="block text-xs tabular-nums text-slate-500 truncate">{extra}</span>}
       </span>
     </Tag>
   );
@@ -556,7 +557,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
                 key={s.id}
                 type="button"
                 onClick={() => jump(s.id)}
-                className="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+                className="shrink-0 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
               >
                 {s.label}
               </button>
@@ -581,7 +582,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
                 <span className="text-slate-300">·</span>
                 <span className="tabular-nums">{start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                 {race && (
-                  <span className="px-1.5 py-px rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800">{t('session.race')}</span>
+                  <span className="px-1.5 py-px rounded text-label font-bold uppercase bg-amber-100 text-amber-800">{t('session.race')}</span>
                 )}
               </div>
               <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 break-words">{activity.name}</h1>
@@ -663,7 +664,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
               : <Empty>{t('session.no_splits')}</Empty>}
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-3">{t('session.zones_title')}</p>
+            <p className="text-label font-bold uppercase text-slate-500 mb-3">{t('session.zones_title')}</p>
             <ZonesBlock zones={zones} t={t} />
           </div>
         </div>
@@ -681,7 +682,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
         </Card>
       </div>
 
-      <p className="hidden lg:block text-center text-[11px] text-slate-500">{t('session.keys_hint')}</p>
+      <p className="hidden lg:block text-center text-xs text-slate-500">{t('session.keys_hint')}</p>
     </div>
   );
 }

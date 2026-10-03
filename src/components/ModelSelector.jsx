@@ -236,12 +236,12 @@ const ModelSelector = ({
             return (
               <div key={g.provider} className="space-y-1.5">
                 {/* Encabezado del Proveedor */}
-                <div className="flex items-center justify-between px-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                <div className="flex items-center justify-between px-1.5 text-label font-bold text-slate-500 dark:text-slate-500 uppercase">
                   <div className="flex items-center gap-1.5">
                     <IconComponent className="w-3 h-3 text-slate-500 dark:text-slate-400" />
                     <span>{meta.label}</span>
                   </div>
-                  <span className="text-[10px] font-medium lowercase tracking-normal">
+                  <span className="text-xs font-medium lowercase tracking-normal">
                     {g.options.length} {g.options.length === 1 ? 'modelo' : 'modelos'}
                   </span>
                 </div>
@@ -271,7 +271,7 @@ const ModelSelector = ({
                             </span>
                             {tag && (
                               <span
-                                className={`text-[9.5px] font-medium px-1.5 py-0.2 rounded-md shrink-0 uppercase tracking-wider ${
+                                className={`text-label font-medium px-1.5 py-0.2 rounded-md shrink-0 uppercase ${
                                   isSelected
                                     ? 'bg-blue-200/70 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                                     : 'bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
@@ -313,11 +313,11 @@ const ModelSelector = ({
     <div className={`space-y-2 ${className}`}>
       {showLabel && (
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <span className="text-label font-bold uppercase text-slate-500">
             Motor IA
           </span>
           {isLoading && (
-            <div className="flex items-center gap-1 text-[10px] text-slate-500 animate-pulse">
+            <div className="flex items-center gap-1 text-xs text-slate-500 animate-pulse">
               <ArrowPathIcon className="w-2.5 h-2.5 animate-spin" />
               <span>Sincronizando</span>
             </div>
@@ -354,13 +354,13 @@ const ModelSelector = ({
               </span>
               {currentParsed.tag && (
                 <span
-                  className={`text-[9.5px] font-semibold px-1.5 py-0.2 rounded-md shrink-0 uppercase tracking-wider ${currentMeta.theme.tag}`}
+                  className={`text-label font-bold px-1.5 py-0.2 rounded-md shrink-0 uppercase ${currentMeta.theme.tag}`}
                 >
                   {currentParsed.tag}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+            <p className="text-xs text-slate-500 truncate mt-0.5">
               {currentMeta.label} · {currentMeta.hint}
             </p>
           </div>
@@ -368,7 +368,7 @@ const ModelSelector = ({
 
         {/* Indicador de alternancia */}
         <div className="flex items-center gap-1 text-slate-500 group-hover:text-blue-500 transition-colors shrink-0">
-          <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
+          <span className="text-label font-bold uppercase hidden sm:inline">
             {isExpanded ? 'Cerrar' : 'Cambiar'}
           </span>
           {isExpanded ? (

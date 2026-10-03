@@ -92,27 +92,27 @@ const HRZonesCard = ({ sci }) => {
     <details className="group">
       <summary className="flex items-center gap-2.5 mb-3 px-0.5 cursor-pointer list-none">
         <span className="w-2 h-2 rounded shrink-0 bg-rose-500" />
-        <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-600 tabular-nums shrink-0">FC</span>
-        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 shrink-0">
+        <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-600 tabular-nums shrink-0">FC</span>
+        <span className="text-label font-bold uppercase text-slate-700 dark:text-slate-200 shrink-0">
           Zonas de Entrenamiento
         </span>
-        <span className="font-mono text-[10px] text-slate-500 shrink-0">
+        <span className="font-mono text-xs text-slate-500 shrink-0">
           <span className="text-slate-500 dark:text-slate-400">Karvonen</span>
           <span className="mx-1 text-slate-300 dark:text-slate-700">·</span>
           <span>reserva {fcmax - (fcRest || DEFAULT_REST_HR)} ppm</span>
         </span>
         <span className="flex-1 h-px bg-slate-200/80 dark:bg-slate-800" />
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 shrink-0 group-open:hidden">
+        <span className="text-label font-bold uppercase text-slate-500 shrink-0 group-open:hidden">
           Ver zonas
         </span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 shrink-0 hidden group-open:inline">
+        <span className="text-label font-bold uppercase text-slate-500 shrink-0 hidden group-open:inline">
           Ocultar
         </span>
       </summary>
 
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 sm:p-5">
         {/* Anclajes: FCmax y reposo definen las zonas; LT1/LT2 anclan los ritmos */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs font-mono text-slate-500 dark:text-slate-400">
           <span className="flex items-center gap-1">
             <HeartIcon className="w-3 h-3 text-rose-400" />
             <span className="font-bold uppercase tracking-wider text-slate-500">FCmax</span> {fcmax} ppm
@@ -131,13 +131,13 @@ const HRZonesCard = ({ sci }) => {
                 <span className={`w-1 rounded-full shrink-0 ${z.bar}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className={`text-[11px] font-black ${z.text}`}>{z.name}</span>
+                    <span className={`text-xs font-black ${z.text}`}>{z.name}</span>
                     <span className="font-mono text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
-                      {ppm(i)} <span className="text-[9px] font-medium text-slate-500">ppm</span>
-                      {p && <span className="ml-2 text-[10px] font-medium text-slate-500">{p}</span>}
+                      {ppm(i)} <span className="text-xs font-medium text-slate-500">ppm</span>
+                      {p && <span className="ml-2 text-xs font-medium text-slate-500">{p}</span>}
                     </span>
                   </div>
-                  <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400 mt-0.5">{z.role}</p>
+                  <p className="text-xs leading-snug text-slate-500 dark:text-slate-400 mt-0.5">{z.role}</p>
                 </div>
               </div>
             );
@@ -145,7 +145,7 @@ const HRZonesCard = ({ sci }) => {
         </div>
 
         {/* Lectura polarizada: es la agrupación con la que se juzga el 80/20 */}
-        <p className="mt-3 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+        <p className="mt-3 text-xs leading-snug text-slate-500 dark:text-slate-400">
           <span className="font-bold text-slate-600 dark:text-slate-300">80/20</span> se cuenta agrupando:{' '}
           <span className="font-bold text-emerald-600 dark:text-emerald-400">fácil</span> = Z1+Z2 (≤{easyCeil} ppm) ·{' '}
           <span className="font-bold text-amber-600 dark:text-amber-400">gris</span> = Z3 ·{' '}
@@ -154,7 +154,7 @@ const HRZonesCard = ({ sci }) => {
 
         {/* Banda fáctica: la FC fácil observada manda sobre el techo teórico */}
         {easyHr != null && (
-          <p className="mt-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-xs leading-snug text-slate-500 dark:text-slate-400">
             <span className="font-bold text-emerald-600 dark:text-emerald-400">Tu rodaje fácil real</span> promedia{' '}
             <span className="font-mono font-bold">{easyHr} ppm</span>
             {easyHr > easyCeil
@@ -164,7 +164,7 @@ const HRZonesCard = ({ sci }) => {
         )}
 
         {isEstimate && (
-          <p className="mt-2 text-[9px] leading-snug text-amber-600 dark:text-amber-400">
+          <p className="mt-2 text-xs leading-snug text-amber-600 dark:text-amber-400">
             ⚠ LT2 estimado por fórmula (sin esfuerzo umbral de campo detectado): los RITMOS de referencia
             son aproximados. Las zonas no dependen de él — salen de FCmax y FC de reposo.
           </p>

@@ -22,7 +22,7 @@ function VerdictList({ title, items }) {
   if (!items.length) return null;
   return (
     <section className="rounded-xl border border-blue-100 bg-blue-50/60 px-5 py-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-700/70 mb-1.5">{title}</h3>
+      <h3 className="text-label font-bold uppercase text-blue-700/70 mb-1.5">{title}</h3>
       <ul className="space-y-1">
         {items.map((it) => (
           <li key={it.id} className="flex items-start gap-2 text-sm text-slate-700">

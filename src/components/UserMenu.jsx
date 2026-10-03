@@ -137,10 +137,10 @@ export default function UserMenu({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
               {user?.name || 'Corredor'}
             </p>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
               <SparklesIcon className="w-3 h-3 text-blue-500 shrink-0" />
               <span className="truncate font-medium capitalize">{cleanModelName}</span>
               {isGarminConnected && (
@@ -212,7 +212,7 @@ export default function UserMenu({
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {/* Chip Strava */}
                   <span
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60 shadow-xs"
+                    className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60 shadow-xs"
                     title="Strava Conectado"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-[#fc4c02]" />
@@ -227,7 +227,7 @@ export default function UserMenu({
                         setIsOpen(false);
                         navigate('/health');
                       }}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-xs transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-xs transition-colors cursor-pointer"
                       title="Garmin Connect conectado · Haz clic para ver métricas en Salud › Vitales y Recuperación"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-[#007cc3]" />
@@ -241,12 +241,12 @@ export default function UserMenu({
                         setIsOpen(false);
                         navigate('/connections');
                       }}
-                      className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
                       title="Garmin no conectado · Haz clic para vincular en Ajustes › Conexiones"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                       Garmin
-                      <span className="text-[9px] text-slate-500 dark:text-slate-500 font-normal">off</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-500 font-normal">off</span>
                     </button>
                   )}
                 </div>
@@ -268,7 +268,7 @@ export default function UserMenu({
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
                 {t(
                   'user_menu.ai_model_desc',
                   'Controla las respuestas del Coach, Predictor, Chat y Análisis.'
@@ -303,7 +303,7 @@ export default function UserMenu({
                       : t('user_menu.full_sync', 'Sincronización completa')}
                   </span>
                 </button>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
                   {t(
                     'user_menu.full_sync_desc',
                     'Vuelve a bajar todo el histórico de Strava y Garmin. Tarda más; el sync automático solo trae lo nuevo.'
@@ -322,7 +322,7 @@ export default function UserMenu({
                 >
                   <GlobeAltIcon className="w-3.5 h-3.5 text-slate-400" />
                   <span>{i18n.language?.startsWith('en') ? 'English' : 'Español'}</span>
-                  <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.5 rounded">
+                  <span className="text-label uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.5 rounded">
                     {i18n.language?.startsWith('en') ? 'EN' : 'ES'}
                   </span>
                 </button>

@@ -8,6 +8,7 @@ import { MoonIcon } from '@heroicons/react/24/outline';
 import { formatMinutesHm } from '../lib/timeFormat';
 import { readSleep, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
 import { useEffect } from 'react';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
   const accentMap = {
@@ -29,7 +30,7 @@ const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
-      className="bg-white/60 backdrop-blur-3xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 p-5 flex flex-col gap-2 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300 relative overflow-hidden"
+      className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2 relative overflow-hidden"
     >
       <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-2xl ${accentMap[accent] || "bg-slate-100"}`} />
       <span className="text-xs text-slate-500 font-semibold tracking-wider uppercase relative z-10">{label}</span>
@@ -160,13 +161,13 @@ function SleepSection({ sleepData }) {
             <AreaChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorSleepScore" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS.seriesIndigo} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={COLORS.seriesIndigo} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} tickLine={false} axisLine={false} tickMargin={10} />
-              <YAxis domain={[40, 100]} tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.inkMuted, fontWeight: 500 }} tickLine={false} axisLine={false} tickMargin={10} />
+              <YAxis domain={[40, 100]} tick={AXIS_TICK} tickLine={false} axisLine={false} />
               <Tooltip
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
@@ -178,18 +179,18 @@ function SleepSection({ sleepData }) {
                   ) : null
                 }
               />
-              <ReferenceLine y={80} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: 'Excelente', position: 'insideTopLeft', fontSize: 10, fill: '#10b981', fontWeight: 600 }} />
-              <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: 'Regular', position: 'insideTopLeft', fontSize: 10, fill: '#f59e0b', fontWeight: 600 }} />
-              <Area type="monotone" dataKey="score" name="Puntuación" stroke="#6366f1" fill="url(#colorSleepScore)" strokeWidth={3}
-                dot={{ r: 0 }} activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2, shadow: '0 0 10px rgba(99,102,241,0.5)' }} connectNulls />
+              <ReferenceLine y={80} stroke={COLORS.good} strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: 'Excelente', position: 'insideTopLeft', fontSize: 11, fill: COLORS.good, fontWeight: 600 }} />
+              <ReferenceLine y={60} stroke={COLORS.caution} strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: 'Regular', position: 'insideTopLeft', fontSize: 11, fill: COLORS.caution, fontWeight: 600 }} />
+              <Area type="monotone" dataKey="score" name="Puntuación" stroke={COLORS.seriesIndigo} fill="url(#colorSleepScore)" strokeWidth={3}
+                dot={{ r: 0 }} activeDot={{ r: 6, fill: COLORS.seriesIndigo, stroke: COLORS.paper, strokeWidth: 2, shadow: '0 0 10px rgba(99,102,241,0.5)' }} connectNulls />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
-              <YAxis tickFormatter={v => `${Math.floor(v/60)}h`} tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+              <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: COLORS.hairline }} />
+              <YAxis tickFormatter={v => `${Math.floor(v/60)}h`} tick={AXIS_TICK} tickLine={false} axisLine={false} />
               <Tooltip
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
@@ -207,9 +208,9 @@ function SleepSection({ sleepData }) {
                 }
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="deep"  name="Profundo" stackId="s" fill="#3b82f6" radius={[0,0,0,0]} />
-              <Bar dataKey="rem"   name="REM"      stackId="s" fill="#8b5cf6" />
-              <Bar dataKey="light" name="Ligero"   stackId="s" fill="#93c5fd" />
+              <Bar dataKey="deep"  name="Profundo" stackId="s" fill={COLORS.signalBright} radius={[0,0,0,0]} />
+              <Bar dataKey="rem"   name="REM"      stackId="s" fill={COLORS.seriesViolet} />
+              <Bar dataKey="light" name="Ligero"   stackId="s" fill={COLORS.signalPale} />
               <Bar dataKey="awake" name="Despierto" stackId="s" fill="#fca5a5" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>

@@ -48,7 +48,7 @@ const DISTANCE_STYLE = {
 // ── Piezas compartidas ──────────────────────────────────────────────────────
 
 const Chip = ({ className = '', children }) => (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ring-1 ring-inset ${className}`}>
+    <span className={`px-2 py-0.5 rounded-full text-label font-bold uppercase ring-1 ring-inset ${className}`}>
         {children}
     </span>
 );
@@ -61,7 +61,7 @@ const ViewToggle = ({ raw, onChange, t }) => (
                 key={String(mode)}
                 type="button"
                 onClick={() => onChange(mode)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors ${raw === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-2.5 py-1 rounded-md text-label font-bold uppercase transition-colors ${raw === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
                 {mode ? t('targets.view_raw') : t('targets.view_rendered')}
             </button>
@@ -73,7 +73,7 @@ const ViewToggle = ({ raw, onChange, t }) => (
 const PlanBody = ({ plan, format, raw, frameHeight = '26rem', autoHeight = true }) => {
     if (raw) {
         return (
-            <pre className="text-[11px] leading-relaxed text-slate-600 font-mono whitespace-pre-wrap break-words">{plan}</pre>
+            <pre className="text-xs leading-relaxed text-slate-600 font-mono whitespace-pre-wrap break-words">{plan}</pre>
         );
     }
     return format === 'html'
@@ -100,7 +100,7 @@ const CopyButton = ({ text, t, label, doneLabel, idleIcon }) => {
         <button
             type="button"
             onClick={copy}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-label font-bold uppercase bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
         >
             {copied ? <CheckIcon className="w-3 h-3" /> : (idleIcon || <ClipboardDocumentIcon className="w-3 h-3" />)}
             {copied ? (doneLabel || t('targets.copied')) : (label || t('targets.copy'))}
@@ -149,7 +149,7 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
                         </span>
                     )}
                     {planUpdatedLabel(race, t) && (
-                        <span className="text-[11px] font-bold text-slate-500 hidden lg:inline shrink-0">
+                        <span className="text-xs font-bold text-slate-500 hidden lg:inline shrink-0">
                             · {planUpdatedLabel(race, t)}
                         </span>
                     )}
@@ -194,10 +194,10 @@ const PlanModal = ({ race, format, raw, onRaw, onClose, t }) => {
 /** Dato suelto de la tarjeta: etiqueta pequeña arriba, valor grande abajo. */
 const Stat = ({ label, value, sub, tone = 'text-slate-900' }) => (
     <div className="min-w-0">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
+        <p className="text-label font-bold uppercase text-slate-500 mb-0.5">{label}</p>
         <p className={`text-sm font-black tabular-nums truncate ${tone}`}>
             {value}
-            {sub && <span className="ml-1 text-[11px] font-bold text-slate-500">{sub}</span>}
+            {sub && <span className="ml-1 text-xs font-bold text-slate-500">{sub}</span>}
         </p>
     </div>
 );
@@ -241,18 +241,18 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                             <span className="text-3xl sm:text-4xl font-black leading-none tabular-nums">
                                 {days === 0 ? '¡' : Math.abs(days)}
                             </span>
-                            <span className="text-[9px] font-black uppercase tracking-widest opacity-70 sm:mt-1.5 text-center">
+                            <span className="text-label font-bold uppercase opacity-70 sm:mt-1.5 text-center">
                                 {days === 0 ? t('targets.today') : isPast ? t('targets.past') : t('targets.days_unit')}
                             </span>
-                            <span className="text-[10px] font-black tabular-nums opacity-60 sm:mt-2">
+                            <span className="text-xs font-black tabular-nums opacity-60 sm:mt-2">
                                 {date.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}
                             </span>
                             {race.startTime && (
-                                <span className="text-[10px] font-black tabular-nums opacity-60">{race.startTime}</span>
+                                <span className="text-xs font-black tabular-nums opacity-60">{race.startTime}</span>
                             )}
                         </>
                     ) : (
-                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('targets.no_date')}</span>
+                        <span className="text-label font-bold uppercase opacity-60">{t('targets.no_date')}</span>
                     )}
                 </div>
 
@@ -368,21 +368,21 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                     <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5">
                         <button
                             onClick={() => onToggle(race.id)}
-                            className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-label font-bold uppercase text-slate-500 hover:text-blue-600 transition-colors"
                         >
                             <DocumentTextIcon className="w-3.5 h-3.5" />
                             {open ? t('targets.hide_plan') : t('targets.view_plan')}
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
                         </button>
                         {!open && planUpdatedLabel(race, t) && (
-                            <span className="text-[10px] font-bold text-slate-500 truncate">{planUpdatedLabel(race, t)}</span>
+                            <span className="text-xs font-bold text-slate-500 truncate">{planUpdatedLabel(race, t)}</span>
                         )}
                         {open && (
                             <div className="flex items-center gap-2">
                                 {isRenderable(format) && <ViewToggle raw={showRaw} onChange={(v) => onRaw(race.id, v)} t={t} />}
                                 <button
                                     onClick={() => onExpand(race.id)}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-label font-bold uppercase bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                                     title={t('targets.expand')}
                                 >
                                     <ArrowsPointingOutIcon className="w-3 h-3" />
@@ -572,7 +572,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                     {tab === 'list' && (
                         <button
                             onClick={startNew}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm"
                         >
                             <PlusIcon className="w-4 h-4" />
                             {t('targets.add')}
@@ -585,7 +585,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                         <span className="inline-flex items-center gap-1.5">
                             <ListBulletIcon className="w-3.5 h-3.5" />
                             {t('targets.tab_races')}
-                            <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-slate-200/70 text-slate-600 text-[10px]">{races.length}</span>
+                            <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-slate-200/70 text-slate-600 text-xs">{races.length}</span>
                         </span>
                     </button>
                     <button onClick={() => (editingId ? setTab('form') : startNew())} className={tabClass('form')}>
@@ -603,7 +603,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                             <div className="lg:col-span-2">
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.name')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.name')}</label>
                                 <input
                                     type="text"
                                     value={form.name}
@@ -613,7 +613,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.date')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.date')}</label>
                                 <input
                                     type="date"
                                     value={form.date}
@@ -622,17 +622,17 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.start_time')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.start_time')}</label>
                                 <input
                                     type="time"
                                     value={form.startTime}
                                     onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
                                     className={inputClass}
                                 />
-                                <p className="mt-1.5 text-[10px] font-medium text-slate-500 leading-snug">{t('targets.start_time_hint')}</p>
+                                <p className="mt-1.5 text-xs font-medium text-slate-500 leading-snug">{t('targets.start_time_hint')}</p>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.distance')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.distance')}</label>
                                 <Select value={form.distance} onValueChange={changeDistance} enableClear={false}>
                                     <SelectItem value="5k">{t('planner.distances.5k')}</SelectItem>
                                     <SelectItem value="10k">{t('planner.distances.10k')}</SelectItem>
@@ -641,7 +641,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 </Select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.goal_time')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.goal_time')}</label>
                                 <input
                                     type="text"
                                     value={form.time}
@@ -651,7 +651,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{t('targets.goal_pace')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('targets.goal_pace')}</label>
                                 <input
                                     type="text"
                                     value={form.pace}
@@ -659,20 +659,20 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                                     placeholder={t('targets.goal_pace_ph')}
                                     className={inputClass}
                                 />
-                                <p className="mt-2 text-[11px] font-medium text-slate-500">{t('targets.pace_hint')}</p>
+                                <p className="mt-2 text-xs font-medium text-slate-500">{t('targets.pace_hint')}</p>
                             </div>
                         </div>
 
                         <div>
                             <div className="flex items-center justify-between gap-3 mb-2">
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('targets.plan')}</label>
+                                <label className="block text-label font-bold text-slate-500 uppercase">{t('targets.plan')}</label>
                                 <div className="flex items-center gap-2">
                                     <Chip className="bg-slate-50 text-slate-500 ring-slate-100">{t(`targets.fmt_${formFormat}`)}</Chip>
                                     {isRenderable(formFormat) && (
                                         <button
                                             type="button"
                                             onClick={() => setPreviewForm(v => !v)}
-                                            className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                            className="px-2.5 py-1 rounded-lg text-label font-bold uppercase bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                                         >
                                             {previewForm ? t('targets.view_edit') : t('targets.preview')}
                                         </button>
@@ -700,7 +700,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                         <div className="flex items-center gap-3 pt-5 border-t border-slate-100">
                             <button
                                 type="submit"
-                                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
+                                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm"
                             >
                                 {editingId ? t('targets.save') : t('targets.add')}
                             </button>
@@ -727,7 +727,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                         <p className="text-slate-500 font-medium max-w-sm mx-auto mb-6">{t('targets.empty_desc')}</p>
                         <button
                             onClick={startNew}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm"
                         >
                             <PlusIcon className="w-4 h-4" />
                             {t('targets.add')}
@@ -747,10 +747,10 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                         {upcoming.length > 0 && (
                             <section className="space-y-3">
                                 <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    <h3 className="text-label font-bold text-slate-500 uppercase">
                                         {t('targets.upcoming')} · {upcoming.length}
                                     </h3>
-                                    <p className="text-[11px] font-medium text-slate-500">{t('targets.primary_hint')}</p>
+                                    <p className="text-xs font-medium text-slate-500">{t('targets.primary_hint')}</p>
                                 </div>
                                 <div className="space-y-4">{upcoming.map(renderCard)}</div>
                             </section>
@@ -760,7 +760,7 @@ const TargetRaces = ({ activities = [], planRaceId = null }) => {
                             <section className="space-y-3">
                                 <button
                                     onClick={() => setShowPast(v => !v)}
-                                    className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 hover:text-slate-600 transition-colors"
+                                    className="inline-flex items-center gap-1.5 text-label font-bold text-slate-500 uppercase px-1 hover:text-slate-600 transition-colors"
                                 >
                                     {t('targets.past_section')} · {past.length}
                                     <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />

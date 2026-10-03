@@ -56,11 +56,11 @@ const LandingPage = () => {
                         <span className="hidden md:block text-slate-500 hover:text-blue-600 transition-colors cursor-pointer">
                             {t('landing.privacy')}
                         </span>
-                        <div className="px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-[10px] text-blue-600 font-bold uppercase tracking-widest">
+                        <div className="px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-label text-blue-600 font-bold uppercase">
                             Beta v1.0
                         </div>
                         <button onClick={changeLanguage}
-                            className="px-2.5 py-1 text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 rounded-full uppercase tracking-wider transition-colors">
+                            className="px-2.5 py-1 text-label font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 rounded-full uppercase transition-colors">
                             {lang.startsWith('en') ? 'EN' : 'ES'}
                         </button>
                     </motion.div>
@@ -132,7 +132,7 @@ const LandingPage = () => {
                             animate={{ opacity: 1, y: 0, rotate: -6 }}
                             transition={{ duration: 0.9, delay: 0.7, type: "spring" }}
                             className="absolute left-0 top-6 w-52 bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
-                            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-3">VO2max</p>
+                            <p className="text-slate-500 text-label font-bold uppercase mb-3">VO2max</p>
                             <div className="flex items-center justify-center my-1">
                                 <svg width="96" height="96" viewBox="0 0 96 96">
                                     <circle cx="48" cy="48" r="38" fill="none" stroke="#e2e8f0" strokeWidth="8" />
@@ -147,7 +147,7 @@ const LandingPage = () => {
                                 </svg>
                             </div>
                             <div className="mt-1 text-center">
-                                <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100">
+                                <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
                                     Excellent
                                 </span>
                             </div>
@@ -189,14 +189,14 @@ const LandingPage = () => {
                             className="absolute right-0 top-10 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <SparklesIcon className="w-3.5 h-3.5 text-blue-500" />
-                                <p className="text-blue-600 text-[9px] font-bold uppercase tracking-widest">AI Coach</p>
+                                <p className="text-blue-600 text-label font-bold uppercase">AI Coach</p>
                             </div>
                             <p className="text-slate-600 text-xs leading-relaxed mb-3">
                                 "Add one tempo run this week. Your aerobic base supports a higher lactate threshold effort."
                             </p>
                             <div className="flex gap-1.5 flex-wrap">
                                 {['80/20', 'Tempo', 'Week 3'].map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[9px] font-semibold border border-blue-100">{tag}</span>
+                                    <span key={tag} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold border border-blue-100">{tag}</span>
                                 ))}
                             </div>
                         </motion.div>
@@ -209,7 +209,7 @@ const LandingPage = () => {
                             className="absolute left-20 bottom-0 w-48 bg-white rounded-2xl border border-slate-200 shadow-lg p-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <ShieldExclamationIcon className="w-4 h-4 text-amber-500" />
-                                <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">Injury Risk</p>
+                                <p className="text-slate-500 text-label font-bold uppercase">Injury Risk</p>
                             </div>
                             <div className="flex items-end gap-1 mb-2">
                                 <span className="text-3xl font-black text-amber-500 tabular-nums leading-none">24</span>
@@ -220,7 +220,7 @@ const LandingPage = () => {
                                     transition={{ duration: 0.8, delay: 1.5 }}
                                     className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-amber-400" />
                             </div>
-                            <p className="text-emerald-600 text-[9px] font-bold mt-1.5">Low risk</p>
+                            <p className="text-emerald-600 text-xs font-bold mt-1.5">Low risk</p>
                         </motion.div>
 
                         {/* Card 5 — Heart Rate pulse (bottom-right) */}
@@ -230,7 +230,7 @@ const LandingPage = () => {
                             transition={{ duration: 0.8, delay: 1.3, type: "spring" }}
                             className="absolute right-14 bottom-4 w-48 bg-white rounded-2xl border border-slate-200 shadow-lg p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">Avg HR</p>
+                                <p className="text-slate-500 text-label font-bold uppercase">Avg HR</p>
                                 <HeartIcon className="w-3.5 h-3.5 text-rose-400" />
                             </div>
                             <p className="text-3xl font-black text-rose-500 tabular-nums leading-none mb-2">148 <span className="text-sm text-slate-500 font-semibold">bpm</span></p>
@@ -336,7 +336,7 @@ const LandingPage = () => {
                                         viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
                                         className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
                                         <p className={`text-xl font-black tabular-nums ${s.color}`}>{s.val}</p>
-                                        <p className="text-slate-500 text-[10px] font-semibold mt-0.5">{s.label}</p>
+                                        <p className="text-slate-500 text-xs font-semibold mt-0.5">{s.label}</p>
                                     </motion.div>
                                 ))}
                             </div>
@@ -357,7 +357,7 @@ const LandingPage = () => {
                                 {/* overlay label */}
                                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
                                     <MapIcon className="w-4 h-4 text-white/40" />
-                                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                                    <span className="text-white/40 text-label font-bold uppercase">
                                         {tx(lang, 'Global Activity Map', 'Mapa de Actividad Global')}
                                     </span>
                                 </div>
@@ -469,7 +469,7 @@ const LandingPage = () => {
                                 className="flex flex-col items-center text-center">
                                 <div className={`relative w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-md ${step.bg}`}>
                                     <step.icon className="w-10 h-10 text-white" />
-                                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border-2 border-slate-100 shadow flex items-center justify-center text-[10px] font-black text-slate-700">
+                                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border-2 border-slate-100 shadow flex items-center justify-center text-xs font-black text-slate-700">
                                         {i + 1}
                                     </span>
                                 </div>
@@ -602,7 +602,7 @@ const LandingPage = () => {
                                     </div>
                                     <div>
                                         <p className="text-sm font-black text-slate-900 leading-tight">{review.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{review.role}</p>
+                                        <p className="text-label font-bold text-slate-500 uppercase">{review.role}</p>
                                     </div>
                                     <div className="ml-auto flex gap-0.5">
                                         {[...Array(5)].map((_, s) => (
@@ -692,7 +692,7 @@ const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = ''
                     <Icon className="w-6 h-6" />
                 </div>
                 {badge && (
-                    <span className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-label font-bold uppercase">
                         {badge}
                     </span>
                 )}
@@ -779,7 +779,7 @@ const LTChart = () => {
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
                 <div>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">
+                    <p className="text-slate-500 text-label font-bold uppercase mb-1">
                         Threshold Pace
                     </p>
                     <div className="flex items-baseline gap-2">
@@ -787,14 +787,14 @@ const LTChart = () => {
                             {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
                         <span className="text-slate-500 text-sm">/km</span>
-                        <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100">
+                        <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
                             ↑ {formatPaceFromSecPerKm(vals[0])} → {formatPaceFromSecPerKm(vals[vals.length - 1])}
                         </span>
                     </div>
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100">
                     <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span className="text-indigo-600 text-[10px] font-bold">12 months</span>
+                    <span className="text-indigo-600 text-xs font-bold">12 months</span>
                 </div>
             </div>
 
@@ -867,7 +867,7 @@ const LTChart = () => {
             </svg>
 
             {/* Footer note */}
-            <p className="text-slate-500 text-[10px] text-center mt-3 font-medium">
+            <p className="text-slate-500 text-xs text-center mt-3 font-medium">
                 Estimated automatically · No lab test required
             </p>
         </div>

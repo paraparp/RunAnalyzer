@@ -1,0 +1,456 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-03T12:05:06.923Z",
+  "title": "Design System: RunAnalyzer",
+  "extensions": {
+    "colorMeta": {
+      "signal-blue": {
+        "role": "primary",
+        "displayName": "Azul señal",
+        "tonalRamp": [
+          "#172554",
+          "#1e3a8a",
+          "#1d4ed8",
+          "#2563eb",
+          "#3b82f6",
+          "#93c5fd",
+          "#dbeafe",
+          "#eff6ff"
+        ]
+      },
+      "signal-blue-deep": {
+        "role": "primary",
+        "displayName": "Azul señal profundo"
+      },
+      "signal-blue-wash": {
+        "role": "primary",
+        "displayName": "Lavado azul"
+      },
+      "kinetic-blue": {
+        "role": "primary",
+        "displayName": "Azul cinético",
+        "tonalRamp": [
+          "#001b61",
+          "#002376",
+          "#0041c7",
+          "#004be2",
+          "#6889ff",
+          "#809bff",
+          "#d8caff",
+          "#e8e6ff"
+        ]
+      },
+      "kinetic-blue-soft": {
+        "role": "primary",
+        "displayName": "Azul cinético suave"
+      },
+      "status-good": {
+        "role": "secondary",
+        "displayName": "Verde estado",
+        "tonalRamp": [
+          "#022c22",
+          "#064e3b",
+          "#047857",
+          "#059669",
+          "#10b981",
+          "#6ee7b7",
+          "#d1fae5",
+          "#ecfdf5"
+        ]
+      },
+      "status-caution": {
+        "role": "secondary",
+        "displayName": "Ámbar precaución",
+        "tonalRamp": [
+          "#451a03",
+          "#78350f",
+          "#b45309",
+          "#d97706",
+          "#f59e0b",
+          "#fcd34d",
+          "#fef3c7",
+          "#fffbeb"
+        ]
+      },
+      "status-risk": {
+        "role": "secondary",
+        "displayName": "Rosa riesgo",
+        "tonalRamp": [
+          "#4c0519",
+          "#881337",
+          "#be123c",
+          "#e11d48",
+          "#f43f5e",
+          "#fda4af",
+          "#ffe4e6",
+          "#fff1f2"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "tonalRamp": [
+          "#020617",
+          "#0f172a",
+          "#334155",
+          "#475569",
+          "#64748b",
+          "#cbd5e1",
+          "#f1f5f9",
+          "#f8fafc"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Tinta secundaria"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Tinta tenue"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Línea"
+      },
+      "hairline-soft": {
+        "role": "neutral",
+        "displayName": "Línea suave"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papel"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Lienzo"
+      },
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Hundido"
+      },
+      "zone-1": {
+        "role": "tertiary",
+        "displayName": "Z1 Recuperación"
+      },
+      "zone-2": {
+        "role": "tertiary",
+        "displayName": "Z2 Aeróbico"
+      },
+      "zone-3": {
+        "role": "tertiary",
+        "displayName": "Z3 Tempo"
+      },
+      "zone-4": {
+        "role": "tertiary",
+        "displayName": "Z4 Umbral"
+      },
+      "zone-5": {
+        "role": "tertiary",
+        "displayName": "Z5 VO2max"
+      },
+      "signal-blue-bright": {
+        "role": "primary",
+        "displayName": "Azul señal brillante"
+      },
+      "signal-blue-light": {
+        "role": "primary",
+        "displayName": "Azul señal claro"
+      },
+      "signal-blue-pale": {
+        "role": "primary",
+        "displayName": "Azul señal pálido"
+      },
+      "status-good-bright": {
+        "role": "secondary",
+        "displayName": "Verde estado brillante"
+      },
+      "status-good-deep": {
+        "role": "secondary",
+        "displayName": "Verde estado profundo"
+      },
+      "status-caution-light": {
+        "role": "secondary",
+        "displayName": "Ámbar claro"
+      },
+      "status-caution-deep": {
+        "role": "secondary",
+        "displayName": "Ámbar profundo"
+      },
+      "status-elevated": {
+        "role": "secondary",
+        "displayName": "Naranja elevado"
+      },
+      "status-risk-light": {
+        "role": "secondary",
+        "displayName": "Rosa riesgo claro"
+      },
+      "status-risk-deep": {
+        "role": "secondary",
+        "displayName": "Rosa riesgo profundo"
+      },
+      "series-indigo": {
+        "role": "tertiary",
+        "displayName": "Serie índigo"
+      },
+      "series-violet": {
+        "role": "tertiary",
+        "displayName": "Serie violeta"
+      },
+      "series-sky": {
+        "role": "tertiary",
+        "displayName": "Serie cielo"
+      },
+      "series-cyan": {
+        "role": "tertiary",
+        "displayName": "Serie cian"
+      },
+      "strava": {
+        "role": "tertiary",
+        "displayName": "Strava"
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Tinta débil"
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Línea fuerte"
+      },
+      "zone-2-text": {
+        "role": "tertiary",
+        "displayName": "Z2 texto"
+      },
+      "zone-3-text": {
+        "role": "tertiary",
+        "displayName": "Z3 texto"
+      },
+      "zone-4-text": {
+        "role": "tertiary",
+        "displayName": "Z4 texto"
+      },
+      "zone-5-text": {
+        "role": "tertiary",
+        "displayName": "Z5 texto"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Cifra principal de la vista de Hoy, en Plus Jakarta Sans."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Cifras clave de tarjeta y titulares de sección."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Título de tarjeta."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto de cuerpo, explicaciones, celdas de tabla."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Metadatos, unidades, leyendas; suelo para texto en minúscula."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Cabecera de dato, chip, encabezado de tabla; versales 11px (text-label)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sheet-rest",
+        "value": "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+        "purpose": "Tarjetas en reposo."
+      },
+      {
+        "name": "floating",
+        "value": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+        "purpose": "Menús, tooltips, popovers."
+      },
+      {
+        "name": "overlay",
+        "value": "0 25px 50px -12px rgba(0,0,0,0.25)",
+        "purpose": "Ventanas y panel lateral del chat."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fade-in",
+        "value": "fadeIn 0.3s ease-out",
+        "purpose": "Entrada de vista: opacidad y 8px de desplazamiento."
+      },
+      {
+        "name": "sidebar-enter",
+        "value": "slideInLeft 0.25s ease-out",
+        "purpose": "Apertura del cajón lateral en móvil."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal de una vista: generar plan, sincronizar, guardar.",
+      "html": "<button class=\"ds-btn-primary\">Generar plan</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 2px; font: 900 12px/16px Inter, system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 1px 2px rgba(37,99,235,0.2); cursor: pointer; transition: background 0.15s; } .ds-btn-primary:hover { background: #1d4ed8; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2563eb; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción secundaria o neutra junto a una principal.",
+      "html": "<button class=\"ds-btn-secondary\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99\"/></svg>Sincronizar</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; background: #fff; color: #64748b; border: 1px solid #e2e8f0; border-radius: 2px; font: 500 12px/16px Inter, system-ui, sans-serif; cursor: pointer; transition: background 0.15s, color 0.15s; } .ds-btn-secondary:hover { background: #f8fafc; color: #0f172a; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px #94a3b8; }"
+    },
+    {
+      "name": "Data Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Hoja plana con etiqueta, cifra y pista: la unidad básica del cuaderno.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-label\">Carga crónica · CTL</div><div class=\"ds-card-value\">54,2</div><div class=\"ds-card-hint\">+3,1 en 4 semanas</div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 2px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); font-family: Inter, system-ui, sans-serif; } .ds-card-label { font: 700 11px/16px Inter, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; } .ds-card-value { margin-top: 4px; font: 900 24px/1.2 Inter, sans-serif; letter-spacing: -0.025em; color: #0f172a; font-variant-numeric: tabular-nums; } .ds-card-hint { margin-top: 2px; font: 500 12px/16px Inter, sans-serif; color: #059669; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulario: hundido en reposo, papel al enfocar.",
+      "html": "<input class=\"ds-input\" placeholder=\"Maratón de Valencia\" />",
+      "css": ".ds-input { width: 260px; padding: 8px 12px; background: #f8fafc; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 2px; font: 400 14px/20px Inter, system-ui, sans-serif; transition: all 0.15s; } .ds-input::placeholder { color: #64748b; } .ds-input:focus { outline: none; background: #fff; border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Categorías de la barra lateral; la activa despliega sus subvistas.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\" href=\"#\">Rendimiento</a><a class=\"ds-nav-sub\" href=\"#\">Estado de forma</a><a class=\"ds-nav-sub ds-nav-sub-active\" href=\"#\">Zonas de FC</a><a class=\"ds-nav-item\" href=\"#\">Salud</a><a class=\"ds-nav-item\" href=\"#\">Carreras</a></nav>",
+      "css": ".ds-nav { width: 260px; background: #fff; display: flex; flex-direction: column; gap: 2px; padding: 8px; font-family: Inter, system-ui, sans-serif; } .ds-nav-item { padding: 12px 16px; font: 500 14px/20px Inter, sans-serif; color: #64748b; text-decoration: none; border-right: 4px solid transparent; transition: all 0.15s; } .ds-nav-item:hover { color: #2563eb; background: rgba(241,245,249,0.8); } .ds-nav-active { color: #1d4ed8; font-weight: 700; background: rgba(239,246,255,0.5); border-right-color: #2563eb; } .ds-nav-sub { padding: 6px 12px 6px 44px; font: 500 13px/18px Inter, sans-serif; color: #64748b; text-decoration: none; } .ds-nav-sub:hover { color: #0f172a; } .ds-nav-sub-active { color: #2563eb; font-weight: 700; } .ds-nav a:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #93c5fd; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-status",
+      "description": "Estado puntual junto a un valor (VFC equilibrada, fatiga, riesgo).",
+      "html": "<span class=\"ds-chip ds-chip-good\">Okey</span> <span class=\"ds-chip ds-chip-caution\">Vigilar</span> <span class=\"ds-chip ds-chip-risk\">Baja</span>",
+      "css": ".ds-chip { display: inline-block; padding: 2px 6px; border-radius: 2px; font: 700 11px/16px Inter, system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; } .ds-chip-good { background: rgba(209,250,229,0.7); color: #065f46; } .ds-chip-caution { background: rgba(254,243,199,0.7); color: #92400e; } .ds-chip-risk { background: rgba(255,228,230,0.7); color: #9f1239; }"
+    },
+    {
+      "name": "Zone Bar",
+      "kind": "custom",
+      "refersTo": "zone-1",
+      "description": "Reparto de tiempo en zonas Z1–Z5 con la paleta compartida de zoneColors.js.",
+      "html": "<div class=\"ds-zones\"><span style=\"flex:18;background:#94a3b8\"></span><span style=\"flex:46;background:#38bdf8\"></span><span style=\"flex:22;background:#4ade80\"></span><span style=\"flex:10;background:#fb923c\"></span><span style=\"flex:4;background:#f87171\"></span></div><div class=\"ds-zones-legend\"><b style=\"color:#475569\">Z1</b><b style=\"color:#0369a1\">Z2</b><b style=\"color:#15803d\">Z3</b><b style=\"color:#c2410c\">Z4</b><b style=\"color:#b91c1c\">Z5</b></div>",
+      "css": ".ds-zones { display: flex; width: 320px; height: 10px; border-radius: 2px; overflow: hidden; gap: 1px; } .ds-zones span { display: block; } .ds-zones-legend { display: flex; justify-content: space-between; width: 320px; margin-top: 6px; font: 700 11px/16px Inter, system-ui, sans-serif; letter-spacing: 0.06em; }"
+    },
+    {
+      "name": "AI Tool Header",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Cabecera de las superficies de IA, coronada por la banda kinetic-gradient.",
+      "html": "<div class=\"ds-ai-head\"><div class=\"ds-ai-band\"></div><div class=\"ds-ai-row\"><div class=\"ds-ai-tile\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z\"/></svg></div><div><div class=\"ds-ai-title\">Coach IA</div><div class=\"ds-ai-sub\">Análisis de las últimas 6 semanas</div></div></div></div>",
+      "css": ".ds-ai-head { position: relative; overflow: hidden; width: 420px; background: #fff; border: 1px solid #e2e8f0; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-family: Inter, system-ui, sans-serif; } .ds-ai-band { position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(135deg, #004be2 0%, #809bff 100%); } .ds-ai-row { display: flex; align-items: center; gap: 10px; padding: 16px 20px; } .ds-ai-tile { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 2px; background: #eff6ff; color: #2563eb; } .ds-ai-title { font: 900 14px/1.25 Inter, sans-serif; text-transform: uppercase; letter-spacing: -0.025em; color: #1e293b; } .ds-ai-sub { margin-top: 2px; font: 600 12px/16px Inter, sans-serif; color: #64748b; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El cuaderno de laboratorio",
+    "overview": "RunAnalyzer se presenta como el cuaderno de un fisiólogo: hojas blancas sobre una mesa gris azulada, cifras escritas con decisión y anotaciones pequeñas y precisas al margen. La interfaz no compite con el dato; lo enmarca. Cada pantalla es una página de registro: una cabecera con la pregunta, el número que la responde y el contexto mínimo para fiarse de él.\n\nLa densidad es alta, como corresponde a una herramienta de análisis que el atleta consulta a diario, pero ordenada: superficies planas con borde fino, esquinas casi rectas (2px) y una sola tinta de acento, el azul señal. El color se gana: aparece cuando significa algo (zona de FC, estado bueno/precaución/riesgo, acción principal) y no como decoración.\n\nEl sistema rechaza el brillo de producto genérico: degradados en el texto, resplandores de color, tarjetas de cristal translúcido y adornos que no dicen nada sobre el entrenamiento.",
+    "keyCharacteristics": [
+      "Hojas planas blancas con borde fino sobre lienzo gris azulado.",
+      "Esquinas de 2px en todo: afilado, técnico, de instrumento.",
+      "Cifras protagonistas en peso máximo con números tabulares; etiquetas pequeñas en versales.",
+      "Un acento (azul señal) para acción y selección; tres colores de estado y cinco de zona con significado fijo.",
+      "Bandas oscuras puntuales (tinta) para el veredicto del día, nunca como tema general."
+    ],
+    "rules": [
+      {
+        "name": "The Earned Color Rule",
+        "body": "El color significa algo o no aparece. Azul es acción o selección; verde, ámbar y rosa son estado; las zonas son zonas. Un color no se usa «para dar vida».",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Floor Rule",
+        "body": "Ningún texto sobre blanco por debajo de la tinta tenue (4.8:1). Los grises más claros son para iconos decorativos, bordes y estados desactivados.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fixed Meaning Rule",
+        "body": "Un color de zona o de estado significa lo mismo en todas las pantallas. Z3 no puede ser verde en una vista y ámbar en otra.",
+        "section": "colors"
+      },
+      {
+        "name": "The Eleven Floor Rule",
+        "body": "Nada por debajo de 11px, y 11px solo en versales. En minúscula el suelo es 12px. La excepción es el póster exportable de `RouteGallery`, que es un objeto impreso y no interfaz.",
+        "section": "typography"
+      },
+      {
+        "name": "The Heavy Is Data Rule",
+        "body": "El peso 900 es para cifras y titulares. Las etiquetas van en 700; si todo pesa lo mismo, nada destaca.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Toda cifra que se compara con otra (tablas, parciales, series) usa números tabulares.",
+        "section": "typography"
+      },
+      {
+        "name": "The Page-Of-Record Rule",
+        "body": "Cada vista abre con su cabecera (qué pregunta responde) y sigue con el dato. No hay heroes de marketing dentro de la aplicación.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Las tarjetas son hojas planas: blanco, línea de 1px y como mucho la sombra de reposo. Ni cristal translúcido ni sombras grandes en una tarjeta que no flota.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Glow Rule",
+        "body": "Sin halos de color (sombras sin desplazamiento teñidas de azul, verde o rosa). La profundidad no se colorea.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Pixel Rule",
+        "body": "Una forma nueva usa 2px. No se introducen radios grandes para «suavizar»: el carácter del sistema es la esquina recta.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do usar la tinta tenue (#64748b) como gris más claro para cualquier texto sobre blanco.",
+      "Do usar `text-label` (11px, 700, versales, 0.06em) para cabeceras de dato y chips, y `text-xs` (12px) como mínimo para texto en minúscula.",
+      "Do tomar los colores de zona de `src/lib/zoneColors.js` y no redefinirlos en el componente.",
+      "Do construir tarjetas como hojas planas: papel, línea de 1px y sombra de reposo.",
+      "Do reservar el azul señal para acción y selección, y verde, ámbar y rosa para estado.",
+      "Do usar números tabulares en toda cifra comparable."
+    ],
+    "donts": [
+      "Don't usar texto en degradado; el énfasis se da con peso y tamaño.",
+      "Don't usar tarjetas de cristal translúcido (`bg-white/70` + `backdrop-blur`) ni halos de color (`glow-*`).",
+      "Don't usar bordes laterales gruesos (más de 1px) de color en tarjetas, avisos o recuadros. El indicador de navegación activa es la única excepción establecida.",
+      "Don't poner gris sobre un fondo de color; en un lavado, el texto se tiñe del mismo tono.",
+      "Don't introducir radios grandes; la forma del sistema es la esquina de 2px.",
+      "Don't escribir colores hexadecimales nuevos en un componente si ya existe el token.",
+      "Don't usar otro rojo que el rosa riesgo; `#ef4444` y `#dc2626` no forman parte del sistema."
+    ]
+  }
+}

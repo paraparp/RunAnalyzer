@@ -5,6 +5,7 @@ import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
 import { getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 import { RouteShape } from './TodayVisuals';
+import { COLORS } from '../lib/palette';
 
 const PAD = [24, 24];
 
@@ -45,7 +46,7 @@ export default function RouteMap({ encoded, className = '' }) {
         scrollWheelZoom={false}
         attributionControl
         className="w-full h-full"
-        style={{ background: '#f1f5f9' }}
+        style={{ background: COLORS.hairlineSoft }}
       >
         <TileLayer
           key={layer}
@@ -53,13 +54,13 @@ export default function RouteMap({ encoded, className = '' }) {
           attribution={getMapAttribution(layer === 'satellite' ? 'satellite' : 'light')}
         />
         {/* Halo blanco bajo la traza para que se lea sobre cualquier fondo */}
-        <Polyline positions={points} pathOptions={{ color: '#ffffff', weight: 7, opacity: 0.9 }} />
-        <Polyline positions={points} pathOptions={{ color: '#2563eb', weight: 3.5, opacity: 1 }} />
-        <CircleMarker center={start} radius={6} pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#10b981', fillOpacity: 1 }} />
-        <CircleMarker center={end} radius={6} pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#0f172a', fillOpacity: 1 }} />
+        <Polyline positions={points} pathOptions={{ color: COLORS.paper, weight: 7, opacity: 0.9 }} />
+        <Polyline positions={points} pathOptions={{ color: COLORS.signal, weight: 3.5, opacity: 1 }} />
+        <CircleMarker center={start} radius={6} pathOptions={{ color: COLORS.paper, weight: 2, fillColor: COLORS.good, fillOpacity: 1 }} />
+        <CircleMarker center={end} radius={6} pathOptions={{ color: COLORS.paper, weight: 2, fillColor: COLORS.ink, fillOpacity: 1 }} />
         <FitRoute bounds={points} />
       </MapContainer>
-      <div className="absolute top-2 right-2 z-[1000] flex rounded-md bg-white/95 shadow-sm ring-1 ring-slate-200 p-0.5 text-[10px] font-semibold">
+      <div className="absolute top-2 right-2 z-[1000] flex rounded-md bg-white/95 shadow-sm ring-1 ring-slate-200 p-0.5 text-xs font-semibold">
         {['map', 'satellite'].map((l) => (
           <button
             key={l}

@@ -428,10 +428,10 @@ const Dashboard = ({ user, handleLogout }) => {
         {/* Logo */}
         <div className="px-5 py-6 shrink-0">
           <div className="flex items-center gap-3">
-            <Logo className="w-11 h-11 rounded-2xl ring-1 ring-blue-100 shadow-sm shadow-blue-500/10" />
+            <Logo className="w-11 h-11 rounded-2xl ring-1 ring-blue-100 shadow-sm" />
             <div className="leading-none">
-              <div className="text-[18px] font-black italic tracking-tight bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 bg-clip-text text-transparent">RunAnalyzer</div>
-              <div className="text-[9.5px] font-semibold uppercase tracking-[0.18em] text-slate-500 mt-1.5">AI Running Analytics</div>
+              <div className="text-[18px] font-black italic tracking-tight text-blue-700">RunAnalyzer</div>
+              <div className="text-label font-bold uppercase text-slate-500 mt-1.5">AI Running Analytics</div>
             </div>
           </div>
         </div>
@@ -475,7 +475,7 @@ const Dashboard = ({ user, handleLogout }) => {
                             setCurrentView(itemId);
                             setMobileMenuOpen(false);
                           }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-all ${isItemActive
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all ${isItemActive
                             ? 'text-blue-700 font-bold bg-blue-100/40'
                             : 'text-slate-500 font-medium hover:text-blue-600 hover:bg-slate-100'
                             }`}
@@ -595,7 +595,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 <button
                   onClick={() => runSync({ force: true })}
                   disabled={isSyncing}
-                  className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
+                  className={`inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all ${isSyncing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
                     }`}
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -632,7 +632,7 @@ const Dashboard = ({ user, handleLogout }) => {
 
             {SCOPED_VIEWS.has(currentView) && (
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t('time_scope.label')}</span>
+                <span className="text-label font-bold uppercase text-slate-500">{t('time_scope.label')}</span>
                 <TimeScopeSelector />
               </div>
             )}
@@ -690,7 +690,7 @@ const Dashboard = ({ user, handleLogout }) => {
           onClick={() => openChat()}
           title={t('nav.qa')}
           aria-label={t('nav.qa')}
-          className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 flex items-center justify-center transition-colors"
+          className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
         >
           <ChatBubbleLeftRightIcon className="w-5 h-5" />
         </button>

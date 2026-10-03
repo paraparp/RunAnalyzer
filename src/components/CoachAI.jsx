@@ -38,7 +38,7 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
   return (
     <ul className={lg ? 'space-y-2.5' : 'space-y-2'}>
       {text.split('\n').map(l => l.trim()).filter(l => l && !/^\**bloque\s*\d+/i.test(l)).map((l, i) => (
-        <li key={i} className={`flex gap-2.5 ${lg ? 'text-[13px]' : 'text-[12px]'} leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600 dark:text-slate-400'}`}>
+        <li key={i} className={`flex gap-2.5 ${lg ? 'text-sm' : 'text-xs'} leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600 dark:text-slate-400'}`}>
           <span className={`shrink-0 ${lg ? 'mt-[7px]' : 'mt-[6px]'} w-1.5 h-1.5 rounded-full ${dot}`} />
           <span>{inline(l.replace(/^[-•*]\s+/, ''))}</span>
         </li>
@@ -50,7 +50,7 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
 // ── Disclosure: lo que es referencia o detalle largo no compite con el foco ──
 export const CoachDisclosure = ({ label, children, className = '' }) => (
   <details className={`group rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 ${className}`}>
-    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-[9px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-label font-bold uppercase text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
       <span className="transition-transform group-open:rotate-90 text-slate-300 dark:text-slate-600">▸</span>
       {label}
     </summary>
@@ -69,7 +69,7 @@ export const CoachPulse = () => (
 
 // Badge sobrio: punto de color en lugar de emoji (mapas en lib/aiInsights)
 export const CoachBadge = ({ badge, className = '' }) => (
-  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold border ${badge.color} ${className}`}>
+  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold border ${badge.color} ${className}`}>
     <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 shrink-0" />
     {badge.text}
   </span>
@@ -153,7 +153,7 @@ export function CoachSettings({ ai }) {
         {open && (
           <div role="dialog" aria-label="Ajustes del análisis IA" className="absolute right-0 top-full mt-2 w-60 z-30 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-md p-4 space-y-3">
             <div>
-              <label htmlFor="ai-weekly-target" className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Correr / semana</label>
+              <label htmlFor="ai-weekly-target" className="text-label font-bold uppercase text-slate-500 block mb-1.5">Correr / semana</label>
               <select
                 id="ai-weekly-target"
                 value={weeklyTarget}
@@ -167,11 +167,11 @@ export function CoachSettings({ ai }) {
                 ))}
               </select>
             </div>
-            <p className="text-[9px] text-slate-500 font-semibold leading-snug">
+            <p className="text-xs text-slate-500 font-semibold leading-snug">
               Los cambios se aplican al pulsar «Recalcular».
             </p>
             {goal && (
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
                 🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700 dark:text-slate-300">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
               </div>
             )}
@@ -188,7 +188,7 @@ export function CoachBanners({ ai }) {
   return (
     <>
       {loading && providerLabel && (
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-semibold ${isFallback
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-semibold ${isFallback
           ? 'bg-amber-50 border-amber-200/50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400'
           : 'bg-blue-50 border-blue-200/50 text-blue-800 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400'
           }`}>
@@ -198,7 +198,7 @@ export function CoachBanners({ ai }) {
       )}
 
       {restoreWarning && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200/50 rounded-xl text-[11px] text-amber-800 font-semibold dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400">
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200/50 rounded-xl text-xs text-amber-800 font-semibold dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400">
           <span className="shrink-0 text-sm">⚠️</span>
           <span>Falló la actualización — mostrando la recomendación anterior guardada.</span>
           <button
@@ -215,13 +215,13 @@ export function CoachBanners({ ai }) {
         <div className="rounded-xl border border-amber-200/70 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
           <div className="flex items-center gap-2 mb-1.5">
             <ShieldExclamationIcon className="w-4 h-4 text-amber-500 shrink-0" />
-            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700 dark:text-amber-400">
+            <span className="text-label font-bold uppercase text-amber-700 dark:text-amber-400">
               Revisa la prescripción
             </span>
           </div>
           <ul className="space-y-1">
             {warnings.map((w, i) => (
-              <li key={i} className="flex gap-2 text-[11px] leading-snug text-amber-800 dark:text-amber-300/90">
+              <li key={i} className="flex gap-2 text-xs leading-snug text-amber-800 dark:text-amber-300/90">
                 <span className="shrink-0 mt-[5px] w-1 h-1 rounded-full bg-amber-500" />
                 <span>{w}</span>
               </li>

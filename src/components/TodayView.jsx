@@ -23,6 +23,7 @@ import { karvonenBounds, classifyHR, POLARIZED_TARGETS } from '../lib/hrZones';
 import { zoneMix, polarizedGroups, polarizationStatus } from '../lib/zoneMix';
 import { formatPaceFromSpeed, formatPaceFromSecPerKm, formatMinutesHm, formatDuration } from '../lib/timeFormat';
 import { Ring, Scale, WorkoutProfile, RouteShape, DetailLink, Panel } from './TodayVisuals';
+import { COLORS } from '../lib/palette';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoy. La portada contesta "¿cómo voy y qué hago?" de un vistazo, de lo
@@ -44,11 +45,11 @@ const DASH = '—';
 // Zonas de Karvonen con los colores de la vista de Zonas: el mismo reparto no
 // puede cambiar de pinta según dónde se mire.
 const ZONES = [
-  { name: 'Z1', role: 'Recuperación', color: '#94a3b8' },
+  { name: 'Z1', role: 'Recuperación', color: COLORS.inkFaint },
   { name: 'Z2', role: 'Base',         color: '#38bdf8' },
   { name: 'Z3', role: 'Aeróbico',     color: '#4ade80' },
   { name: 'Z4', role: 'Umbral',       color: '#fb923c' },
-  { name: 'Z5', role: 'VO2max',       color: '#f87171' },
+  { name: 'Z5', role: 'VO2max',       color: COLORS.riskLight },
 ];
 
 const VERDICT = {
@@ -85,11 +86,11 @@ const DISPLAY = "font-['Plus_Jakarta_Sans',Inter,sans-serif]";
 const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 const TONE = {
-  emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: '#10b981', text: 'text-emerald-600 dark:text-emerald-400', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
-  blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: '#2563eb', text: 'text-blue-600 dark:text-blue-400',       pill: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
-  amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: '#f59e0b', text: 'text-amber-600 dark:text-amber-400',     pill: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
-  rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: '#f43f5e', text: 'text-rose-600 dark:text-rose-400',       pill: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
-  slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           stroke: '#94a3b8', text: 'text-slate-500',                         pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
+  emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: COLORS.good, text: 'text-emerald-600 dark:text-emerald-400', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+  blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: COLORS.signal, text: 'text-blue-600 dark:text-blue-400',       pill: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
+  amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: COLORS.caution, text: 'text-amber-600 dark:text-amber-400',     pill: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
+  rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: COLORS.risk, text: 'text-rose-600 dark:text-rose-400',       pill: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
+  slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           stroke: COLORS.inkFaint, text: 'text-slate-500',                         pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 
@@ -110,14 +111,14 @@ function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar
     <div className="p-3.5 rounded bg-white/[0.06] border border-white/10 flex flex-col gap-1.5 min-w-0">
       <div className="flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] text-white/50">{icon}</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 truncate">{label}</span>
+        <span className="text-label font-bold uppercase text-white/50 truncate">{label}</span>
         <span className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ background: stroke, boxShadow: `0 0 8px ${stroke}` }} />
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-black text-white tabular-nums leading-none">{value}</span>
-        <span className="text-[10px] text-white/40 font-semibold">{unit}</span>
+        <span className="text-xs text-white/40 font-semibold">{unit}</span>
       </div>
-      <span className={`text-[11px] font-bold truncate ${HERO_TEXT[tone] ?? HERO_TEXT.slate}`}>{note}</span>
+      <span className={`text-xs font-bold truncate ${HERO_TEXT[tone] ?? HERO_TEXT.slate}`}>{note}</span>
       {spark ? (
         <svg className="w-full h-5" preserveAspectRatio="none" viewBox="0 0 100 24">
           <path d={spark} fill="none" stroke={stroke} strokeLinecap="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -135,7 +136,7 @@ function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar
 // Cada cifra de estado se pinta sobre SU escala, con los cortes que ya usa la
 // app: readiness (athleteContext), TSB (formZone), ACWR (acwrZone) y los de las
 // señales del wearable que la portada llevaba en sus tonos.
-const C_GOOD = '#10b981', C_WARN = '#f59e0b', C_BAD = '#f43f5e', C_FRESH = '#38bdf8', C_TRANS = '#a78bfa';
+const C_GOOD = COLORS.good, C_WARN = COLORS.caution, C_BAD = COLORS.risk, C_FRESH = '#38bdf8', C_TRANS = '#a78bfa';
 
 const TSB_BANDS = [
   { key: 'overloaded', to: -20,      color: C_BAD },
@@ -156,7 +157,7 @@ const ACWR_INFO = {
   caution:   'Estás cargando más rápido de lo habitual.',
   danger:    'Subida brusca frente a tu base: riesgo de lesión.',
 };
-const bandColor = (bands, v) => (v == null || !Number.isFinite(v) ? '#94a3b8' : (bands.find(b => v <= b.to) ?? bands[bands.length - 1]).color);
+const bandColor = (bands, v) => (v == null || !Number.isFinite(v) ? COLORS.inkFaint : (bands.find(b => v <= b.to) ?? bands[bands.length - 1]).color);
 
 const fmtSigned = (v, digits = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(digits).replace('.', ',')}`;
 const fmtDec = (v, digits = 1) => (v == null || !Number.isFinite(v) ? DASH : v.toFixed(digits).replace('.', ','));
@@ -839,7 +840,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       </div>
 
       {/* ── CARRERA OBJETIVO: una franja, no un cartel ──────────────────────── */}
-      <div className="relative overflow-hidden rounded bg-gradient-to-r from-blue-700 via-indigo-600 to-indigo-800 text-white shadow-lg shadow-indigo-900/10 px-5 py-4 sm:px-6">
+      <div className="relative overflow-hidden rounded bg-blue-700 text-white px-5 py-4 sm:px-6">
         <div className="absolute -right-16 -top-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
         {upcomingRaces.length > 1 ? (
           // Varias carreras: las próximas, de la más cercana a la más lejana. La
@@ -861,11 +862,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   <div className={`flex flex-col items-center justify-center w-16 h-16 rounded shrink-0 ${isMain ? 'bg-white text-indigo-700 shadow-md' : 'bg-white/15 backdrop-blur'}`}>
                     <span className="text-2xl font-black leading-none tabular-nums">{d === 0 ? '¡Hoy!' : d}</span>
                     {d !== 0 && (
-                      <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${isMain ? 'text-indigo-400' : 'text-blue-200'}`}>{t('targets.days_unit')}</span>
+                      <span className={`text-label font-bold uppercase mt-0.5 ${isMain ? 'text-indigo-400' : 'text-blue-200'}`}>{t('targets.days_unit')}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+                    <span className="flex items-center gap-1.5 text-label font-bold uppercase text-cyan-200">
                       {isMain && <span className="px-1.5 py-px rounded bg-amber-300 text-amber-950 normal-case tracking-normal">Principal</span>}
                       {d > 0 ? `${Math.ceil(d / 7)} ${Math.ceil(d / 7) === 1 ? 'semana' : 'semanas'}` : 'Hoy'}
                     </span>
@@ -896,11 +897,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   {raceDays === 0 ? '¡Hoy!' : raceDays ?? DASH}
                 </span>
                 {raceDays !== 0 && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200 mt-0.5">{t('targets.days_unit')}</span>
+                  <span className="text-label font-bold uppercase text-blue-200 mt-0.5">{t('targets.days_unit')}</span>
                 )}
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+                <span className="text-label font-bold uppercase text-cyan-200">
                   {targetRace ? t('targets.next_race') : t('targets.no_target', 'Sin objetivo fijado')}
                   {raceWeeks != null && raceDays > 0 ? ` · ${raceWeeks} semanas` : ''}
                 </span>
@@ -923,11 +924,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               {targetRace && (
                 <>
                   <div className="px-3 py-1.5 rounded bg-white/10">
-                    <span className="block text-[9px] font-bold uppercase tracking-wider text-blue-200">Ritmo meta</span>
-                    <span className="text-sm font-black text-cyan-300 tabular-nums">{raceGoalPace}<span className="text-[10px] font-normal text-blue-100"> /km</span></span>
+                    <span className="block text-label font-bold uppercase text-blue-200">Ritmo meta</span>
+                    <span className="text-sm font-black text-cyan-300 tabular-nums">{raceGoalPace}<span className="text-xs font-normal text-blue-100"> /km</span></span>
                   </div>
                   <div className="px-3 py-1.5 rounded bg-white/10">
-                    <span className="block text-[9px] font-bold uppercase tracking-wider text-blue-200">{t('targets.goal_time')}</span>
+                    <span className="block text-label font-bold uppercase text-blue-200">{t('targets.goal_time')}</span>
                     <span className="text-sm font-black text-emerald-300 tabular-nums">{raceGoalTime}</span>
                   </div>
                 </>
@@ -946,7 +947,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       </div>
 
       {/* ═══════════ ESTADO AHORA: readiness y señales ═══════════ */}
-      <section className="relative overflow-hidden rounded bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white shadow-xl shadow-slate-900/10">
+      <section className="relative overflow-hidden rounded bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white shadow-xl">
         <div className="absolute -left-24 -top-24 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none" style={{ background: readinessColor }} />
         <div className="absolute -right-24 -bottom-32 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
 
@@ -955,16 +956,16 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           <div className="xl:col-span-5 flex items-center gap-5">
             <Ring value={readiness?.score} size={164} stroke={14} color={readinessColor} trackClass="text-white/10">
               <span className="text-5xl font-black tabular-nums leading-none">{readiness?.score ?? DASH}</span>
-              <span className="text-[10px] font-bold tracking-[0.25em] uppercase text-white/50 mt-1.5">readiness</span>
+              <span className="text-label font-bold uppercase text-white/50 mt-1.5">readiness</span>
             </Ring>
             <div className="min-w-0 flex flex-col gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Tu estado hoy</span>
+              <span className="text-label font-bold uppercase text-white/50">Tu estado hoy</span>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-none" style={{ color: readinessColor }}>
                 {readinessHead}
               </h2>
               {readinessTail && <p className="text-sm font-semibold text-white/80 leading-snug">{readinessTail}</p>}
               {phase && (
-                <span className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[11px] font-bold">
+                <span className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-xs font-bold">
                   <span className="w-2 h-2 rounded-full" style={{ background: formColor }} />
                   Forma: {phase.label}
                 </span>
@@ -1017,7 +1018,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         </div>
 
         <div className="relative flex flex-wrap items-center gap-2 px-5 sm:px-7 py-3.5 border-t border-white/10 bg-black/10">
-          <span className="text-[11px] text-white/50 truncate">
+          <span className="text-xs text-white/50 truncate">
             {sources}{garminStats?.lastDate ? ` · último dato Garmin ${garminStats.lastDate}` : ''}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1025,7 +1026,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               <button
                 type="button"
                 onClick={() => askCoach('readiness')}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" /> Explícamelo
               </button>
@@ -1051,7 +1052,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               note={phase?.description}
             >
               <Scale value={tsbValue} min={-tsbSpan} max={tsbSpan} bands={TSB_BANDS} />
-              <div className="flex justify-between text-[11px] text-slate-500 -mt-1">
+              <div className="flex justify-between text-xs text-slate-500 -mt-1">
                 <span>Fatiga</span><span>Fresco</span>
               </div>
             </LoadGauge>
@@ -1065,7 +1066,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               link={<DetailLink onClick={() => onNavigate('injury')}>Ver riesgo</DetailLink>}
             >
               <Scale value={currentACWR} min={0.4} max={acwrMax} bands={ACWR_BANDS} />
-              <div className="flex justify-between text-[11px] text-slate-500 -mt-1 tabular-nums">
+              <div className="flex justify-between text-xs text-slate-500 -mt-1 tabular-nums">
                 <span>0,4</span><span>0,8</span><span>1,3</span><span>{acwrMax.toFixed(1).replace('.', ',')}</span>
               </div>
             </LoadGauge>
@@ -1077,8 +1078,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               tagColor={stats.currentCTL - stats.ctl7ago >= 0 ? C_GOOD : C_WARN}
               note={`${stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0} % de tu pico histórico (${fmtDec(stats.peakCTL)}). Pico de este año: ${fmtDec(stats.peakCTLYear)}.`}
             >
-              <Scale value={stats.currentCTL} min={0} max={Math.max(stats.peakCTL, stats.currentCTL, 1)} bands={[{ to: Infinity, color: '#60a5fa' }]} />
-              <div className="flex justify-between text-[11px] text-slate-500 -mt-1">
+              <Scale value={stats.currentCTL} min={0} max={Math.max(stats.peakCTL, stats.currentCTL, 1)} bands={[{ to: Infinity, color: COLORS.signalLight }]} />
+              <div className="flex justify-between text-xs text-slate-500 -mt-1">
                 <span>0</span><span>Tu pico</span>
               </div>
             </LoadGauge>
@@ -1088,7 +1089,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               label="Intensidad (28 días)"
               value={zoneDistribution.hasData ? `${Math.round(zoneDistribution.groups.low)} %` : DASH}
               tag={zoneDistribution.hasData ? 'en fácil' : null}
-              tagColor="#64748b"
+              tagColor={COLORS.inkMuted}
               note={!bounds
                 ? 'Calibra tu FC máxima y de reposo para ver el reparto por zonas.'
                 : zoneDistribution.hasData
@@ -1122,7 +1123,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 <div className="flex items-end gap-1.5 h-24">
                   {weekStrip.days.map((d, i) => (
                     <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full">
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums h-4">{d.km > 0 ? d.km.toFixed(0) : ''}</span>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tabular-nums h-4">{d.km > 0 ? d.km.toFixed(0) : ''}</span>
                       <div className="flex-1 w-full flex items-end justify-center">
                         <div
                           className={`w-2 rounded-full ${d.km > 0 ? (d.isToday ? 'bg-slate-900 dark:bg-white' : 'bg-blue-500') : d.future ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700'}`}
@@ -1143,7 +1144,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                       )}
                       {briefing.volSpark.map((w, i) => (
                         <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`${w.v} km`}>
-                          <span className="text-[11px] text-slate-500 tabular-nums">{w.v}</span>
+                          <span className="text-xs text-slate-500 tabular-nums">{w.v}</span>
                           <div
                             className={`w-2 rounded-full ${i === briefing.volSpark.length - 1 ? 'bg-slate-900 dark:bg-white' : 'bg-slate-300 dark:bg-slate-700'}`}
                             style={{ height: `${Math.max(3, (w.v / volMax) * 80)}%` }}
@@ -1363,7 +1364,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                           <div
                             key={i}
                             className="flex-1 min-w-[3px] rounded"
-                            style={{ height: `${30 + ((sp.speed - lo) / span) * 70}%`, background: sp.zoneIdx >= 0 ? ZONES[sp.zoneIdx].color : '#60a5fa' }}
+                            style={{ height: `${30 + ((sp.speed - lo) / span) * 70}%`, background: sp.zoneIdx >= 0 ? ZONES[sp.zoneIdx].color : COLORS.signalLight }}
                             title={`Km ${i + 1}: ${formatPaceFromSpeed(sp.speed, DASH)}/km${sp.hr ? `, ${sp.hr} ppm` : ''}`}
                           />
                         ))}

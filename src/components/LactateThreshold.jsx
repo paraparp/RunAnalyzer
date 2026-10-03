@@ -13,6 +13,7 @@ import {
 import useHrParams from '../hooks/useHrParams';
 import useTimeScope from '../hooks/useTimeScope';
 import { scopeMonths } from '../lib/timeScope';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // ─── methodology ──────────────────────────────────────────────────────────────
 //
@@ -124,28 +125,28 @@ export default function LactateThreshold({ activities }) {
       {/* ── Stat row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('lactate.threshold_label')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.threshold_label')}</p>
           <p className="text-2xl font-black text-blue-600 tabular-nums">{formatPace(headlineLT2)}<span className="text-sm font-semibold text-slate-500">/km</span></p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{csValid ? t('lactate.threshold_hint_cs') : t('lactate.threshold_hint_hr')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{csValid ? t('lactate.threshold_hint_cs') : t('lactate.threshold_hint_hr')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('lactate.easy_label')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.easy_label')}</p>
           <p className="text-2xl font-black text-sky-500 tabular-nums">{easyPace ? `${formatPace(easyPace.slow)}` : (hr?.lt1 ? formatPace(hr.lt1) : '—')}<span className="text-sm font-semibold text-slate-500">/km</span></p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('lactate.easy_hint')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('lactate.easy_hint')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('lactate.hrmax_label')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.hrmax_label')}</p>
           <p className="text-2xl font-black text-slate-800 tabular-nums">{hrmax} <span className="text-sm font-semibold text-slate-500">bpm</span></p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{hrInfo?.trimmed ? t('lactate.hrmax_trimmed', { raw: hrInfo.raw }) : t('lactate.hrmax_hint')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{hrInfo?.trimmed ? t('lactate.hrmax_trimmed', { raw: hrInfo.raw }) : t('lactate.hrmax_hint')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('lactate.trend_label')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.trend_label')}</p>
           {trendDelta !== null ? (
             <>
               <p className={`text-2xl font-black tabular-nums ${trendConfig[trendStatus].color}`}>
                 {trendConfig[trendStatus].arrow} {Math.abs(trendDelta)}s/km
               </p>
-              <p className={`text-[10px] font-semibold mt-0.5 ${trendConfig[trendStatus].color}`}>
+              <p className={`text-xs font-semibold mt-0.5 ${trendConfig[trendStatus].color}`}>
                 {trendStatus === 'improving' ? t('lactate.improving') : trendStatus === 'worsening' ? t('lactate.worsening') : t('lactate.stable')}
               </p>
             </>
@@ -182,7 +183,7 @@ export default function LactateThreshold({ activities }) {
           abajo y el contraste con la FC. Antes esta vista repetía el gráfico
           entero con los mismos datos. */}
       {csValid && (
-        <p className="text-[11px] text-slate-500">
+        <p className="text-xs text-slate-500">
           {t('lactate.cs_from_capacity', {
             pace: formatPace(cs.csPace),
             n: cs.nEfforts,
@@ -201,10 +202,10 @@ export default function LactateThreshold({ activities }) {
               <div key={z.key} className={`rounded-xl border-2 p-3 ${zoneColors[z.key]}`}>
                 <div className="flex items-baseline justify-between mb-1">
                   <p className="text-xs font-bold text-slate-700">{t(`lactate.zone_${z.key}`)}</p>
-                  <span className="text-[10px] text-slate-500">≈ {z.hr} FCmax</span>
+                  <span className="text-xs text-slate-500">≈ {z.hr} FCmax</span>
                 </div>
                 <p className="text-lg font-black text-slate-800 tabular-nums">{formatPace(z.slow)}–{formatPace(z.fast)}<span className="text-xs font-semibold text-slate-500">/km</span></p>
-                <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">{t(`lactate.zone_${z.key}_desc`)}</p>
+                <p className="text-xs text-slate-600 leading-relaxed mt-0.5">{t(`lactate.zone_${z.key}_desc`)}</p>
               </div>
             ))}
           </div>
@@ -220,23 +221,23 @@ export default function LactateThreshold({ activities }) {
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <YAxis dataKey="lt2pace" domain={paceYDomain} reversed tickFormatter={v => formatPace(v)} tick={{ fontSize: 10, fill: '#64748b' }} width={42} />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+                <XAxis dataKey="label" tick={AXIS_TICK} />
+                <YAxis dataKey="lt2pace" domain={paceYDomain} reversed tickFormatter={v => formatPace(v)} tick={AXIS_TICK} width={42} />
                 <RechartsTooltip content={renderPaceTooltip} />
                 {hr?.lt2 && (
-                  <ReferenceLine y={hr.lt2} stroke="#2563eb" strokeDasharray="4 2"
-                    label={{ value: formatPace(hr.lt2), fontSize: 9, fill: '#2563eb', position: 'insideTopRight' }} />
+                  <ReferenceLine y={hr.lt2} stroke={COLORS.signal} strokeDasharray="4 2"
+                    label={{ value: formatPace(hr.lt2), fontSize: 11, fill: COLORS.signal, position: 'insideTopRight' }} />
                 )}
-                <Line type="monotone" dataKey="lt2pace" stroke="#93c5fd" strokeWidth={1.5} dot={{ r: 3, fill: '#93c5fd', strokeWidth: 0 }} activeDot={{ r: 5 }} name="LT2 (raw)" connectNulls />
-                <Line type="monotone" dataKey="lt2smooth" stroke="#2563eb" strokeWidth={2.5} dot={false} strokeDasharray="6 2" name="LT2 (EWMA)" connectNulls />
+                <Line type="monotone" dataKey="lt2pace" stroke={COLORS.signalPale} strokeWidth={1.5} dot={{ r: 3, fill: COLORS.signalPale, strokeWidth: 0 }} activeDot={{ r: 5 }} name="LT2 (raw)" connectNulls />
+                <Line type="monotone" dataKey="lt2smooth" stroke={COLORS.signal} strokeWidth={2.5} dot={false} strokeDasharray="6 2" name="LT2 (EWMA)" connectNulls />
                 {monthlyData.some(d => d.lt1pace) && (
-                  <Line type="monotone" dataKey="lt1pace" stroke="#0ea5e9" strokeWidth={1.5} dot={{ r: 2.5, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 4 }} name="LT1" connectNulls strokeDasharray="3 3" />
+                  <Line type="monotone" dataKey="lt1pace" stroke={COLORS.seriesSky} strokeWidth={1.5} dot={{ r: 2.5, fill: COLORS.seriesSky, strokeWidth: 0 }} activeDot={{ r: 4 }} name="LT1" connectNulls strokeDasharray="3 3" />
                 )}
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-5 mt-3 text-[10px] text-slate-500 flex-wrap">
+          <div className="flex items-center gap-5 mt-3 text-xs text-slate-500 flex-wrap">
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-300" /> {t('lactate.legend_lt2_raw')}</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5" style={{ borderTop: '2px dashed #2563eb' }} /> {t('lactate.legend_lt2_ewma')}</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-sky-400" /> {t('lactate.legend_lt1')}</span>
@@ -252,9 +253,9 @@ export default function LactateThreshold({ activities }) {
           <div className="h-[180px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} allowDecimals={false} width={24} />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
+                <XAxis dataKey="label" tick={AXIS_TICK} />
+                <YAxis tick={AXIS_TICK} allowDecimals={false} width={24} />
                 <RechartsTooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
@@ -269,13 +270,13 @@ export default function LactateThreshold({ activities }) {
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {monthlyData.map((d, i) => (
-                    <Cell key={i} fill={d.confidence >= 3 ? '#2563eb' : d.confidence === 2 ? '#93c5fd' : '#dbeafe'} />
+                    <Cell key={i} fill={d.confidence >= 3 ? COLORS.signal : d.confidence === 2 ? COLORS.signalPale : '#dbeafe'} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-4 mt-2 text-[10px] text-slate-500">
+          <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-600" /> {t('lactate.high_conf')}</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-300" /> {t('lactate.medium_conf')}</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100" /> {t('lactate.low_conf')}</span>
@@ -305,7 +306,7 @@ export default function LactateThreshold({ activities }) {
             ].map(z => (
               <div key={z.labelKey} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                 <p className="text-xs font-semibold text-slate-700 mb-1">{t(z.labelKey)}</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">{t(z.descKey)}</p>
+                <p className="text-xs text-slate-500 leading-relaxed">{t(z.descKey)}</p>
               </div>
             ))}
           </div>

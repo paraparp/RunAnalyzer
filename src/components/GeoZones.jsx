@@ -25,6 +25,7 @@ import {
 import { groupRoutes, routineIndex } from '../lib/routeSimilarity';
 import { reverseGeocodeBatch, uniqueLabels } from '../lib/reverseGeocode';
 import { formatDurationHm } from '../lib/timeFormat';
+import { COLORS } from '../lib/palette';
 
 // ── Zonas geográficas: cuántos km en cada sitio ──────────────────────────────
 // El cálculo entero vive en lib/geoZones.js y lib/routeSimilarity.js (puros y
@@ -41,8 +42,8 @@ const STORE_KEY = 'geo_zones';
 // Paleta cualitativa: cada lugar es una categoría sin orden intrínseco, así que
 // tonos distintos y no una rampa (una rampa insinuaría una magnitud que no hay).
 const PALETTE = [
-  '#38bdf8', '#4ade80', '#fbbf24', '#f87171', '#a78bfa', '#fb923c',
-  '#2dd4bf', '#f472b6', '#facc15', '#60a5fa', '#34d399', '#c084fc',
+  '#38bdf8', '#4ade80', COLORS.cautionLight, COLORS.riskLight, '#a78bfa', '#fb923c',
+  '#2dd4bf', '#f472b6', '#facc15', COLORS.signalLight, '#34d399', '#c084fc',
 ];
 
 // El color sale de un hash de la CLAVE del sitio, nunca de su posición en la
@@ -150,7 +151,7 @@ const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 p
 const ICON_BTN = 'rounded p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 ' +
   `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
 
-const LABEL = 'text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500';
+const LABEL = 'text-label font-medium uppercase text-slate-500 dark:text-slate-500';
 
 // Una sola rejilla para la cabecera y para cada fila: es lo que alinea las
 // columnas entre filas. Por debajo de lg la fila se deshace en un flex que
@@ -175,7 +176,7 @@ function Kpi({ label, value, hint }) {
       <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
         {value}
       </div>
-      {hint && <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">{hint}</div>}
+      {hint && <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">{hint}</div>}
     </div>
   );
 }
@@ -294,7 +295,7 @@ function LayerToggle({ on, onClick, children }) {
 /** Texto secundario de una entrada de menú: qué hace, en una línea. */
 function MenuHint({ children }) {
   return (
-    <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+    <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-slate-500">
       {children}
     </span>
   );
@@ -571,7 +572,7 @@ export default function GeoZones({ activities }) {
   // resto para no reelegirla cada vez que se abre un sitio.
   const basemap = BASEMAPS.includes(store.basemap) ? store.basemap : DEFAULT_BASEMAP;
   // Sobre teselas oscuras o una foto aérea, un borde casi negro desaparece.
-  const markerStroke = basemap === 'light' ? '#0f172a' : '#f8fafc';
+  const markerStroke = basemap === 'light' ? COLORS.ink : COLORS.sunken;
 
   // Cerrar con Escape, bloquear el scroll de detrás (que si no la rueda del
   // ratón mueve la página en vez de hacer zoom) y devolver el foco a la fila
@@ -660,14 +661,14 @@ export default function GeoZones({ activities }) {
           <div>
             <div className="mb-1 flex items-baseline gap-1.5">
               <span className={LABEL}>{t('geozones.radius')}</span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-500">km</span>
+              <span className="text-xs text-slate-500 dark:text-slate-500">km</span>
             </div>
             <RadiusPicker
               value={radiusKm}
               onChange={(v) => patchStore({ radiusKm: v })}
               label={t('geozones.radius')}
             />
-            <p className="mt-1.5 max-w-[17rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-500">
+            <p className="mt-1.5 max-w-[17rem] text-xs leading-relaxed text-slate-500 dark:text-slate-500">
               {t('geozones.radius_hint', { km: fmtKm(radiusKm, lang) })}
             </p>
           </div>
@@ -999,7 +1000,7 @@ export default function GeoZones({ activities }) {
                   >
                     {x.label}
                     {x.count != null && (
-                      <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      <span className="rounded-full bg-slate-100 px-1.5 text-xs tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                         {x.count}
                       </span>
                     )}
@@ -1043,7 +1044,7 @@ export default function GeoZones({ activities }) {
                                 <div
                                   title={`${monthNames[m]} · ${fmtKm(km, lang)} km`}
                                   className="h-6 rounded"
-                                  style={{ background: km > 0 ? tint(color, 15 + (km / seasonMax) * 85) : tint('#94a3b8', 8) }}
+                                  style={{ background: km > 0 ? tint(color, 15 + (km / seasonMax) * 85) : tint(COLORS.inkFaint, 8) }}
                                 />
                               </td>
                             ))}
@@ -1058,7 +1059,7 @@ export default function GeoZones({ activities }) {
                   <span>{t('geozones.season_less')}</span>
                   <span className="flex gap-0.5">
                     {[8, 30, 55, 80, 100].map(p => (
-                      <span key={p} className="h-3 w-5 rounded" style={{ background: tint('#64748b', p) }} />
+                      <span key={p} className="h-3 w-5 rounded" style={{ background: tint(COLORS.inkMuted, p) }} />
                     ))}
                   </span>
                   <span>{t('geozones.season_more', { km: fmtKm(seasonMax, lang) })}</span>
@@ -1233,7 +1234,7 @@ export default function GeoZones({ activities }) {
                       center={mapZone.seed}
                       radius={radiusKm * 1000}
                       interactive={false}
-                      pathOptions={{ color: '#94a3b8', weight: 1, dashArray: '4 4', fill: false }}
+                      pathOptions={{ color: COLORS.inkFaint, weight: 1, dashArray: '4 4', fill: false }}
                     />
                   )}
                   {showStarts && mapStarts.map(s => (
@@ -1242,7 +1243,7 @@ export default function GeoZones({ activities }) {
                       center={s.point}
                       radius={4}
                       pathOptions={{
-                        color: markerStroke, weight: 1, fillColor: '#fff', fillOpacity: 0.9,
+                        color: markerStroke, weight: 1, fillColor: COLORS.paper, fillOpacity: 0.9,
                         className: 'cursor-pointer',
                       }}
                       eventHandlers={stravaHandlers(s.id)}
@@ -1272,7 +1273,7 @@ export default function GeoZones({ activities }) {
 
             {/* Leyenda: sin ella hay que adivinar qué es el círculo de puntos y
                 por qué las trazas cambian de color. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-slate-900 dark:border-slate-200"

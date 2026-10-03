@@ -5,6 +5,7 @@ import { karvonenBounds, classifyHR } from '../lib/hrZones';
 import { formatDuration, formatPaceFromSpeed, formatPaceFromSecPerKm } from '../lib/timeFormat';
 import { gapSpeed, gapSpeedFromGain } from '../lib/gap';
 import { ZONES } from '../lib/zoneColors';
+import { COLORS } from '../lib/palette';
 
 // Parciales de una sesión en dos lecturas, una por sección de la ficha:
 //   mode="pace" → ritmo por parcial, tabla desplegable y mejores esfuerzos.
@@ -36,10 +37,10 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const signedSec = (s) => `${s > 0 ? '+' : s < 0 ? '−' : '±'}${Math.abs(Math.round(s))} s`;
 
 // Ritmo: azul intenso = más rápido que la media; claro = más lento.
-const BAR_FAST = '#2563eb';
-const BAR_SLOW = '#93c5fd';
+const BAR_FAST = COLORS.signal;
+const BAR_SLOW = COLORS.signalPale;
 const paceColor = (r) => (r.isFaster ? BAR_FAST : BAR_SLOW);
-const zoneColor = (r) => (r.hrZone > 0 ? ZONES[r.hrZone].color : '#94a3b8');
+const zoneColor = (r) => (r.hrZone > 0 ? ZONES[r.hrZone].color : COLORS.inkFaint);
 
 /**
  * Escala vertical del ritmo, común al gráfico y a las barras de la tabla: arriba el
@@ -73,7 +74,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
     return (
         <div>
             <div className="flex">
-                <div className="relative w-10 shrink-0 h-44 text-[10px] tabular-nums text-slate-500">
+                <div className="relative w-10 shrink-0 h-44 text-xs tabular-nums text-slate-500">
                     {axis.map(a => (
                         <span key={a.label + a.frac} className="absolute right-2 -translate-y-1/2" style={{ top: `${100 * (1 - a.frac)}%` }}>{a.label}</span>
                     ))}
@@ -81,7 +82,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
                 <div className="relative flex-1 min-w-0 h-44 border-b border-slate-200" onMouseLeave={() => setHover(null)}>
                     {bands.map(b => (
                         <div key={b.label} className="absolute inset-x-0" style={{ bottom: `${100 * b.from}%`, height: `${100 * (b.to - b.from)}%`, background: b.color }}>
-                            <span className="absolute right-1 top-0.5 text-[9px] font-bold" style={{ color: b.text }}>{b.label}</span>
+                            <span className="absolute right-1 top-0.5 text-xs font-bold" style={{ color: b.text }}>{b.label}</span>
                         </div>
                     ))}
                     {!bands.length && [0.5, 1].map(f => (
@@ -104,11 +105,11 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
                         })}
                         {refLine && (
                             <line x1="0" x2="100" y1={100 * (1 - refLine.frac)} y2={100 * (1 - refLine.frac)}
-                                stroke="#0f172a" strokeOpacity="0.5" strokeDasharray="4 3" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                                stroke={COLORS.ink} strokeOpacity="0.5" strokeDasharray="4 3" strokeWidth="1" vectorEffect="non-scaling-stroke" />
                         )}
                     </svg>
                     {refLine && (
-                        <span className="absolute left-1 -translate-y-full text-[10px] font-semibold tabular-nums text-slate-600 bg-white/85 px-1 rounded"
+                        <span className="absolute left-1 -translate-y-full text-xs font-semibold tabular-nums text-slate-600 bg-white/85 px-1 rounded"
                             style={{ top: `${100 * (1 - refLine.frac)}%` }}>
                             {refLine.label}
                         </span>
@@ -119,7 +120,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
                         ))}
                     </div>
                     {hover != null && (
-                        <div className="absolute top-1 z-10 pointer-events-none -translate-x-1/2 rounded-lg bg-slate-900/95 text-white px-3 py-2 text-[11px] shadow-lg whitespace-nowrap"
+                        <div className="absolute top-1 z-10 pointer-events-none -translate-x-1/2 rounded-lg bg-slate-900/95 text-white px-3 py-2 text-xs shadow-lg whitespace-nowrap"
                             style={{ left: `${Math.min(85, Math.max(15, hc.x + hc.w / 2))}%` }}>
                             {tooltip(rows[hover])}
                         </div>
@@ -128,7 +129,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
             </div>
             <div className="flex ml-10 mt-1">
                 {rows.map((r, i) => (
-                    <div key={i} className={`text-center text-[10px] tabular-nums truncate ${hover === i ? 'font-bold text-slate-700' : 'text-slate-500'}`} style={{ width: `${cols[i].w}%` }}>
+                    <div key={i} className={`text-center text-xs tabular-nums truncate ${hover === i ? 'font-bold text-slate-700' : 'text-slate-500'}`} style={{ width: `${cols[i].w}%` }}>
                         {cols[i].w > 3.5 ? r.lap_index : ''}
                     </div>
                 ))}
@@ -139,7 +140,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
 
 function Legend({ items }) {
     return (
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 mb-2 text-[11px] text-slate-500">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 mb-2 text-xs text-slate-500">
             {items.map(it => (
                 <span key={it.label} className="inline-flex items-center gap-1.5">
                     {it.dashed
@@ -238,10 +239,10 @@ const HrChart = ({ rows, bounds, hover, setHover }) => {
 
 const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
     const { t } = useTranslation();
-    const th = 'py-2 px-2 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 whitespace-nowrap';
+    const th = 'py-2 px-2 text-label font-bold uppercase text-slate-500 whitespace-nowrap';
     return (
         <div className="overflow-x-auto -mx-1">
-            <table className="w-full text-[13px] tabular-nums" onMouseLeave={() => setHover(null)}>
+            <table className="w-full text-sm tabular-nums" onMouseLeave={() => setHover(null)}>
                 <thead>
                     <tr className="border-b border-slate-200">
                         <th className={`${th} text-left w-8`}>#</th>
@@ -264,14 +265,14 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                 className={`border-b border-slate-100 last:border-0 transition-colors ${hover === i ? 'bg-blue-50/70' : ''} ${row.isPartial ? 'text-slate-500' : 'text-slate-700'}`}>
                                 <td className="py-2 px-2 text-left">
                                     <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${row.isBest ? 'text-amber-500' : 'text-slate-500'}`}>
-                                        {row.isBest && <span className="text-[10px]">★</span>}{row.lap_index}
+                                        {row.isBest && <span className="text-xs">★</span>}{row.lap_index}
                                     </span>
                                 </td>
-                                <td className="py-2 px-2 text-right">{row.distKm}<span className="text-slate-500 text-[11px]"> km</span></td>
+                                <td className="py-2 px-2 text-right">{row.distKm}<span className="text-slate-500 text-xs"> km</span></td>
                                 <td className="py-2 px-2 text-right whitespace-nowrap">
                                     <span className={`font-bold ${row.isPartial ? '' : row.isFaster ? 'text-blue-700' : 'text-slate-900'}`}>{row.pace}</span>
                                     {!row.isPartial && (
-                                        <span className={`ml-1.5 text-[10px] font-semibold ${delta < -1 ? 'text-emerald-600' : delta > 1 ? 'text-slate-500' : 'text-slate-300'}`}>{signedSec(delta)}</span>
+                                        <span className={`ml-1.5 text-xs font-semibold ${delta < -1 ? 'text-emerald-600' : delta > 1 ? 'text-slate-500' : 'text-slate-300'}`}>{signedSec(delta)}</span>
                                     )}
                                 </td>
                                 <td className="py-2 px-2 hidden md:table-cell">
@@ -292,7 +293,7 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                     {row.average_heartrate ? (
                                         <span className="inline-flex items-center justify-end gap-1.5">
                                             {zone && row.hrZone > 0 && (
-                                                <span className="text-[9px] font-black px-1 py-px rounded" style={{ background: zone.bg, color: zone.text }}>{zone.label}</span>
+                                                <span className="text-xs font-black px-1 py-px rounded" style={{ background: zone.bg, color: zone.text }}>{zone.label}</span>
                                             )}
                                             <span className="font-semibold text-slate-700">{Math.round(row.average_heartrate)}</span>
                                         </span>
@@ -344,7 +345,7 @@ const SimilarActivitiesBanner = ({ similar }) => {
             <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0 ${tone}`}><Icon className="w-4 h-4" /></span>
             <div className="min-w-0">
                 <div className="text-xs font-semibold text-slate-800">{label}</div>
-                <div className="text-[11px] text-slate-500 truncate">
+                <div className="text-xs text-slate-500 truncate">
                     {effort_count} {t('splits.similar_runs', 'carreras similares')}
                     {avgPaceStr && <> · {t('splits.avg', 'media')} {avgPaceStr}/km</>}
                     {diffLabel && <> · {diffLabel}</>}
@@ -365,7 +366,7 @@ const BestEffortsSection = ({ efforts }) => {
 
     return (
         <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2">
+            <p className="text-label font-bold uppercase text-slate-500 mb-2">
                 {t('splits.best_efforts', 'Mejores Esfuerzos')} <span className="normal-case tracking-normal font-medium">· /km</span>
             </p>
             <div className="rounded-lg overflow-hidden border border-slate-100 divide-y divide-slate-100">
@@ -383,7 +384,7 @@ const BestEffortsSection = ({ efforts }) => {
                             className={`flex items-center gap-1.5 px-3 py-1.5 ${isPR ? 'bg-amber-50' : isKm ? 'bg-blue-50' : 'bg-white'} ${isKm ? 'ring-1 ring-inset ring-blue-300' : ''}`}>
                             <span className={`text-xs truncate ${isKm ? 'font-bold text-blue-700' : 'text-slate-500'}`}>{effort.name}</span>
                             {prLabel && (
-                                <span className={`text-[8px] font-black px-1 rounded ${isPR ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-500'}`}>{prLabel}</span>
+                                <span className={`text-label font-bold px-1 rounded ${isPR ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500'}`}>{prLabel}</span>
                             )}
                             <span className={`ml-auto font-bold tabular-nums ${isKm ? 'text-sm' : 'text-xs'} ${isPR ? 'text-amber-700' : isKm ? 'text-blue-700' : 'text-slate-800'}`}>{paceStr}</span>
                         </div>

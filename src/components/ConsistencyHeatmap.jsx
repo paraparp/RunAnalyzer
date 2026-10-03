@@ -203,18 +203,18 @@ export default function ConsistencyHeatmap({ activities }) {
               <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                 <card.icon className="w-5 h-5" />
               </div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
+              <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
             </div>
             <div className="flex items-baseline gap-1.5">
               <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
+              <p className="text-label font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Heatmap */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50">
+      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -234,7 +234,7 @@ export default function ConsistencyHeatmap({ activities }) {
                 <button
                   key={y}
                   onClick={() => setSelectedYear(y)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedYear === y ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${selectedYear === y ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
                 >
                   {y}
                 </button>
@@ -250,7 +250,7 @@ export default function ConsistencyHeatmap({ activities }) {
                 <button
                   key={m.id}
                   onClick={() => setMetric(m.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${metric === m.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${metric === m.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
                 >
                   {m.label}
                 </button>
@@ -266,7 +266,7 @@ export default function ConsistencyHeatmap({ activities }) {
               {monthPositions.map(({ month, weekIndex }) => (
                 <span
                   key={month}
-                  className="text-[10px] text-slate-500 font-black uppercase tracking-tighter"
+                  className="text-label text-slate-500 font-bold uppercase tracking-tighter"
                   style={{ position: 'absolute', left: `${weekIndex * 15}px` }}
                 >
                   {MONTH_LABELS[month]}
@@ -279,7 +279,7 @@ export default function ConsistencyHeatmap({ activities }) {
               <div className="flex flex-col gap-[4px] mr-2">
                 {DAY_LABELS.map((label, i) => (
                   <div key={i} className="h-[12px] flex items-center">
-                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-tighter w-6 text-right leading-none">{label}</span>
+                    <span className="text-label text-slate-500 font-bold uppercase tracking-tighter w-6 text-right leading-none">{label}</span>
                   </div>
                 ))}
               </div>
@@ -311,7 +311,7 @@ export default function ConsistencyHeatmap({ activities }) {
 
             {/* Legend */}
             <div className="flex items-center gap-3 mt-8 ml-10">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('dashboard.less', 'Menos')}</span>
+              <span className="text-label font-bold uppercase text-slate-500">{t('dashboard.less', 'Menos')}</span>
               <div className="flex gap-1.5 p-1 bg-white rounded-lg border border-slate-100 shadow-sm">
                 <div className="w-[12px] h-[12px] rounded-sm bg-slate-100/60" />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-100' : 'bg-emerald-100'}`} />
@@ -320,7 +320,7 @@ export default function ConsistencyHeatmap({ activities }) {
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-700' : 'bg-emerald-700'}`} />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('dashboard.more', 'Más')}</span>
+              <span className="text-label font-bold uppercase text-slate-500">{t('dashboard.more', 'Más')}</span>
             </div>
           </div>
         </div>

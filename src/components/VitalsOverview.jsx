@@ -15,6 +15,7 @@ import { computeGarminStats } from '../lib/statusStats';
 import { HeroCard } from './StatusCards';
 import { scopeDays } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -136,7 +137,7 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
   return (
     <div className="bg-white/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
       <p className="font-semibold text-slate-500">{fmtDateFull(pt.ms)}</p>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
+      <p className="text-label font-bold uppercase text-slate-500 mb-1.5">
         {metric}
         {inverted && <span className="normal-case font-medium text-slate-500"> · eje invertido</span>}
       </p>
@@ -158,12 +159,12 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
 
 function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false }) {
   const A = {
-    rose: { stroke: "#f43f5e", fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
-    emerald: { stroke: "#10b981", fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
-    violet: { stroke: "#8b5cf6", fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
-    amber: { stroke: "#f59e0b", fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
-    sky: { stroke: "#0ea5e9", fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
-    indigo: { stroke: "#6366f1", fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
+    rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
+    emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
+    violet: { stroke: COLORS.seriesViolet, fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
+    amber: { stroke: COLORS.caution, fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
+    sky: { stroke: COLORS.seriesSky, fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
+    indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
   }[accent];
 
   const vals = data.map((d) => d.smooth).filter((v) => v != null);
@@ -177,7 +178,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
     const up = trend > 0;
     const good = trendInverse ? !up : up;
     trendBadge = (
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ring-1 ${good ? "text-emerald-600 bg-emerald-50 ring-emerald-500/20" : "text-rose-600 bg-rose-50 ring-rose-500/20"}`}>
+      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ring-1 ${good ? "text-emerald-600 bg-emerald-50 ring-emerald-500/20" : "text-rose-600 bg-rose-50 ring-rose-500/20"}`}>
         {up ? "↗" : "↘"} {Math.abs(trend).toFixed(decimals)}
       </span>
     );
@@ -194,7 +195,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">{title}</h3>
-            <p className="text-[11px] text-slate-500 truncate">{subtitle}</p>
+            <p className="text-xs text-slate-500 truncate">{subtitle}</p>
           </div>
         </div>
         <div className="flex items-baseline gap-2 shrink-0">
@@ -224,9 +225,9 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                   <stop offset="100%" stopColor={A.stroke} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairlineSoft} vertical={false} />
               {bands.map((b, i) => (
-                <ReferenceArea key={i} x1={b.x1} x2={b.x2} fill="#10b981" fillOpacity={0.12} ifOverflow="hidden" />
+                <ReferenceArea key={i} x1={b.x1} x2={b.x2} fill={COLORS.good} fillOpacity={0.12} ifOverflow="hidden" />
               ))}
               <XAxis
                 dataKey="ms"
@@ -236,7 +237,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                 ticks={ticks}
                 allowDataOverflow
                 tickFormatter={xFmt}
-                tick={{ fontSize: 10, fill: "#64748b" }}
+                tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}
                 minTickGap={20}
@@ -244,7 +245,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               <YAxis
                 domain={[`dataMin - ${yPad}`, `dataMax + ${yPad}`]}
                 reversed={invertY}
-                tick={{ fontSize: 10, fill: "#64748b" }}
+                tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}
                 width={decimals > 0 ? 40 : 34}
@@ -253,7 +254,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               />
               <Tooltip
                 content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} inverted={invertY} />}
-                cursor={{ stroke: "#64748b", strokeWidth: 1.5, strokeDasharray: "4 4" }}
+                cursor={{ stroke: COLORS.inkMuted, strokeWidth: 1.5, strokeDasharray: "4 4" }}
               />
               {refValue != null && (
                 <ReferenceLine y={refValue} stroke={A.stroke} strokeDasharray="4 4" strokeOpacity={0.4} />
@@ -264,7 +265,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                   stroke={A.stroke}
                   strokeDasharray="2 4"
                   strokeOpacity={0.35}
-                  label={{ value: `máx ${maxV}`, position: "insideTopRight", fontSize: 9, fill: A.stroke, opacity: 0.8 }}
+                  label={{ value: `máx ${maxV}`, position: "insideTopRight", fontSize: 11, fill: A.stroke, opacity: 0.8 }}
                 />
               )}
               {minV != null && minV !== maxV && (
@@ -273,7 +274,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
                   stroke={A.stroke}
                   strokeDasharray="2 4"
                   strokeOpacity={0.35}
-                  label={{ value: `mín ${minV}`, position: "insideBottomRight", fontSize: 9, fill: A.stroke, opacity: 0.8 }}
+                  label={{ value: `mín ${minV}`, position: "insideBottomRight", fontSize: 11, fill: A.stroke, opacity: 0.8 }}
                 />
               )}
               <Area
@@ -659,7 +660,7 @@ export default function VitalsOverview({ activities = [] }) {
 
       <div className="flex flex-col items-center gap-1.5 px-4">
         {effThreshold != null && goodBands.length > 0 && (
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className="inline-block w-4 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/30" />
             <span>
               Franja verde = eficiencia aeróbica ≥ 85 % de tu máximo histórico
@@ -667,7 +668,7 @@ export default function VitalsOverview({ activities = [] }) {
             </span>
           </div>
         )}
-        <p className="text-[11px] text-slate-500 text-center">
+        <p className="text-xs text-slate-500 text-center">
           Las líneas punteadas marcan el máx/mín del período. Los ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad.
         </p>
       </div>

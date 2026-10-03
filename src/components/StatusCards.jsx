@@ -5,6 +5,7 @@ import {
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { Card, Text } from '@tremor/react';
 import { fmt1, loadPhase } from '../lib/statusStats';
+import { COLORS } from '../lib/palette';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Átomos del estado del atleta, compartidos por el hero de Hoy (`StatusHero`) y
@@ -22,16 +23,16 @@ export function PhaseBanner({ tsb, acwr, garmin }) {
   const { key, label: phase, description } = loadPhase(tsb);
   const STYLE = {
     // Mismos colores que la tarjeta de estado del PMC.
-    transition: { color: 'text-sky-700',     borderColor: 'border-sky-400',     bg: 'bg-sky-50',     Icon: ArrowTrendingUpIcon },
-    fresh:      { color: 'text-emerald-700', borderColor: 'border-emerald-500', bg: 'bg-emerald-50', Icon: CheckCircleIcon },
-    optimal:    { color: 'text-blue-700',    borderColor: 'border-blue-500',    bg: 'bg-blue-50',    Icon: CheckCircleIcon },
-    loaded:     { color: 'text-amber-700',   borderColor: 'border-amber-400',   bg: 'bg-amber-50',   Icon: FireIcon },
-    overloaded: { color: 'text-rose-700',    borderColor: 'border-rose-500',    bg: 'bg-rose-50',    Icon: ExclamationTriangleIcon },
+    transition: { color: 'text-sky-700',     borderColor: 'border-sky-200',     bg: 'bg-sky-50',     Icon: ArrowTrendingUpIcon },
+    fresh:      { color: 'text-emerald-700', borderColor: 'border-emerald-200', bg: 'bg-emerald-50', Icon: CheckCircleIcon },
+    optimal:    { color: 'text-blue-700',    borderColor: 'border-blue-200',    bg: 'bg-blue-50',    Icon: CheckCircleIcon },
+    loaded:     { color: 'text-amber-700',   borderColor: 'border-amber-200',   bg: 'bg-amber-50',   Icon: FireIcon },
+    overloaded: { color: 'text-rose-700',    borderColor: 'border-rose-200',    bg: 'bg-rose-50',    Icon: ExclamationTriangleIcon },
   };
   const { color, borderColor, bg, Icon } = STYLE[key];
 
   return (
-    <div className={`rounded-xl border-l-4 ${borderColor} ${bg} p-4 flex items-center justify-between gap-4 flex-wrap`}>
+    <div className={`rounded-xl border ${borderColor} ${bg} p-4 flex items-center justify-between gap-4 flex-wrap`}>
       <div className="flex items-center gap-3">
         <Icon className={`w-5 h-5 ${color} shrink-0`} />
         <div>
@@ -164,7 +165,7 @@ export function PctPill({ now, best, lowerIsBetter = false }) {
   return <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${color}`}>{Math.round(clamped)}%</span>;
 }
 
-export function MiniSparkline({ data, color = '#3b82f6' }) {
+export function MiniSparkline({ data, color = COLORS.signalBright }) {
   if (!data || data.length < 2) return <span className="text-slate-300 text-xs">—</span>;
   return (
     <ResponsiveContainer width={64} height={24}>

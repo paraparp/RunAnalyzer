@@ -8,6 +8,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Palabras que identifican una carrera de verdad. Se quitaron términos que solo
 // describen la SUPERFICIE o son demasiado genéricos ('trail', 'cross',
@@ -215,7 +216,7 @@ export default function RaceDetector({ activities }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('dashboard.personal_bests')}</h3>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-500">
             {t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}
           </p>
         </div>
@@ -245,25 +246,25 @@ export default function RaceDetector({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('races.total_races')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.total_races')}</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.totalRaces}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('races.detected')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('races.detected')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('races.this_year')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.this_year')}</p>
           <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.thisYear}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{new Date().getFullYear()}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{new Date().getFullYear()}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('races.distances_with_pr')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.distances_with_pr')}</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.prCount}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">categorías</p>
+          <p className="text-xs text-slate-500 mt-0.5">categorías</p>
         </div>
         {stats.lastRace && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('races.last_race')}</p>
+            <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.last_race')}</p>
             <p className="text-lg font-black text-slate-900 tabular-nums truncate">{stats.lastRace.timeLabel}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">{stats.lastRace.dateLabel}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{stats.lastRace.dateLabel}</p>
           </div>
         )}
       </div>
@@ -278,11 +279,11 @@ export default function RaceDetector({ activities }) {
             <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+                  <XAxis dataKey="date" tick={AXIS_TICK} />
                   <YAxis
                     reversed
-                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    tick={AXIS_TICK}
                     tickFormatter={v => formatPaceFromMinPerKm(v)}
                     domain={['auto', 'auto']}
                   />
@@ -291,7 +292,7 @@ export default function RaceDetector({ activities }) {
                     labelFormatter={(label) => label}
                     contentStyle={{ fontSize: 12 }}
                   />
-                  <Line type="monotone" dataKey="pace" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: '#2563eb' }} />
+                  <Line type="monotone" dataKey="pace" stroke={COLORS.signal} strokeWidth={2} dot={{ r: 4, fill: COLORS.signal }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -318,14 +319,14 @@ export default function RaceDetector({ activities }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200">
-              <th className="text-left py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">Fecha</th>
-              <th className="text-left py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">Nombre</th>
-              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">Dist.</th>
-              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">Tiempo</th>
-              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">{t('races.pace_label')}</th>
-              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">D+</th>
-              <th className="text-right py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">FC</th>
-              <th className="text-center py-2 px-2 text-[10px] font-bold text-slate-500 uppercase">Cat.</th>
+              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 uppercase">Fecha</th>
+              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 uppercase">Nombre</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">Dist.</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">Tiempo</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">{t('races.pace_label')}</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">D+</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">FC</th>
+              <th className="text-center py-2 px-2 text-label font-bold text-slate-500 uppercase">Cat.</th>
             </tr>
           </thead>
           <tbody>
@@ -344,7 +345,7 @@ export default function RaceDetector({ activities }) {
                   <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.elevation > 0 ? `${Math.round(r.elevation)}m` : '-'}</td>
                   <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.hr > 0 ? Math.round(r.hr) : '-'}</td>
                   <td className="py-2 px-2 text-center">
-                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
                       {r.category.label}
                     </span>
                   </td>

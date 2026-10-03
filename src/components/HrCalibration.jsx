@@ -17,11 +17,11 @@ import { estimateLTHR, HR_LIMITS } from '../lib/hrZones';
 const Field = ({ label, badge, badgeColor, value, caption, inputValue, placeholder, onChange, invalid, invalidText, help }) => (
   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
     <div className="flex items-center justify-between mb-2">
-      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</p>
+      <p className="text-label font-bold text-slate-500 uppercase">{label}</p>
       <Badge color={badgeColor} size="xs">{badge}</Badge>
     </div>
     <p className="text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
-    <p className="text-[10px] text-slate-500 mt-0.5">{caption}</p>
+    <p className="text-xs text-slate-500 mt-0.5">{caption}</p>
     <input
       type="number"
       placeholder={placeholder}
@@ -33,8 +33,8 @@ const Field = ({ label, badge, badgeColor, value, caption, inputValue, placehold
           : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
       }`}
     />
-    {invalid && <p className="text-[9px] text-rose-500 mt-1">{invalidText}</p>}
-    <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed">{help}</p>
+    {invalid && <p className="text-xs text-rose-500 mt-1">{invalidText}</p>}
+    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{help}</p>
   </div>
 );
 
@@ -115,23 +115,23 @@ export default function HrCalibration({ hrParams }) {
       {/* Derivados: lo que se calcula a partir de los tres de arriba */}
       <div className="mt-4 flex gap-2.5 flex-wrap">
         <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
-          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">HRR</span>
+          <span className="text-label font-bold text-indigo-400 uppercase">HRR</span>
           <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} {t('zones.bpm')}</span>
-          <span className="text-[10px] text-indigo-400">({hrmax} − {hrrest})</span>
+          <span className="text-xs text-indigo-400">({hrmax} − {hrrest})</span>
         </div>
         <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-3 py-1.5">
-          <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">LTHR / FCmax</span>
+          <span className="text-label font-bold text-violet-400 uppercase">LTHR / FCmax</span>
           <span className="text-sm font-bold text-violet-700 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
         </div>
         <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1.5">
-          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">LTHR / HRR</span>
+          <span className="text-label font-bold text-emerald-400 uppercase">LTHR / HRR</span>
           <span className="text-sm font-bold text-emerald-700 tabular-nums">
             {hrr > 0 ? (((lthr - hrrest) / hrr) * 100).toFixed(1) : '–'}%
           </span>
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
+      <p className="text-xs text-slate-500 mt-4 leading-relaxed">
         {t('calibration.scope')}
       </p>
     </Card>

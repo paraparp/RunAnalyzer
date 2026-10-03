@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useMemo, useState } from 'react';
 import { formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { COLORS } from '../lib/palette';
 
 // Definido fuera del componente: dentro del render sería un tipo nuevo en cada
 // render y Recharts remontaría el subárbol del tooltip entero.
@@ -25,7 +26,7 @@ function CustomTooltip({ active, payload }) {
            <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
            <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
         </div>
-        <div className="mt-2 text-[10px] text-slate-500 font-medium">
+        <div className="mt-2 text-xs text-slate-500 font-medium">
           (Clic para abrir en Strava)
         </div>
       </div>
@@ -90,7 +91,7 @@ export default function TechniqueAnalysis({ activities }) {
   }, [baseData, deselectedYears]);
 
 
-  const YEAR_COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#f43f5e', '#3b82f6'];
+  const YEAR_COLORS = [COLORS.signal, COLORS.caution, COLORS.good, '#ec4899', '#06b6d4', COLORS.risk, COLORS.signalBright];
 
   const stats = useMemo(() => {
     if (!chartData.length) return null;
@@ -119,18 +120,18 @@ export default function TechniqueAnalysis({ activities }) {
                   <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                      <card.icon className="w-5 h-5" />
                   </div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
+                  <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
                </div>
                <div className="flex items-baseline gap-1.5">
                   <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
+                  <p className="text-label font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
                </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50">
+      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -147,13 +148,13 @@ export default function TechniqueAnalysis({ activities }) {
           <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100 shrink-0">
              <button 
                 onClick={() => setFlatOnly(false)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
              >
                 Todo
              </button>
              <button 
                 onClick={() => setFlatOnly(true)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
              >
                 Solo Llanas
              </button>
@@ -177,7 +178,7 @@ export default function TechniqueAnalysis({ activities }) {
                   }}
                   className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-colors cursor-pointer ${isSelected ? 'bg-slate-50 border-slate-200 hover:bg-slate-100' : 'bg-transparent border-dashed border-slate-200 opacity-60 hover:opacity-100'}`}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: isSelected ? YEAR_COLORS[colorIdx] : '#cbd5e1' }}></span>
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: isSelected ? YEAR_COLORS[colorIdx] : COLORS.hairlineStrong }}></span>
                   <span className={`text-xs font-medium ${isSelected ? 'text-slate-600' : 'text-slate-500'}`}>{year}</span>
                 </button>
               );
@@ -189,7 +190,7 @@ export default function TechniqueAnalysis({ activities }) {
            <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 to-transparent pointer-events-none" />
            <ResponsiveContainer width="100%" height="100%">
              <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 10 }}>
-               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
                <XAxis 
                  type="number" 
                  dataKey="ritmoVal" 
@@ -197,8 +198,8 @@ export default function TechniqueAnalysis({ activities }) {
                  domain={['dataMin', 'dataMax']}
                  tickFormatter={(val) => formatPaceFromMinPerKm(val)}
                  reversed={true}
-                 tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
-                 axisLine={{ stroke: '#f1f5f9' }}
+                 tick={{ fill: COLORS.inkMuted, fontSize: 11, fontWeight: 700 }}
+                 axisLine={{ stroke: COLORS.hairlineSoft }}
                  tickLine={false}
                />
                <YAxis 
@@ -206,12 +207,12 @@ export default function TechniqueAnalysis({ activities }) {
                  dataKey="Cadencia" 
                  name="Cadencia" 
                  domain={['dataMin - 5', 'dataMax + 5']}
-                 tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
+                 tick={{ fill: COLORS.inkMuted, fontSize: 11, fontWeight: 700 }}
                  axisLine={false}
                  tickLine={false}
                />
                <ZAxis type="number" dataKey="Distancia" range={[60, 600]} name="Distancia" />
-               <RechartsTooltip cursor={{ strokeDasharray: '3 3', stroke: '#3b82f6', strokeWidth: 2 }} content={<CustomTooltip />} />
+               <RechartsTooltip cursor={{ strokeDasharray: '3 3', stroke: COLORS.signalBright, strokeWidth: 2 }} content={<CustomTooltip />} />
                <Scatter 
                  name="Actividades" 
                  data={chartData} 
@@ -220,7 +221,7 @@ export default function TechniqueAnalysis({ activities }) {
                >
                  {chartData.map((entry, index) => {
                    const colorIdx = entry.year % YEAR_COLORS.length;
-                   return <Cell key={`cell-${index}`} fill={YEAR_COLORS[colorIdx]} fillOpacity={0.6} className="hover:opacity-100 transition-opacity drop-shadow-lg" strokeWidth={1} stroke="#fff" />;
+                   return <Cell key={`cell-${index}`} fill={YEAR_COLORS[colorIdx]} fillOpacity={0.6} className="hover:opacity-100 transition-opacity drop-shadow-lg" strokeWidth={1} stroke={COLORS.paper} />;
                  })}
                </Scatter>
              </ScatterChart>

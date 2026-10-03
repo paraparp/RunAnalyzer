@@ -1,5 +1,7 @@
 import polyline from '@mapbox/polyline';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ZONES } from '../lib/zoneColors';
+import { COLORS } from '../lib/palette';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Piezas gráficas de la portada (TodayView). Solo pintan: no calculan nada, así
@@ -91,15 +93,15 @@ export function RouteShape({ encoded, className = '' }) {
   const [sx, sy] = P[0], [ex, ey] = P[P.length - 1];
   return (
     <svg viewBox={`0 0 ${S} ${S}`} className={`rounded bg-slate-50 dark:bg-slate-800/50 ${className}`} role="img" aria-label="Recorrido de la carrera">
-      <path d={d} fill="none" stroke="#2563eb" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={sx} cy={sy} r="2.4" fill="#10b981" stroke="white" strokeWidth="0.8" />
-      <circle cx={ex} cy={ey} r="2.4" fill="#0f172a" stroke="white" strokeWidth="0.8" />
+      <path d={d} fill="none" stroke={COLORS.signal} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={sx} cy={sy} r="2.4" fill={COLORS.good} stroke="white" strokeWidth="0.8" />
+      <circle cx={ex} cy={ey} r="2.4" fill={COLORS.ink} stroke="white" strokeWidth="0.8" />
     </svg>
   );
 }
 
 // Colores de zona (Z1…Z5) compartidos con la vista de Zonas.
-const ZONE_COLORS = ['#94a3b8', '#38bdf8', '#4ade80', '#fb923c', '#f87171'];
+const ZONE_COLORS = [1, 2, 3, 4, 5].map(z => ZONES[z].color);
 
 // La sesión como perfil: ancho = minutos, alto = zona (1-5).
 export function WorkoutProfile({ segments }) {
@@ -110,9 +112,9 @@ export function WorkoutProfile({ segments }) {
         const z = Math.max(1, Math.min(5, sg.z || 1));
         return (
           <div key={i} className="h-full min-w-0 flex flex-col justify-end" style={{ width: `${(sg.min / total) * 100}%` }} title={`${sg.label} · ${sg.detail}`}>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate mb-1 px-0.5">{Math.round(sg.min)}′</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate mb-1 px-0.5">{Math.round(sg.min)}′</span>
             <div className="rounded" style={{ height: `${18 + z * 14}%`, background: ZONE_COLORS[z - 1] }} />
-            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate mt-1.5 px-0.5 first-letter:uppercase lowercase">{sg.label}</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate mt-1.5 px-0.5 first-letter:uppercase lowercase">{sg.label}</span>
           </div>
         );
       })}

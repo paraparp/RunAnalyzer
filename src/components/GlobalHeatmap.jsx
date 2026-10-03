@@ -5,6 +5,7 @@ import { Card, Text, Select, SelectItem } from '@tremor/react';
 import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
 import { getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';
+import { COLORS } from '../lib/palette';
 
 export default function GlobalHeatmap({ activities }) {
   const { t } = useTranslation();
@@ -50,7 +51,7 @@ export default function GlobalHeatmap({ activities }) {
     
     if (colorMode === 'pace') {
       const speed = a.average_speed; // in m/s
-      if (!speed) return '#94a3b8'; // slate-400 fallback
+      if (!speed) return COLORS.inkFaint; // slate-400 fallback
       // Speed mappings: 3:30/km (4.76 m/s) -> Green (hue 120)
       //                 6:30/km (2.56 m/s) -> Red (hue 0)
       let v = (speed - 2.56) / (4.76 - 2.56);
@@ -61,7 +62,7 @@ export default function GlobalHeatmap({ activities }) {
 
     if (colorMode === 'hr') {
       const hr = a.average_heartrate;
-      if (!hr) return '#94a3b8'; // slate-400 fallback
+      if (!hr) return COLORS.inkFaint; // slate-400 fallback
       // HR mappings: 130bpm -> Green (hue 120)
       //              180bpm -> Red (hue 0)
       let v = (hr - 130) / (180 - 130);
@@ -85,7 +86,7 @@ export default function GlobalHeatmap({ activities }) {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <Card className="shadow-xl shadow-slate-200/50 border-slate-200 ring-1 ring-slate-100 rounded-3xl overflow-visible">
+      <Card className="shadow-xl border-slate-200 ring-1 ring-slate-100 rounded-3xl overflow-visible">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 px-2">
           <div className="max-w-xl">
             <h2 className="text-2xl font-black tracking-tight text-slate-900 mb-2">{t('maps.title')}</h2>
@@ -96,7 +97,7 @@ export default function GlobalHeatmap({ activities }) {
           
           <div className="w-full xl:w-auto grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
             <div>
-              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.base_map')}</Text>
+              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.base_map')}</Text>
               <Select value={baseMap} onValueChange={setBaseMap} enableClear={false} className="w-full sm:w-40 font-medium shadow-sm">
                 <SelectItem value="dark"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-800"></span>{t('maps.dark')}</span></SelectItem>
                 <SelectItem value="light"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-200 border border-slate-300"></span>{t('maps.light')}</span></SelectItem>
@@ -104,7 +105,7 @@ export default function GlobalHeatmap({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.filter')}</Text>
+              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.filter')}</Text>
               <Select value={filterType} onValueChange={setFilterType} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="all">{t('maps.all')}</SelectItem>
                 <SelectItem value="run">{t('maps.road')}</SelectItem>
@@ -113,7 +114,7 @@ export default function GlobalHeatmap({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">{t('maps.color_mode')}</Text>
+              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.color_mode')}</Text>
               <Select value={colorMode} onValueChange={setColorMode} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="heatmap"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-500"></div>{t('maps.density')}</span></SelectItem>
                 <SelectItem value="pace"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-green-500 to-red-500"></div>{t('maps.pace')}</span></SelectItem>
@@ -150,7 +151,7 @@ export default function GlobalHeatmap({ activities }) {
           {/* Map Legend Overlay */}
           {colorMode !== 'heatmap' && (
             <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur-md px-4 py-3 rounded-xl border border-slate-200/60 shadow-lg shadow-black/5 flex flex-col gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <span className="text-label font-bold uppercase text-slate-500">
                 {colorMode === 'pace' ? t('maps.pace') : t('maps.hr')}
               </span>
               <div className="flex items-center gap-3">

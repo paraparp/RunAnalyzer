@@ -13,6 +13,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell
 } from 'recharts';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Definido fuera del componente: dentro del render sería un tipo nuevo en cada
 // render y Recharts remontaría el subárbol del tooltip entero.
@@ -207,38 +208,38 @@ export default function WeeklyProgression({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Última semana cerrada</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">Última semana cerrada</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.lastClosedKm.toFixed(1)}</p>
-          <p className={`text-[10px] mt-0.5 font-semibold ${stats.lastClosedChange > 10 ? 'text-rose-500' : stats.lastClosedChange > 0 ? 'text-emerald-500' : 'text-slate-500'}`}>
+          <p className={`text-xs mt-0.5 font-semibold ${stats.lastClosedChange > 10 ? 'text-rose-500' : stats.lastClosedChange > 0 ? 'text-emerald-500' : 'text-slate-500'}`}>
             {stats.lastClosedChange > 0 ? '+' : ''}{stats.lastClosedChange}% vs anterior
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">En curso</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">En curso</p>
           <p className="text-2xl font-black text-slate-500 tabular-nums">
             {stats.partialKm == null ? '—' : stats.partialKm.toFixed(1)}
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">km hasta hoy (sin comparar)</p>
+          <p className="text-xs text-slate-500 mt-0.5">km hasta hoy (sin comparar)</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Media 4 semanas</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">Media 4 semanas</p>
           <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.avg4weeks.toFixed(1)}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">km/semana</p>
+          <p className="text-xs text-slate-500 mt-0.5">km/semana</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Racha activa</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">Racha activa</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.streak}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">semanas consecutivas</p>
+          <p className="text-xs text-slate-500 mt-0.5">semanas consecutivas</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Semana pico</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">Semana pico</p>
           <p className="text-2xl font-black text-amber-600 tabular-nums">{stats.maxWeek.toFixed(1)}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{stats.maxWeekLabel}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{stats.maxWeekLabel}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Alertas +10%</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">Alertas +10%</p>
           <p className={`text-2xl font-black tabular-nums ${stats.exceedCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{stats.exceedCount}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">de {stats.totalWeeks} semanas</p>
+          <p className="text-xs text-slate-500 mt-0.5">de {stats.totalWeeks} semanas</p>
         </div>
       </div>
 
@@ -254,19 +255,19 @@ export default function WeeklyProgression({ activities }) {
         <div className="h-[360px] w-full mt-4">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <ComposedChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={AXIS_TICK}
                 interval={Math.max(0, Math.floor(weeklyData.length / 12))}
               />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+              <YAxis tick={AXIS_TICK} />
               <RechartsTooltip content={<CustomTooltip />} />
               <Bar dataKey="km" radius={[4, 4, 0, 0]} maxBarSize={24}>
                 {weeklyData.map((entry, idx) => (
                   <Cell
                     key={idx}
-                    fill={entry.isPartial ? '#94a3b8' : entry.exceeds10 ? '#f43f5e' : entry.km === 0 ? '#e2e8f0' : '#3b82f6'}
+                    fill={entry.isPartial ? COLORS.inkFaint : entry.exceeds10 ? COLORS.risk : entry.km === 0 ? COLORS.hairline : COLORS.signalBright}
                     fillOpacity={entry.isPartial ? 0.45 : entry.exceeds10 ? 0.85 : 0.7}
                   />
                 ))}
@@ -274,7 +275,7 @@ export default function WeeklyProgression({ activities }) {
               <Line
                 type="monotone"
                 dataKey="avg4w"
-                stroke="#1d4ed8"
+                stroke={COLORS.signalDeep}
                 strokeWidth={2}
                 dot={false}
                 strokeDasharray="5 3"
@@ -293,15 +294,15 @@ export default function WeeklyProgression({ activities }) {
           <div className="h-56 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <ComposedChart data={weeklyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} interval={Math.max(0, Math.floor(weeklyData.length / 12))} />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={35} />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+                <XAxis dataKey="label" tick={AXIS_TICK} interval={Math.max(0, Math.floor(weeklyData.length / 12))} />
+                <YAxis tick={AXIS_TICK} width={35} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 <Bar dataKey="load" radius={[4, 4, 0, 0]} maxBarSize={24}>
                   {weeklyData.map((entry, idx) => (
                     <Cell
                       key={idx}
-                      fill={entry.isPartial ? '#94a3b8' : entry.load > loadAvg * 1.3 ? '#f43f5e' : entry.load < loadAvg * 0.5 ? '#cbd5e1' : '#2563eb'}
+                      fill={entry.isPartial ? COLORS.inkFaint : entry.load > loadAvg * 1.3 ? COLORS.risk : entry.load < loadAvg * 0.5 ? COLORS.hairlineStrong : COLORS.signal}
                       fillOpacity={entry.isPartial ? 0.45 : 0.75}
                     />
                   ))}

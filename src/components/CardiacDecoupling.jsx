@@ -10,16 +10,17 @@ import {
   ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
 } from 'recharts';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Escala de niveles: la de lib/decoupling, compartida con la vista de sesión.
 const getDecouplingLevelKey = decouplingLevel;
 
 const LEVEL_COLORS = {
-  excellent: '#10b981',
-  good: '#22c55e',
-  normal: '#f59e0b',
-  high: '#f97316',
-  very_high: '#ef4444',
+  excellent: COLORS.good,
+  good: COLORS.goodBright,
+  normal: COLORS.caution,
+  high: COLORS.elevated,
+  very_high: COLORS.risk,
 };
 
 // Definido fuera del componente: si se declara dentro del render, cada render crea un
@@ -69,7 +70,7 @@ export default function CardiacDecoupling({ activities }) {
 
         const pace = a.average_speed > 0 ? 16.6667 / a.average_speed : 0;
         const levelKey = getDecouplingLevelKey(dc);
-        const color = levelKey ? LEVEL_COLORS[levelKey] : '#94a3b8';
+        const color = levelKey ? LEVEL_COLORS[levelKey] : COLORS.inkFaint;
 
         return {
           id: a.id,
@@ -132,7 +133,7 @@ export default function CardiacDecoupling({ activities }) {
         avgAll: Math.round(avgAll * 10) / 10,
         improving,
         levelLast5Key: avgLast5Key,
-        levelLast5Color: avgLast5Key ? LEVEL_COLORS[avgLast5Key] : '#94a3b8',
+        levelLast5Color: avgLast5Key ? LEVEL_COLORS[avgLast5Key] : COLORS.inkFaint,
       },
     };
   }, [activities, scope, minDuration]);
@@ -151,34 +152,34 @@ export default function CardiacDecoupling({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.sessions_analyzed')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.sessions_analyzed')}</p>
           <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.total}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.with_complete_data')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.with_complete_data')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.last_5_avg')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.last_5_avg')}</p>
           <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5Color }}>{stats.avgLast5}%</p>
-          <p className="text-[10px] font-semibold mt-0.5" style={{ color: stats.levelLast5Color }}>
+          <p className="text-xs font-semibold mt-0.5" style={{ color: stats.levelLast5Color }}>
             {stats.levelLast5Key ? t(`decoupling.levels.${stats.levelLast5Key}`) : ''}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.best_session')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.best_session')}</p>
           <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.bestDc}%</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.min_decoupling')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.min_decoupling')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.global_avg')}</p>
+          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.global_avg')}</p>
           <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avgAll}%</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.all_sessions')}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.all_sessions')}</p>
         </div>
         {stats.improving !== null && (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t('decoupling.trend')}</p>
+            <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.trend')}</p>
             <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
               {stats.improving ? `↗ ${t('decoupling.improving')}` : `↘ ${t('decoupling.worsening')}`}
             </p>
-            <p className="text-[10px] text-slate-500 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
           </div>
         )}
       </div>
@@ -200,23 +201,23 @@ export default function CardiacDecoupling({ activities }) {
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
               <XAxis
                 dataKey="dateLabel"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={AXIS_TICK}
                 type="category"
                 allowDuplicatedCategory={false}
               />
               <YAxis
                 dataKey="decoupling"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={AXIS_TICK}
                 domain={[0, 'auto']}
                 unit="%"
               />
               <ZAxis dataKey="km" range={[30, 150]} />
               <RechartsTooltip content={<CustomTooltip />} />
-              <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" label={{ value: t('decoupling.good_threshold'), fontSize: 10, fill: '#10b981' }} />
-              <ReferenceLine y={10} stroke="#f59e0b" strokeDasharray="5 3" label={{ value: t('decoupling.high_threshold'), fontSize: 10, fill: '#f59e0b' }} />
+              <ReferenceLine y={5} stroke={COLORS.good} strokeDasharray="5 3" label={{ value: t('decoupling.good_threshold'), fontSize: 11, fill: COLORS.good }} />
+              <ReferenceLine y={10} stroke={COLORS.caution} strokeDasharray="5 3" label={{ value: t('decoupling.high_threshold'), fontSize: 11, fill: COLORS.caution }} />
               <Scatter data={decouplingData} shape="circle">
                 {decouplingData.map((entry, idx) => (
                   <Cell key={idx} fill={entry.color} fillOpacity={0.8} />
@@ -234,23 +235,23 @@ export default function CardiacDecoupling({ activities }) {
         <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
               <XAxis
                 dataKey="duration"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={AXIS_TICK}
                 type="number"
                 unit=" min"
                 name="Duración"
               />
               <YAxis
                 dataKey="decoupling"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={AXIS_TICK}
                 domain={[0, 'auto']}
                 unit="%"
                 name="Decoupling"
               />
               <RechartsTooltip content={<CustomTooltip />} />
-              <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" />
+              <ReferenceLine y={5} stroke={COLORS.good} strokeDasharray="5 3" />
               <Scatter data={decouplingData} shape="circle">
                 {decouplingData.map((entry, idx) => (
                   <Cell key={idx} fill={entry.color} fillOpacity={0.8} />
@@ -269,15 +270,15 @@ export default function CardiacDecoupling({ activities }) {
           <div className="h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 'auto']} unit="%" />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+                <XAxis dataKey="month" tick={AXIS_TICK} />
+                <YAxis tick={AXIS_TICK} domain={[0, 'auto']} unit="%" />
                 <RechartsTooltip
                   formatter={(val) => [`${val}%`, 'Avg Decoupling']}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <ReferenceLine y={5} stroke="#10b981" strokeDasharray="5 3" />
-                <Line type="monotone" dataKey="avgDecoupling" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
+                <ReferenceLine y={5} stroke={COLORS.good} strokeDasharray="5 3" />
+                <Line type="monotone" dataKey="avgDecoupling" stroke={COLORS.signal} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -299,7 +300,7 @@ export default function CardiacDecoupling({ activities }) {
             ].map(z => (
               <div key={z.key} className="text-center p-2 rounded-lg" style={{ backgroundColor: z.color + '15' }}>
                 <p className="font-bold text-xs" style={{ color: z.color }}>{z.range}</p>
-                <p className="text-[10px] text-slate-500">{t(`decoupling.levels.${z.key}`)}</p>
+                <p className="text-xs text-slate-500">{t(`decoupling.levels.${z.key}`)}</p>
               </div>
             ))}
           </div>

@@ -8,6 +8,7 @@ import { formatDuration } from '../lib/timeFormat';
 import { activityWithinMonths } from '../lib/criticalSpeed';
 import { scopeMonths } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // ============================================================
 // Daniels-Gilbert Formula (1979)
@@ -35,10 +36,10 @@ import useTimeScope from '../hooks/useTimeScope';
 // Ventana de detección y color por distancia; `name`/`distM` salen de la tabla
 // única (lib/raceDistances), que es la que usan también predictor y planificador.
 const DETECTION = {
-  '5k':  { minKm: 4.9,  maxKm: 5.2,  color: '#ef4444' },
-  '10k': { minKm: 9.9,  maxKm: 10.5, color: '#f59e0b' },
-  '21k': { minKm: 21.0, maxKm: 21.5, color: '#10b981' },
-  '42k': { minKm: 42.0, maxKm: 43.0, color: '#2563eb' },
+  '5k':  { minKm: 4.9,  maxKm: 5.2,  color: COLORS.risk },
+  '10k': { minKm: 9.9,  maxKm: 10.5, color: COLORS.caution },
+  '21k': { minKm: 21.0, maxKm: 21.5, color: COLORS.good },
+  '42k': { minKm: 42.0, maxKm: 43.0, color: COLORS.signal },
 };
 
 const DISTANCE_RANGES = RACE_DISTANCES.map(({ key, m, label }) => ({
@@ -209,13 +210,13 @@ export default function VDOTEstimator({ activities }) {
         {bestVDOT ? (
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Big VDOT number */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-8 text-center min-w-[160px] shadow-lg shadow-blue-200 flex flex-col justify-center">
-              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mb-1">Tu VDOT</p>
+            <div className="bg-blue-600 rounded-2xl p-8 text-center min-w-[160px] shadow-lg flex flex-col justify-center">
+              <p className="text-blue-100 text-label font-bold uppercase mb-1">Tu VDOT</p>
               <p className="text-5xl font-black text-white tabular-nums">{bestVDOT.vdot}</p>
               <div className="mt-3 space-y-1.5 flex flex-col items-center">
-                <p className="text-blue-200 text-[11px] leading-tight">Basado en {bestVDOT.distance}</p>
+                <p className="text-blue-200 text-xs leading-tight">Basado en {bestVDOT.distance}</p>
                 <div className="bg-white/10 px-2 py-1 rounded w-fit border border-white/10 mt-1">
-                  <p className="text-[10px] text-blue-50 leading-tight">
+                  <p className="text-xs text-blue-50 leading-tight">
                     <span className="opacity-80">Rendimiento (VO₂): </span>
                     <span className="font-bold">{bestVDOT.vdot} ml/kg/min</span>
                   </p>
@@ -229,12 +230,12 @@ export default function VDOTEstimator({ activities }) {
                 const est = vdotEstimates.find(e => e.distance === range.name);
                 return (
                   <div key={range.name} className={`rounded-xl border p-3 ${est ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{range.name}</p>
+                    <p className="text-label font-bold text-slate-500 uppercase">{range.name}</p>
                     {est ? (
                       <>
                         <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{est.vdot}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{formatDuration(est.normalizedTime)}</p>
-                        <p className="text-[10px] text-slate-500">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{formatDuration(est.normalizedTime)}</p>
+                        <p className="text-xs text-slate-500">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                       </>
                     ) : (
                       <p className="text-xs text-slate-500 mt-1">Sin datos</p>
@@ -262,10 +263,10 @@ export default function VDOTEstimator({ activities }) {
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={vdotTimeline} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: '#64748b', fontSize: 11 }}
+                  tick={AXIS_TICK}
                   tickFormatter={v => {
                     const d = new Date(v);
                     return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
@@ -273,16 +274,16 @@ export default function VDOTEstimator({ activities }) {
                 />
                 <YAxis
                   domain={['dataMin - 2', 'dataMax + 2']}
-                  tick={{ fill: '#64748b', fontSize: 11 }}
-                  label={{ value: 'VDOT', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
+                  tick={AXIS_TICK}
+                  label={{ value: 'VDOT', angle: -90, position: 'insideLeft', fill: COLORS.inkMuted, fontSize: 11 }}
                 />
                 {bestVDOT && (
                   <ReferenceLine
                     y={bestVDOT.vdot}
-                    stroke="#94a3b8"
+                    stroke={COLORS.inkFaint}
                     strokeDasharray="5 5"
                     strokeWidth={1.5}
-                    label={{ value: `Mejor VDOT: ${bestVDOT.vdot}`, position: 'insideTopLeft', fill: '#64748b', fontSize: 10 }}
+                    label={{ value: `Mejor VDOT: ${bestVDOT.vdot}`, position: 'insideTopLeft', fill: COLORS.inkMuted, fontSize: 11 }}
                   />
                 )}
                 <RechartsTooltip content={<CustomTooltip />} />
@@ -293,7 +294,7 @@ export default function VDOTEstimator({ activities }) {
                     const isHidden = hiddenSeries[value];
                     return (
                       <span style={{ 
-                        color: isHidden ? '#cbd5e1' : '#475569', 
+                        color: isHidden ? COLORS.hairlineStrong : COLORS.inkSecondary, 
                         textDecoration: isHidden ? 'line-through' : 'none', 
                         transition: 'all 0.2s',
                         marginLeft: '4px'
@@ -361,7 +362,7 @@ export default function VDOTEstimator({ activities }) {
           <Text className="text-slate-500 text-xs leading-relaxed">
             <span className="font-medium text-slate-500">④ Predicciones</span> — Los tiempos que deberías poder hacer en cada distancia con tu forma actual, según el modelo.
           </Text>
-          <Text className="text-slate-500 text-[10px] leading-relaxed mt-2 border-t border-slate-100 pt-2">
+          <Text className="text-slate-500 text-xs leading-relaxed mt-2 border-t border-slate-100 pt-2">
             <span className="font-semibold text-slate-500">Metodología:</span> Fórmula Daniels-Gilbert (1979) · <span className="italic">Daniels' Running Formula</span>.
             Válido para esfuerzos de carrera entre ~3.5 y ~230 minutos.
           </Text>

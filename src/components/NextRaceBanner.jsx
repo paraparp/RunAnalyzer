@@ -24,7 +24,7 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
         // El acceso al plan es un botón propio, así que la zona "gestionar" no
         // puede ser el contenedor (un botón dentro de otro no es válido): se
         // resuelve con una capa que cubre la tarjeta por debajo del contenido.
-        <div className="relative w-full group bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 shadow-sm transition-all flex items-center gap-5">
+        <div className="relative w-full group bg-blue-700 rounded-2xl p-5 shadow-sm transition-all flex items-center gap-5">
             {onManage && (
                 <button
                     type="button"
@@ -37,7 +37,7 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
                 <FlagIcon className="w-7 h-7 text-white" />
             </div>
             <div className="relative min-w-0 flex-1 pointer-events-none">
-                <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mb-0.5">{t('targets.next_race')}</p>
+                <p className="text-label font-bold text-blue-100 uppercase mb-0.5">{t('targets.next_race')}</p>
                 <h3 className="text-lg font-black text-white tracking-tight truncate">{race.name}</h3>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs font-bold text-blue-100">
                     <span>{t(`planner.distances.${race.distance}`)}</span>
@@ -55,7 +55,7 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
                     type="button"
                     onClick={() => onOpenPlan(race.id)}
                     title={t('targets.open_plan')}
-                    className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+                    className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-label font-bold uppercase transition-colors"
                 >
                     <DocumentTextIcon className="w-4 h-4" />
                     <span className="hidden sm:inline">{t('targets.open_plan')}</span>
@@ -67,7 +67,7 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
                 ) : (
                     <>
                         <p className="text-3xl font-black text-white leading-none tabular-nums">{days}</p>
-                        <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">{t('targets.days_unit')}</p>
+                        <p className="text-label font-bold text-blue-100 uppercase mt-1">{t('targets.days_unit')}</p>
                     </>
                 )}
             </div>

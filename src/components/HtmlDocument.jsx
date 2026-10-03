@@ -87,7 +87,7 @@ const HtmlDocument = ({ html, height = '26rem', autoHeight = true, maxHeight = 4
     // Sin saneado no se pinta HTML: se enseña el fuente.
     if (failed || doc == null) {
         return (
-            <pre className="text-[11px] leading-relaxed text-slate-500 font-mono whitespace-pre-wrap break-words">{html}</pre>
+            <pre className="text-xs leading-relaxed text-slate-500 font-mono whitespace-pre-wrap break-words">{html}</pre>
         );
     }
 

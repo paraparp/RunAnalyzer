@@ -18,7 +18,7 @@ const THEMES = {
         dot: 'bg-slate-300',
         stroke: '#0f172a', // very dark slate
         backdrop: '#f8fafc',
-        shadow: 'shadow-xl shadow-slate-200/50',
+        shadow: 'shadow-xl',
     },
     dark: {
         id: 'dark',
@@ -58,7 +58,7 @@ const THEMES = {
         dot: 'bg-orange-200',
         stroke: '#fc4c02', // strava orange
         backdrop: '#fff7ed',
-        shadow: 'shadow-xl shadow-orange-900/5',
+        shadow: 'shadow-xl',
     }
 };
 
@@ -173,7 +173,7 @@ export default function RouteGallery({ activities }) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 px-2 mt-2">
           <div>
             <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg">
                     <RectangleGroupIcon className="w-6 h-6 text-white" />
                 </div>
                 <h2 className="text-3xl font-black tracking-tighter text-slate-900">{t('gallery.title', 'Galería de Rutas')}</h2>

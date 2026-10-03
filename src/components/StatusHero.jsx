@@ -8,6 +8,7 @@ import CollapsibleSection from './CollapsibleSection';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { computeStats, computeGarminStats, isRun, paceStr, fmt1 } from '../lib/statusStats';
 import { PhaseBanner, HeroCard, MiniSparkline, PctPill } from './StatusCards';
+import { COLORS } from '../lib/palette';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // El briefing de HOY: en qué fase estás y los cuatro números que contestan
@@ -91,7 +92,7 @@ export default function StatusHero({ activities }) {
       bestAll: fmt1(peakCTL),
       bestAllRaw: peakCTL,
       spark: ctlSparkData,
-      sparkColor: '#3b82f6',
+      sparkColor: COLORS.signalBright,
       lowerIsBetter: false,
     },
     {
@@ -101,7 +102,7 @@ export default function StatusHero({ activities }) {
       bestYear: '—', bestYearRaw: null,
       bestAll: '—', bestAllRaw: null,
       spark: atlSparkData,
-      sparkColor: '#f97316',
+      sparkColor: COLORS.elevated,
       lowerIsBetter: false,
       noCompare: true,
     },
@@ -112,7 +113,7 @@ export default function StatusHero({ activities }) {
       bestYear: '—', bestYearRaw: null,
       bestAll: '—', bestAllRaw: null,
       spark: ctlSparkData.map((d, i) => ({ v: sparkData[i]?.tsb ?? 0 })),
-      sparkColor: '#8b5cf6',
+      sparkColor: COLORS.seriesViolet,
       noCompare: true,
     },
     {
@@ -124,7 +125,7 @@ export default function StatusHero({ activities }) {
       bestAll: `${peakWeekKm.toFixed(1)} km`,
       bestAllRaw: peakWeekKm,
       spark: volSparkData,
-      sparkColor: '#10b981',
+      sparkColor: COLORS.good,
       lowerIsBetter: false,
     },
     {
@@ -136,7 +137,7 @@ export default function StatusHero({ activities }) {
       bestAll: `${Math.round(peakMonthlyElev)} m`,
       bestAllRaw: peakMonthlyElev,
       spark: null,
-      sparkColor: '#64748b',
+      sparkColor: COLORS.inkMuted,
       lowerIsBetter: false,
     },
     {
@@ -184,7 +185,7 @@ export default function StatusHero({ activities }) {
         bestAll: garmin.rhrAllTimeMin ? `${garmin.rhrAllTimeMin} bpm` : '—',
         bestAllRaw: garmin.rhrAllTimeMin,
         spark: garmin.rhrSparkData,
-        sparkColor: '#ef4444',
+        sparkColor: COLORS.risk,
         lowerIsBetter: true, // lower RHR = better
       },
       {
@@ -196,7 +197,7 @@ export default function StatusHero({ activities }) {
         bestAll: garmin.bbAllTimeMax ? `${garmin.bbAllTimeMax}/100` : '—',
         bestAllRaw: garmin.bbAllTimeMax,
         spark: garmin.bbSparkData,
-        sparkColor: '#8b5cf6',
+        sparkColor: COLORS.seriesViolet,
         lowerIsBetter: false,
       },
     ] : []),

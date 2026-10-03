@@ -28,6 +28,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background-color: #dbeafe;
+  color: #0f172a;
+}
+
+input,
+textarea {
+  caret-color: #2563eb;
+}
+
 #root {
   min-height: 100vh;
 }
@@ -94,7 +104,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -133,10 +143,6 @@ body {
   animation: gradient-x 15s ease infinite;
 }
 
-.perspective-1000 {
-  perspective: 1000px;
-}
-
 /* Tremor overrides — Kinetic style */
 .tremor-TableRow-row:hover {
   background-color: #f0f4ff !important;
@@ -144,9 +150,9 @@ body {
 
 .tremor-TableHeaderCell-tableHeaderCell {
   font-weight: 700 !important;
-  font-size: 10px !important;
+  font-size: 11px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.06em !important;
   color: #64748b !important;
 }
 
@@ -169,7 +175,7 @@ body {
 /* Text inside cards */
 .tremor-Text-root {
   color: #64748b !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 /* Tabular numbers for data */
@@ -187,36 +193,4 @@ body {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Premium UI redign glows & animations for Bento cards */
-.glow-emerald { box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.12), 0 0 15px -5px rgba(16, 185, 129, 0.08); }
-.glow-blue { box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.12), 0 0 15px -5px rgba(59, 130, 246, 0.08); }
-.glow-amber { box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.12), 0 0 15px -5px rgba(245, 158, 11, 0.08); }
-.glow-rose { box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.12), 0 0 15px -5px rgba(244, 63, 94, 0.08); }
-.glow-indigo { box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.12), 0 0 15px -5px rgba(99, 102, 241, 0.08); }
-
-@keyframes pulse-slow-glow {
-  0%, 100% {
-    opacity: 0.6;
-    transform: scale(1) translate(-50%, -50%);
-    filter: blur(40px);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.15) translate(-45%, -45%);
-    filter: blur(50px);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulse-slow-glow 8s ease-in-out infinite;
-}
-
-@keyframes ticket-pulse {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 0.4; }
-}
-
-.animate-ticket-glow {
-  animation: ticket-pulse 3s ease-in-out infinite;
-}
 

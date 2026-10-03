@@ -61,12 +61,12 @@ const SEVERITY_STYLE = {
 const NEXT_STATUS_LABEL = { ack: 'Marcar vista', resolved: 'Resolver', wontfix: 'Descartar' };
 
 const Pill = ({ children, className = '' }) => (
-  <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ring-1 ring-inset ${className}`}>{children}</span>
+  <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ring-1 ring-inset ${className}`}>{children}</span>
 );
 
 const Stat = ({ label, value }) => (
   <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-3">
-    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="text-label font-bold uppercase text-slate-500">{label}</div>
     <div className="text-xl font-bold text-slate-900 mt-0.5">{value}</div>
   </div>
 );
@@ -106,7 +106,7 @@ const UsersTab = ({ data, reload }) => {
       <div className="bg-white rounded-2xl ring-1 ring-slate-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-100">
+            <tr className="text-label uppercase text-slate-500 border-b border-slate-100">
               <th className="text-left font-semibold px-4 py-3">Usuario</th>
               <th className="text-left font-semibold px-4 py-3">Último acceso</th>
               <th className="text-left font-semibold px-4 py-3">Alta</th>
@@ -289,7 +289,7 @@ const SystemTab = ({ data }) => {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {groups.map(([title, flags]) => (
           <div key={title} className="bg-white rounded-2xl ring-1 ring-slate-200 p-4 space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+            <div className="text-label font-bold uppercase text-slate-500">{title}</div>
             {flags.map(([label, on]) => <Flag key={label} label={label} on={on} />)}
           </div>
         ))}
@@ -376,7 +376,7 @@ export default function AdminPanel() {
           >
             <Icon className="w-4 h-4" /> {label}
             {id === 'issues' && issuesData?.totals.open > 0 && (
-              <span className={`text-[11px] px-1.5 rounded-md ${tab === id ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
+              <span className={`text-xs px-1.5 rounded-md ${tab === id ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
                 {issuesData.totals.open}
               </span>
             )}

@@ -137,7 +137,7 @@ const renderItems = (items, keyBase = 'l') => {
                     <li key={gi} value={type === 'ol' ? g.value : undefined} className="leading-relaxed pl-1">
                         {g.checked != null ? (
                             <span className="flex items-start gap-2">
-                                <span className={`mt-[3px] w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center text-[9px] font-black ${g.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 text-transparent'}`}>
+                                <span className={`mt-[3px] w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center text-xs font-black ${g.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 text-transparent'}`}>
                                     ✓
                                 </span>
                                 <span className={g.checked ? 'text-slate-500 line-through' : ''}>{parseInline(g.text)}</span>
@@ -186,7 +186,7 @@ export const MarkdownText = ({ content }) => {
                         <thead className="bg-slate-50">
                             <tr>
                                 {header.map((cell, i) => (
-                                    <th key={i} className={`px-3 py-2 font-black uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 whitespace-nowrap ${alignOf(i)}`}>
+                                    <th key={i} className={`px-3 py-2 font-bold uppercase text-label text-slate-500 border-b border-slate-200 whitespace-nowrap ${alignOf(i)}`}>
                                         {parseInline(cell)}
                                     </th>
                                 ))}
@@ -228,7 +228,7 @@ export const MarkdownText = ({ content }) => {
                 elements.push(
                     <div key={elements.length} className="my-3 rounded-xl border border-slate-200 overflow-hidden">
                         {codeLang && (
-                            <div className="px-3 py-1.5 bg-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <div className="px-3 py-1.5 bg-slate-100 text-label font-bold uppercase text-slate-500 border-b border-slate-200">
                                 {codeLang}
                             </div>
                         )}

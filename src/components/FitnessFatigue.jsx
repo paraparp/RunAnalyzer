@@ -19,6 +19,7 @@ import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '.
 import { monthShort } from '../lib/monthLabels';
 import { isRun, paceStr, timeStr, acwrZone, rampLevel, formZone } from '../lib/statusStats';
 import GlobalKpiGrid from './GlobalKpiGrid';
+import { COLORS, AXIS_TICK } from '../lib/palette';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -45,28 +46,28 @@ function PMCTooltip({ active, payload, label }) {
   return (
     <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden min-w-[240px] max-w-[290px]">
       <div className="px-4 pt-3 pb-2 bg-slate-50 border-b border-slate-100">
-        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{dateFmt}</p>
+        <p className="text-label font-bold text-slate-500 uppercase">{dateFmt}</p>
       </div>
       <div className="px-4 py-2.5 space-y-1.5">
         {day?.load > 0 && (
           <div className="flex justify-between items-center">
-            <span className="text-[11px] text-slate-500 font-medium">{es ? 'Carga' : 'Load'}</span>
-            <span className="text-[12px] font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
+            <span className="text-xs text-slate-500 font-medium">{es ? 'Carga' : 'Load'}</span>
+            <span className="text-xs font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
           </div>
         )}
         {lines.map((e, i) => (
           <div key={i} className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.stroke }} />
-              <span className="text-[12px] font-semibold text-slate-600">{e.name}</span>
+              <span className="text-xs font-semibold text-slate-600">{e.name}</span>
             </div>
-            <span className="text-[13px] font-black tabular-nums" style={{ color: e.stroke }}>{e.value}</span>
+            <span className="text-sm font-black tabular-nums" style={{ color: e.stroke }}>{e.value}</span>
           </div>
         ))}
         {day?.Forma != null && (
           <div className="flex justify-between items-center gap-4 pt-1 border-t border-slate-100 mt-1">
-            <span className="text-[11px] font-semibold text-slate-500">TSB / {es ? 'Forma' : 'Form'}</span>
-            <span className={`text-[13px] font-black tabular-nums ${day.Forma > 5 ? 'text-emerald-600' : day.Forma < -10 ? 'text-rose-600' : 'text-slate-700'}`}>
+            <span className="text-xs font-semibold text-slate-500">TSB / {es ? 'Forma' : 'Form'}</span>
+            <span className={`text-sm font-black tabular-nums ${day.Forma > 5 ? 'text-emerald-600' : day.Forma < -10 ? 'text-rose-600' : 'text-slate-700'}`}>
               {day.Forma > 0 ? '+' : ''}{day.Forma}
             </span>
           </div>
@@ -74,19 +75,19 @@ function PMCTooltip({ active, payload, label }) {
       </div>
       {acts.length > 0 && (
         <div className="border-t border-slate-100 px-4 py-2.5">
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">{es ? 'Actividades' : 'Activities'}</p>
+          <p className="text-label font-bold text-slate-500 uppercase mb-2">{es ? 'Actividades' : 'Activities'}</p>
           <div className="space-y-2.5">
             {acts.map((a, i) => (
               <div key={i}>
                 <div className="flex justify-between items-baseline gap-2">
-                  <span className="text-[12px] font-bold text-slate-800 truncate">{a.name}</span>
-                  <span className="text-[11px] text-slate-500 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
+                  <span className="text-xs font-bold text-slate-800 truncate">{a.name}</span>
+                  <span className="text-xs text-slate-500 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                  {fmtDur(a.moving_time)    && <span className="text-[10px] text-slate-500">⏱ {fmtDur(a.moving_time)}</span>}
-                  {fmtPace(a.average_speed) && <span className="text-[10px] text-slate-500">⚡ {fmtPace(a.average_speed)}/km</span>}
-                  {a.average_heartrate      && <span className="text-[10px] text-slate-500">❤️ {Math.round(a.average_heartrate)} bpm</span>}
-                  {a.suffer_score           && <span className="text-[10px] text-slate-500">🔥 SS: {a.suffer_score}</span>}
+                  {fmtDur(a.moving_time)    && <span className="text-xs text-slate-500">⏱ {fmtDur(a.moving_time)}</span>}
+                  {fmtPace(a.average_speed) && <span className="text-xs text-slate-500">⚡ {fmtPace(a.average_speed)}/km</span>}
+                  {a.average_heartrate      && <span className="text-xs text-slate-500">❤️ {Math.round(a.average_heartrate)} bpm</span>}
+                  {a.suffer_score           && <span className="text-xs text-slate-500">🔥 SS: {a.suffer_score}</span>}
                 </div>
               </div>
             ))}
@@ -113,7 +114,7 @@ function ScatterTooltip({ active, payload }) {
         <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
         <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
       </div>
-      <p className="text-[10px] text-slate-500 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
+      <p className="text-xs text-slate-500 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
     </div>
   );
 }
@@ -325,18 +326,18 @@ export default function FitnessFatigue({ activities }) {
               <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
                 <card.icon className="w-5 h-5" />
               </div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">{card.label}</div>
+              <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
             </div>
             <div className="flex items-baseline gap-2">
               <p className={`text-3xl font-black tabular-nums ${card.color}`}>{card.value}</p>
               {card.trend !== undefined && (
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-lg ${card.trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                <span className={`text-xs font-black px-1.5 py-0.5 rounded-lg ${card.trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                   {card.trend > 0 ? '+' : ''}{card.trend}
                 </span>
               )}
             </div>
             <div className="mt-4 space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-tighter text-slate-500">{card.sub}</div>
+              <div className="text-label font-bold uppercase tracking-tighter text-slate-500">{card.sub}</div>
               {card.progress !== undefined && (
                 <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
                   <div className={`h-full rounded-full transition-all duration-700 ${card.color.replace('text-', 'bg-')}`} style={{ width: `${card.progress}%` }} />
@@ -389,15 +390,15 @@ export default function FitnessFatigue({ activities }) {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-4 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-[3px] rounded-full bg-blue-600" />
-            <span className="text-[11px] text-slate-600 font-semibold">CTL — {es ? 'Fitness' : 'Fitness'}</span>
+            <span className="text-xs text-slate-600 font-semibold">CTL — {es ? 'Fitness' : 'Fitness'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-[2px]" style={{ background: 'repeating-linear-gradient(90deg,#f43f5e 0 5px,transparent 5px 9px)' }} />
-            <span className="text-[11px] text-slate-500 font-semibold">ATL — {es ? 'Fatiga' : 'Fatigue'}</span>
+            <span className="text-xs text-slate-500 font-semibold">ATL — {es ? 'Fatiga' : 'Fatigue'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-blue-300 opacity-70" />
-            <span className="text-[11px] text-slate-500 font-medium">{t('fitness.pmc.daily_load')}</span>
+            <span className="text-xs text-slate-500 font-medium">{t('fitness.pmc.daily_load')}</span>
           </div>
         </div>
 
@@ -407,37 +408,37 @@ export default function FitnessFatigue({ activities }) {
             <ComposedChart syncId="pmc" data={filteredData} margin={{ top: 16, right: 16, bottom: 0, left: 8 }}>
               <defs>
                 <linearGradient id="gradCTL" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor="#2563eb" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                  <stop offset="0%"   stopColor={COLORS.signal} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={COLORS.signal} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="2 8" stroke="#e2e8f0" vertical={false} />
+              <CartesianGrid strokeDasharray="2 8" stroke={COLORS.hairline} vertical={false} />
               <XAxis dataKey="date" hide />
-              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} width={36}
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={36}
                 domain={[0, d => Math.round(d * 1.15)]} tickCount={5} />
               <RechartsTooltip content={<PMCTooltip />} />
               <Line type="monotone" dataKey="Fatiga" name={t('fitness.atl')}
-                stroke="#f43f5e" strokeWidth={2} strokeDasharray="6 3"
+                stroke={COLORS.risk} strokeWidth={2} strokeDasharray="6 3"
                 dot={false} isAnimationActive={false}
-                activeDot={{ r: 4, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2 }} />
+                activeDot={{ r: 4, fill: COLORS.risk, stroke: COLORS.paper, strokeWidth: 2 }} />
               <Area type="monotone" dataKey="Fitness" name={t('fitness.ctl')}
-                stroke="#2563eb" strokeWidth={3} fill="url(#gradCTL)"
+                stroke={COLORS.signal} strokeWidth={3} fill="url(#gradCTL)"
                 dot={false} isAnimationActive={false}
-                activeDot={{ r: 6, fill: '#2563eb', stroke: '#fff', strokeWidth: 2 }} />
+                activeDot={{ r: 6, fill: COLORS.signal, stroke: COLORS.paper, strokeWidth: 2 }} />
               {/* Picos: la franja es el 10% superior de cada máximo */}
               {peakCTL > 0 && (
-                <ReferenceArea y1={peakCTL * 0.9} y2={peakCTL} fill="#3b82f6" fillOpacity={0.08} ifOverflow="hidden" />
+                <ReferenceArea y1={peakCTL * 0.9} y2={peakCTL} fill={COLORS.signalBright} fillOpacity={0.08} ifOverflow="hidden" />
               )}
               {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
-                <ReferenceArea y1={peakCTLYear * 0.9} y2={peakCTLYear} fill="#f59e0b" fillOpacity={0.1} ifOverflow="hidden" />
+                <ReferenceArea y1={peakCTLYear * 0.9} y2={peakCTLYear} fill={COLORS.caution} fillOpacity={0.1} ifOverflow="hidden" />
               )}
               {peakCTL > 0 && (
-                <ReferenceLine y={peakCTL} stroke="#3b82f6" strokeDasharray="4 3" strokeOpacity={0.6}
-                  label={{ value: `${t('fitness.peak_all')} ${peakCTL}`, position: 'insideTopRight', fontSize: 9, fill: '#3b82f6', opacity: 0.8 }} />
+                <ReferenceLine y={peakCTL} stroke={COLORS.signalBright} strokeDasharray="4 3" strokeOpacity={0.6}
+                  label={{ value: `${t('fitness.peak_all')} ${peakCTL}`, position: 'insideTopRight', fontSize: 11, fill: COLORS.signalBright, opacity: 0.8 }} />
               )}
               {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
-                <ReferenceLine y={peakCTLYear} stroke="#f59e0b" strokeDasharray="4 3" strokeOpacity={0.6}
-                  label={{ value: `${t('fitness.peak_year')} ${peakCTLYear}`, position: 'insideBottomRight', fontSize: 9, fill: '#f59e0b', opacity: 0.8 }} />
+                <ReferenceLine y={peakCTLYear} stroke={COLORS.caution} strokeDasharray="4 3" strokeOpacity={0.6}
+                  label={{ value: `${t('fitness.peak_year')} ${peakCTLYear}`, position: 'insideBottomRight', fontSize: 11, fill: COLORS.caution, opacity: 0.8 }} />
               )}
             </ComposedChart>
           </ResponsiveContainer>
@@ -458,8 +459,8 @@ export default function FitnessFatigue({ activities }) {
                   const r = maxV > 0 ? entry.load / maxV : 0;
                   return (
                     <Cell key={i}
-                      fill={selectedDay?.date === entry.date ? '#f97316'
-                        : r > 0.75 ? '#1d4ed8' : r > 0.45 ? '#60a5fa' : r > 0 ? '#bfdbfe' : 'transparent'}
+                      fill={selectedDay?.date === entry.date ? COLORS.elevated
+                        : r > 0.75 ? COLORS.signalDeep : r > 0.45 ? COLORS.signalLight : r > 0 ? '#bfdbfe' : 'transparent'}
                     />
                   );
                 })}
@@ -471,18 +472,18 @@ export default function FitnessFatigue({ activities }) {
         {/* Divider */}
         <div className="flex items-center gap-3 my-3">
           <div className="h-px flex-1 bg-slate-100" />
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+          <span className="text-label font-bold text-slate-500 uppercase">
             TSB — {es ? 'Forma del Día' : 'Daily Form'}
           </span>
           <div className="flex items-center gap-1">
             {[
-              { label: es ? 'Trans.' : 'Trans.', bg: '#dbeafe', fg: '#1d4ed8' },
+              { label: es ? 'Trans.' : 'Trans.', bg: '#dbeafe', fg: COLORS.signalDeep },
               { label: es ? 'Fresco' : 'Fresh',  bg: '#d1fae5', fg: '#065f46' },
               { label: es ? 'Óptimo' : 'Optimal', bg: '#fef9c3', fg: '#92400e' },
               { label: es ? 'Cargado' : 'Loaded', bg: '#ffedd5', fg: '#9a3412' },
               { label: es ? 'Sobrecar.' : 'Over.', bg: '#fee2e2', fg: '#991b1b' },
             ].map(z => (
-              <span key={z.label} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: z.bg, color: z.fg }}>{z.label}</span>
+              <span key={z.label} className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: z.bg, color: z.fg }}>{z.label}</span>
             ))}
           </div>
           <div className="h-px flex-1 bg-slate-100" />
@@ -497,16 +498,16 @@ export default function FitnessFatigue({ activities }) {
               <ReferenceArea y1={-10} y2={5}   fill="#fef9c3" fillOpacity={0.85} ifOverflow="hidden" />
               <ReferenceArea y1={-30} y2={-10} fill="#ffedd5" fillOpacity={0.85} ifOverflow="hidden" />
               <ReferenceArea y1={-80} y2={-30} fill="#fee2e2" fillOpacity={0.85} ifOverflow="hidden" />
-              <CartesianGrid strokeDasharray="2 8" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false}
-                axisLine={{ stroke: '#e2e8f0' }} tickFormatter={xTickFormatter} interval={xInterval} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false}
+              <CartesianGrid strokeDasharray="2 8" stroke={COLORS.hairlineSoft} vertical={false} />
+              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false}
+                axisLine={{ stroke: COLORS.hairline }} tickFormatter={xTickFormatter} interval={xInterval} />
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false}
                 width={36} domain={[-80, 80]} tickCount={5} />
-              <ReferenceLine y={0} stroke="#64748b" strokeWidth={1.5} />
+              <ReferenceLine y={0} stroke={COLORS.inkMuted} strokeWidth={1.5} />
               <RechartsTooltip content={<PMCTooltip />} />
               <Line type="monotone" dataKey="Forma" name={t('fitness.tsb')}
-                stroke="#0f172a" strokeWidth={2.5} dot={false} isAnimationActive={false}
-                activeDot={{ r: 5, fill: '#0f172a', stroke: '#fff', strokeWidth: 2 }} />
+                stroke={COLORS.ink} strokeWidth={2.5} dot={false} isAnimationActive={false}
+                activeDot={{ r: 5, fill: COLORS.ink, stroke: COLORS.paper, strokeWidth: 2 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -530,7 +531,7 @@ export default function FitnessFatigue({ activities }) {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-slate-500">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
                       {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
                       {isRun(a)
                         ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)
@@ -561,19 +562,19 @@ export default function FitnessFatigue({ activities }) {
           <div className="h-80 w-full bg-slate-50/50 rounded-xl p-4 border border-slate-100">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
                 <XAxis type="number" dataKey="Fitness" name="Fitness (CTL)" domain={['dataMin - 2', 'dataMax + 2']}
-                  label={{ value: 'Fitness (CTL)', position: 'insideBottom', offset: -10, fill: '#64748b', fontSize: 12 }}
-                  tick={{ fill: '#64748b', fontSize: 12 }} />
+                  label={{ value: 'Fitness (CTL)', position: 'insideBottom', offset: -10, fill: COLORS.inkMuted, fontSize: 12 }}
+                  tick={{ fill: COLORS.inkMuted, fontSize: 12 }} />
                 <YAxis type="number" dataKey="pace" name={es ? 'Ritmo' : 'Pace'} domain={['auto', 'auto']} reversed
                   tickFormatter={v => formatPaceFromMinPerKm(v)}
-                  label={{ value: es ? 'Ritmo (min/km)' : 'Pace (min/km)', angle: -90, position: 'insideLeft', offset: -5, fill: '#64748b', fontSize: 12 }}
-                  tick={{ fill: '#64748b', fontSize: 12 }} />
+                  label={{ value: es ? 'Ritmo (min/km)' : 'Pace (min/km)', angle: -90, position: 'insideLeft', offset: -5, fill: COLORS.inkMuted, fontSize: 12 }}
+                  tick={{ fill: COLORS.inkMuted, fontSize: 12 }} />
                 <ZAxis type="number" dataKey="distance" range={[40, 400]} />
                 <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} content={<ScatterTooltip />} />
                 <Scatter data={topEfforts} onClick={e => window.open(`https://www.strava.com/activities/${e.id}`, '_blank')} className="cursor-pointer">
                   {topEfforts.map((e, i) => (
-                    <Cell key={i} fill={e.Forma > 5 ? '#10b981' : e.Forma < -10 ? '#f43f5e' : '#2563eb'} fillOpacity={0.7} />
+                    <Cell key={i} fill={e.Forma > 5 ? COLORS.good : e.Forma < -10 ? COLORS.risk : COLORS.signal} fillOpacity={0.7} />
                   ))}
                 </Scatter>
               </ScatterChart>
@@ -587,7 +588,7 @@ export default function FitnessFatigue({ activities }) {
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1.5">
                 <div className={`w-3 h-3 rounded-full ${l.color} opacity-70`} />
-                <span className="text-[11px] text-slate-500 font-medium">{l.label}</span>
+                <span className="text-xs text-slate-500 font-medium">{l.label}</span>
               </div>
             ))}
           </div>
@@ -600,8 +601,7 @@ export default function FitnessFatigue({ activities }) {
           { status: formStatus, label: es ? 'Estado de Forma' : 'Form Status', icon: SparklesIcon },
           { status: acwrStatus, label: 'ACWR', icon: BoltIcon },
         ].map((item, i) => (
-          <div key={i} className={`bg-white rounded-2xl border-l-8 p-6 shadow-xl shadow-slate-200/50 border border-slate-100
-            ${item.status?.color === 'emerald' ? 'border-l-emerald-500' : item.status?.color === 'rose' ? 'border-l-rose-500' : 'border-l-blue-500'}`}>
+          <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex gap-5 items-start">
               <div className={`p-4 rounded-2xl shrink-0 ${item.status?.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : item.status?.color === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
                 <item.icon className="w-8 h-8" />
@@ -618,7 +618,7 @@ export default function FitnessFatigue({ activities }) {
       </div>
 
       {rampRate > 5 && (
-        <div className="bg-white border-l-8 border-rose-500 rounded-2xl p-6 flex gap-5 items-start shadow-xl shadow-rose-100/20 border border-slate-100">
+        <div className="bg-white border border-rose-200 rounded-2xl p-6 flex gap-5 items-start shadow-sm">
           <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl shrink-0">
             <ExclamationTriangleIcon className="w-6 h-6" />
           </div>

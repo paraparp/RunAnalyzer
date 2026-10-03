@@ -5,6 +5,7 @@ import { karvonenBounds, POLARIZED_TARGETS } from '../lib/hrZones';
 import { zoneMix, polarizedGroups, polarizationStatus } from '../lib/zoneMix';
 import { loadPhase, fmt1 } from '../lib/statusStats';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
+import { COLORS } from '../lib/palette';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // La franja de apertura de HOY: CÓMO se ha entrenado (reparto por zonas) y CÓMO
@@ -26,18 +27,18 @@ const WINDOW_DAYS = 28;
 // Las cinco zonas de Karvonen, con los mismos colores que la vista de Zonas para
 // que el mismo reparto no cambie de pinta según dónde se mire.
 const ZONES = [
-  { key: 'z1', name: 'Z1', role: 'Recuperación', color: '#94a3b8' },
+  { key: 'z1', name: 'Z1', role: 'Recuperación', color: COLORS.inkFaint },
   { key: 'z2', name: 'Z2', role: 'Base',         color: '#38bdf8' },
   { key: 'z3', name: 'Z3', role: 'Aeróbico',     color: '#4ade80' },
   { key: 'z4', name: 'Z4', role: 'Umbral',       color: '#fb923c' },
-  { key: 'z5', name: 'Z5', role: 'VO2max',       color: '#f87171' },
+  { key: 'z5', name: 'Z5', role: 'VO2max',       color: COLORS.riskLight },
 ];
 
 // La lectura polarizada: Z1+Z2 fácil · Z3 gris · Z4+Z5 duro (lib/zoneMix).
 const GROUPS = [
   { key: 'low',  label: 'Fácil',  sub: 'Z1–Z2', color: '#4ade80', text: 'text-emerald-600' },
-  { key: 'mod',  label: 'Gris',   sub: 'Z3',    color: '#fbbf24', text: 'text-amber-600'   },
-  { key: 'high', label: 'Duro',   sub: 'Z4–Z5', color: '#f87171', text: 'text-rose-600'    },
+  { key: 'mod',  label: 'Gris',   sub: 'Z3',    color: COLORS.cautionLight, text: 'text-amber-600'   },
+  { key: 'high', label: 'Duro',   sub: 'Z4–Z5', color: COLORS.riskLight, text: 'text-rose-600'    },
 ];
 
 const VERDICT = {
@@ -65,7 +66,7 @@ const hoursStr = (sec) => {
 // ─── átomos ──────────────────────────────────────────────────────────────────
 
 function Pill({ children, cls }) {
-  return <span className={`shrink-0 px-2 py-0.5 rounded ring-1 text-[11px] font-bold ${cls}`}>{children}</span>;
+  return <span className={`shrink-0 px-2 py-0.5 rounded ring-1 text-xs font-bold ${cls}`}>{children}</span>;
 }
 
 function PanelHead({ icon: Icon, title, scope, badge, onOpen, openLabel }) {
@@ -76,14 +77,14 @@ function PanelHead({ icon: Icon, title, scope, badge, onOpen, openLabel }) {
           <Icon className="w-4 h-4 text-slate-500 shrink-0" />
           <h3 className="text-sm font-bold text-slate-800 truncate">{title}</h3>
         </div>
-        <p className="text-[11px] text-slate-500 mt-0.5">{scope}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{scope}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {badge}
         {onOpen && (
           <button
             onClick={onOpen}
-            className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700"
+            className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
           >
             {openLabel}
             <ArrowRightIcon className="w-3 h-3" />
@@ -183,7 +184,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 </span>
                 <span className="text-xs font-semibold text-slate-500">fácil (Z1–Z2)</span>
               </div>
-              <span className="text-[11px] text-slate-500 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
+              <span className="text-xs text-slate-500 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
             </div>
 
             {/* Dos lecturas del mismo reparto: las cinco zonas de Karvonen y,
@@ -221,21 +222,21 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 <div key={z.key} className="min-w-0">
                   <div className="flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: z.color }} />
-                    <span className="text-[10px] font-bold text-slate-500 truncate">{z.name}</span>
+                    <span className="text-xs font-bold text-slate-500 truncate">{z.name}</span>
                   </div>
                   <div className="text-sm font-black text-slate-700 tabular-nums leading-tight">{mix.pct[i]}%</div>
-                  <div className="text-[10px] text-slate-500 tabular-nums">{hoursStr(mix.times[i])}</div>
+                  <div className="text-xs text-slate-500 tabular-nums">{hoursStr(mix.times[i])}</div>
                 </div>
               ))}
             </div>
 
             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-3 pt-3 border-t border-slate-100">
               {GROUPS.map((g) => (
-                <span key={g.key} className="text-[11px] text-slate-500">
+                <span key={g.key} className="text-xs text-slate-500">
                   {g.label} <span className={`font-black tabular-nums ${g.text}`}>{groups[g.key]}%</span>
                 </span>
               ))}
-              <span className="text-[10px] text-slate-500 ml-auto">
+              <span className="text-xs text-slate-500 ml-auto">
                 {mix.sessions} sesiones · {hoursStr(mix.totalSec)} con FC
                 {mix.avgOnlySessions > 0 && ` · ${mix.avgOnlySessions} sin parciales`}
               </span>
@@ -307,12 +308,12 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                   </div>
                 );
               })()}
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+              <div className="flex justify-between text-xs text-slate-500 mt-1">
                 <span>fatiga</span><span>equilibrio</span><span>fresco</span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-100 text-[11px]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-100 text-xs">
               <span className="text-slate-500">
                 ACWR <span className={`font-black tabular-nums ${acwrCls}`}>{acwr == null ? '—' : acwr.toFixed(2)}</span>
               </span>

@@ -293,7 +293,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
               >
                 {loading ? (
                   <><ArrowPathIcon className="w-4 h-4 animate-spin" /> Descargando…</>
