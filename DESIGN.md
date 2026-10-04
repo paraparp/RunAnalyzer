@@ -273,7 +273,7 @@ Directos y compactos, como un interruptor de laboratorio.
 - **Mobile:** la barra lateral se convierte en cajón con fondo oscurecido y desenfoque de 4px.
 
 ### Banda de veredicto (signature)
-Bloque oscuro en tinta (con degradado hacia índigo profundo) en la vista de Hoy. Resume el estado del día: forma, sesión planificada, carrera objetivo. Es la única superficie oscura grande de la aplicación y usa texto blanco y blanco al 50–70%.
+Bloque plano en tinta, sin degradado ni manchas de color, que abre la vista de Hoy. Da la respuesta de la mañana en dos mitades: el estado (anillo de 0 a 100 y su lectura en palabras) y «Hoy toca» (la sesión que manda hoy en una línea, con el aviso si el estado pide descargar). Debajo, las cuatro señales del reloj que forman el estado. Es la única superficie oscura grande de la aplicación y usa texto blanco y blanco al 60–80 %. Sin al menos dos señales del reloj no muestra un número: lo dice y se apoya en la forma. Sin ninguna señal del reloj, la banda se compacta: sin anillo ni casillas vacías, con una sola invitación a conectar Garmin. Mientras las cachés del reloj se leen, dice que está leyendo, no que faltan datos.
 
 ### Cabecera de herramienta IA (signature)
 Tarjeta de papel coronada por la banda `kinetic-gradient` de 3px, con un recuadro de 36px en lavado azul que contiene el icono, título en versales y controles a la derecha. Marca todas las superficies donde habla la IA (Coach, Predictor, Preguntas).

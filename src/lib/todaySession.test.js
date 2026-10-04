@@ -68,6 +68,17 @@ describe('resolveTodaySession', () => {
     expect(resolveTodaySession({ savedPlan: saved, todayISO: '2026-10-01' }).planExpired).toBe(true);
   });
 
+  it('una sesión de calidad en Garmin con el estado en rojo avisa por su título', () => {
+    const hard = resolveTodaySession({
+      garminPlanned: [{ date: '2026-09-23', title: 'Series 6×1000' }], todayISO: '2026-09-23', advisesRest: true,
+    });
+    expect(hard.conflict).toBe(true);
+    const easy = resolveTodaySession({
+      garminPlanned: [{ date: '2026-09-23', title: 'Rodaje suave' }], todayISO: '2026-09-23', advisesRest: true,
+    });
+    expect(easy.conflict).toBe(false);
+  });
+
   it('una carrera en Garmin con el estado en rojo también avisa', () => {
     const s = resolveTodaySession({
       garminPlanned: [{ date: '2026-09-23', title: 'Media', is_race: true }], todayISO: '2026-09-23', advisesRest: true,

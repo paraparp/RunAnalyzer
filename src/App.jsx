@@ -553,11 +553,13 @@ const Dashboard = ({ user, handleLogout }) => {
           const activeCat = navCategories.find(cat => cat.itemIds.includes(navView));
           const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
           return (
-            <header className="sticky top-0 z-40 flex justify-between items-center px-8 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl h-16 shadow-sm dark:shadow-none shrink-0 gap-6">
+            <header className="sticky top-0 z-40 flex justify-between items-center px-4 sm:px-8 w-full bg-white dark:bg-slate-900 border-b border-slate-200 h-16 dark:shadow-none shrink-0 gap-6">
               {/* Mobile menu */}
               <button
+                type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                aria-label={t('topbar.open_menu', 'Abrir el menú')}
+                className="lg:hidden p-2 -ml-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               >
                 <Bars3Icon className="w-5 h-5" />
               </button>

@@ -31,6 +31,10 @@ const COACH_TTL_MS = 48 * 3600 * 1000;
 
 /** Intensidad (1-5) a partir de la cual un bloque es "duro" (umbral o más). */
 const HARD_INTENSITY = 4;
+// Una tirada larga no es intensa, pero en un día de descarga también sobra.
+const LONG_MIN = 90;
+// El calendario de Garmin solo trae el título: si nombra trabajo de calidad, es duro.
+const HARD_TITLE = /series|interval|tempo|umbral|threshold|fartlek|vo2|cuestas|hill|repet|ritmo de carrera|race pace/i;
 
 const fromISO = (iso) => {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -94,9 +98,9 @@ export function resolveTodaySession({ garminPlanned = [], savedPlan = null, toda
       title: item.title || (item.is_race ? 'Carrera' : 'Entreno'),
       isRace: !!item.is_race,
       extra: garminToday.length - 1,
-      // Sin estructura (el calendario solo trae el título): no se puede saber si es
-      // dura, pero una carrera lo es por definición.
-      conflict: advisesRest && !!item.is_race,
+      // Sin estructura (el calendario solo trae el título): una carrera es dura por
+      // definición, y un título de series, tempo o umbral también.
+      conflict: advisesRest && (!!item.is_race || HARD_TITLE.test(item.title || '')),
     };
   }
 
@@ -115,7 +119,7 @@ export function resolveTodaySession({ garminPlanned = [], savedPlan = null, toda
       blocks,
       totalMin,
       hard: maxIntensity >= HARD_INTENSITY,
-      conflict: advisesRest && !rest && maxIntensity >= HARD_INTENSITY,
+      conflict: advisesRest && !rest && (maxIntensity >= HARD_INTENSITY || totalMin >= LONG_MIN),
       hrvGuidance: savedPlan?.plan?.hrv_guidance ?? null,
     };
   }
