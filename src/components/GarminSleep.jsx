@@ -9,6 +9,7 @@ import { formatMinutesHm } from '../lib/timeFormat';
 import { readSleep, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
 import { useEffect } from 'react';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import ExpandableChart from './ExpandableChart';
 
 const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
   const accentMap = {
@@ -105,6 +106,22 @@ function SleepSection({ sleepData }) {
     dur:    w.durationMin,
   }));
 
+  const viewPills = (
+    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+      {[['score','Puntuación'],['stages','Fases']].map(([v, label]) => (
+        <button
+          key={v}
+          onClick={() => setView(v)}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+            view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -140,24 +157,18 @@ function SleepSection({ sleepData }) {
       {/* Chart */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
         <div className="flex items-center gap-3 mb-5 flex-wrap">
-          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            {[['score','Puntuación'],['stages','Fases']].map(([v, label]) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {viewPills}
           <span className="ml-auto text-xs text-slate-500">últimas {recentWeeks.length} semanas</span>
         </div>
 
+        <ExpandableChart
+          className="h-[240px]"
+          title={view === 'score' ? 'Puntuación de sueño' : 'Fases del sueño'}
+          subtitle={`últimas ${recentWeeks.length} semanas`}
+          toolbar={viewPills}
+        >
         {view === 'score' ? (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorSleepScore" x1="0" y1="0" x2="0" y2="1">
@@ -186,7 +197,7 @@ function SleepSection({ sleepData }) {
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
               <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: COLORS.hairline }} />
@@ -215,6 +226,7 @@ function SleepSection({ sleepData }) {
             </BarChart>
           </ResponsiveContainer>
         )}
+        </ExpandableChart>
       </div>
     </div>
   );

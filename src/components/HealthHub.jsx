@@ -1,3 +1,6 @@
+import {
+  HeartIcon, SignalIcon, ArrowsRightLeftIcon, ArrowTrendingUpIcon, MoonIcon,
+} from '@heroicons/react/24/outline';
 import TabbedHub from './TabbedHub';
 import VitalsOverview from './VitalsOverview';
 import GarminCardiac from './GarminCardiac';
@@ -12,12 +15,12 @@ import GarminSleep from './GarminSleep';
 // "Forma aeróbica" va aquí y no en FitnessHub a propósito: lo que mide es FC a
 // esfuerzo fijo, la misma familia que el desacople, y las dos se leen juntas.
 const HealthHub = ({ activities, onOpenConnections }) => (
-  <TabbedHub tabs={[
-    { id: 'resumen', labelKey: 'hubs.vitals', label: 'Resumen Vital', render: () => <VitalsOverview activities={activities} /> },
-    { id: 'cardiaco', labelKey: 'hubs.cardiac_monitor', label: 'Monitor Cardiaco', render: () => <GarminCardiac onOpenConnections={onOpenConnections} /> },
-    { id: 'desacople', labelKey: 'hubs.decoupling', label: 'Desacople', render: () => <CardiacDecoupling activities={activities} /> },
-    { id: 'forma', labelKey: 'hubs.aerobic_form', label: 'Forma aeróbica', render: () => <AerobicForm activities={activities} /> },
-    { id: 'sueno', labelKey: 'hubs.sleep', label: 'Sueño', render: () => <GarminSleep /> },
+  <TabbedHub storageKey="health" tabs={[
+    { id: 'resumen', labelKey: 'hubs.vitals', label: 'Resumen Vital', icon: HeartIcon, render: () => <VitalsOverview activities={activities} /> },
+    { id: 'cardiaco', labelKey: 'hubs.cardiac_monitor', label: 'Monitor Cardiaco', icon: SignalIcon, render: () => <GarminCardiac onOpenConnections={onOpenConnections} /> },
+    { id: 'desacople', labelKey: 'hubs.decoupling', label: 'Desacople', icon: ArrowsRightLeftIcon, render: () => <CardiacDecoupling activities={activities} /> },
+    { id: 'forma', labelKey: 'hubs.aerobic_form', label: 'Forma aeróbica', icon: ArrowTrendingUpIcon, render: () => <AerobicForm activities={activities} /> },
+    { id: 'sueno', labelKey: 'hubs.sleep', label: 'Sueño', icon: MoonIcon, render: () => <GarminSleep /> },
   ]} />
 );
 

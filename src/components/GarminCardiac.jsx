@@ -14,6 +14,7 @@ import {
   MoonIcon, SparklesIcon, BoltIcon
 } from "@heroicons/react/24/outline";
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import ExpandableChart, { ExpandButton } from './ExpandableChart';
 
 
 // ---------------------------------------------------------------------------
@@ -210,6 +211,7 @@ export default function GarminCardiac({ onOpenConnections }) {
   const [showBaseline, setShowBaseline] = useState(false);
   const [normalizeChart, setNormalizeChart] = useState(true);
   const [chartGranularity, setChartGranularity] = useState('day'); // changed default to day for better readiness view
+  const [expanded, setExpanded] = useState(null); // gráfico abierto en modal ('trends' | 'adaptation')
   const [lastSync, setLastSync] = useState(() => cloudStorage.getItem(LAST_SYNC_KEY) || null);
   // "Ahora" estable por montaje: leer el reloj en cada render mete y saca el
   // mismo día de las ventanas de 7/21/365 días según cuántas veces se repinte.
@@ -521,6 +523,135 @@ export default function GarminCardiac({ onOpenConnections }) {
   const useNorm = normalizeChart && anyCardiacVisible;
 
   const latestReadiness = chartData.length > 0 ? chartData[chartData.length - 1].readinessScore : null;
+
+  // Controles compartidos por la tarjeta y su versión ampliada (ExpandableChart).
+  const granularityPills = (
+    <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5">
+      {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
+        <button
+          key={g}
+          onClick={() => setChartGranularity(g)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            chartGranularity === g
+              ? 'bg-white text-slate-800 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const metricChips = (
+    <div className="flex items-center gap-2 flex-wrap">
+      {latestReadiness != null && (
+        <button
+          onClick={() => setShowReadiness(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showReadiness
+              ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showReadiness ? 'bg-amber-400' : 'bg-slate-300'}`} />
+          Readiness
+        </button>
+      )}
+      {stats?.hasHRV && (
+        <button
+          onClick={() => setShowHRV(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showHRV
+              ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showHRV ? 'bg-blue-500' : 'bg-slate-300'}`} />
+          VFC nocturna
+        </button>
+      )}
+      {stats?.hasHR && (
+        <button
+          onClick={() => setShowHR(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showHR
+              ? 'bg-orange-50 text-orange-700 border-orange-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showHR ? 'bg-orange-400' : 'bg-slate-300'}`} />
+          FC Reposo
+        </button>
+      )}
+      {stats?.hasBB && (
+        <>
+          <button
+            onClick={() => setShowBBHigh(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+              showBBHigh
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full transition-colors ${showBBHigh ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            BB máx
+          </button>
+          <button
+            onClick={() => setShowBBLow(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed transition-all duration-150 ${
+              showBBLow
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full transition-colors ${showBBLow ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+            BB mín
+          </button>
+        </>
+      )}
+      {sleepData?.length > 0 && (
+        <button
+          onClick={() => setShowSleep(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showSleep
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showSleep ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+          Sueño
+        </button>
+      )}
+
+      <span className="w-px h-5 bg-slate-200 mx-0.5 self-center" />
+
+      {(stats?.hasHRV || stats?.hasHR) && (
+        <button
+          onClick={() => setNormalizeChart(v => !v)}
+          title="Ver como % del mínimo y máximo histórico de todos los datos"
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-150 ${
+            normalizeChart
+              ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700'
+          }`}
+        >
+          % hist.
+        </button>
+      )}
+      <button
+        onClick={() => setShowBaseline(v => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+          showBaseline
+            ? 'bg-slate-100 text-slate-700 border-slate-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+        }`}
+      >
+        <span className="w-4 border-t border-dashed border-current inline-block" />
+        Base 21d
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -1150,131 +1281,14 @@ export default function GarminCardiac({ onOpenConnections }) {
                 </p>
               </div>
               {/* Granularity pills */}
-              <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5 self-start">
-                {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
-                  <button
-                    key={g}
-                    onClick={() => setChartGranularity(g)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      chartGranularity === g
-                        ? 'bg-white text-slate-800 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 self-start">
+                {granularityPills}
+                <ExpandButton onClick={() => setExpanded('trends')} />
               </div>
             </div>
 
             {/* ── Metric toggle chips ── */}
-            <div className="flex items-center gap-2 mt-4 flex-wrap">
-              {latestReadiness != null && (
-                <button
-                  onClick={() => setShowReadiness(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                    showReadiness
-                      ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full transition-colors ${showReadiness ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                  Readiness
-                </button>
-              )}
-              {stats?.hasHRV && (
-                <button
-                  onClick={() => setShowHRV(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                    showHRV
-                      ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full transition-colors ${showHRV ? 'bg-blue-500' : 'bg-slate-300'}`} />
-                  VFC nocturna
-                </button>
-              )}
-              {stats?.hasHR && (
-                <button
-                  onClick={() => setShowHR(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                    showHR
-                      ? 'bg-orange-50 text-orange-700 border-orange-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full transition-colors ${showHR ? 'bg-orange-400' : 'bg-slate-300'}`} />
-                  FC Reposo
-                </button>
-              )}
-              {stats?.hasBB && (
-                <>
-                  <button
-                    onClick={() => setShowBBHigh(v => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                      showBBHigh
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full transition-colors ${showBBHigh ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                    BB máx
-                  </button>
-                  <button
-                    onClick={() => setShowBBLow(v => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed transition-all duration-150 ${
-                      showBBLow
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full transition-colors ${showBBLow ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-                    BB mín
-                  </button>
-                </>
-              )}
-              {sleepData?.length > 0 && (
-                <button
-                  onClick={() => setShowSleep(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                    showSleep
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full transition-colors ${showSleep ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                  Sueño
-                </button>
-              )}
-
-              <span className="w-px h-5 bg-slate-200 mx-0.5 self-center" />
-
-              {(stats?.hasHRV || stats?.hasHR) && (
-                <button
-                  onClick={() => setNormalizeChart(v => !v)}
-                  title="Ver como % del mínimo y máximo histórico de todos los datos"
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-150 ${
-                    normalizeChart
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700'
-                  }`}
-                >
-                  % hist.
-                </button>
-              )}
-              <button
-                onClick={() => setShowBaseline(v => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
-                  showBaseline
-                    ? 'bg-slate-100 text-slate-700 border-slate-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                }`}
-              >
-                <span className="w-4 border-t border-dashed border-current inline-block" />
-                Base 21d
-              </button>
-            </div>
+            <div className="mt-4">{metricChips}</div>
 
             {/* Reference zone legend */}
             {!useNorm && (stats?.hasHR || stats?.hasHRV) && (
@@ -1298,7 +1312,10 @@ export default function GarminCardiac({ onOpenConnections }) {
           {/* ── Chart body ── */}
           <div className="px-5 pt-5 pb-4">
 
-          <div className="w-full relative z-10" style={{ aspectRatio: '16/7' }}>
+          <ExpandableChart className="w-full relative z-10" style={{ aspectRatio: '16/7', minHeight: 260 }} trigger="none"
+            open={expanded === 'trends'} onOpenChange={(o) => setExpanded(o ? 'trends' : null)}
+            title="Tendencias Cardíacas" toolbar={granularityPills}
+            footer={metricChips}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart key={chartGranularity} data={chartData} margin={{ top: 12, right: hrAxisOnly ? 8 : 24, left: 0, bottom: 0 }}>
               <defs>
@@ -1572,7 +1589,7 @@ export default function GarminCardiac({ onOpenConnections }) {
               )}
             </AreaChart>
           </ResponsiveContainer>
-          </div>
+          </ExpandableChart>
 
           {stats?.hasHRV && stats?.hasHR && stats.corr && (
             <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-100">
@@ -1609,27 +1626,17 @@ export default function GarminCardiac({ onOpenConnections }) {
                 <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
                   ↑ Alto = Recuperado
                 </span>
-                <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5">
-                  {[['day','Día'],['week','Sem'],['month','Mes']].map(([g, label]) => (
-                    <button
-                      key={g}
-                      onClick={() => setChartGranularity(g)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        chartGranularity === g
-                          ? 'bg-white text-slate-800 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {granularityPills}
+                <ExpandButton onClick={() => setExpanded('adaptation')} />
               </div>
             </div>
           </div>
 
           <div className="px-5 pt-5 pb-4">
-          <div className="w-full relative z-10" style={{ height: 260 }}>
+          <ExpandableChart className="w-full relative z-10" style={{ height: 260 }} trigger="none"
+            open={expanded === 'adaptation'} onOpenChange={(o) => setExpanded(o ? 'adaptation' : null)}
+            title="Índice de Adaptación" subtitle="VFC − FC Reposo · valores altos indican mejor recuperación"
+            toolbar={granularityPills}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
@@ -1704,7 +1711,7 @@ export default function GarminCardiac({ onOpenConnections }) {
                 )}
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </ExpandableChart>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { scopeFromISO } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import ExpandableChart from './ExpandableChart';
 
 // Serie única y color único: lo que se compara es un mismo número consigo mismo a lo
 // largo del tiempo, no varias entidades entre sí.
@@ -240,7 +241,8 @@ export default function AerobicForm({ activities }) {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <ResponsiveContainer width="100%" height={320}>
+        <ExpandableChart className="h-[320px]" title={t('hubs.aerobic_form', 'Forma aeróbica')} footer={<p className="text-xs text-slate-500">{t('aerobic_form.chart_hint')}</p>}>
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
             <XAxis dataKey="label" tick={AXIS_TICK} />
@@ -273,6 +275,7 @@ export default function AerobicForm({ activities }) {
             />
           </ComposedChart>
         </ResponsiveContainer>
+        </ExpandableChart>
         <p className="text-xs text-slate-500 mt-2">{t('aerobic_form.chart_hint')}</p>
       </div>
 

@@ -11,6 +11,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis
 } from 'recharts';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import ExpandableChart from './ExpandableChart';
 
 // Escala de niveles: la de lib/decoupling, compartida con la vista de sesión.
 const getDecouplingLevelKey = decouplingLevel;
@@ -195,10 +196,10 @@ export default function CardiacDecoupling({ activities }) {
       </div>
 
       {/* Timeline chart */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-sm border-slate-200 rounded-2xl">
         <Title className="text-slate-800 font-bold mb-1">{t('decoupling.title')}</Title>
         <Text className="text-slate-500 text-sm mb-4">{t('decoupling.subtitle')}</Text>
-        <div className="h-[320px] w-full">
+        <ExpandableChart className="h-[320px] w-full" title={t('decoupling.title')} subtitle={t('decoupling.subtitle')}>
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
@@ -225,14 +226,14 @@ export default function CardiacDecoupling({ activities }) {
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
-        </div>
+        </ExpandableChart>
       </Card>
 
       {/* Duration vs Decoupling scatter */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-sm border-slate-200 rounded-2xl">
         <Title className="text-slate-800 font-bold mb-1">Duración vs Decoupling</Title>
         <Text className="text-slate-500 text-sm mb-4">Relación entre la duración de la sesión y el desacoplamiento</Text>
-        <div className="h-[280px] w-full">
+        <ExpandableChart className="h-[280px] w-full" title="Duración vs Decoupling" subtitle="Relación entre la duración de la sesión y el desacoplamiento">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
@@ -259,15 +260,15 @@ export default function CardiacDecoupling({ activities }) {
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
-        </div>
+        </ExpandableChart>
       </Card>
 
       {/* Monthly trend */}
       {trendData.length > 1 && (
-        <Card className="shadow-lg border-slate-200">
+        <Card className="shadow-sm border-slate-200 rounded-2xl">
           <Title className="text-slate-800 font-bold mb-1">Tendencia Mensual</Title>
           <Text className="text-slate-500 text-sm mb-4">Media de decoupling por mes</Text>
-          <div className="h-[240px] w-full">
+          <ExpandableChart className="h-[240px] w-full" title="Tendencia Mensual" subtitle="Media de decoupling por mes">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
@@ -281,12 +282,12 @@ export default function CardiacDecoupling({ activities }) {
                 <Line type="monotone" dataKey="avgDecoupling" stroke={COLORS.signal} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          </ExpandableChart>
         </Card>
       )}
 
       {/* Interpretation guide */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-sm border-slate-200 rounded-2xl">
         <Title className="text-slate-800 font-bold mb-3">{t('decoupling.how_to_interpret')}</Title>
         <div className="space-y-2 text-sm text-slate-600">
           <p>El <span className="font-semibold">decoupling cardíaco</span> mide cuánto se desacopla tu frecuencia cardíaca del ritmo durante una sesión. Se compara la relación FC/ritmo de la primera mitad con la segunda mitad.</p>

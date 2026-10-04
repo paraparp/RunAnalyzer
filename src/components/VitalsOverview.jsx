@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import cloudStorage from '../lib/cloudStorage';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
+  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot,
 } from "recharts";
 import { motion } from "framer-motion";
 import {
@@ -16,6 +16,7 @@ import { HeroCard } from './StatusCards';
 import { scopeDays } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import ExpandableChart, { ExpandButton } from './ExpandableChart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -123,6 +124,21 @@ function buildBands(data, threshold) {
   return bands;
 }
 
+// Máximo y mínimo (con su fecha) de la serie suavizada → { max: {v, ms}, min: {v, ms} } | null
+function extremesOf(data) {
+  let max = null, min = null;
+  for (const d of data) {
+    if (d.smooth == null) continue;
+    if (!max || d.smooth > max.v) max = { v: d.smooth, ms: d.ms };
+    if (!min || d.smooth < min.v) min = { v: d.smooth, ms: d.ms };
+  }
+  return max ? { max, min } : null;
+}
+
+// Ticks equiespaciados para un eje temporal [a, b]
+const evenTicks = (a, b, n = 9) =>
+  b > a ? Array.from({ length: n + 1 }, (_, i) => Math.round(a + ((b - a) * i) / n)) : undefined;
+
 // Período mínimo (días) para que cada granularidad produzca ≥2-3 puntos con sentido
 const GRAN_MIN_DAYS = { day: 0, week: 14, month: 90, year: 730 };
 
@@ -157,7 +173,187 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
   );
 };
 
-function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false }) {
+// ---------------------------------------------------------------------------
+// Vista ampliada de un panel: eje Y ajustado a la media, máx/mín del rango en su
+// punto exacto, referencias del histórico y selección de rango arrastrando.
+// ---------------------------------------------------------------------------
+function VitalExpanded({ data, stroke, accent, unit, decimals, invertY, history, domain, xFmt, bands, avgLabel, title }) {
+  const [zoom, setZoom] = useState(null);       // [msA, msB] | null
+  const [drag, setDrag] = useState(null);       // { a, b } mientras se arrastra
+  const [scale, setScale] = useState("fit");    // 'fit' | 'hist'
+  const [fitRaw, setFitRaw] = useState(false);  // incluir puntos diarios en la escala
+
+  const fmt = (v) => (v == null ? "—" : v.toFixed(decimals));
+  const xDomain = zoom ?? domain;
+  const visible = data.filter((d) => d.ms >= xDomain[0] && d.ms <= xDomain[1]);
+  const range = extremesOf(visible);
+  const smoothVals = visible.map((d) => d.smooth).filter((v) => v != null);
+  const mean = smoothVals.length ? smoothVals.reduce((s, v) => s + v, 0) / smoothVals.length : null;
+  const hasRaw = visible.some((d) => d.raw != null);
+
+  // Escala Y: por defecto ajustada a la media del rango; los puntos diarios que
+  // se salen se recortan (allowDataOverflow) salvo que se pida incluirlos.
+  const yVals = [...smoothVals];
+  if (fitRaw) visible.forEach((d) => { if (d.raw != null) yVals.push(d.raw); });
+  if (scale === "hist" && history) yVals.push(history.max.v, history.min.v);
+  const lo = yVals.length ? Math.min(...yVals) : 0;
+  const hi = yVals.length ? Math.max(...yVals) : 1;
+  const pad = Math.max((hi - lo) * 0.08, Math.pow(10, -decimals));
+  const yDomain = [lo - pad, hi + pad];
+  const inY = (v) => v >= yDomain[0] && v <= yDomain[1];
+  const offScale = (v) => (v != null && !inY(v) ? " · fuera de escala" : "");
+
+  const msAt = (st) => {
+    if (st?.activeLabel != null && !Number.isNaN(Number(st.activeLabel))) return Number(st.activeLabel);
+    const i = Number(st?.activeTooltipIndex ?? st?.activeIndex);
+    return Number.isInteger(i) ? visible[i]?.ms ?? null : null;
+  };
+  const endDrag = () => {
+    if (drag && drag.a != null && drag.b != null && drag.a !== drag.b) {
+      setZoom([Math.min(drag.a, drag.b), Math.max(drag.a, drag.b)]);
+    }
+    setDrag(null);
+  };
+
+  const pill = (on) => `px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${on ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
+  const stat = (label, value, sub, tone = "text-slate-900") => (
+    <div className="min-w-0">
+      <p className="text-label font-bold uppercase text-slate-500">{label}</p>
+      <p className={`text-base font-extrabold tabular-nums leading-tight ${tone}`}>
+        {value}{value !== "—" && unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
+      </p>
+      {sub && <p className="text-xs text-slate-500 truncate">{sub}</p>}
+    </div>
+  );
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      {/* Estadísticas: rango visible/seleccionado vs histórico */}
+      <div className="flex flex-wrap items-stretch gap-3">
+        <div className="flex-1 min-w-[260px] rounded-xl border border-slate-200 px-4 py-2.5">
+          <p className="text-xs font-semibold text-slate-600 mb-1.5">
+            {zoom ? "Rango seleccionado" : "Período visible"}
+            <span className="font-normal text-slate-500"> · {fmtDateFull(xDomain[0])} – {fmtDateFull(xDomain[1])}</span>
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {stat("Máx", fmt(range?.max.v), range && fmtDateFull(range.max.ms))}
+            {stat("Mín", fmt(range?.min.v), range && fmtDateFull(range.min.ms))}
+            {stat(avgLabel, fmt(mean), `${smoothVals.length} puntos`)}
+          </div>
+        </div>
+        {history && (
+          <div className="flex-1 min-w-[220px] rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-2.5">
+            <p className="text-xs font-semibold text-slate-600 mb-1.5">
+              Histórico <span className="font-normal text-slate-500">· todo tu registro</span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {stat("Máx histórico", fmt(history.max.v), fmtDateFull(history.max.ms) + offScale(history.max.v), "text-slate-700")}
+              {stat("Mín histórico", fmt(history.min.v), fmtDateFull(history.min.ms) + offScale(history.min.v), "text-slate-700")}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Controles */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+          <button className={pill(scale === "fit")} onClick={() => setScale("fit")}>Escala ajustada</button>
+          {history && <button className={pill(scale === "hist")} onClick={() => setScale("hist")}>Incluir histórico</button>}
+        </div>
+        {hasRaw && (
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" className="w-3.5 h-3.5" style={{ accentColor: stroke }} checked={fitRaw} onChange={(e) => setFitRaw(e.target.checked)} />
+            Ajustar a puntos diarios
+          </label>
+        )}
+        {zoom && (
+          <button onClick={() => setZoom(null)} className="px-2.5 py-1 rounded-md text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
+            Restablecer rango
+          </button>
+        )}
+        <span className="ml-auto text-xs text-slate-500">Arrastra sobre el gráfico para seleccionar un rango</span>
+      </div>
+
+      <div className="flex-1 min-h-0 select-none cursor-crosshair">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={visible}
+            margin={{ top: 24, right: 16, left: 4, bottom: 4 }}
+            onMouseDown={(st) => { const ms = msAt(st); if (ms != null) setDrag({ a: ms, b: ms }); }}
+            onMouseMove={(st) => { if (drag) { const ms = msAt(st); if (ms != null) setDrag((d) => d && { ...d, b: ms }); } }}
+            onMouseUp={endDrag}
+            onMouseLeave={endDrag}
+          >
+            <defs>
+              <linearGradient id={`grad-x-${accent}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.22} />
+                <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairlineSoft} vertical={false} />
+            {bands.map((b, i) => (
+              <ReferenceArea key={i} x1={b.x1} x2={b.x2} fill={COLORS.good} fillOpacity={0.08} ifOverflow="hidden" />
+            ))}
+            <XAxis
+              dataKey="ms" type="number" scale="time" domain={xDomain} allowDataOverflow
+              ticks={evenTicks(xDomain[0], xDomain[1], 10)} tickFormatter={xFmt}
+              tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24}
+            />
+            <YAxis
+              domain={yDomain} allowDataOverflow reversed={invertY}
+              tick={AXIS_TICK} axisLine={false} tickLine={false} width={decimals > 0 ? 44 : 36}
+              tickCount={8} allowDecimals={decimals > 0} tickFormatter={(v) => v.toFixed(decimals)}
+            />
+            <Tooltip
+              content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} inverted={invertY} />}
+              cursor={drag ? false : { stroke: COLORS.inkMuted, strokeWidth: 1.5, strokeDasharray: "4 4" }}
+            />
+
+            {/* Histórico: líneas grises discontinuas (solo si caen dentro de la escala) */}
+            {history && inY(history.max.v) && (
+              <ReferenceLine y={history.max.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
+                label={{ value: `máx histórico ${fmt(history.max.v)} · ${fmtDateFull(history.max.ms)}`, position: invertY ? "insideBottomLeft" : "insideTopLeft", fontSize: 11, fill: COLORS.inkMuted }} />
+            )}
+            {history && history.min.v !== history.max.v && inY(history.min.v) && (
+              <ReferenceLine y={history.min.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
+                label={{ value: `mín histórico ${fmt(history.min.v)} · ${fmtDateFull(history.min.ms)}`, position: invertY ? "insideTopLeft" : "insideBottomLeft", fontSize: 11, fill: COLORS.inkMuted }} />
+            )}
+            {/* Rango: guías del color de la serie + media */}
+            {range && <ReferenceLine y={range.max.v} stroke={stroke} strokeDasharray="2 4" strokeOpacity={0.5} />}
+            {range && range.min.v !== range.max.v && (
+              <ReferenceLine y={range.min.v} stroke={stroke} strokeDasharray="2 4" strokeOpacity={0.5} />
+            )}
+            {mean != null && (
+              <ReferenceLine y={mean} stroke={stroke} strokeOpacity={0.25}
+                label={{ value: `${avgLabel.toLowerCase()} ${fmt(mean)}`, position: "insideRight", fontSize: 11, fill: stroke, opacity: 0.8 }} />
+            )}
+
+            <Area type="monotone" dataKey="smooth" stroke={stroke} strokeWidth={2.5} fill={`url(#grad-x-${accent})`}
+              connectNulls dot={false} isAnimationActive={false} />
+            <Area type="monotone" dataKey="raw" stroke={stroke} strokeWidth={0} fill="none"
+              dot={{ r: 2, fill: stroke, fillOpacity: 0.3, strokeWidth: 0 }} activeDot={false} connectNulls={false} isAnimationActive={false} />
+
+            {/* Máx/mín del rango marcados en su punto exacto */}
+            {range && (
+              <ReferenceDot x={range.max.ms} y={range.max.v} r={5} fill={stroke} stroke={COLORS.paper} strokeWidth={2}
+                label={{ value: `máx ${fmt(range.max.v)} · ${fmtDate(range.max.ms)}`, position: invertY ? "bottom" : "top", fontSize: 12, fontWeight: 700, fill: stroke }} />
+            )}
+            {range && range.min.ms !== range.max.ms && (
+              <ReferenceDot x={range.min.ms} y={range.min.v} r={5} fill={COLORS.paper} stroke={stroke} strokeWidth={2}
+                label={{ value: `mín ${fmt(range.min.v)} · ${fmtDate(range.min.ms)}`, position: invertY ? "top" : "bottom", fontSize: 12, fontWeight: 700, fill: stroke }} />
+            )}
+
+            {drag && drag.a !== drag.b && (
+              <ReferenceArea x1={Math.min(drag.a, drag.b)} x2={Math.max(drag.a, drag.b)} fill={stroke} fillOpacity={0.12} stroke={stroke} strokeOpacity={0.4} />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false, history = null }) {
   const A = {
     rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
     emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
@@ -185,6 +381,14 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
   }
 
   const hasData = data.some((d) => d.smooth != null || d.raw != null);
+  const [expanded, setExpanded] = useState(false);
+
+  const currentValue = current != null && (
+    <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+      {current}
+      {unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
+    </span>
+  );
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
@@ -199,12 +403,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
           </div>
         </div>
         <div className="flex items-baseline gap-2 shrink-0">
-          {current != null && (
-            <span className="text-2xl font-extrabold tracking-tight text-slate-900">
-              {current}
-              {unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
-            </span>
-          )}
+          {currentValue}
           {trendBadge}
           {bands.length > 0 && (
             <span
@@ -212,10 +411,26 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               className="self-center w-3 h-3 rounded bg-emerald-500/20 ring-1 ring-emerald-500/30 shrink-0 cursor-help"
             />
           )}
+          {hasData && <ExpandButton onClick={() => setExpanded(true)} className="self-center" />}
         </div>
       </div>
 
-      <div className="h-[160px] -ml-2">
+      <ExpandableChart
+        className="h-[160px] -ml-2"
+        trigger="none"
+        open={expanded}
+        onOpenChange={setExpanded}
+        title={title}
+        subtitle={subtitle}
+        toolbar={<div className="flex items-baseline gap-2">{currentValue}{trendBadge}</div>}
+        expandedContent={hasData && (
+          <VitalExpanded
+            data={data} stroke={A.stroke} accent={accent} unit={unit} decimals={decimals}
+            invertY={invertY} history={history} domain={domain} xFmt={xFmt} bands={bands}
+            avgLabel={avgLabel} title={title}
+          />
+        )}
+      >
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }} syncId="vitals" syncMethod="value">
@@ -302,7 +517,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-slate-500">Sin datos en este período</div>
         )}
-      </div>
+      </ExpandableChart>
     </div>
   );
 }
@@ -358,7 +573,7 @@ export default function VitalsOverview({ activities = [] }) {
     [garmin, nowMs],
   );
 
-  const { hrvData, hrData, vo2Data, effData, domain, summary, hasGarmin, goodBands, effThreshold } = useMemo(() => {
+  const { hrvData, hrData, vo2Data, effData, domain, summary, hasGarmin, goodBands, effThreshold, history } = useMemo(() => {
     const now = nowMs;
     const cutoff = now - days * MS_DAY;
     const isDay = gran === "day";
@@ -380,23 +595,27 @@ export default function VitalsOverview({ activities = [] }) {
     const hrvData = series(hrvPts, 7);
     const hrData = series(rhrPts, 7);
 
+    // Histórico completo (misma granularidad y suavizado) para los máx/mín de la vista ampliada
+    const gAll = garmin.map((d) => ({ ms: new Date(d.date).getTime(), hrv: d.hrv ?? null, rhr: d.restingHR ?? null }));
+    const hrvHist = extremesOf(series(gAll.filter((d) => d.hrv != null).map((d) => ({ ms: d.ms, v: d.hrv })), 7));
+    const rhrHist = extremesOf(series(gAll.filter((d) => d.rhr != null).map((d) => ({ ms: d.ms, v: d.rhr })), 7));
+
     // ── VO2max submáximo (proxy de eficiencia) desde los runs de Strava ──
     // FCmax / FCreposo vienen de useHrParams (detectMaxHR / detectRestHR), no de
     // estimadores propios de esta vista.
 
-    const runs = activities
-      .filter((a) => {
-        const ms = new Date(a.start_date).getTime();
-        return ms >= cutoff && a.average_heartrate >= 90 && a.average_speed >= 1.5 && (a.moving_time || 0) >= 600;
-      })
+    const runsAll = activities
+      .filter((a) => a.average_heartrate >= 90 && a.average_speed >= 1.5 && (a.moving_time || 0) >= 600)
       .map((a) => {
         const v = vo2FromRun(a.average_speed, a.average_heartrate, hrrest, hrmax);
         return v ? { ms: new Date(a.start_date).getTime(), v } : null;
       })
       .filter(Boolean)
       .sort((a, b) => a.ms - b.ms);
+    const runs = runsAll.filter((r) => r.ms >= cutoff);
 
     const vo2Data = series(runs, 28); // ~4-week rolling fitness en diario
+    const vo2Hist = extremesOf(series(runsAll, 28));
 
     // El CTL no se pinta aquí: su dueño es Carga › PMC (docs/REESTRUCTURACION_SECCIONES.md §4).
 
@@ -414,6 +633,7 @@ export default function VitalsOverview({ activities = [] }) {
     // Compute over full history (true "histórico"), then slice to the visible window
     const effDataAll = series(effRunsAll, 28, 2);
     const effData = effDataAll.filter((d) => d.ms >= cutoff);
+    const effHist = extremesOf(effDataAll);
 
     // ── Banda "buena forma": eficiencia ≥ 90% del máximo histórico ──
     const effMax = effDataAll.reduce((m, d) => (d.smooth != null && d.smooth > m ? d.smooth : m), 0);
@@ -444,6 +664,7 @@ export default function VitalsOverview({ activities = [] }) {
 
     return {
       hrvData, hrData, vo2Data, effData, domain, goodBands, effThreshold,
+      history: { hrv: hrvHist, rhr: rhrHist, vo2: vo2Hist, eff: effHist },
       hasGarmin: garmin.length > 0,
       summary: {
         hrv: { current: lastOf(hrvData), trend: deltaOf(hrvData) },
@@ -553,6 +774,7 @@ export default function VitalsOverview({ activities = [] }) {
           icon={HeartIcon}
           accent="emerald"
           data={hrvData}
+          history={history.hrv}
           unit="ms"
           current={summary.hrv.current}
           trend={summary.hrv.trend}
@@ -568,6 +790,7 @@ export default function VitalsOverview({ activities = [] }) {
           icon={HeartIcon}
           accent="rose"
           data={hrData}
+          history={history.rhr}
           unit="ppm"
           current={summary.rhr.current}
           trend={summary.rhr.trend}
@@ -585,6 +808,7 @@ export default function VitalsOverview({ activities = [] }) {
           icon={BoltIcon}
           accent="violet"
           data={vo2Data}
+          history={history.vo2}
           unit="ml/kg/min"
           current={summary.vo2.current}
           trend={summary.vo2.trend}
@@ -600,6 +824,7 @@ export default function VitalsOverview({ activities = [] }) {
           icon={ArrowTrendingUpIcon}
           accent="sky"
           data={effData}
+          history={history.eff}
           unit="m/latido"
           current={summary.eff.current}
           trend={summary.eff.trend}
