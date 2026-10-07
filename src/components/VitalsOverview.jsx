@@ -15,6 +15,7 @@ import { computeGarminStats } from '../lib/statusStats';
 import { HeroCard } from './StatusCards';
 import { scopeDays } from '../lib/timeScope';
 import useTimeScope from '../hooks/useTimeScope';
+import { TimeScopeSelector } from './TimeScope';
 import { COLORS, AXIS_TICK } from '../lib/palette';
 import ExpandableChart, { ExpandButton } from './ExpandableChart';
 
@@ -175,38 +176,191 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
 
 // ---------------------------------------------------------------------------
 // Vista ampliada de un panel: eje Y ajustado a la media, máx/mín del rango en su
-// punto exacto, referencias del histórico y selección de rango arrastrando.
+// punto exacto, referencias del histórico, selección de rango arrastrando y
+// comparación con las otras métricas (apiladas o superpuestas).
 // ---------------------------------------------------------------------------
-function VitalExpanded({ data, stroke, accent, unit, decimals, invertY, history, domain, xFmt, bands, avgLabel, title }) {
-  const [zoom, setZoom] = useState(null);       // [msA, msB] | null
-  const [drag, setDrag] = useState(null);       // { a, b } mientras se arrastra
-  const [scale, setScale] = useState("fit");    // 'fit' | 'hist'
-  const [fitRaw, setFitRaw] = useState(false);  // incluir puntos diarios en la escala
+const ACCENTS = {
+  rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
+  emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
+  violet: { stroke: COLORS.seriesViolet, fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
+  amber: { stroke: COLORS.caution, fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
+  sky: { stroke: COLORS.seriesSky, fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
+  indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
+};
 
-  const fmt = (v) => (v == null ? "—" : v.toFixed(decimals));
-  const xDomain = zoom ?? domain;
-  const visible = data.filter((d) => d.ms >= xDomain[0] && d.ms <= xDomain[1]);
-  const range = extremesOf(visible);
-  const smoothVals = visible.map((d) => d.smooth).filter((v) => v != null);
-  const mean = smoothVals.length ? smoothVals.reduce((s, v) => s + v, 0) / smoothVals.length : null;
-  const hasRaw = visible.some((d) => d.raw != null);
+// Une varias series por timestamp en filas { ms, <key>_smooth, <key>_raw }.
+// Todas comparten la misma rejilla (día a medianoche / inicio de bucket), así
+// que los puntos de distintas métricas caen en la misma fila.
+function mergeRows(series) {
+  const m = new Map();
+  for (const s of series) {
+    for (const d of s.data) {
+      let r = m.get(d.ms);
+      if (!r) { r = { ms: d.ms }; m.set(d.ms, r); }
+      r[`${s.key}_smooth`] = d.smooth;
+      r[`${s.key}_raw`] = d.raw;
+    }
+  }
+  return [...m.values()].sort((a, b) => a.ms - b.ms);
+}
 
-  // Escala Y: por defecto ajustada a la media del rango; los puntos diarios que
-  // se salen se recortan (allowDataOverflow) salvo que se pida incluirlos.
-  const yVals = [...smoothVals];
+// Estadísticas y escala Y de una serie dentro del rango visible.
+function seriesView(s, xDomain, { fitRaw, histScale }) {
+  const visible = s.data.filter((d) => d.ms >= xDomain[0] && d.ms <= xDomain[1]);
+  const vals = visible.map((d) => d.smooth).filter((v) => v != null);
+  const yVals = [...vals];
   if (fitRaw) visible.forEach((d) => { if (d.raw != null) yVals.push(d.raw); });
-  if (scale === "hist" && history) yVals.push(history.max.v, history.min.v);
+  if (histScale && s.history) yVals.push(s.history.max.v, s.history.min.v);
   const lo = yVals.length ? Math.min(...yVals) : 0;
   const hi = yVals.length ? Math.max(...yVals) : 1;
-  const pad = Math.max((hi - lo) * 0.08, Math.pow(10, -decimals));
-  const yDomain = [lo - pad, hi + pad];
-  const inY = (v) => v >= yDomain[0] && v <= yDomain[1];
-  const offScale = (v) => (v != null && !inY(v) ? " · fuera de escala" : "");
+  const pad = Math.max((hi - lo) * 0.08, Math.pow(10, -s.decimals));
+  return {
+    ...s,
+    stroke: ACCENTS[s.accent].stroke,
+    range: extremesOf(visible),
+    mean: vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null,
+    n: vals.length,
+    hasRaw: visible.some((d) => d.raw != null),
+    yDomain: [lo - pad, hi + pad],
+    fmt: (v) => (v == null ? "—" : v.toFixed(s.decimals)),
+  };
+}
+
+const CompareTooltip = ({ active, payload, series }) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row || row.ms == null) return null;
+  return (
+    <div className="bg-white/95 backdrop-blur-xl border border-slate-200/60 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[180px] space-y-1">
+      <p className="font-semibold text-slate-500">{fmtDateFull(row.ms)}</p>
+      {series.map((s) => {
+        const v = row[`${s.key}_smooth`];
+        const r = row[`${s.key}_raw`];
+        if (v == null && r == null) return null;
+        return (
+          <div key={s.key} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5 text-slate-500">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.stroke }} />
+              {s.title}
+            </span>
+            <span className="font-bold text-slate-900 tabular-nums">
+              {s.fmt(v)}
+              {r != null && <span className="font-normal text-slate-500"> · día {s.fmt(r)}</span>}
+              <span className="font-medium text-slate-500 ml-0.5">{s.unit}</span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Elementos Recharts de una serie sobre su propio eje Y (yAxisId = key).
+function seriesLayer(s, { axis, showHist, gradient, compact, guides = true }) {
+  const id = s.key;
+  const inY = (v) => v >= s.yDomain[0] && v <= s.yDomain[1];
+  const fs = compact ? 10 : 12;
+  const els = [
+    <YAxis
+      key={`${id}-y`} yAxisId={id} domain={s.yDomain} allowDataOverflow reversed={s.invertY}
+      hide={axis === "hidden"} orientation={axis === "right" ? "right" : "left"}
+      tick={{ ...AXIS_TICK, fill: s.stroke }} axisLine={false} tickLine={false}
+      width={s.decimals > 0 ? 44 : 36} tickCount={compact ? 4 : 8}
+      allowDecimals={s.decimals > 0} tickFormatter={(v) => v.toFixed(s.decimals)}
+    />,
+  ];
+  if (showHist && s.history && inY(s.history.max.v)) {
+    els.push(
+      <ReferenceLine key={`${id}-hmax`} yAxisId={id} y={s.history.max.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
+        label={{ value: `máx histórico ${s.fmt(s.history.max.v)} · ${fmtDateFull(s.history.max.ms)}`, position: s.invertY ? "insideBottomLeft" : "insideTopLeft", fontSize: 11, fill: COLORS.inkMuted }} />,
+    );
+  }
+  if (showHist && s.history && s.history.min.v !== s.history.max.v && inY(s.history.min.v)) {
+    els.push(
+      <ReferenceLine key={`${id}-hmin`} yAxisId={id} y={s.history.min.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
+        label={{ value: `mín histórico ${s.fmt(s.history.min.v)} · ${fmtDateFull(s.history.min.ms)}`, position: s.invertY ? "insideTopLeft" : "insideBottomLeft", fontSize: 11, fill: COLORS.inkMuted }} />,
+    );
+  }
+  if (s.range && guides) {
+    els.push(<ReferenceLine key={`${id}-rmax`} yAxisId={id} y={s.range.max.v} stroke={s.stroke} strokeDasharray="2 4" strokeOpacity={0.45} />);
+    if (s.range.min.v !== s.range.max.v) {
+      els.push(<ReferenceLine key={`${id}-rmin`} yAxisId={id} y={s.range.min.v} stroke={s.stroke} strokeDasharray="2 4" strokeOpacity={0.45} />);
+    }
+  }
+  if (s.mean != null && !compact) {
+    els.push(
+      <ReferenceLine key={`${id}-mean`} yAxisId={id} y={s.mean} stroke={s.stroke} strokeOpacity={0.25}
+        label={{ value: `media ${s.fmt(s.mean)}`, position: "insideRight", fontSize: 11, fill: s.stroke, opacity: 0.8 }} />,
+    );
+  }
+  els.push(
+    <Area key={`${id}-smooth`} yAxisId={id} type="monotone" dataKey={`${id}_smooth`} name={s.title}
+      stroke={s.stroke} strokeWidth={2.5} fill={gradient ? `url(#grad-x-${id})` : "none"}
+      connectNulls dot={false} isAnimationActive={false} />,
+    <Area key={`${id}-raw`} yAxisId={id} type="monotone" dataKey={`${id}_raw`} stroke={s.stroke} strokeWidth={0} fill="none"
+      dot={{ r: 2, fill: s.stroke, fillOpacity: 0.3, strokeWidth: 0 }} activeDot={false} connectNulls={false} isAnimationActive={false} />,
+  );
+  if (s.range) {
+    els.push(
+      <ReferenceDot key={`${id}-dmax`} yAxisId={id} x={s.range.max.ms} y={s.range.max.v} r={compact ? 4 : 5} fill={s.stroke} stroke={COLORS.paper} strokeWidth={2}
+        label={{ value: `máx ${s.fmt(s.range.max.v)} · ${fmtDate(s.range.max.ms)}`, position: s.invertY ? "bottom" : "top", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
+    );
+    if (s.range.min.ms !== s.range.max.ms) {
+      els.push(
+        <ReferenceDot key={`${id}-dmin`} yAxisId={id} x={s.range.min.ms} y={s.range.min.v} r={compact ? 4 : 5} fill={COLORS.paper} stroke={s.stroke} strokeWidth={2}
+          label={{ value: `mín ${s.fmt(s.range.min.v)} · ${fmtDate(s.range.min.ms)}`, position: s.invertY ? "top" : "bottom", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
+      );
+    }
+  }
+  return els;
+}
+
+// Línea compacta de estadísticas de una serie (para las comparadas).
+const SeriesStatsLine = ({ s }) => (
+  <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs">
+    <span className="flex items-center gap-1.5 font-bold text-slate-700">
+      <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.stroke }} />
+      {s.title}
+      {s.invertY && <span className="font-medium text-slate-500">(eje invertido)</span>}
+    </span>
+    <span className="text-slate-500 tabular-nums">
+      máx <b className="text-slate-800">{s.fmt(s.range?.max.v)}</b>{s.range && ` · ${fmtDate(s.range.max.ms)}`}
+    </span>
+    <span className="text-slate-500 tabular-nums">
+      mín <b className="text-slate-800">{s.fmt(s.range?.min.v)}</b>{s.range && ` · ${fmtDate(s.range.min.ms)}`}
+    </span>
+    <span className="text-slate-500 tabular-nums">media <b className="text-slate-800">{s.fmt(s.mean)}</b> {s.unit}</span>
+    {s.history && (
+      <span className="text-slate-400 tabular-nums">hist. {s.fmt(s.history.min.v)}–{s.fmt(s.history.max.v)}</span>
+    )}
+  </div>
+);
+
+function VitalExpanded({ metricKey, metrics, periodControls, domain, xFmt, bands, avgLabel }) {
+  const [zoom, setZoom] = useState(null);         // [msA, msB] | null
+  const [drag, setDrag] = useState(null);         // { a, b } mientras se arrastra
+  const [scale, setScale] = useState("fit");      // 'fit' | 'hist'
+  const [fitRaw, setFitRaw] = useState(false);    // incluir puntos diarios en la escala
+  const [compare, setCompare] = useState([]);     // keys de métricas comparadas
+  const [layout, setLayout] = useState("stack");  // 'stack' | 'overlay'
+
+  const zoomFits = zoom && zoom[0] >= domain[0] && zoom[1] <= domain[1];
+  const xDomain = zoomFits ? zoom : domain;
+  const opts = { fitRaw, histScale: scale === "hist" };
+  const primary = seriesView(metrics.find((m) => m.key === metricKey), xDomain, opts);
+  const others = metrics.filter((m) => m.key !== metricKey);
+  const compared = compare
+    .map((k) => others.find((m) => m.key === k))
+    .filter((m) => m && m.data.some((d) => d.smooth != null))
+    .map((m) => seriesView(m, xDomain, opts));
+  const all = [primary, ...compared];
+  const rows = mergeRows(all).filter((r) => r.ms >= xDomain[0] && r.ms <= xDomain[1]);
+  const overlay = layout === "overlay" && compared.length > 0;
 
   const msAt = (st) => {
     if (st?.activeLabel != null && !Number.isNaN(Number(st.activeLabel))) return Number(st.activeLabel);
     const i = Number(st?.activeTooltipIndex ?? st?.activeIndex);
-    return Number.isInteger(i) ? visible[i]?.ms ?? null : null;
+    return Number.isInteger(i) ? rows[i]?.ms ?? null : null;
   };
   const endDrag = () => {
     if (drag && drag.a != null && drag.b != null && drag.a !== drag.b) {
@@ -214,31 +368,87 @@ function VitalExpanded({ data, stroke, accent, unit, decimals, invertY, history,
     }
     setDrag(null);
   };
+  const toggleCompare = (k) => setCompare((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
+
+  // Un gráfico con una o varias series (cada una con su eje Y). Todos comparten
+  // syncId para que el cursor se mueva a la vez en los apilados.
+  const chart = (series, { compact = false, showBands = false } = {}) => (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart
+        data={rows}
+        syncId="vitals-expanded"
+        syncMethod="value"
+        margin={{ top: compact ? 16 : 24, right: series.length > 1 ? 8 : 16, left: 4, bottom: 4 }}
+        onMouseDown={(st) => { const ms = msAt(st); if (ms != null) setDrag({ a: ms, b: ms }); }}
+        onMouseMove={(st) => { if (drag) { const ms = msAt(st); if (ms != null) setDrag((d) => d && { ...d, b: ms }); } }}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+      >
+        <defs>
+          {series.map((s) => (
+            <linearGradient key={s.key} id={`grad-x-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.stroke} stopOpacity={0.22} />
+              <stop offset="100%" stopColor={s.stroke} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
+        <CartesianGrid yAxisId={series[0].key} strokeDasharray="3 3" stroke={COLORS.hairlineSoft} vertical={false} />
+        <XAxis
+          dataKey="ms" type="number" scale="time" domain={xDomain} allowDataOverflow
+          ticks={evenTicks(xDomain[0], xDomain[1], compact ? 6 : 10)} tickFormatter={xFmt}
+          tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24}
+        />
+        {showBands && bands.map((b, i) => (
+          <ReferenceArea key={`band-${i}`} yAxisId={series[0].key} x1={b.x1} x2={b.x2} fill={COLORS.good} fillOpacity={0.08} ifOverflow="hidden" />
+        ))}
+        <Tooltip
+          content={<CompareTooltip series={all} />}
+          cursor={drag ? false : { stroke: COLORS.inkMuted, strokeWidth: 1.5, strokeDasharray: "4 4" }}
+        />
+        {series.flatMap((s, i) => seriesLayer(s, {
+          axis: i === 0 ? "left" : i === 1 ? "right" : "hidden",
+          showHist: i === 0,
+          gradient: i === 0,
+          guides: i === 0,
+          compact,
+        }))}
+        {drag && drag.a !== drag.b && (
+          <ReferenceArea yAxisId={series[0].key} x1={Math.min(drag.a, drag.b)} x2={Math.max(drag.a, drag.b)}
+            fill={COLORS.inkMuted} fillOpacity={0.12} stroke={COLORS.inkMuted} strokeOpacity={0.4} />
+        )}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 
   const pill = (on) => `px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${on ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
   const stat = (label, value, sub, tone = "text-slate-900") => (
     <div className="min-w-0">
       <p className="text-label font-bold uppercase text-slate-500">{label}</p>
       <p className={`text-base font-extrabold tabular-nums leading-tight ${tone}`}>
-        {value}{value !== "—" && unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
+        {value}{value !== "—" && primary.unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{primary.unit}</span>}
       </p>
       {sub && <p className="text-xs text-slate-500 truncate">{sub}</p>}
     </div>
   );
+  const inPrimaryY = (v) => v >= primary.yDomain[0] && v <= primary.yDomain[1];
+  const offScale = (v) => (v != null && !inPrimaryY(v) ? " · fuera de escala" : "");
+  const { range, history, fmt } = primary;
 
   return (
     <div className="h-full flex flex-col gap-3">
-      {/* Estadísticas: rango visible/seleccionado vs histórico */}
+      {periodControls}
+
+      {/* Estadísticas de la métrica principal: rango visible/seleccionado vs histórico */}
       <div className="flex flex-wrap items-stretch gap-3">
         <div className="flex-1 min-w-[260px] rounded-xl border border-slate-200 px-4 py-2.5">
           <p className="text-xs font-semibold text-slate-600 mb-1.5">
-            {zoom ? "Rango seleccionado" : "Período visible"}
+            {zoomFits ? "Rango seleccionado" : "Período visible"}
             <span className="font-normal text-slate-500"> · {fmtDateFull(xDomain[0])} – {fmtDateFull(xDomain[1])}</span>
           </p>
           <div className="grid grid-cols-3 gap-3">
             {stat("Máx", fmt(range?.max.v), range && fmtDateFull(range.max.ms))}
             {stat("Mín", fmt(range?.min.v), range && fmtDateFull(range.min.ms))}
-            {stat(avgLabel, fmt(mean), `${smoothVals.length} puntos`)}
+            {stat(avgLabel, fmt(primary.mean), `${primary.n} puntos`)}
           </div>
         </div>
         {history && (
@@ -255,18 +465,52 @@ function VitalExpanded({ data, stroke, accent, unit, decimals, invertY, history,
       </div>
 
       {/* Controles */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
           <button className={pill(scale === "fit")} onClick={() => setScale("fit")}>Escala ajustada</button>
           {history && <button className={pill(scale === "hist")} onClick={() => setScale("hist")}>Incluir histórico</button>}
         </div>
-        {hasRaw && (
+        {all.some((s) => s.hasRaw) && (
           <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
-            <input type="checkbox" className="w-3.5 h-3.5" style={{ accentColor: stroke }} checked={fitRaw} onChange={(e) => setFitRaw(e.target.checked)} />
+            <input type="checkbox" className="w-3.5 h-3.5" style={{ accentColor: primary.stroke }} checked={fitRaw} onChange={(e) => setFitRaw(e.target.checked)} />
             Ajustar a puntos diarios
           </label>
         )}
-        {zoom && (
+
+        <span className="w-px h-5 bg-slate-200" />
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-slate-500">Comparar con:</span>
+          {others.map((m) => {
+            const on = compare.includes(m.key);
+            const empty = !m.data.some((d) => d.smooth != null);
+            const c = ACCENTS[m.accent].stroke;
+            return (
+              <button
+                key={m.key}
+                onClick={() => toggleCompare(m.key)}
+                disabled={empty}
+                aria-pressed={on}
+                title={empty ? "Sin datos en este período" : undefined}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  on ? "bg-white shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                style={on ? { borderColor: c, color: c } : undefined}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ background: on ? c : COLORS.hairline }} />
+                {m.title}
+              </button>
+            );
+          })}
+        </div>
+        {compared.length > 0 && (
+          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+            <button className={pill(layout === "stack")} onClick={() => setLayout("stack")}>Apilados</button>
+            <button className={pill(layout === "overlay")} onClick={() => setLayout("overlay")}>Superpuestos</button>
+          </div>
+        )}
+
+        {zoomFits && (
           <button onClick={() => setZoom(null)} className="px-2.5 py-1 rounded-md text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
             Restablecer rango
           </button>
@@ -274,94 +518,35 @@ function VitalExpanded({ data, stroke, accent, unit, decimals, invertY, history,
         <span className="ml-auto text-xs text-slate-500">Arrastra sobre el gráfico para seleccionar un rango</span>
       </div>
 
-      <div className="flex-1 min-h-0 select-none cursor-crosshair">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={visible}
-            margin={{ top: 24, right: 16, left: 4, bottom: 4 }}
-            onMouseDown={(st) => { const ms = msAt(st); if (ms != null) setDrag({ a: ms, b: ms }); }}
-            onMouseMove={(st) => { if (drag) { const ms = msAt(st); if (ms != null) setDrag((d) => d && { ...d, b: ms }); } }}
-            onMouseUp={endDrag}
-            onMouseLeave={endDrag}
-          >
-            <defs>
-              <linearGradient id={`grad-x-${accent}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={0.22} />
-                <stop offset="100%" stopColor={stroke} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairlineSoft} vertical={false} />
-            {bands.map((b, i) => (
-              <ReferenceArea key={i} x1={b.x1} x2={b.x2} fill={COLORS.good} fillOpacity={0.08} ifOverflow="hidden" />
+      {/* Gráficos */}
+      <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto select-none cursor-crosshair">
+        {overlay ? (
+          <>
+            <div className="flex flex-col gap-1 px-1">
+              {compared.map((s) => <SeriesStatsLine key={s.key} s={s} />)}
+            </div>
+            <div className="flex-1 min-h-[240px]">{chart(all, { showBands: true })}</div>
+          </>
+        ) : (
+          <>
+            <div className={`${compared.length ? "flex-[1.4]" : "flex-1"} min-h-[220px]`}>
+              {chart([primary], { showBands: true })}
+            </div>
+            {compared.map((s) => (
+              <div key={s.key} className="flex-1 min-h-[160px] flex flex-col border-t border-slate-100 pt-2">
+                <div className="px-1 mb-1"><SeriesStatsLine s={s} /></div>
+                <div className="flex-1 min-h-0">{chart([s], { compact: true })}</div>
+              </div>
             ))}
-            <XAxis
-              dataKey="ms" type="number" scale="time" domain={xDomain} allowDataOverflow
-              ticks={evenTicks(xDomain[0], xDomain[1], 10)} tickFormatter={xFmt}
-              tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={24}
-            />
-            <YAxis
-              domain={yDomain} allowDataOverflow reversed={invertY}
-              tick={AXIS_TICK} axisLine={false} tickLine={false} width={decimals > 0 ? 44 : 36}
-              tickCount={8} allowDecimals={decimals > 0} tickFormatter={(v) => v.toFixed(decimals)}
-            />
-            <Tooltip
-              content={<SharedTooltip unit={unit} metric={title} avgLabel={avgLabel} inverted={invertY} />}
-              cursor={drag ? false : { stroke: COLORS.inkMuted, strokeWidth: 1.5, strokeDasharray: "4 4" }}
-            />
-
-            {/* Histórico: líneas grises discontinuas (solo si caen dentro de la escala) */}
-            {history && inY(history.max.v) && (
-              <ReferenceLine y={history.max.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
-                label={{ value: `máx histórico ${fmt(history.max.v)} · ${fmtDateFull(history.max.ms)}`, position: invertY ? "insideBottomLeft" : "insideTopLeft", fontSize: 11, fill: COLORS.inkMuted }} />
-            )}
-            {history && history.min.v !== history.max.v && inY(history.min.v) && (
-              <ReferenceLine y={history.min.v} stroke={COLORS.inkMuted} strokeDasharray="6 4" strokeOpacity={0.7}
-                label={{ value: `mín histórico ${fmt(history.min.v)} · ${fmtDateFull(history.min.ms)}`, position: invertY ? "insideTopLeft" : "insideBottomLeft", fontSize: 11, fill: COLORS.inkMuted }} />
-            )}
-            {/* Rango: guías del color de la serie + media */}
-            {range && <ReferenceLine y={range.max.v} stroke={stroke} strokeDasharray="2 4" strokeOpacity={0.5} />}
-            {range && range.min.v !== range.max.v && (
-              <ReferenceLine y={range.min.v} stroke={stroke} strokeDasharray="2 4" strokeOpacity={0.5} />
-            )}
-            {mean != null && (
-              <ReferenceLine y={mean} stroke={stroke} strokeOpacity={0.25}
-                label={{ value: `${avgLabel.toLowerCase()} ${fmt(mean)}`, position: "insideRight", fontSize: 11, fill: stroke, opacity: 0.8 }} />
-            )}
-
-            <Area type="monotone" dataKey="smooth" stroke={stroke} strokeWidth={2.5} fill={`url(#grad-x-${accent})`}
-              connectNulls dot={false} isAnimationActive={false} />
-            <Area type="monotone" dataKey="raw" stroke={stroke} strokeWidth={0} fill="none"
-              dot={{ r: 2, fill: stroke, fillOpacity: 0.3, strokeWidth: 0 }} activeDot={false} connectNulls={false} isAnimationActive={false} />
-
-            {/* Máx/mín del rango marcados en su punto exacto */}
-            {range && (
-              <ReferenceDot x={range.max.ms} y={range.max.v} r={5} fill={stroke} stroke={COLORS.paper} strokeWidth={2}
-                label={{ value: `máx ${fmt(range.max.v)} · ${fmtDate(range.max.ms)}`, position: invertY ? "bottom" : "top", fontSize: 12, fontWeight: 700, fill: stroke }} />
-            )}
-            {range && range.min.ms !== range.max.ms && (
-              <ReferenceDot x={range.min.ms} y={range.min.v} r={5} fill={COLORS.paper} stroke={stroke} strokeWidth={2}
-                label={{ value: `mín ${fmt(range.min.v)} · ${fmtDate(range.min.ms)}`, position: invertY ? "top" : "bottom", fontSize: 12, fontWeight: 700, fill: stroke }} />
-            )}
-
-            {drag && drag.a !== drag.b && (
-              <ReferenceArea x1={Math.min(drag.a, drag.b)} x2={Math.max(drag.a, drag.b)} fill={stroke} fillOpacity={0.12} stroke={stroke} strokeOpacity={0.4} />
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false, history = null }) {
-  const A = {
-    rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
-    emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
-    violet: { stroke: COLORS.seriesViolet, fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
-    amber: { stroke: COLORS.caution, fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
-    sky: { stroke: COLORS.seriesSky, fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
-    indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
-  }[accent];
+function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, trend, trendInverse, domain, ticks, refValue, decimals = 0, yPad = 2, xFmt = fmtDate, bands = [], avgLabel = "Media", invertY = false, metricKey, metrics = [], periodControls = null }) {
+  const A = ACCENTS[accent];
 
   const vals = data.map((d) => d.smooth).filter((v) => v != null);
   const maxV = vals.length ? Math.max(...vals) : null;
@@ -424,11 +609,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
         subtitle={subtitle}
         toolbar={<div className="flex items-baseline gap-2">{currentValue}{trendBadge}</div>}
         expandedContent={hasData && (
-          <VitalExpanded
-            data={data} stroke={A.stroke} accent={accent} unit={unit} decimals={decimals}
-            invertY={invertY} history={history} domain={domain} xFmt={xFmt} bands={bands}
-            avgLabel={avgLabel} title={title}
-          />
+          <VitalExpanded metricKey={metricKey} metrics={metrics} periodControls={periodControls} domain={domain} xFmt={xFmt} bands={bands} avgLabel={avgLabel} />
         )}
       >
         {hasData ? (
@@ -687,6 +868,53 @@ export default function VitalsOverview({ activities = [] }) {
   const granLabel = { day: "media móvil diaria", week: "media semanal", month: "media mensual", year: "media anual" }[gran];
   const avgLabel = { day: "Media móvil", week: "Media sem.", month: "Media mes", year: "Media año" }[gran];
 
+  // Selector de granularidad: en la cabecera y repetido en la vista ampliada.
+  const granSelector = (
+    <div className="flex bg-slate-100 p-1 rounded-xl">
+      {[
+        { id: "day", label: "Diario" },
+        { id: "week", label: "Semanal" },
+        { id: "month", label: "Mensual" },
+        { id: "year", label: "Anual" },
+      ].map((gr) => {
+        const enabled = days >= GRAN_MIN_DAYS[gr.id];
+        return (
+          <button
+            key={gr.id}
+            onClick={() => setGran(gr.id)}
+            disabled={!enabled}
+            title={enabled ? undefined : "Período demasiado corto para esta granularidad"}
+            aria-pressed={gran === gr.id}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm"
+              : enabled ? "text-slate-500 hover:text-slate-700" : "text-slate-300 cursor-not-allowed"
+              }`}
+          >
+            {gr.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // Período (global, el mismo control que el de la cabecera de la app) y
+  // granularidad, para cambiarlos sin cerrar la vista ampliada.
+  const periodControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-label font-bold uppercase text-slate-500">Período</span>
+      <TimeScopeSelector />
+      {granSelector}
+    </div>
+  );
+
+  // Las cuatro series, para que la vista ampliada de cada panel pueda
+  // superponer o apilar las demás.
+  const metrics = [
+    { key: "hrv", title: "VFC", accent: "emerald", data: hrvData, history: history.hrv, unit: "ms", decimals: 0, invertY: false },
+    { key: "rhr", title: "FC reposo", accent: "rose", data: hrData, history: history.rhr, unit: "ppm", decimals: 0, invertY: true },
+    { key: "vo2", title: "VO₂max sub.", accent: "violet", data: vo2Data, history: history.vo2, unit: "ml/kg/min", decimals: 0, invertY: false },
+    { key: "eff", title: "Eficiencia", accent: "sky", data: effData, history: history.eff, unit: "m/latido", decimals: 2, invertY: false },
+  ];
+
   // Shared evenly-spaced ticks so the 5 axes line up exactly
   const xTicks = useMemo(() => {
     if (!domain || domain[0] == null || domain[1] <= domain[0]) return undefined;
@@ -710,31 +938,7 @@ export default function VitalsOverview({ activities = [] }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Granularity selector */}
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            {[
-              { id: "day", label: "Diario" },
-              { id: "week", label: "Semanal" },
-              { id: "month", label: "Mensual" },
-              { id: "year", label: "Anual" },
-            ].map((gr) => {
-              const enabled = days >= GRAN_MIN_DAYS[gr.id];
-              return (
-                <button
-                  key={gr.id}
-                  onClick={() => setGran(gr.id)}
-                  disabled={!enabled}
-                  title={enabled ? undefined : "Período demasiado corto para esta granularidad"}
-                  aria-pressed={gran === gr.id}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm"
-                    : enabled ? "text-slate-500 hover:text-slate-700" : "text-slate-300 cursor-not-allowed"
-                    }`}
-                >
-                  {gr.label}
-                </button>
-              );
-            })}
-          </div>
+          {granSelector}
 
           {/* GAP toggle (afecta solo a Eficiencia aeróbica) */}
           <label
@@ -774,7 +978,9 @@ export default function VitalsOverview({ activities = [] }) {
           icon={HeartIcon}
           accent="emerald"
           data={hrvData}
-          history={history.hrv}
+          metricKey="hrv"
+          periodControls={periodControls}
+          metrics={metrics}
           unit="ms"
           current={summary.hrv.current}
           trend={summary.hrv.trend}
@@ -790,7 +996,9 @@ export default function VitalsOverview({ activities = [] }) {
           icon={HeartIcon}
           accent="rose"
           data={hrData}
-          history={history.rhr}
+          metricKey="rhr"
+          periodControls={periodControls}
+          metrics={metrics}
           unit="ppm"
           current={summary.rhr.current}
           trend={summary.rhr.trend}
@@ -808,7 +1016,9 @@ export default function VitalsOverview({ activities = [] }) {
           icon={BoltIcon}
           accent="violet"
           data={vo2Data}
-          history={history.vo2}
+          metricKey="vo2"
+          periodControls={periodControls}
+          metrics={metrics}
           unit="ml/kg/min"
           current={summary.vo2.current}
           trend={summary.vo2.trend}
@@ -824,7 +1034,9 @@ export default function VitalsOverview({ activities = [] }) {
           icon={ArrowTrendingUpIcon}
           accent="sky"
           data={effData}
-          history={history.eff}
+          metricKey="eff"
+          periodControls={periodControls}
+          metrics={metrics}
           unit="m/latido"
           current={summary.eff.current}
           trend={summary.eff.trend}

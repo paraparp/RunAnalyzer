@@ -129,7 +129,7 @@ export function DetailLink({ onClick, children, dark = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`group shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 cursor-pointer ${dark
+      className={`group shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold transition-all duration-200 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 cursor-pointer ${dark
         ? 'rounded-full px-3 py-1.5 bg-white/10 text-white hover:bg-white hover:text-slate-900 transition-colors'
         : 'rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'}`}
     >

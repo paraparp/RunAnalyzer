@@ -83,6 +83,8 @@ const sparkPath = (values, { w = 100, h = 24, pad = 3 } = {}) => {
 };
 
 const DISPLAY = "font-['Plus_Jakarta_Sans',Inter,sans-serif]";
+// Respuesta física de los botones: transición, hundirse al pulsar y foco visible.
+const PRESS = 'transition-all duration-200 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
 const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 const TONE = {
@@ -108,7 +110,7 @@ const HERO_TEXT = {
 function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar }) {
   const stroke = (TONE[tone] ?? TONE.slate).stroke;
   return (
-    <div className="p-3.5 rounded bg-white/[0.06] border border-white/10 flex flex-col gap-1.5 min-w-0">
+    <div className="p-3.5 rounded bg-white/[0.06] border border-white/10 flex flex-col gap-1.5 min-w-0 transition-colors duration-200 hover:bg-white/[0.09] hover:border-white/20">
       <div className="flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] text-white/50">{icon}</span>
         <span className="text-label font-bold uppercase text-white/50 truncate">{label}</span>
@@ -224,7 +226,7 @@ function AskChatBtn({ onAsk, focus, label = 'Preguntar al coach', dark = false }
       type="button"
       onClick={() => onAsk(focus)}
       title="Ampliar este análisis en el chat de IA"
-      className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold rounded cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${dark
+      className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold rounded cursor-pointer focus-visible:outline-blue-500 ${PRESS} ${dark
         ? 'text-white/70 hover:text-white'
         : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'}`}
     >
@@ -460,7 +462,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     const totalMin = mainMin != null ? mainMin + warmMin + coolMin : null;
 
     const mainParts = [
-      mainMin != null ? `${mainMin} MIN` : null,
+      mainMin != null ? `${mainMin} min` : null,
       targetSec != null ? `${formatPaceFromSecPerKm(targetSec, DASH)}/km` : null,
       easyCadence != null ? `Cadencia ${Math.round(easyCadence)} spm` : null,
       easyHr != null ? `FC ${Math.round(easyHr)} ppm` : null,
@@ -477,7 +479,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       day,
       recovery,
       cycleLabel: phase ? `Forma: ${phase.label}` : 'Forma sin determinar',
-      zonesLabel: recovery ? 'ZONA 1' : 'ZONAS 1 & 2',
+      zonesLabel: recovery ? 'Zona 1' : 'Zonas 1 y 2',
       targetDistance: distRange,
       targetPace: paceRange,
       targetHr: hrRange,
@@ -803,7 +805,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   const volMax = briefing ? Math.max(...briefing.volSpark.map(w => w.v), volAvg, 1) : 1;
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="today-stagger space-y-6">
 
       {/* ── Acciones: sincronizar, coach y calibración ──────────────────────── */}
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -823,7 +825,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         <button
           type="button"
           onClick={() => onNavigate('calibration')}
-          className="px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-colors cursor-pointer"
+          className={`px-3 py-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 cursor-pointer focus-visible:outline-blue-500 ${PRESS}`}
         >
           Calibrar FC
         </button>
@@ -832,7 +834,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           onClick={recalculate}
           disabled={busy || ai.loading}
           title="Sincronizar Strava y Garmin, recalcular las métricas y pedir un análisis nuevo al coach"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-white transition-colors cursor-pointer"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 text-xs font-semibold text-white cursor-pointer focus-visible:outline-blue-500 ${PRESS}`}
         >
           <ArrowPathIcon className={`w-3.5 h-3.5 ${busy || ai.loading ? 'animate-spin' : ''}`} />
           <span>{busy ? 'Recalculando…' : ai.loading ? 'Analizando…' : 'Recalcular'}</span>
@@ -840,8 +842,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       </div>
 
       {/* ── CARRERA OBJETIVO: una franja, no un cartel ──────────────────────── */}
-      <div className="relative overflow-hidden rounded bg-blue-700 text-white px-5 py-4 sm:px-6">
-        <div className="absolute -right-16 -top-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
+      <section aria-label="Carrera objetivo" className="relative overflow-hidden rounded bg-blue-700 text-white px-5 py-4 sm:px-6 shadow-[0_12px_32px_-16px_rgb(29_78_216_/_0.55)]">
+        <div aria-hidden="true" className="absolute -right-16 -top-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
         {upcomingRaces.length > 1 ? (
           // Varias carreras: las próximas, de la más cercana a la más lejana. La
           // principal se distingue con la etiqueta y el recuadro de días en blanco.
@@ -857,10 +859,10 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   type="button"
                   onClick={() => onNavigate(`targets/${r.id}`)}
                   title={isMain ? 'Carrera principal: abrir su plan' : 'Abrir el plan de esta carrera'}
-                  className={`group text-left flex items-center gap-3.5 min-w-0 p-2.5 rounded transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-white ${isMain ? 'bg-white/15 ring-1 ring-white/40' : 'hover:bg-white/10'}`}
+                  className={`group text-left flex items-center gap-3.5 min-w-0 p-2.5 rounded cursor-pointer focus-visible:outline-white ${PRESS} ${isMain ? 'bg-white/15 ring-1 ring-white/40 hover:bg-white/20' : 'hover:bg-white/10'}`}
                 >
-                  <div className={`flex flex-col items-center justify-center w-16 h-16 rounded shrink-0 ${isMain ? 'bg-white text-indigo-700 shadow-md' : 'bg-white/15 backdrop-blur'}`}>
-                    <span className="text-2xl font-black leading-none tabular-nums">{d === 0 ? '¡Hoy!' : d}</span>
+                  <div className={`flex flex-col items-center justify-center w-16 h-16 rounded shrink-0 ${isMain ? 'bg-white text-indigo-700 shadow-[0_6px_16px_-6px_rgb(30_27_75_/_0.5)]' : 'bg-white/15 backdrop-blur'}`}>
+                    <span className="text-2xl font-black leading-none tabular-nums">{d === 0 ? 'Hoy' : d}</span>
                     {d !== 0 && (
                       <span className={`text-label font-bold uppercase mt-0.5 ${isMain ? 'text-indigo-400' : 'text-blue-200'}`}>{t('targets.days_unit')}</span>
                     )}
@@ -894,7 +896,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             <div className="flex items-center gap-4 min-w-0 flex-1">
               <div className="flex flex-col items-center justify-center w-16 h-16 rounded bg-white/15 backdrop-blur shrink-0">
                 <span className="text-2xl font-black leading-none tabular-nums">
-                  {raceDays === 0 ? '¡Hoy!' : raceDays ?? DASH}
+                  {raceDays === 0 ? 'Hoy' : raceDays ?? DASH}
                 </span>
                 {raceDays !== 0 && (
                   <span className="text-label font-bold uppercase text-blue-200 mt-0.5">{t('targets.days_unit')}</span>
@@ -936,20 +938,20 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               <button
                 type="button"
                 onClick={() => targetRace ? onNavigate(`targets/${targetRace.id}`) : onNavigate('targets')}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-white text-slate-900 text-xs font-bold shadow-md hover:bg-blue-50 transition-all cursor-pointer"
+                className={`group flex items-center gap-1.5 px-3.5 py-2 rounded bg-white text-slate-900 text-xs font-bold shadow-[0_6px_16px_-6px_rgb(30_27_75_/_0.5)] hover:bg-blue-50 hover:-translate-y-px cursor-pointer focus-visible:outline-white ${PRESS}`}
               >
                 <span>{targetRace ? t('targets.open_plan') : t('targets.manage', 'Fijar objetivo')}</span>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-indigo-600" />
+                <ArrowRightIcon className="w-3.5 h-3.5 text-indigo-600 transition-transform duration-200 group-hover:translate-x-0.5" />
               </button>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {/* ═══════════ ESTADO AHORA: readiness y señales ═══════════ */}
-      <section className="relative overflow-hidden rounded bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white shadow-xl">
-        <div className="absolute -left-24 -top-24 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none" style={{ background: readinessColor }} />
-        <div className="absolute -right-24 -bottom-32 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+      <section aria-label="Estado de hoy" className="relative overflow-hidden rounded bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white shadow-[0_24px_48px_-24px_rgb(30_27_75_/_0.65)]">
+        <div aria-hidden="true" className="absolute -left-24 -top-24 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none" style={{ background: readinessColor }} />
+        <div aria-hidden="true" className="absolute -right-24 -bottom-32 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
 
         <div className="relative grid grid-cols-1 xl:grid-cols-12 gap-6 p-5 sm:p-7">
           {/* Readiness: el número grande y lo que significa */}
@@ -1026,7 +1028,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               <button
                 type="button"
                 onClick={() => askCoach('readiness')}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/10 cursor-pointer focus-visible:outline-white ${PRESS}`}
               >
                 <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" /> Explícamelo
               </button>
@@ -1159,7 +1161,19 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             </div>
           </div>
         ) : (
-          <p className="py-6 text-sm text-slate-500">Aún no hay historial suficiente para el modelo de carga.</p>
+          <div className="py-6 flex flex-col items-start gap-2 max-w-prose">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aún no hay historial suficiente para el modelo de carga.</p>
+            <p className="text-xs text-slate-500 leading-relaxed">Forma, riesgo y fitness salen de tus últimas semanas de entrenamiento. Sincroniza Strava y Garmin para verlos aquí.</p>
+            <button
+              type="button"
+              onClick={recalculate}
+              disabled={busy}
+              className={`mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer focus-visible:outline-blue-500 ${PRESS}`}
+            >
+              <ArrowPathIcon className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+              {busy ? 'Sincronizando…' : 'Sincronizar ahora'}
+            </button>
+          </div>
         )}
       </Panel>
 
@@ -1257,7 +1271,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 role="tab"
                 aria-selected={coachTab === tb.id}
                 onClick={() => { setCoachTab(tb.id); setCoachExpanded(false); }}
-                className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${coachTab === tb.id
+                className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${coachTab === tb.id
                   ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white'
                   : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
@@ -1288,7 +1302,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               <button
                 type="button"
                 onClick={() => setCoachExpanded(v => !v)}
-                className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 cursor-pointer"
+                className="mt-2 text-xs font-semibold rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
               >
                 {coachExpanded ? 'Mostrar menos' : 'Leer completo'}
               </button>
@@ -1309,13 +1323,25 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           )}
         >
           {!lastRun ? (
-            <p className="py-6 text-sm text-slate-500">Aún no hay carreras sincronizadas.</p>
+            <div className="py-6 flex flex-col items-start gap-2 max-w-prose">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Aún no hay carreras sincronizadas.</p>
+              <p className="text-xs text-slate-500 leading-relaxed">Tu última salida aparecerá aquí con su recorrido, el ritmo por kilómetro y la lectura del coach.</p>
+              <button
+              type="button"
+              onClick={recalculate}
+              disabled={busy}
+              className={`mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer focus-visible:outline-blue-500 ${PRESS}`}
+            >
+              <ArrowPathIcon className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+              {busy ? 'Sincronizando…' : 'Sincronizar ahora'}
+            </button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <button
                 type="button"
                 onClick={() => onNavigate(`activity/${lastRun.id}`)}
-                className="lg:col-span-3 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-blue-500"
+                className={`lg:col-span-3 cursor-pointer rounded hover:opacity-90 focus-visible:outline-blue-500 ${PRESS}`}
                 title="Abrir la sesión"
               >
                 <RouteShape encoded={lastRun.polyline} className="w-full aspect-[4/3] lg:aspect-square max-h-64" />
