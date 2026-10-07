@@ -371,8 +371,7 @@ export function computeGarminStats(rawData, { now: nowInput = Date.now() } = {})
 // La portada la pinta como banner y como pastilla. Antes tenía cortes PROPIOS
 // (fatiga alta por debajo de −10) distintos de los del PMC, así que el mismo TSB
 // salía "Fatiga alta" en la portada y "Cargado" en Carga. Ahora es un envoltorio
-// de `formZone`, la escala única (decisión 6 de docs/REESTRUCTURACION_SECCIONES.md
-// §7): mismos cortes, mismas palabras. Devuelve clave + texto; el color lo pone
+// de `formZone`, la escala única: mismos cortes, mismas palabras. Devuelve clave + texto; el color lo pone
 // quien pinta. Los textos son los de `fitness.status.*` en español.
 export const PHASES = {
   transition: { key: 'transition', label: 'Transición',   description: 'Muy fresco: si se alarga, empiezas a perder forma' },
@@ -407,7 +406,7 @@ export const rampLevel = (ramp) => (ramp == null || !Number.isFinite(ramp) ? nul
 // Cinco niveles, cercanos a la guía de Coggan (−10…−30 es entrenamiento
 // productivo; muy por encima de +15 se pierde forma). Es la escala del PMC y la
 // del veredicto del área de Carga, y también la de la portada (`loadPhase`): la
-// escala ÚNICA de TSB de la app (decisión 6 de docs/REESTRUCTURACION_SECCIONES.md §7).
+// escala ÚNICA de TSB de la app.
 // Claves: `fitness.status.*`.
 export function formZone(tsb) {
   if (tsb == null || !Number.isFinite(tsb)) return null;

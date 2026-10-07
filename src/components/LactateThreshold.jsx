@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text } from '@tremor/react';
 import {
@@ -14,6 +14,7 @@ import useHrParams from '../hooks/useHrParams';
 import useTimeScope from '../hooks/useTimeScope';
 import { scopeMonths } from '../lib/timeScope';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import { fetchGarminLactateThreshold } from '../services/garminWorkouts';
 
 // ─── methodology ──────────────────────────────────────────────────────────────
 //
@@ -46,6 +47,17 @@ export default function LactateThreshold({ activities }) {
   );
 
   const { hrInfo, hrmax, lt2Hr, monthly: monthlyData = [], hr, cs, hasData } = model;
+
+  // Umbral que calcula el reloj, para contrastarlo con el de la app. Sin Garmin
+  // conectado (o sin reloj compatible) simplemente no se enseña.
+  const [garminLt, setGarminLt] = useState(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchGarminLactateThreshold({ signal: ctrl.signal })
+      .then((d) => setGarminLt(d?.latest?.speed_ms ? d.latest : null))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
 
   if (!hrmax) {
     return (
@@ -171,6 +183,20 @@ export default function LactateThreshold({ activities }) {
             {t('lactate.reco_disagree', { hr: formatPace(hr.lt2), cs: formatPace(cs.csPace), sec: Math.abs(disagreeSec) })}
           </p>
         )}
+        {garminLt && (() => {
+          const garminPace = 1000 / garminLt.speed_ms / 60; // min/km, la unidad de formatPace
+          const diff = headlineLT2 ? Math.round((garminPace - headlineLT2) * 60) : null;
+          return (
+            <p className="text-xs text-slate-500 mt-2">
+              {t('lactate.garmin_compare', {
+                pace: formatPace(garminPace),
+                hr: garminLt.hr ?? '—',
+                date: garminLt.date ?? '—',
+              })}
+              {diff != null && Math.abs(diff) >= 3 && ` ${t(diff > 0 ? 'lactate.garmin_slower' : 'lactate.garmin_faster', { sec: Math.abs(diff) })}`}
+            </p>
+          );
+        })()}
       </div>
 
       {/* ── Time window ── */}

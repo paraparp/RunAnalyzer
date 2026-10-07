@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeftIcon, ArrowTopRightOnSquareIcon, ChevronLeftIcon, ChevronRightIcon,
   ArrowTrendingUpIcon, ArrowTrendingDownIcon, HeartIcon, SunIcon, MapIcon, BoltIcon,
+  AdjustmentsHorizontalIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { activityNeighbors } from '../lib/activityNeighbors';
 import {
@@ -11,6 +13,7 @@ import {
 } from 'recharts';
 import ActivitySplits from './ActivitySplits';
 import RouteMap from './RouteMap';
+import SessionStreams from './SessionStreams';
 import { karvonenBounds, classifyHR } from '../lib/hrZones';
 import { ZONES } from '../lib/zoneColors';
 import { formatDuration, formatPaceFromSpeed } from '../lib/timeFormat';
@@ -225,6 +228,7 @@ function ownRow(activity, gap, ownEf) {
     speed_ms: moving > 0 ? activity.distance / moving : null,
     gap_speed_ms: gap?.speed_ms ?? null,
     avg_hr: activity.average_heartrate ?? null,
+    elevation_gain_m: activity.total_elevation_gain ?? null,
     efficiency: ownEf,
     current: true,
   };
@@ -239,7 +243,7 @@ function SimilarTooltip({ active, payload, t, locale }) {
       <p className="text-slate-500 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
       <p className="font-semibold tabular-nums text-slate-900">{s.efficiency.toFixed(2)} m/lat</p>
       <p className="tabular-nums text-slate-500">
-        {formatPaceFromSpeed(s.speed_ms)}/km{s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
+        {formatPaceFromSpeed(s.speed_ms)}/km{s.elevation_gain_m != null ? ` · +${Math.round(s.elevation_gain_m)} m` : ''}{s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
       </p>
     </div>
   );
@@ -299,7 +303,7 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
         </span>
         <span className="block truncate text-xs tabular-nums text-slate-500">
           {(s.distance_m / 1000).toFixed(1)} km · {formatPaceFromSpeed(s.speed_ms)}/km
-          {s.gap_speed_ms ? ` · GAP ${formatPaceFromSpeed(s.gap_speed_ms)}` : ''}
+          {s.elevation_gain_m != null ? ` · +${Math.round(s.elevation_gain_m)} m` : ''}
           {s.avg_hr ? ` · ${Math.round(s.avg_hr)} ppm` : ''}
         </span>
       </span>
@@ -312,24 +316,35 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
   );
 }
 
-function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
+function SimilarBlock({ similar, activity, gap, onOpenActivity, onOpenModal, t, locale }) {
   if (!similar || similar.n === 0) return <Empty>{t('session.no_similar')}</Empty>;
   const own = ownRow(activity, gap, similar.own_ef);
   const points = [...similar.history, own]
     .filter((s) => s.efficiency != null)
     .map((s) => ({ ...s, t: new Date(s.date).getTime() }))
     .sort((a, b) => a.t - b.t);
-  // La sesión abierta va en la lista en su sitio cronológico, entre las demás.
   const rows = [...similar.sessions, own].sort((a, b) => new Date(b.date) - new Date(a.date));
+
   return (
     <>
-      <p className="text-xs text-slate-500 mb-4">
-        {t('session.similar_criteria', {
-          n: similar.n,
-          dist: similar.criteria.distance_tol_pct,
-          hr: similar.criteria.hr_tol_bpm ?? '—',
-        })}
-      </p>
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <p className="text-xs text-slate-500">
+          {t('session.similar_summary', {
+            n: similar.n,
+            dist: similar.criteria.distance_tol_pct,
+            pace: similar.criteria.pace_tol_pct ?? 10,
+          })}
+        </p>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50/80 hover:bg-blue-100 hover:text-blue-700 transition-colors shrink-0 cursor-pointer"
+        >
+          <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+          <span>{t('session.open_comparison_modal')}</span>
+        </button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-5">
         {points.length >= 2 && (
           <div className="lg:col-span-3">
@@ -342,13 +357,237 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
             {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
           </div>
           {similar.n > similar.sessions.length && (
-            <p className="text-xs text-slate-500 mt-2">
+            <button
+              type="button"
+              onClick={onOpenModal}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline mt-2 cursor-pointer block"
+            >
               {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
-            </p>
+            </button>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivity, t, locale }) {
+  const [filters, setFilters] = useState({
+    distanceTolPct: 10,
+    paceTolPct: 10,
+    elevMode: 'similar',
+    hrTolBpm: null,
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen, onClose]);
+
+  const modalSimilar = useMemo(() => {
+    if (!isOpen || !activity) return null;
+    return findSimilarSessions(activity, activities, {
+      distanceTolPct: filters.distanceTolPct,
+      paceTolPct: filters.paceTolPct,
+      elevMode: filters.elevMode,
+      hrTolBpm: filters.hrTolBpm,
+      limit: null,
+    });
+  }, [isOpen, activity, activities, filters]);
+
+  if (!isOpen) return null;
+
+  const own = ownRow(activity, gap, modalSimilar?.own_ef);
+  const points = modalSimilar
+    ? [...modalSimilar.history, own]
+        .filter((s) => s.efficiency != null)
+        .map((s) => ({ ...s, t: new Date(s.date).getTime() }))
+        .sort((a, b) => a.t - b.t)
+    : [];
+  const rows = modalSimilar
+    ? [...modalSimilar.sessions, own].sort((a, b) => new Date(b.date) - new Date(a.date))
+    : [];
+
+  const pillClass = (active) =>
+    `px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+      active
+        ? 'bg-blue-600 text-white shadow-xs'
+        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+    }`;
+
+  const moving = activity?.moving_time || activity?.elapsed_time || 0;
+  const speed = moving > 0 ? activity.distance / moving : 0;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6 animate-[fadeIn_120ms_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('session.comparison_modal_title')}
+        className="flex flex-col w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabecera del modal */}
+        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 truncate">
+              {t('session.comparison_modal_title')}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">
+              {activity.name} · {(activity.distance / 1000).toFixed(1)} km · {formatPaceFromSpeed(speed)}/km
+              {activity.total_elevation_gain != null ? ` · +${Math.round(activity.total_elevation_gain)} m` : ''}
+              {activity.average_heartrate ? ` · ${Math.round(activity.average_heartrate)} ppm` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+            aria-label="Cerrar"
+            title="Cerrar (Esc)"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Barra de filtros interactivos */}
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200/80 shrink-0 space-y-2.5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Ritmo */}
+            <div>
+              <span className="block text-label font-bold uppercase text-slate-400 mb-1">{t('session.filter_pace')}</span>
+              <div className="flex flex-wrap gap-1">
+                {[10, 20, null].map((val) => (
+                  <button
+                    key={String(val)}
+                    type="button"
+                    onClick={() => setFilters((f) => ({ ...f, paceTolPct: val }))}
+                    className={pillClass(filters.paceTolPct === val)}
+                  >
+                    {val != null ? `±${val}%` : t('session.opt_any')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Distancia */}
+            <div>
+              <span className="block text-label font-bold uppercase text-slate-400 mb-1">{t('session.filter_dist')}</span>
+              <div className="flex flex-wrap gap-1">
+                {[5, 10, 20].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setFilters((f) => ({ ...f, distanceTolPct: val }))}
+                    className={pillClass(filters.distanceTolPct === val)}
+                  >
+                    ±{val}%
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Desnivel */}
+            <div>
+              <span className="block text-label font-bold uppercase text-slate-400 mb-1">{t('session.filter_elev')}</span>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { key: 'similar', label: t('session.opt_similar') },
+                  { key: 'flat', label: t('session.opt_flat') },
+                  { key: 'any', label: t('session.opt_any') },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setFilters((f) => ({ ...f, elevMode: key }))}
+                    className={pillClass(filters.elevMode === key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* FC */}
+            <div>
+              <span className="block text-label font-bold uppercase text-slate-400 mb-1">{t('session.filter_hr')}</span>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { val: null, label: t('session.opt_any') },
+                  { val: 5, label: '±5 ppm' },
+                  { val: 10, label: '±10 ppm' },
+                ].map(({ val, label }) => (
+                  <button
+                    key={String(val)}
+                    type="button"
+                    onClick={() => setFilters((f) => ({ ...f, hrTolBpm: val }))}
+                    className={pillClass(filters.hrTolBpm === val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+            <span className="text-slate-500 font-medium">
+              {modalSimilar?.n
+                ? `${modalSimilar.n} ${modalSimilar.n === 1 ? 'sesión encontrada' : 'sesiones encontradas'} · Mediana: ${modalSimilar.median_ef?.toFixed(2)} m/lat`
+                : t('session.no_similar')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFilters({ distanceTolPct: 10, paceTolPct: 10, elevMode: 'similar', hrTolBpm: null })}
+              className="text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+            >
+              {t('session.reset_filters')}
+            </button>
+          </div>
+        </div>
+
+        {/* Contenido principal del modal: gráfico + lista completa */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
+          {!modalSimilar || modalSimilar.n === 0 ? (
+            <Empty>{t('session.no_similar')}</Empty>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-5 h-full">
+              <div className="lg:col-span-3 flex flex-col">
+                <SimilarChart points={points} median={modalSimilar.median_ef} onOpenActivity={(id) => { onClose(); onOpenActivity(id); }} t={t} locale={locale} />
+                <p className="text-xs text-slate-500 mt-2">{t('session.similar_chart_hint')}</p>
+              </div>
+              <div className="lg:col-span-2 flex flex-col min-h-0">
+                <p className="text-xs font-bold uppercase text-slate-400 mb-2">Todas las sesiones ({rows.length})</p>
+                <div className="space-y-1 overflow-y-auto pr-1 flex-1 max-h-[380px]">
+                  {rows.map((s) => (
+                    <SimilarRow
+                      key={s.id}
+                      s={s}
+                      onOpenActivity={(id) => { onClose(); onOpenActivity(id); }}
+                      t={t}
+                      locale={locale}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -397,7 +636,7 @@ function StepButton({ target, label, dir, onStep, locale }) {
   );
 }
 
-export default function SessionView({ activityId, activities, hrParams, onBack, onOpenActivity, onStepActivity, onEnrichActivity }) {
+export default function SessionView({ activityId, activities, hrParams, accessToken, onBack, onOpenActivity, onStepActivity, onEnrichActivity }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const rootRef = useRef(null);
@@ -435,6 +674,8 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity?.id]);
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const { hrmax, hrrest } = hrParams ?? {};
   const model = useMemo(() => {
     if (!activity) return null;
@@ -446,7 +687,12 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
       decoupling: sessionDecoupling(activity),
       efficiency: sessionEfficiency(activity, { maxObservedHr: hrmax }),
       weather: sessionWeather(garmin, activity, { hrMax: hrmax }),
-      similar: isRace(activity) ? null : findSimilarSessions(activity, activities),
+      similar: isRace(activity) ? null : findSimilarSessions(activity, activities, {
+        distanceTolPct: 10,
+        paceTolPct: 10,
+        elevMode: 'similar',
+        limit: 10,
+      }),
     };
   }, [activity, activities, hrmax, hrrest]);
 
@@ -531,6 +777,7 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
 
   // Orden del índice = orden de lectura: columna principal y luego lateral.
   const sections = [
+    ...(accessToken ? [{ id: 'streams', label: t('session.streams_title') }] : []),
     { id: 'pace', label: t('session.pace_title') },
     { id: 'hr', label: t('session.hr_title') },
     ...(race ? [] : [{ id: 'similar', label: t('session.similar_title') }]),
@@ -647,6 +894,13 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
         )}
       </section>
 
+      {/* ── Gráfico de streams: métricas sincronizadas, tramo y mapa ────── */}
+      {accessToken && (
+        <Card id="streams" title={t('session.streams_title')}>
+          <SessionStreams activityId={activity.id} accessToken={accessToken} />
+        </Card>
+      )}
+
       {/* ── Ritmo: parciales, tabla y mejores esfuerzos ─────────────────── */}
       <Card id="pace" title={t('session.pace_title')}>
         {splits?.length
@@ -673,14 +927,49 @@ export default function SessionView({ activityId, activities, hrParams, onBack, 
       {/* ── Contexto: con qué se compara y en qué condiciones ───────────── */}
       <div className="grid gap-5 lg:grid-cols-3 items-start">
         {!race && (
-          <Card id="similar" title={t('session.similar_title')} className="lg:col-span-2 min-w-0">
-            <SimilarBlock similar={similar} activity={activity} gap={gap} onOpenActivity={onOpenActivity} t={t} locale={locale} />
+          <Card
+            id="similar"
+            title={t('session.similar_title')}
+            aside={
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+              >
+                <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+                <span>{t('session.open_comparison_modal')}</span>
+              </button>
+            }
+            className="lg:col-span-2 min-w-0"
+          >
+            <SimilarBlock
+              similar={similar}
+              activity={activity}
+              gap={gap}
+              onOpenActivity={onOpenActivity}
+              onOpenModal={() => setIsModalOpen(true)}
+              t={t}
+              locale={locale}
+            />
           </Card>
         )}
         <Card id="weather" title={t('session.weather_title')} className="min-w-0">
           <WeatherBlock weather={weather} t={t} />
         </Card>
       </div>
+
+      {!race && (
+        <SimilarModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          activity={activity}
+          activities={activities}
+          gap={gap}
+          onOpenActivity={onOpenActivity}
+          t={t}
+          locale={locale}
+        />
+      )}
 
       <p className="hidden lg:block text-center text-xs text-slate-500">{t('session.keys_hint')}</p>
     </div>

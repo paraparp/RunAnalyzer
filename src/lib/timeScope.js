@@ -12,7 +12,7 @@
 // y con un vocabulario: meses de calendario (la frontera la pone `monthsAgoISO`,
 // sobre el día local, igual que la curva mean-max).
 //
-// Por defecto, 12 meses (decisión 4 de docs/REESTRUCTURACION_SECCIONES.md §7):
+// Por defecto, 12 meses:
 // coincide con el PMC y el VO2max, cubre una temporada y da muestra suficiente a la
 // velocidad crítica y al desacople.
 //

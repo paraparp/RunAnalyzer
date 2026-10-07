@@ -20,7 +20,7 @@ La app funciona bien cuando el atleta entiende qué le dicen sus números y hace
 
 ## Positioning
 
-Según `docs/ROADMAP_FUNCIONALIDADES.md`, el análisis fisiológico está por encima de lo habitual en el mercado: desacoplamiento cardiaco, GAP calculado muestra a muestra, velocidad crítica y D′, penalización por calor (WBGT) ajustada a la intensidad, origen de la FC (banda o muñeca) y modelo de carga CTL/ATL/TSB calibrado.
+El análisis fisiológico está por encima de lo habitual en el mercado: desacoplamiento cardiaco, GAP calculado muestra a muestra, velocidad crítica y D′, penalización por calor (WBGT) ajustada a la intensidad, origen de la FC (banda o muñeca) y modelo de carga CTL/ATL/TSB calibrado.
 
 Lo que la diferencia es el rigor con los datos y cerrar el ciclo: dato → decisión → acción en el reloj (los entrenos del plan se mandan a Garmin desde la propia app).
 
@@ -41,7 +41,7 @@ Fuera de la app, los mismos datos se pueden consultar desde Claude o ChatGPT a t
 - **Datos:** Strava (actividades, streams) y Garmin (FC reposo, VFC, sueño, peso, running dynamics, carga de entrenamiento, escritura de entrenos). Las credenciales de Garmin nunca salen del servidor.
 - **IA:** varios proveedores (Anthropic, OpenAI, Google) con selector de modelo.
 - **Idiomas:** inglés y español (i18next). El inglés es el idioma por defecto; buena parte del texto y de la documentación interna está en español.
-- **Arquitectura de información:** 5 categorías de navegación. Cada número tiene una sola vista que lo muestra (`docs/REESTRUCTURACION_SECCIONES.md`).
+- **Arquitectura de información:** 5 categorías de navegación. Cada número tiene una sola vista que lo muestra.
 - **Terminología:** FC, FCmax, FC reposo, LTHR, zonas de Karvonen y de Seiler, GAP, desacoplamiento, CTL/ATL/TSB, ACWR, VDOT, velocidad crítica (CS/D′), WBGT, VFC, parciales.
 
 ## Evidence on Hand

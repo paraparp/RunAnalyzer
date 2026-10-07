@@ -26,20 +26,71 @@ const run = (id, { distance = 10000, paceMin = 5, hr = 150, date = '2026-09-01',
 });
 
 describe('findSimilarSessions', () => {
-  it('filtra por distancia ±10 % y FC ±5, sin la propia sesión ni competiciones', () => {
+  it('filtra por distancia ±10 % y desnivel parecido, sin la propia sesión ni competiciones', () => {
     const ref = run(1);
     const all = [
       ref,
-      run(2),                                   // igual → entra
-      run(3, { distance: 10800 }),              // +8 % → entra
-      run(4, { distance: 12000 }),              // +20 % → fuera
-      run(5, { hr: 160 }),                      // +10 ppm → fuera
-      run(6, { workout_type: 1 }),              // competición → fuera
-      { ...run(7), type: 'Ride' },              // otro deporte → fuera
+      run(2),                                                // igual → entra
+      run(3, { distance: 10800, total_elevation_gain: 22 }), // +8 % dist, D+ similar → entra
+      run(4, { distance: 12000 }),                           // +20 % dist → fuera
+      run(5, { total_elevation_gain: 150 }),                 // 15 m/km vs 2 m/km → fuera por desnivel
+      run(6, { workout_type: 1 }),                           // competición → fuera
+      { ...run(7), type: 'Ride' },                           // otro deporte → fuera
     ];
     const res = findSimilarSessions(ref, all);
     expect(res.sessions.map((s) => s.id).sort()).toEqual([2, 3]);
     expect(res.n).toBe(2);
+  });
+
+  it('permite comparar sesiones a distinta FC para evaluar el m/lat libremente', () => {
+    const ref = run(1, { hr: 150 });
+    const all = [ref, run(2, { hr: 165 })];
+    const res = findSimilarSessions(ref, all);
+    expect(res.n).toBe(1);
+    expect(res.sessions[0].id).toBe(2);
+    expect(res.criteria.hr_tol_bpm).toBeNull();
+  });
+
+  it('si se especifica hrTolBpm filtra también por FC', () => {
+    const ref = run(1, { hr: 150 });
+    const all = [ref, run(2, { hr: 153 }), run(3, { hr: 165 })];
+    const res = findSimilarSessions(ref, all, { hrTolBpm: 5 });
+    expect(res.n).toBe(1);
+    expect(res.sessions[0].id).toBe(2);
+    expect(res.criteria.hr_tol_bpm).toBe(5);
+  });
+
+  it('filtra por ritmo similar cuando paceTolPct está activo y permite abrirlo', () => {
+    const ref = run(1, { paceMin: 5 });
+    const all = [
+      ref,
+      run(2, { paceMin: 5.1 }), // +2% → entra
+      run(3, { paceMin: 4.6 }), // -8% → entra
+      run(4, { paceMin: 6.0 }), // +20% → fuera con ±10%
+    ];
+    const strict = findSimilarSessions(ref, all, { paceTolPct: 10 });
+    expect(strict.sessions.map((s) => s.id).sort()).toEqual([2, 3]);
+
+    const broad = findSimilarSessions(ref, all, { paceTolPct: null });
+    expect(broad.sessions.map((s) => s.id).sort()).toEqual([2, 3, 4]);
+  });
+
+  it('permite cambiar el modo de desnivel entre similar, flat y any', () => {
+    const ref = run(1, { distance: 10000, total_elevation_gain: 20 });
+    const all = [
+      ref,
+      run(2, { total_elevation_gain: 25 }),
+      run(3, { total_elevation_gain: 90 }),
+      run(4, { total_elevation_gain: 250 }),
+    ];
+    const sim = findSimilarSessions(ref, all, { elevMode: 'similar' });
+    expect(sim.sessions.map((s) => s.id)).toEqual([2]);
+
+    const flat = findSimilarSessions(ref, all, { elevMode: 'flat' });
+    expect(flat.sessions.map((s) => s.id).sort()).toEqual([2, 3]);
+
+    const any = findSimilarSessions(ref, all, { elevMode: 'any' });
+    expect(any.sessions.map((s) => s.id).sort()).toEqual([2, 3, 4]);
   });
 
   it('sitúa la eficiencia de la sesión frente a la mediana del grupo', () => {
@@ -51,7 +102,7 @@ describe('findSimilarSessions', () => {
     expect(res.ef_delta_pct).toBeCloseTo((5 / 4.5 - 1) * 100, 5);
   });
 
-  it('sin FC en la referencia compara solo por distancia', () => {
+  it('sin FC en la referencia compara igualmente', () => {
     const ref = run(1, { hr: null });
     const res = findSimilarSessions(ref, [ref, run(2, { hr: 170 })]);
     expect(res.n).toBe(1);

@@ -1,6 +1,11 @@
 // Sesión PLANIFICADA de hoy en la portada (lib/todaySession): la del calendario de
 // Garmin o el día del plan del Entrenador IA. La propuesta automática sigue
 // pintándose en TodayView; esto sustituye a esa tarjeta cuando hay plan.
+//
+// Plan adaptativo (lib/adaptivePlan): si la sesión es dura y el estado pide
+// descargar, se enseña por defecto la versión regenerativa (`adapted`), con
+// opción de volver a la original y de mandar la adaptada al reloj.
+import { workoutBlocks } from '../lib/todaySession';
 
 // Color por intensidad (1-5) del bloque, de suave a máximo.
 const INTENSITY_CLS = {
@@ -39,8 +44,8 @@ function Header({ session, day, action }) {
   );
 }
 
-function Conflict({ session }) {
-  if (!session.conflict) return null;
+function Conflict({ session, adapted }) {
+  if (!session.conflict || adapted) return null;
   return (
     <div className="p-3 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
       <span className="font-bold">Tu estado pide descargar</span> (readiness baja o TSB en sobrecarga) y
@@ -50,27 +55,9 @@ function Conflict({ session }) {
   );
 }
 
-export default function TodayPlannedSession({ session, day, action }) {
-  if (session.source === 'garmin') {
-    return (
-      <Card>
-        <Header session={session} day={day} action={action} />
-        <div>
-          <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.title}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Agendado en tu calendario de Garmin
-            {session.extra > 0 ? ` (y ${session.extra} más para hoy)` : ''}. La estructura y los objetivos los tienes en el reloj.
-          </p>
-        </div>
-        <Conflict session={session} />
-      </Card>
-    );
-  }
-
-  // Plan del Entrenador IA
+function PlanBody({ session }) {
   return (
-    <Card>
-      <Header session={session} day={day} action={action} />
+    <>
       {session.rest ? (
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {session.summary || 'Tu plan no tiene sesión para hoy. Descansar también es entrenar: es cuando se asimila la carga.'}
@@ -133,7 +120,87 @@ export default function TodayPlannedSession({ session, day, action }) {
           )}
         </>
       )}
-      <Conflict session={session} />
+    </>
+  );
+}
+
+function AdaptedBanner({ session, showing, onToggle, onSend, sendState }) {
+  const original = session.source === 'garmin' ? session.title : session.type;
+  return (
+    <div className="p-3 rounded bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200 flex flex-col gap-2">
+      <p>
+        <span className="font-bold">{showing ? 'Sesión adaptada a tu estado.' : 'Tu estado pide descargar.'}</span>{' '}
+        {showing
+          ? <>La readiness o el TSB desaconsejan <span className="font-semibold">{original}</span> hoy: toca regenerativo. La original se puede reprogramar desde el Planificador.</>
+          : <>Hay una versión regenerativa de <span className="font-semibold">{original}</span> lista.</>}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onToggle} className="px-2.5 py-1 rounded border border-emerald-300 bg-white font-semibold hover:bg-emerald-100 dark:bg-transparent">
+          {showing ? 'Ver la original' : 'Usar la adaptada'}
+        </button>
+        {showing && onSend && (
+          <button
+            type="button" onClick={onSend} disabled={sendState === 'sending' || sendState === 'sent'}
+            className="px-2.5 py-1 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {sendState === 'sending' ? 'Enviando…' : sendState === 'sent' ? 'En el reloj ✓' : 'Enviar al reloj'}
+          </button>
+        )}
+        {sendState && sendState.startsWith?.('error:') && <span className="self-center text-rose-600">{sendState.slice(6)}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Día del plan → lo que pinta `PlanBody`. */
+function bodyFromPlanDay(day) {
+  const { blocks, totalMin } = workoutBlocks(day.structured_workout);
+  return {
+    rest: false, type: day.type, summary: day.summary,
+    dist: day.daily_stats?.dist ?? null, time: day.daily_stats?.time ?? null,
+    blocks, totalMin, hrvGuidance: null,
+  };
+}
+
+export default function TodayPlannedSession({ session, day, action, adapted = null, showingAdapted = false, onToggleAdapted, onSendAdapted, sendState }) {
+  const banner = adapted && (
+    <AdaptedBanner session={session} showing={showingAdapted} onToggle={onToggleAdapted} onSend={onSendAdapted} sendState={sendState} />
+  );
+
+  if (showingAdapted && adapted) {
+    return (
+      <Card>
+        <Header session={{ ...session, isRace: false, rest: false }} day={day} action={action} />
+        <PlanBody session={bodyFromPlanDay(adapted)} />
+        {banner}
+      </Card>
+    );
+  }
+
+  if (session.source === 'garmin') {
+    return (
+      <Card>
+        <Header session={session} day={day} action={action} />
+        <div>
+          <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.title}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Agendado en tu calendario de Garmin
+            {session.extra > 0 ? ` (y ${session.extra} más para hoy)` : ''}. La estructura y los objetivos los tienes en el reloj.
+          </p>
+        </div>
+        <Conflict session={session} adapted={adapted} />
+        {banner}
+      </Card>
+    );
+  }
+
+  // Plan del Entrenador IA
+  return (
+    <Card>
+      <Header session={session} day={day} action={action} />
+      <PlanBody session={session} />
+      <Conflict session={session} adapted={adapted} />
+      {banner}
     </Card>
   );
 }

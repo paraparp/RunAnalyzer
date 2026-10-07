@@ -111,6 +111,7 @@ export function resolveTodaySession({ garminPlanned = [], savedPlan = null, toda
     const { blocks, totalMin, maxIntensity } = workoutBlocks(day?.structured_workout);
     return {
       source: 'ai_plan',
+      planDay: day,
       rest,
       type: day?.type ?? null,
       summary: day?.summary ?? null,

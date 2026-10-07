@@ -26,8 +26,8 @@ import { COLORS, AXIS_TICK } from '../lib/palette';
 // dos copias era la razón de que VDOT y VO2max fueran dos números de lo mismo.
 
 // Los ritmos de entrenamiento NO se derivan aquí del VDOT (Daniels): el sistema de
-// prescripción de la app es LT1/LT2 (decisión 5 de docs/REESTRUCTURACION_SECCIONES.md
-// §7), y su dueño es Motor › Umbrales. Dos tablas de ritmos daban dos "fácil" distintos.
+// prescripción de la app es LT1/LT2 (respaldo fisiológico de los dominios de
+// intensidad, frente a las tablas empíricas de Daniels), y su dueño es Motor › Umbrales. Dos tablas de ritmos daban dos "fácil" distintos.
 
 // ============================================================
 // Standard race distances for detection & prediction

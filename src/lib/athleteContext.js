@@ -270,8 +270,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   // ── Modelo de lactato (LT1/LT2) — fuente centralizada (src/lib/lactateThreshold).
   // Se calcula ANTES que el LTHR porque su LT2 de campo (la FC medida al ritmo de
   // la velocidad crítica) es el ancla preferente del umbral: así el coach IA, la
-  // pestaña de Zonas y la de Umbral de Lactato dan UN solo número. Ver B3 en
-  // docs/AUDITORIA_DUPLICACION.md.
+  // pestaña de Zonas y la de Umbral de Lactato dan UN solo número.
   const lt = computeLactateModel(activities, LT_MONTHS, { hrrest: fcRest });
 
   // LTHR: el de la calibración compartida (ventana de 2 meses y anclaje a la FC

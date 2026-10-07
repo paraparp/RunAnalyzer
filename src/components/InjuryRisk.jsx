@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Title, Text } from '@tremor/react';
 import {
@@ -17,6 +17,9 @@ import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import { isoWeekKey } from '../lib/isoWeek';
 import { weeklyVolumeRamp } from '../lib/weeklyVolume';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import cloudStorage from '../lib/cloudStorage';
+import { DIARY_EVENT, readDiary, subjectiveRisk, diaryRecommendations } from '../lib/wellnessDiary';
+import WellnessDiary from './WellnessDiary';
 
 function getRiskLevel(score, t) {
   if (score < 35) return { label: t('injury.risk_levels.low'), color: COLORS.good, bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
@@ -32,6 +35,16 @@ export default function InjuryRisk({ activities }) {
   const { pmc } = useCalibratedPMC(activities);
   const pmcSeries = pmc?.series ?? null;
   const pmcCurrent = pmc?.current ?? null;
+
+  // Diario subjetivo (molestias, ánimo, estrés): la mitad de la señal que la
+  // carga no ve. Se relee cuando el diario guarda.
+  const [diary, setDiary] = useState(() => readDiary(cloudStorage));
+  useEffect(() => {
+    const reload = () => setDiary(readDiary(cloudStorage));
+    window.addEventListener(DIARY_EVENT, reload);
+    return () => window.removeEventListener(DIARY_EVENT, reload);
+  }, []);
+  const subjective = useMemo(() => subjectiveRisk(diary, dayKey(new Date())), [diary]);
   const { riskScore, factors, context, historyData, recommendations } = useMemo(() => {
     if (!activities || activities.length === 0) return { riskScore: 0, factors: [], context: [], historyData: [], recommendations: [] };
 
@@ -137,22 +150,37 @@ export default function InjuryRisk({ activities }) {
     else if (strain > 1000) strainRisk = 15;
 
     // --- Composite score ---
-    const weights = { ramp: 0.30, volume: 0.25, rest: 0.20, monotony: 0.10, strain: 0.15 };
+    // Con diario de la última semana, lo subjetivo pesa un 25 % y los factores de
+    // carga se reescalan al 75 %; sin él, no se puntúa lo que no se sabe.
+    const loadShare = subjective ? 0.75 : 1;
+    const weights = {
+      ramp: 0.30 * loadShare, volume: 0.25 * loadShare, rest: 0.20 * loadShare,
+      monotony: 0.10 * loadShare, strain: 0.15 * loadShare, diary: subjective ? 0.25 : 0,
+    };
+    const pct = (w) => `${Math.round(w * 100)}%`;
     const composite = Math.round(
       rampRisk * weights.ramp +
       volumeRisk * weights.volume +
       restRisk * weights.rest +
       monotonyRisk * weights.monotony +
-      strainRisk * weights.strain
+      strainRisk * weights.strain +
+      (subjective?.score ?? 0) * weights.diary
     );
     const finalScore = Math.min(100, Math.max(0, composite));
 
     const factorsList = [
-      { name: t('injury.factors.ramp'), value: `${ctlRamp > 0 ? '+' : ''}${ctlRamp.toFixed(1)} CTL/sem`, risk: Math.round(rampRisk), weight: '30%', detail: ctlRamp > 5 ? t('fitness.ramp_labels.high') : t('fitness.ramp_labels.safe') },
-      { name: t('injury.factors.volume'), value: `${weeklyChange > 0 ? '+' : ''}${Math.round(weeklyChange)}% · ${absDeltaKm > 0 ? '+' : ''}${Math.round(absDeltaKm * 10) / 10} km`, risk: Math.round(volumeRisk), weight: '25%', detail: volumeRisk > 25 ? t('injury.factors.rule_10') + ': ' + Math.round(weeklyChange) + '%' : t('fitness.ramp_labels.safe') },
-      { name: t('injury.factors.rest'), value: `${restDays7}d / 7d`, risk: Math.round(restRisk), weight: '20%', detail: restDays7 <= 1 ? t('fitness.status.overloaded_desc') : `${restDays7} ${t('injury.factors.rest').toLowerCase()}` },
-      { name: t('injury.factors.monotony'), value: monotony.toFixed(1), risk: Math.round(monotonyRisk), weight: '10%', detail: monotony > 1.5 ? t('fitness.status.loaded_desc') : t('fitness.status.optimal_desc') },
-      { name: t('injury.factors.strain'), value: Math.round(strain), risk: Math.round(strainRisk), weight: '15%', detail: `${t('injury.factors.strain')} = ${Math.round(strain)}` },
+      { name: t('injury.factors.ramp'), value: `${ctlRamp > 0 ? '+' : ''}${ctlRamp.toFixed(1)} CTL/sem`, risk: Math.round(rampRisk), weight: pct(weights.ramp), detail: ctlRamp > 5 ? t('fitness.ramp_labels.high') : t('fitness.ramp_labels.safe') },
+      { name: t('injury.factors.volume'), value: `${weeklyChange > 0 ? '+' : ''}${Math.round(weeklyChange)}% · ${absDeltaKm > 0 ? '+' : ''}${Math.round(absDeltaKm * 10) / 10} km`, risk: Math.round(volumeRisk), weight: pct(weights.volume), detail: volumeRisk > 25 ? t('injury.factors.rule_10') + ': ' + Math.round(weeklyChange) + '%' : t('fitness.ramp_labels.safe') },
+      { name: t('injury.factors.rest'), value: `${restDays7}d / 7d`, risk: Math.round(restRisk), weight: pct(weights.rest), detail: restDays7 <= 1 ? t('fitness.status.overloaded_desc') : `${restDays7} ${t('injury.factors.rest').toLowerCase()}` },
+      { name: t('injury.factors.monotony'), value: monotony.toFixed(1), risk: Math.round(monotonyRisk), weight: pct(weights.monotony), detail: monotony > 1.5 ? t('fitness.status.loaded_desc') : t('fitness.status.optimal_desc') },
+      { name: t('injury.factors.strain'), value: Math.round(strain), risk: Math.round(strainRisk), weight: pct(weights.strain), detail: `${t('injury.factors.strain')} = ${Math.round(strain)}` },
+      ...(subjective ? [{
+        name: 'Molestias y bienestar (diario)',
+        value: subjective.signals[0] ? `${subjective.signals[0].label} ${subjective.signals[0].max}/10` : 'Sin dolor',
+        risk: subjective.score,
+        weight: pct(weights.diary),
+        detail: subjective.signals[0]?.reasons.join(', ') || `${subjective.entries} días anotados esta semana`,
+      }] : []),
     ];
 
     // Señales que se muestran pero NO puntúan (ver el comentario del ACWR arriba).
@@ -172,6 +200,8 @@ export default function InjuryRisk({ activities }) {
     if (volumeRisk > 25) recs.push(`Has aumentado el volumen un ${Math.round(weeklyChange)}% (${absDeltaKm > 0 ? '+' : ''}${Math.round(absDeltaKm * 10) / 10} km). Intenta que el salto semanal no pase del 10% ni de unos 6 km absolutos.`);
     if (restDays7 <= 1) recs.push('Necesitas más días de descanso. Considera al menos 2 días de reposo por semana.');
     if (monotony > 1.5) recs.push('Varía más tus sesiones. Alterna días duros y suaves para reducir la monotonía.');
+    recs.push(...diaryRecommendations(subjective));
+    if (!subjective) recs.push('Sin diario esta semana, el índice solo ve la carga. Anota molestias y cómo estás abajo: entra en el cálculo con un 25 %.');
     if (finalScore < 35) recs.push('Tu riesgo de lesión es bajo. Buen trabajo manteniendo el equilibrio entre carga y descanso.');
 
     // --- History (weekly risk scores) ---
@@ -198,7 +228,7 @@ export default function InjuryRisk({ activities }) {
     });
 
     return { riskScore: finalScore, factors: factorsList, context: contextList, historyData: history, recommendations: recs };
-  }, [activities, pmcSeries, pmcCurrent, t]);
+  }, [activities, pmcSeries, pmcCurrent, subjective, t]);
 
   const level = getRiskLevel(riskScore, t);
 
@@ -407,6 +437,7 @@ export default function InjuryRisk({ activities }) {
           <p className="text-xs text-slate-500 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
         </div>
       </Card>
+      <WellnessDiary activities={activities} />
     </div>
   );
 }

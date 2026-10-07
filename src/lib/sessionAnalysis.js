@@ -104,13 +104,31 @@ export function sessionWeather(garminActivity, activity, { hrMax } = {}) {
  * null si la referencia no tiene distancia.
  */
 export function findSimilarSessions(activity, all, {
-  distanceTolPct = 10, hrTolBpm = 5, limit = 10,
+  distanceTolPct = 10,
+  paceTolPct = 10,
+  elevMode = 'similar', // 'similar' | 'flat' | 'any'
+  elevTolPerKm = null,
+  hrTolBpm = null,
+  limit = 10,
 } = {}) {
   if (!(activity?.distance > 0) || !Array.isArray(all)) return null;
   const tol = distanceTolPct / 100;
   const lo = activity.distance * (1 - tol);
   const hi = activity.distance * (1 + tol);
   const hr = activity.average_heartrate;
+
+  const moving = movingTime(activity);
+  const refSpeed = moving > 0 ? activity.distance / moving : null;
+  const paceTol = paceTolPct != null ? paceTolPct / 100 : null;
+  const loSpeed = refSpeed && paceTol != null ? refSpeed * (1 - paceTol) : null;
+  const hiSpeed = refSpeed && paceTol != null ? refSpeed * (1 + paceTol) : null;
+
+  const refElevPerKm = (activity.distance > 0 && activity.total_elevation_gain != null)
+    ? activity.total_elevation_gain / (activity.distance / 1000)
+    : null;
+  const elevTol = elevTolPerKm != null
+    ? elevTolPerKm
+    : (refElevPerKm != null ? Math.max(6, refElevPerKm * 0.3) : null);
 
   const effOf = (a) => {
     const t = movingTime(a);
@@ -119,9 +137,30 @@ export function findSimilarSessions(activity, all, {
 
   const matched = all
     .filter((a) => a.id !== activity.id && isRunning(a) && !isRace(a))
+    // Distancia dentro de la tolerancia
     .filter((a) => a.distance >= lo && a.distance <= hi)
-    // Sin FC en la referencia no hay banda: se compara solo por distancia.
-    .filter((a) => !hr || (a.average_heartrate && Math.abs(a.average_heartrate - hr) <= hrTolBpm))
+    // Ritmo dentro de la tolerancia (si se define paceTolPct)
+    .filter((a) => {
+      if (loSpeed == null || hiSpeed == null) return true;
+      const t = movingTime(a);
+      if (!(t > 0)) return false;
+      const speed = a.distance / t;
+      return speed >= loSpeed && speed <= hiSpeed;
+    })
+    // Desnivel según modo seleccionado
+    .filter((a) => {
+      if (elevMode === 'any') return true;
+      if (a.total_elevation_gain == null || !(a.distance > 0)) return false;
+      const aElevPerKm = a.total_elevation_gain / (a.distance / 1000);
+      if (elevMode === 'flat') {
+        return aElevPerKm < 10;
+      }
+      // 'similar'
+      if (elevTol == null || refElevPerKm == null) return true;
+      return Math.abs(aElevPerKm - refElevPerKm) <= elevTol;
+    })
+    // FC opcional
+    .filter((a) => !hrTolBpm || !hr || (a.average_heartrate && Math.abs(a.average_heartrate - hr) <= hrTolBpm))
     .map((a) => ({
       id: a.id,
       date: a.start_date,
@@ -130,6 +169,7 @@ export function findSimilarSessions(activity, all, {
       speed_ms: movingTime(a) > 0 ? a.distance / movingTime(a) : null,
       gap_speed_ms: activityGapSpeed(a) || null,
       avg_hr: a.average_heartrate ?? null,
+      elevation_gain_m: a.total_elevation_gain ?? null,
       elevation_per_km: a.distance > 0 && a.total_elevation_gain != null
         ? a.total_elevation_gain / (a.distance / 1000)
         : null,
@@ -144,7 +184,7 @@ export function findSimilarSessions(activity, all, {
   const rank = own != null && effs.length ? effs.filter((e) => e > own).length + 1 : null;
 
   return {
-    sessions: matched.slice(0, limit),
+    sessions: limit ? matched.slice(0, limit) : matched,
     // Todas, no solo las `limit` más recientes: la gráfica de evolución las necesita.
     history: matched,
     n: matched.length,
@@ -153,6 +193,12 @@ export function findSimilarSessions(activity, all, {
     own_ef: own,
     ef_delta_pct: own != null && medianEf ? (own / medianEf - 1) * 100 : null,
     rank,
-    criteria: { distance_tol_pct: distanceTolPct, hr_tol_bpm: hr ? hrTolBpm : null },
+    criteria: {
+      distance_tol_pct: distanceTolPct,
+      pace_tol_pct: paceTolPct,
+      elev_mode: elevMode,
+      elev_tol_per_km: elevTol != null ? Math.round(elevTol) : null,
+      hr_tol_bpm: hr && hrTolBpm ? hrTolBpm : null,
+    },
   };
 }

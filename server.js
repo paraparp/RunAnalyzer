@@ -9,6 +9,7 @@ import garminHealthStream from './api/garmin/health/stream.js';
 import garminHealthRecent from './api/garmin/health/recent.js';
 import garminActivities from './api/garmin/activities.js';
 import garminWorkouts from './api/garmin/workouts.js';
+import garminMetrics from './api/garmin/metrics.js';
 import admin from './api/admin.js';
 import pkg from 'garmin-connect';
 const { GarminConnect } = pkg;
@@ -87,6 +88,7 @@ app.post('/api/garmin/activities', withCachedSession(garminActivities));
 // Escritura de entrenos: no usa la sesión cacheada de dev — `garmin-write` abre la
 // suya con las credenciales guardadas del usuario (igual que en producción).
 app.all('/api/garmin/workouts', garminWorkouts);
+app.get('/api/garmin/metrics', garminMetrics);
 
 // ---------------------------------------------------------------------------
 // Admin. Mismo handler que en Vercel; el guardián (sesión + fila en app_admins)

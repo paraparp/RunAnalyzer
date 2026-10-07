@@ -13,6 +13,7 @@ import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes, TARGET_
 import { DISTANCE_KM } from '../lib/raceDistances';
 import { pushPlanDays } from '../services/garminWorkouts';
 import cloudStorage from '../lib/cloudStorage';
+import PlanWeekReview from './PlanWeekReview';
 import { AI_PLAN_KEY, planDayFor } from '../lib/todaySession';
 import { toISODate } from '../lib/planSchedule';
 
@@ -329,6 +330,8 @@ const TrainingPlanner = ({ activities }) => {
             </div>
 
             {/* Plan Display */}
+            {plan && <PlanWeekReview plan={plan} activities={activities} onApplied={setPlan} />}
+
             {plan && (
                 <div className="space-y-8 fade-in">
                     <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm">

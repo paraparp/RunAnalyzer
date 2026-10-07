@@ -25,6 +25,7 @@ import {
 } from './_lib/garmin-write.js';
 import {
   getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
+  getLactateThreshold,
 } from './_lib/garmin-live.js';
 import { reportIssue, listIssues, deleteIssue, CATEGORIES, SEVERITIES, STATUSES } from './_lib/mcp-feedback.js';
 import { ensureFresh } from './_lib/mcp-sync.js';
@@ -270,6 +271,12 @@ const TOOLS = [
     description: 'Estado de forma de Garmin (en vivo): VO2max carrera y ciclismo, training status, carga aguda/crónica y ratio ACWR, balance aeróbico/anaeróbico, y scores de resistencia/colina. Opcional: date.',
     inputSchema: { type: 'object', properties: { date: dateArg } },
     run: (userId, args) => getFitnessStatus(userId, args).then(text),
+  },
+  {
+    name: 'get_lactate_threshold',
+    description: 'Umbral de lactato calculado por el reloj Garmin (en vivo): FC y ritmo del último valor y FTP de carrera si lo hay. Con from (y to opcional) devuelve además la evolución diaria. Es la estimación de GARMIN: para la de la app usa detect_threshold_efforts; compáralas.',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getLactateThreshold(userId, args).then(text),
   },
   {
     name: 'list_planned_workouts',
@@ -624,6 +631,7 @@ const TITLES = {
   best_efforts_progression: 'Progresión por distancia', list_hrv_resting: 'VFC y FC en reposo',
   list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición',
   get_training_readiness: 'Training readiness', get_fitness_status: 'Estado de forma',
+  get_lactate_threshold: 'Umbral de lactato (Garmin)',
   list_planned_workouts: 'Entrenos planificados', get_training_load_model: 'Carga de entrenamiento',
   get_health_alerts: 'Alertas de salud', time_in_zones: 'Tiempo en zonas de FC',
   detect_threshold_efforts: 'Detectar tests de umbral', list_garmin_workouts: 'Listar entrenos Garmin',
@@ -645,6 +653,7 @@ const ANNOTATIONS = {
   list_sleep: READ_LIVE,            // completa la semana en curso desde Garmin en vivo
   list_sleep_daily: READ_LIVE, list_weight: READ_LIVE,
   get_training_readiness: READ_LIVE, get_fitness_status: READ_LIVE,
+  get_lactate_threshold: READ_LIVE,
   list_planned_workouts: READ_LIVE, list_garmin_workouts: READ_LIVE, get_garmin_workout: READ_LIVE,
   create_garmin_workout: WRITE_CREATE, schedule_garmin_workout: WRITE_CREATE,
   update_garmin_workout: WRITE_UPDATE, delete_garmin_workout: WRITE_UPDATE,

@@ -4,8 +4,7 @@
 // El cálculo estaba dentro de `TrainingZones.jsx` (hrSegments + el bucle de
 // `zoneStats` + los cortes de la polarización). En cuanto una segunda vista
 // quiso enseñar el mismo reparto —la portada— había dos formas de contarlo, y
-// eso es justo lo que §2.1 de REESTRUCTURACION_SECCIONES viene arreglando: un
-// número, un dueño. Aquí vive el cálculo; las vistas lo pintan.
+// eso es justo lo que la app evita: un número, un dueño. Aquí vive el cálculo; las vistas lo pintan.
 //
 // Módulo PURO: sin React y sin i18n. Los estados de polarización se devuelven
 // como CLAVE ('ok' | 'gray' | 'low' | 'mod') y cada vista la traduce.

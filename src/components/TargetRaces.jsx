@@ -6,7 +6,7 @@ import {
     FlagIcon, PencilSquareIcon, TrashIcon,
     DocumentTextIcon, ChevronDownIcon, PlusIcon, XMarkIcon,
     ArrowsPointingOutIcon, ArrowsPointingInIcon, ClipboardDocumentIcon, CheckIcon, ListBulletIcon, StarIcon, TrophyIcon,
-    LinkIcon,
+    LinkIcon, MapIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
 import {
@@ -18,6 +18,7 @@ import { raceResult } from '../lib/raceResults';
 import MarkdownText from './MarkdownText';
 import HtmlDocument from './HtmlDocument';
 import RaceCalendar from './RaceCalendar';
+import RaceStrategy from './RaceStrategy';
 
 const EMPTY_FORM = { name: '', date: '', startTime: '', distance: '21k', time: '', pace: '', plan: '' };
 
@@ -216,6 +217,7 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
     );
     const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
     const date = race.date ? new Date(race.date + 'T00:00:00') : null;
+    const [strategyOpen, setStrategyOpen] = useState(false);
 
     // Carril izquierdo: la cuenta atrás es el dato que de verdad se mira.
     const rail = isPast
@@ -362,6 +364,24 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                     </div>
                 </div>
             </div>
+
+            {!isPast && km && (
+                <div className="border-t border-slate-100">
+                    <button
+                        onClick={() => setStrategyOpen(o => !o)}
+                        className="w-full flex items-center gap-1.5 px-5 sm:px-6 py-2.5 text-label font-bold uppercase text-slate-500 hover:text-blue-600 transition-colors"
+                    >
+                        <MapIcon className="w-3.5 h-3.5" />
+                        Estrategia de carrera
+                        <ChevronDownIcon className={`w-3 h-3 transition-transform ${strategyOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {strategyOpen && (
+                        <div className="px-5 sm:px-6 pb-5">
+                            <RaceStrategy race={race} activities={activities} />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {hasPlan && (
                 <div className="border-t border-slate-100">

@@ -109,6 +109,30 @@ export const getActivityStreams = async (accessToken, activityId) => {
     return response.json();
 };
 
+// Streams completos para el gráfico de la vista de sesión (ritmo, cadencia y
+// posición además de lo que pide el enriquecido). Se cachean en memoria por
+// sesión: ir y volver entre actividades no debe gastar cuota de Strava.
+const sessionStreamsCache = new Map();
+const SESSION_STREAMS_CACHE_MAX = 20;
+
+export const getSessionStreams = async (accessToken, activityId, keys) => {
+    if (sessionStreamsCache.has(activityId)) return sessionStreamsCache.get(activityId);
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=${keys.join(',')}&key_by_type=true`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+    if (!response.ok) {
+        throw new Error('Failed to fetch activity streams: ' + response.status);
+    }
+    const streams = await response.json();
+    if (sessionStreamsCache.size >= SESSION_STREAMS_CACHE_MAX) {
+        sessionStreamsCache.delete(sessionStreamsCache.keys().next().value);
+    }
+    sessionStreamsCache.set(activityId, streams);
+    return streams;
+};
+
 const PER_PAGE = 200; // Strava max per_page
 
 const fetchActivitiesPage = async (accessToken, page, after) => {

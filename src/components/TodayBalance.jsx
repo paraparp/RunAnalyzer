@@ -13,7 +13,7 @@ import { COLORS } from '../lib/palette';
 // `StatusHero` dan los números; esto da la forma que tienen.
 //
 // No pinta ninguna serie temporal a propósito: el dueño del PMC es Carga › PMC y
-// el de la evolución por zonas es Motor › Zonas (§4 de REESTRUCTURACION_SECCIONES).
+// el de la evolución por zonas es Motor › Zonas.
 // Aquí van los dos repartos de HOY, y cada panel enlaza a su dueño.
 //
 // Todo sale de las fórmulas compartidas: `zoneMix` sobre los cortes de Karvonen

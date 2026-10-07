@@ -52,3 +52,29 @@ export async function fetchPlannedWorkouts({ signal } = {}) {
   if (!res.ok) throw new Error(data.error || `Error ${res.status} al leer el calendario de Garmin.`);
   return data;
 }
+
+/**
+ * Peso y composición corporal de la báscula Garmin
+ * (`{ count, weights: [{ date, weight_kg, body_fat_pct, ... }] }`, ascendente).
+ */
+export async function fetchWeightHistory({ days = 365, signal } = {}) {
+  const res = await fetch(`/api/garmin/metrics?kind=weight&days=${days}`, {
+    headers: await authHeaders(),
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status} al leer el peso de Garmin.`);
+  return data;
+}
+
+/**
+ * Umbral de lactato que calcula el reloj (`{ latest: { hr, speed_ms, pace, date } }`),
+ * o `latest: null` si Garmin no tiene. Con `from` trae también `history`.
+ */
+export async function fetchGarminLactateThreshold({ from, signal } = {}) {
+  const qs = new URLSearchParams({ kind: 'lactate', ...(from ? { from } : {}) });
+  const res = await fetch(`/api/garmin/metrics?${qs}`, { headers: await authHeaders(), signal });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status} al leer el umbral de Garmin.`);
+  return data;
+}

@@ -37,6 +37,7 @@ const HrCalibration = lazy(() => import('./components/HrCalibration'));
 const Connections = lazy(() => import('./components/Connections'));
 const GlobalHeatmap = lazy(() => import('./components/GlobalHeatmap'));
 const GeoZones = lazy(() => import('./components/GeoZones'));
+const RouteProgression = lazy(() => import('./components/RouteProgression'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
 // TEMPORAL: comparativa de la portada (H6). Se borra al decidir.
@@ -69,6 +70,7 @@ import {
   ClockIcon,
   FireIcon,
   MapPinIcon,
+  ArrowPathRoundedSquareIcon,
   ChartBarIcon,
   HeartIcon,
   ChartPieIcon,
@@ -98,6 +100,7 @@ const NAV_ITEMS = [
   { id: 'heatmap', icon: MapIcon },
   { id: 'gallery', icon: RectangleGroupIcon },
   { id: 'geozones', icon: MapPinIcon },
+  { id: 'routes', icon: ArrowPathRoundedSquareIcon },
   { id: 'consistency', icon: CalendarDaysIcon },
   { id: 'gear', icon: StarIcon },
   { id: 'targets', icon: FlagIcon },
@@ -126,11 +129,9 @@ const ADMIN_NAV_ITEM = { id: 'admin', icon: ShieldCheckIcon };
 // sobre correr una carrera, no sobre fisiología), y todo lo que mide el motor
 // —capacidad y adaptación— vive junto en MOTOR en vez de repartido entre
 // "fisiología" y "rendimiento".
-// El plan completo, con el inventario de cada sección, está en
-// docs/REESTRUCTURACION_SECCIONES.md.
 const NAV_CATEGORIES = [
   { id: 'today', icon: Squares2X2Icon, itemIds: ['dashboard'] },
-  { id: 'sessions', icon: ChartBarIcon, itemIds: ['log', 'heatmap', 'gallery', 'geozones', 'gear'] },
+  { id: 'sessions', icon: ChartBarIcon, itemIds: ['log', 'routes', 'heatmap', 'gallery', 'geozones', 'gear'] },
   { id: 'load', icon: ChartPieIcon, itemIds: ['pmc', 'weekly', 'injury', 'consistency'] },
   // Capacidad primero (el techo: curva, VDOT/VO2, umbrales), adaptación después
   // (la tendencia: respuesta cardíaca, técnica, vitales). Son los dos ejes en
@@ -650,7 +651,7 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
                 log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onOpenActivity={openActivity} />,
-                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} />,
+                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
@@ -660,6 +661,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 heatmap:     <GlobalHeatmap activities={runningActivities} />,
                 gallery:     <RouteGallery activities={runningActivities} />,
                 geozones:    <GeoZones activities={runningActivities} />,
+                routes:      <RouteProgression activities={runningActivities} onOpenActivity={openActivity} />,
                 consistency: <ConsistencyHeatmap activities={runningActivities} />,
                 gear:        <GearTracker activities={runningActivities} stravaData={stravaData} setStravaData={setStravaData} />,
                 targets:     <TargetRaces activities={runningActivities} planRaceId={routeId} />,

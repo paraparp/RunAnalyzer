@@ -798,7 +798,7 @@ export default function VitalsOverview({ activities = [] }) {
     const vo2Data = series(runs, 28); // ~4-week rolling fitness en diario
     const vo2Hist = extremesOf(series(runsAll, 28));
 
-    // El CTL no se pinta aquí: su dueño es Carga › PMC (docs/REESTRUCTURACION_SECCIONES.md §4).
+    // El CTL no se pinta aquí: su dueño es Carga › PMC.
 
     // ── Eficiencia aeróbica (metros por latido) ──
     // La definición vive en src/lib/efficiencyFactor.js: era la única de las seis

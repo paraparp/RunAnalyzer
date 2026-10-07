@@ -120,6 +120,35 @@ export async function getWeightRange(userId, { from, to } = {}) {
   };
 }
 
+/**
+ * Histórico de pesadas para la app: UNA llamada al rango de `weight-service` en vez
+ * de una por día (`getWeightRange` va día a día y se corta en 62). Garmin agrupa por
+ * día y la última pesada del día manda (`latestWeight`).
+ */
+export async function getWeightHistory(userId, { days = 365 } = {}) {
+  const client = await getGarminClientFor(userId);
+  const span = Math.min(Math.max(Number(days) || 365, 7), 1825);
+  const to = todayISO();
+  const from = dayKey(new Date(Date.now() - (span - 1) * 86400000));
+  const res = await client.client.get(`${API}/weight-service/weight/range/${from}/${to}?includeAll=true`);
+  const rows = (res?.dailyWeightSummaries || [])
+    .map((s) => {
+      const w = s?.latestWeight;
+      if (!w || w.weight == null) return null;
+      return {
+        date: s.summaryDate || w.calendarDate,
+        weight_kg: round(w.weight / 1000, 2),
+        bmi: w.bmi != null ? round(w.bmi, 1) : null,
+        body_fat_pct: w.bodyFat != null ? round(w.bodyFat, 1) : null,
+        muscle_mass_kg: w.muscleMass != null ? round(w.muscleMass / 1000, 2) : null,
+        body_water_pct: w.bodyWater != null ? round(w.bodyWater, 1) : null,
+      };
+    })
+    .filter((r) => r?.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return { from, to, count: rows.length, weights: rows };
+}
+
 /** Training readiness: score, nivel y factores (sueño, recuperación, ACWR, VFC). */
 export async function getTrainingReadiness(userId, { date } = {}) {
   const client = await getGarminClientFor(userId);
@@ -187,6 +216,63 @@ export async function getFitnessStatus(userId, { date } = {}) {
     endurance_score: endurance,
     hill_score: hill,
   };
+}
+
+// Garmin guarda la velocidad del umbral en décimas de m/s en unos endpoints
+// (0.32 → 3.2 m/s) y en m/s en otros: ninguna carrera a umbral va por debajo de
+// 1 m/s, así que un valor < 1 es la unidad pequeña.
+const ltSpeedMs = (v) => (v == null || !(v > 0) ? null : v < 1 ? v * 10 : v);
+const paceFromMs = (ms) => {
+  if (!ms) return null;
+  const s = Math.round(1000 / ms);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}/km`;
+};
+
+/**
+ * Umbral de lactato que calcula el reloj (test guiado o detección automática):
+ * FC y ritmo del último valor y, si se pide, su evolución en el rango. Es la
+ * estimación de Garmin, no la de la app (`detect_threshold_efforts`/LT2): sirve
+ * para contrastarlas.
+ */
+export async function getLactateThreshold(userId, { from, to } = {}) {
+  const client = await getGarminClientFor(userId);
+  const latest = await client.client.get(`${API}/biometric-service/biometric/latestLactateThreshold`).catch(() => null);
+  const sh = latest?.speed_and_heart_rate ?? latest?.speedAndHeartRate ?? null;
+  const speed = ltSpeedMs(sh?.speed);
+  const out = {
+    latest: sh ? {
+      date: sh.calendarDate ? String(sh.calendarDate).slice(0, 10) : null,
+      hr: sh.heartRate ?? null,
+      speed_ms: speed != null ? round(speed, 3) : null,
+      pace: paceFromMs(speed),
+    } : null,
+    power_w: latest?.power?.functionalThresholdPower ?? null,
+  };
+
+  if (from) {
+    const end = to || todayISO();
+    const q = `aggregation=daily&sport=RUNNING`;
+    const [hrRows, spRows] = await Promise.all([
+      client.client.get(`${API}/biometric-service/stats/lactateThresholdHeartRate/range/${from}/${end}?${q}`).catch(() => []),
+      client.client.get(`${API}/biometric-service/stats/lactateThresholdSpeed/range/${from}/${end}?${q}`).catch(() => []),
+    ]);
+    const byDate = {};
+    for (const r of Array.isArray(hrRows) ? hrRows : []) {
+      const d = String(r.from || r.calendarDate || '').slice(0, 10);
+      if (d) (byDate[d] ||= { date: d }).hr = r.value ?? null;
+    }
+    for (const r of Array.isArray(spRows) ? spRows : []) {
+      const d = String(r.from || r.calendarDate || '').slice(0, 10);
+      const ms = ltSpeedMs(r.value);
+      if (d && ms) Object.assign((byDate[d] ||= { date: d }), { speed_ms: round(ms, 3), pace: paceFromMs(ms) });
+    }
+    out.history = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  if (!out.latest && !out.history?.length) {
+    out.note = 'Garmin no tiene umbral de lactato: hace falta un reloj compatible y banda de pecho (test guiado o detección automática).';
+  }
+  return out;
 }
 
 /** Entrenos planificados y carreras del calendario (próximos `months` meses). */

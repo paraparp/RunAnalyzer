@@ -552,7 +552,7 @@ export default function FitnessFatigue({ activities }) {
       </Card>
 
       {/* La carga semanal vive en Carga › Semanal, junto al volumen (un número,
-          una vista dueña: docs/REESTRUCTURACION_SECCIONES.md §4). */}
+          una vista dueña). */}
 
       {/* ── Scatter: TSB vs performance ──────────────────────────────────────── */}
       {topEfforts.length > 0 && (

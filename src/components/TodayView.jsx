@@ -12,6 +12,9 @@ import useGarminWearableData from '../hooks/useGarminWearableData';
 import { computeStats, computeGarminStats, loadPhase, formZone, acwrZone, isRun, fmt1 } from '../lib/statusStats';
 import useTodaySession from '../hooks/useTodaySession';
 import { coachSessionFrom } from '../lib/todaySession';
+import { recoveryVersion, readChoice, writeChoice } from '../lib/adaptivePlan';
+import { toISODate } from '../lib/planSchedule';
+import { pushPlanDays } from '../services/garminWorkouts';
 import useAIInsights from '../hooks/useAIInsights';
 import { CoachBadge, CoachBanners, CoachDisclosure, CoachMD, CoachSettings, CoachText } from './CoachAI';
 import { CUR_BADGES, TREND_BADGES, deriveStatusKey, deriveTrendKey, formatTs } from '../lib/aiInsights';
@@ -501,6 +504,36 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
 
   // ── 10b. Qué toca hoy de verdad: Garmin > plan del Entrenador IA > automática ──
   const todaySession = useTodaySession({ advisesRest: todayWorkout.recovery, nowMs });
+
+  // ── 10b'. Plan adaptativo: sesión dura + estado de descarga → versión
+  // regenerativa por defecto (lib/adaptivePlan). La elección se guarda por día.
+  const todayISO = toISODate(new Date(nowMs));
+  const adaptedSession = useMemo(() => {
+    if (!todaySession.conflict || todaySession.source === 'auto') return null;
+    const base = todaySession.planDay ?? { day: todayWorkout.day, type: todaySession.title };
+    return recoveryVersion(base, todayWorkout);
+  }, [todaySession, todayWorkout]);
+  const [adaptChoice, setAdaptChoice] = useState(() => readChoice(cloudStorage, todayISO));
+  const showingAdapted = !!adaptedSession && adaptChoice !== 'original';
+  // El Planificador lee esto para replanificar la semana con la sesión aplazada.
+  useEffect(() => {
+    if (adaptedSession && adaptChoice == null) writeChoice(cloudStorage, todayISO, 'adapted', adaptedSession);
+  }, [adaptedSession, adaptChoice, todayISO]);
+  const [adaptSend, setAdaptSend] = useState(null);
+  const toggleAdapted = () => {
+    const next = showingAdapted ? 'original' : 'adapted';
+    writeChoice(cloudStorage, todayISO, next, adaptedSession);
+    setAdaptChoice(next);
+  };
+  const sendAdapted = async () => {
+    setAdaptSend('sending');
+    try {
+      const { results } = await pushPlanDays([adaptedSession]);
+      setAdaptSend(results?.[0]?.ok ? 'sent' : `error:${results?.[0]?.error || 'No se pudo enviar.'}`);
+    } catch (e) {
+      setAdaptSend(`error:${e.message}`);
+    }
+  };
 
   // ── 10c. Sin plan para hoy: la sesión del Coach IA (próximas 48 h) antes que
   // la propuesta automática.
@@ -1250,6 +1283,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             <TodayPlannedSession
               session={todaySession}
               day={todayWorkout.day}
+              adapted={adaptedSession}
+              showingAdapted={showingAdapted}
+              onToggleAdapted={toggleAdapted}
+              onSendAdapted={adaptedSession ? sendAdapted : undefined}
+              sendState={adaptSend}
               action={<DetailLink onClick={() => onNavigate('planner')}>Planificador</DetailLink>}
             />
           )}
