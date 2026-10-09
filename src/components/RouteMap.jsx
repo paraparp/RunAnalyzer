@@ -60,13 +60,14 @@ export default function RouteMap({ encoded, className = '' }) {
         <CircleMarker center={end} radius={6} pathOptions={{ color: COLORS.paper, weight: 2, fillColor: COLORS.ink, fillOpacity: 1 }} />
         <FitRoute bounds={points} />
       </MapContainer>
-      <div className="absolute top-2 right-2 z-[1000] flex rounded-md bg-white/95 shadow-sm ring-1 ring-slate-200 p-0.5 text-xs font-semibold">
+      <div role="group" className="absolute top-2 right-2 z-[1000] flex rounded bg-white shadow-sm ring-1 ring-slate-200 p-0.5 text-xs font-semibold">
         {['map', 'satellite'].map((l) => (
           <button
             key={l}
             type="button"
+            aria-pressed={layer === l}
             onClick={() => setLayer(l)}
-            className={`px-2 py-0.5 rounded ${layer === l ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`px-2 py-0.5 rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 ${layer === l ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
           >
             {t(`session.layer_${l}`)}
           </button>

@@ -26,10 +26,10 @@ const METRICS = [
 ];
 
 const paceLabel = (s) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`);
-const fmtValue = (key, v) => {
+const fmtValue = (key, v, t) => {
   if (v == null) return '—';
   if (key === 'pace') return `${paceLabel(v)} /km`;
-  if (key === 'hr') return `${v} ppm`;
+  if (key === 'hr') return `${v} ${t('session.u_bpm')}`;
   if (key === 'alt') return `${Math.round(v)} m`;
   if (key === 'cad') return `${v} spm`;
   return `${v} W`;
@@ -46,7 +46,7 @@ function FitTo({ bounds }) {
 function StreamsMap({ track, selection, hover }) {
   if (track.length < 2) return null;
   return (
-    <div className="isolate h-64 lg:h-full min-h-[240px] rounded-lg overflow-hidden border border-slate-100">
+    <div className="isolate h-64 lg:h-full min-h-[240px] rounded overflow-hidden border border-slate-100">
       <MapContainer bounds={track} scrollWheelZoom={false} className="w-full h-full" style={{ background: COLORS.hairlineSoft }}>
         <TileLayer url={getLightMapTileUrl()} attribution={getMapAttribution('light')} />
         <Polyline positions={track} pathOptions={{ color: COLORS.paper, weight: 6, opacity: 0.9 }} />
@@ -71,23 +71,23 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
     [t('session.streams_time'), formatDuration(stats.time_s)],
     [t('session.grp_pace'), `${formatPaceFromSpeed(stats.speed_ms)} /km`],
     ['GAP', stats.gap_speed_ms ? `${formatPaceFromSpeed(stats.gap_speed_ms)} /km` : '—'],
-    [t('session.streams_avg_hr'), stats.avg_hr ? `${stats.avg_hr} ppm` : '—'],
-    [t('session.streams_max_hr'), stats.max_hr ? `${stats.max_hr} ppm` : '—'],
+    [t('session.streams_avg_hr'), stats.avg_hr ? `${stats.avg_hr} ${t('session.u_bpm')}` : '—'],
+    [t('session.streams_max_hr'), stats.max_hr ? `${stats.max_hr} ${t('session.u_bpm')}` : '—'],
     [t('session.cadence'), stats.avg_cadence ? `${stats.avg_cadence} spm` : '—'],
     ['D+ / D−', stats.gain_m != null ? `${stats.gain_m} / ${stats.loss_m} m` : '—'],
     [t('session.streams_drift'), stats.drift_pct != null ? `${stats.drift_pct > 0 ? '+' : ''}${stats.drift_pct}%` : '—', t('session.streams_drift_hint')],
   ];
   return (
-    <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+    <div className="rounded bg-blue-50 border border-blue-100 p-3" role="region" aria-label={t('session.streams_segment')}>
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-label font-bold uppercase text-blue-700">{t('session.streams_segment')}</p>
         <div className="flex gap-1">
           {!zoomed && (
-            <button type="button" onClick={onZoom} className="px-2 py-0.5 rounded text-xs font-semibold text-blue-700 hover:bg-blue-100">
+            <button type="button" onClick={onZoom} className="px-2 py-0.5 rounded text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
               {t('session.streams_zoom')}
             </button>
           )}
-          <button type="button" onClick={onClear} className="px-2 py-0.5 rounded text-xs font-semibold text-slate-500 hover:bg-slate-100">
+          <button type="button" onClick={onClear} className="px-2 py-0.5 rounded text-xs font-semibold text-blue-800 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
             {t('session.streams_clear')}
           </button>
         </div>
@@ -95,7 +95,7 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
       <dl className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-x-4 gap-y-2">
         {items.map(([label, value, title]) => (
           <div key={label} title={title}>
-            <dt className="text-[11px] text-slate-500">{label}</dt>
+            <dt className="text-xs text-blue-800">{label}</dt>
             <dd className="text-sm font-bold text-slate-900 tabular-nums">{value}</dd>
           </div>
         ))}
@@ -104,7 +104,7 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
   );
 }
 
-export default function SessionStreams({ activityId, accessToken }) {
+export default function SessionStreams({ activityId, accessToken, fallback = null }) {
   const { t } = useTranslation();
   // `id` del último resultado: si no coincide con la sesión pedida, está cargando.
   const [state, setState] = useState({ id: null, streams: null, error: null });
@@ -113,15 +113,22 @@ export default function SessionStreams({ activityId, accessToken }) {
   const [sel, setSel] = useState(null);         // { a, b } índices de `series` del tramo fijado
   const [zoom, setZoom] = useState(null);       // { a, b } ventana visible
   const [hoverIdx, setHoverIdx] = useState(null);
+  const [touchArmed, setTouchArmed] = useState(false); // dedo apoyado, aún sin moverse
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!accessToken || !activityId) return;
     let alive = true;
     getSessionStreams(accessToken, activityId, SESSION_STREAM_KEYS)
       .then((streams) => alive && setState({ id: activityId, streams, error: null }))
-      .catch((e) => alive && setState({ id: activityId, streams: null, error: e.message }));
+      .catch((e) => alive && setState({ id: activityId, streams: null, error: e.message || 'error' }));
     return () => { alive = false; };
-  }, [accessToken, activityId]);
+  }, [accessToken, activityId, attempt]);
+
+  const retry = () => {
+    setState({ id: null, streams: null, error: null });
+    setAttempt((n) => n + 1);
+  };
 
   const series = useMemo(() => buildChartSeries(state.streams), [state.streams]);
   const available = useMemo(
@@ -144,10 +151,29 @@ export default function SessionStreams({ activityId, accessToken }) {
 
   if (!accessToken) return null;
   if (state.id !== activityId) {
-    return <div className="h-48 rounded-lg bg-slate-50 animate-pulse flex items-center justify-center text-xs text-slate-500">{t('session.streams_loading')}</div>;
+    return <div role="status" className="h-48 rounded bg-slate-50 motion-safe:animate-pulse flex items-center justify-center text-xs text-slate-500">{t('session.streams_loading')}</div>;
   }
-  if (state.error) return <p className="text-sm text-slate-500">{t('session.streams_error')}: {state.error}</p>;
-  if (series.length < 2 || !available.length) return <p className="text-sm text-slate-500">{t('session.streams_none')}</p>;
+  if (state.error) {
+    return (
+      <div className="space-y-4">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-900" title={state.error}>{t('session.streams_error')}</p>
+          <button type="button" onClick={retry} className="px-3 py-1.5 rounded bg-white border border-amber-300 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+            {t('session.streams_retry')}
+          </button>
+        </div>
+        {fallback}
+      </div>
+    );
+  }
+  if (series.length < 2 || !available.length) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-slate-500">{t('session.streams_none')}</p>
+        {fallback}
+      </div>
+    );
+  }
 
   // Recharts 3 da el índice activo como string.
   const idxOf = (st) => {
@@ -164,6 +190,15 @@ export default function SessionStreams({ activityId, accessToken }) {
   const onUp = () => {
     if (drag && Math.abs(drag.b - drag.a) >= 2) setSel({ a: Math.min(drag.a, drag.b), b: Math.max(drag.a, drag.b) });
     setDrag(null);
+    setTouchArmed(false);
+  };
+  const onTouchStart = () => setTouchArmed(true);
+  const onTouchMove = (st) => {
+    const i = idxOf(st);
+    if (i == null) return;
+    setHoverIdx(i);
+    if (touchArmed && !drag) setDrag({ a: i, b: i });
+    else if (drag) setDrag((d) => ({ ...d, b: i }));
   };
   const band = drag ?? sel;
   const hover = hoverIdx != null && series[hoverIdx]?.lat != null ? [series[hoverIdx].lat, series[hoverIdx].lng] : null;
@@ -177,16 +212,17 @@ export default function SessionStreams({ activityId, accessToken }) {
             <button
               key={m.key}
               type="button"
+              aria-pressed={!!enabled[m.key]}
               onClick={() => setEnabled((e) => ({ ...e, [m.key]: !e[m.key] }))}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${enabled[m.key] ? 'border-slate-300 bg-white text-slate-800' : 'border-transparent bg-slate-50 text-slate-400'}`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${enabled[m.key] ? 'border-slate-300 bg-white text-slate-800' : 'border-transparent bg-slate-50 text-slate-500 hover:text-slate-700'}`}
             >
-              <span className="w-2 h-2 rounded-full" style={{ background: enabled[m.key] ? m.color : COLORS.hairlineStrong }} />
+              <span className="w-2 h-2 rounded-[50%]" style={{ background: enabled[m.key] ? m.color : COLORS.hairlineStrong }} aria-hidden="true" />
               {t(`session.streams_metric_${m.key}`)}
             </button>
           ))}
         </div>
         {zoom
-          ? <button type="button" onClick={() => setZoom(null)} className="text-xs font-semibold text-blue-600 hover:underline">{t('session.streams_reset')}</button>
+          ? <button type="button" onClick={() => setZoom(null)} className="rounded text-xs font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">{t('session.streams_reset')}</button>
           : <span className="text-xs text-slate-500">{t('session.streams_hint')}</span>}
       </div>
 
@@ -199,7 +235,7 @@ export default function SessionStreams({ activityId, accessToken }) {
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 min-w-0 select-none" onMouseLeave={() => { setHoverIdx(null); if (drag) onUp(); }}>
+        <div className="lg:col-span-2 min-w-0 select-none touch-pan-y" onMouseLeave={() => { setHoverIdx(null); if (drag) onUp(); }}>
           {shown.map((m, k) => (
             <div key={m.key} className="h-28">
               <ResponsiveContainer width="100%" height="100%">
@@ -207,6 +243,7 @@ export default function SessionStreams({ activityId, accessToken }) {
                   data={view} syncId="session-streams" syncMethod="value"
                   margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
                   onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
+                  onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onUp}
                 >
                   <CartesianGrid stroke={COLORS.hairlineSoft} vertical={false} />
                   <XAxis
@@ -223,7 +260,7 @@ export default function SessionStreams({ activityId, accessToken }) {
                   <RechartsTooltip
                     cursor={{ stroke: COLORS.inkFaint, strokeWidth: 1 }}
                     labelFormatter={(v) => `${Number(v).toFixed(2)} km`}
-                    formatter={(v) => [fmtValue(m.key, v), t(`session.streams_metric_${m.key}`)]}
+                    formatter={(v) => [fmtValue(m.key, v, t), t(`session.streams_metric_${m.key}`)]}
                     isAnimationActive={false}
                   />
                   {m.area

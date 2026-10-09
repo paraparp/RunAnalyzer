@@ -62,7 +62,8 @@ function paceScale(rows) {
  * Lienzo común a ritmo y FC. `frac(row)` da la altura 0–1 (null = sin barra);
  * `bands` pinta franjas horizontales de fondo; `refLine` es la media de la sesión.
  */
-function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hover, setHover }) {
+function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, ariaValue, hover, setHover }) {
+    const { t } = useTranslation();
     const totalDist = rows.reduce((s, r) => s + (r.distance || 0), 0) || 1;
     const cols = rows.reduce((acc, r) => {
         const prev = acc[acc.length - 1];
@@ -109,18 +110,27 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, hove
                         )}
                     </svg>
                     {refLine && (
-                        <span className="absolute left-1 -translate-y-full text-xs font-semibold tabular-nums text-slate-600 bg-white/85 px-1 rounded"
+                        <span className="absolute left-1 -translate-y-full text-xs font-semibold tabular-nums text-slate-600 bg-white px-1 rounded"
                             style={{ top: `${100 * (1 - refLine.frac)}%` }}>
                             {refLine.label}
                         </span>
                     )}
+                    {/* Una columna por parcial: ratón (hover), dedo (tocar fija y suelta) y teclado (foco). */}
                     <div className="absolute inset-0 flex">
                         {rows.map((r, i) => (
-                            <div key={i} className="h-full cursor-crosshair" style={{ width: `${cols[i].w}%` }} onMouseEnter={() => setHover(i)} />
+                            <button key={i} type="button"
+                                className="h-full cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500"
+                                style={{ width: `${cols[i].w}%` }}
+                                aria-label={t('splits.split_aria', { n: r.lap_index, value: ariaValue(r) })}
+                                aria-pressed={hover === i}
+                                onMouseEnter={() => setHover(i)}
+                                onFocus={() => setHover(i)}
+                                onBlur={() => setHover(null)}
+                                onClick={() => setHover(hover === i ? null : i)} />
                         ))}
                     </div>
                     {hover != null && (
-                        <div className="absolute top-1 z-10 pointer-events-none -translate-x-1/2 rounded-lg bg-slate-900/95 text-white px-3 py-2 text-xs shadow-lg whitespace-nowrap"
+                        <div aria-hidden="true" className="absolute top-1 z-10 pointer-events-none -translate-x-1/2 rounded bg-slate-900 text-white px-3 py-2 text-xs shadow-lg whitespace-nowrap"
                             style={{ left: `${Math.min(85, Math.max(15, hc.x + hc.w / 2))}%` }}>
                             {tooltip(rows[hover])}
                         </div>
@@ -172,10 +182,11 @@ const PaceChart = ({ rows, avgPaceS, scale, hover, setHover }) => {
                     { frac: 0, label: formatPaceFromSecPerKm(scale.hi) },
                 ]}
                 refLine={{ frac: scale.frac(avgPaceS), label: `${t('splits.avg')} ${formatPaceFromSecPerKm(avgPaceS)}` }}
+                ariaValue={h => `${h.pace}/km · GAP ${h.gap} · ${h.timeStr}`}
                 tooltip={h => (
                     <>
                         <div className="font-semibold text-slate-300 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
-                        <div className="tabular-nums"><span className="text-sm font-bold">{h.pace}</span>/km <span className="text-slate-500">· GAP {h.gap}</span></div>
+                        <div className="tabular-nums"><span className="text-sm font-bold">{h.pace}</span>/km <span className="text-slate-300">· GAP {h.gap}</span></div>
                         <div className="tabular-nums text-slate-300">
                             {h.timeStr}
                             {Math.abs(h.elevation) > 2 ? ` · ${h.elevation > 0 ? '▲' : '▼'}${Math.abs(Math.round(h.elevation))} m` : ''}
@@ -219,12 +230,13 @@ const HrChart = ({ rows, bounds, hover, setHover }) => {
                 color={zoneColor}
                 bands={bands}
                 axis={[{ frac: 1, label: hi }, { frac: f(mid), label: mid }, { frac: 0, label: lo }]}
-                refLine={avgHr ? { frac: f(avgHr), label: `${t('splits.avg')} ${Math.round(avgHr)} ppm` } : null}
+                refLine={avgHr ? { frac: f(avgHr), label: `${t('splits.avg')} ${Math.round(avgHr)} ${t('session.u_bpm')}` } : null}
+                ariaValue={h => (h.average_heartrate ? `${Math.round(h.average_heartrate)} ${t('session.u_bpm')}${h.hrZone > 0 ? ` · ${ZONES[h.hrZone].label}` : ''}` : '—')}
                 tooltip={h => (
                     <>
                         <div className="font-semibold text-slate-300 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
                         <div className="tabular-nums">
-                            <span className="text-sm font-bold">{h.average_heartrate ? Math.round(h.average_heartrate) : '—'}</span> ppm
+                            <span className="text-sm font-bold">{h.average_heartrate ? Math.round(h.average_heartrate) : '—'}</span> {t('session.u_bpm')}
                             {h.hrZone > 0 && <span className="ml-1 font-bold" style={{ color: ZONES[h.hrZone].color }}>{ZONES[h.hrZone].label}</span>}
                         </div>
                         <div className="tabular-nums text-slate-300">{h.pace}/km · {h.timeStr}</div>
@@ -264,15 +276,15 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                 onMouseEnter={() => setHover(i)}
                                 className={`border-b border-slate-100 last:border-0 transition-colors ${hover === i ? 'bg-blue-50/70' : ''} ${row.isPartial ? 'text-slate-500' : 'text-slate-700'}`}>
                                 <td className="py-2 px-2 text-left">
-                                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${row.isBest ? 'text-amber-500' : 'text-slate-500'}`}>
-                                        {row.isBest && <span className="text-xs">★</span>}{row.lap_index}
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${row.isBest ? 'text-amber-700' : 'text-slate-500'}`}>
+                                        {row.isBest && <TrophyIcon className="w-3 h-3" aria-label={t('splits.best_efforts')} />}{row.lap_index}
                                     </span>
                                 </td>
                                 <td className="py-2 px-2 text-right">{row.distKm}<span className="text-slate-500 text-xs"> km</span></td>
                                 <td className="py-2 px-2 text-right whitespace-nowrap">
                                     <span className={`font-bold ${row.isPartial ? '' : row.isFaster ? 'text-blue-700' : 'text-slate-900'}`}>{row.pace}</span>
                                     {!row.isPartial && (
-                                        <span className={`ml-1.5 text-xs font-semibold ${delta < -1 ? 'text-emerald-600' : delta > 1 ? 'text-slate-500' : 'text-slate-300'}`}>{signedSec(delta)}</span>
+                                        <span className={`ml-1.5 text-xs font-semibold ${delta < -1 ? 'text-emerald-700' : 'text-slate-500'}`}>{signedSec(delta)}</span>
                                     )}
                                 </td>
                                 <td className="py-2 px-2 hidden md:table-cell">
@@ -286,7 +298,7 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                 </td>
                                 <td className="py-2 px-2 text-right text-slate-500">{row.gap}</td>
                                 <td className="py-2 px-2 text-right text-slate-500">{row.timeStr}</td>
-                                <td className={`py-2 px-2 text-right text-xs font-semibold ${row.elevation > 2 ? 'text-rose-500' : row.elevation < -2 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                <td className={`py-2 px-2 text-right text-xs font-semibold ${row.elevation > 2 ? 'text-rose-700' : row.elevation < -2 ? 'text-emerald-700' : 'text-slate-500'}`}>
                                     {row.elevation > 2 ? `▲${Math.round(row.elevation)}` : row.elevation < -2 ? `▼${Math.abs(Math.round(row.elevation))}` : '—'}
                                 </td>
                                 <td className="py-2 px-2 text-right whitespace-nowrap">
@@ -297,7 +309,7 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                             )}
                                             <span className="font-semibold text-slate-700">{Math.round(row.average_heartrate)}</span>
                                         </span>
-                                    ) : <span className="text-slate-300">—</span>}
+                                    ) : <span className="text-slate-500">—</span>}
                                 </td>
                             </tr>
                         );
@@ -328,26 +340,26 @@ const SimilarActivitiesBanner = ({ similar }) => {
         const diffS = Math.round(prevPaceS - currPaceS); // positive = now faster
         if (Math.abs(diffS) >= 2) {
             diffLabel = diffS > 0
-                ? `${diffS}s/km ${t('splits.faster_than_prev', 'más rápido que anterior')}`
-                : `${Math.abs(diffS)}s/km ${t('splits.slower_than_prev', 'más lento que anterior')}`;
+                ? `${diffS}s/km ${t('splits.faster_than_prev')}`
+                : `${Math.abs(diffS)}s/km ${t('splits.slower_than_prev')}`;
         }
     }
 
     const avgPaceStr = average_speed > 0 ? formatPaceFromSecPerKm(1000 / average_speed) : null;
     const Icon = isPR ? TrophyIcon : ArrowTrendingUpIcon;
-    const tone = isPR ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
+    const tone = isPR ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
     const label = isPR
-        ? t('splits.route_pr', 'Récord en esta ruta')
-        : t('splits.route_improving', 'Mejorando en esta ruta');
+        ? t('splits.route_pr')
+        : t('splits.route_improving');
 
     return (
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2">
-            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0 ${tone}`}><Icon className="w-4 h-4" /></span>
+        <div className="mb-4 flex items-center gap-3 rounded border border-slate-100 px-3 py-2">
+            <span className={`inline-flex items-center justify-center w-7 h-7 rounded shrink-0 ${tone}`} aria-hidden="true"><Icon className="w-4 h-4" /></span>
             <div className="min-w-0">
                 <div className="text-xs font-semibold text-slate-800">{label}</div>
                 <div className="text-xs text-slate-500 truncate">
-                    {effort_count} {t('splits.similar_runs', 'carreras similares')}
-                    {avgPaceStr && <> · {t('splits.avg', 'media')} {avgPaceStr}/km</>}
+                    {effort_count} {t('splits.similar_runs')}
+                    {avgPaceStr && <> · {t('splits.avg')} {avgPaceStr}/km</>}
                     {diffLabel && <> · {diffLabel}</>}
                 </div>
             </div>
@@ -367,9 +379,9 @@ const BestEffortsSection = ({ efforts }) => {
     return (
         <div>
             <p className="text-label font-bold uppercase text-slate-500 mb-2">
-                {t('splits.best_efforts', 'Mejores Esfuerzos')} <span className="normal-case tracking-normal font-medium">· /km</span>
+                {t('splits.best_efforts')} <span className="normal-case tracking-normal font-medium">· /km</span>
             </p>
-            <div className="rounded-lg overflow-hidden border border-slate-100 divide-y divide-slate-100">
+            <div className="rounded overflow-hidden border border-slate-100 divide-y divide-slate-100">
                 {efforts.map((effort) => {
                     const isPR = effort.pr_rank === 1;
                     const prLabel = PR_RANK_LABELS[effort.pr_rank];
@@ -451,7 +463,7 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
     const scale = useMemo(() => (rows.length ? paceScale(rows) : null), [rows]);
 
     if (!rows.length) {
-        return <p className="py-4 text-center text-sm italic text-slate-500">{t('splits.no_splits', 'No hay parciales.')}</p>;
+        return <p className="py-4 text-center text-sm italic text-slate-500">{t('splits.no_splits')}</p>;
     }
 
     if (mode === 'hr') {
@@ -470,10 +482,10 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
                     type="button"
                     onClick={() => setOpen(o => !o)}
                     aria-expanded={open}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                 >
                     {open ? t('splits.hide_table') : t('splits.show_table', { count: rows.length })}
-                    <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                    <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
                 </button>
                 {open && (
                     <div className="mt-3">

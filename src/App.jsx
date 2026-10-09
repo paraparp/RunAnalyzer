@@ -174,6 +174,12 @@ const Dashboard = ({ user, handleLogout }) => {
     if (withSeed) setChatSeedKey(k => k + 1);
     setChatOpen(true);
   }, []);
+  // Desde la vista de sesión: la sesión entra como contexto del chat (la misma
+  // semilla `runqa_seed` que usa el panel de IA) y su pregunta se lanza sola.
+  const askCoachAboutSession = useCallback((seed) => {
+    cloudStorage.setItem('runqa_seed', JSON.stringify(seed));
+    openChat({ withSeed: true });
+  }, [openChat]);
   // La vista activa vive en la URL (/status, /planner, …) para sobrevivir recargas.
   // El segundo segmento es el id de la carrera en /targets y el de la actividad en
   // /activity/:id (la vista de sesión).
@@ -651,7 +657,7 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
                 log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onOpenActivity={openActivity} />,
-                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} />,
+                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} onNavigate={setCurrentView} onAskCoach={askCoachAboutSession} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
