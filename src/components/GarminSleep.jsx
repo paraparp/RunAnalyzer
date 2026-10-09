@@ -9,6 +9,7 @@ import { formatMinutesHm } from '../lib/timeFormat';
 import { readSleep, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
 import { useEffect } from 'react';
 import { COLORS, AXIS_TICK } from '../lib/palette';
+import { useSearchParams } from 'react-router-dom';
 import ExpandableChart from './ExpandableChart';
 
 const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
@@ -84,6 +85,16 @@ const QUALITY_LABEL = {
 const fmtDur = (min) => formatMinutesHm(min);
 
 function SleepSection({ sleepData }) {
+  // `?focus=sleep` (desde la portada) abre el gráfico ya ampliado; al cerrarlo se
+  // quita de la URL para que recargar no lo reabra.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [expanded, setExpanded] = useState(() => searchParams.get('focus') === 'sleep');
+  const onExpandedChange = (o) => {
+    setExpanded(o);
+    if (!o && searchParams.has('focus')) {
+      setSearchParams((sp) => { sp.delete('focus'); return sp; }, { replace: true });
+    }
+  };
   const [view, setView] = useState('score'); // 'score' | 'stages'
 
   const recentWeeks = sleepData.slice(-12);
@@ -162,6 +173,8 @@ function SleepSection({ sleepData }) {
         </div>
 
         <ExpandableChart
+          open={expanded}
+          onOpenChange={onExpandedChange}
           className="h-[240px]"
           title={view === 'score' ? 'Puntuación de sueño' : 'Fases del sueño'}
           subtitle={`últimas ${recentWeeks.length} semanas`}

@@ -28,8 +28,8 @@ export function Scale({ value, min, max, bands, className = '' }) {
   const has = finite(value);
   const active = has ? segs.findIndex((s) => value <= s.to || s === segs[segs.length - 1]) : -1;
   return (
-    <div className={`relative h-3 ${className}`}>
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 flex gap-[2px]">
+    <div className={`relative h-3.5 ${className}`}>
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 flex gap-[2px]">
         {segs.map((s, i) => (
           <div
             key={i}
@@ -139,17 +139,57 @@ export function DetailLink({ onClick, children, dark = false }) {
   );
 }
 
+// Tendencia de una serie diaria dentro de su rango, con área degradada, el
+// valor de hoy marcado y una línea de referencia opcional (`refLine`).
+export function TrendChart({ values, min, max, color, refLine, className = '' }) {
+  const pts = (values || []).map((v, i) => [i, v]).filter(([, v]) => finite(v));
+  const n = (values || []).length - 1 || 1;
+  const H = 40;
+  const y = (v) => H - clamp01((v - min) / (max - min)) * H;
+  const xOf = (i) => ((i / n) * 100).toFixed(2);
+  const line = pts.map(([i, v], k) => `${k ? 'L' : 'M'}${xOf(i)},${y(v).toFixed(2)}`).join(' ');
+  const area = pts.length > 1 ? `${line} L${xOf(pts[pts.length - 1][0])},${H} L${xOf(pts[0][0])},${H} Z` : null;
+  const last = pts[pts.length - 1];
+  const gid = `trend-${color.replace(/[^a-z0-9]/gi, '')}`;
+  return (
+    <div className={`relative ${className}`}>
+      <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="w-full h-full block overflow-visible">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {refLine && finite(refLine.value) && (
+          <line x1="0" x2="100" y1={y(refLine.value)} y2={y(refLine.value)} stroke={COLORS.inkFaint} strokeDasharray="3 3" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        )}
+        {area && <path d={area} fill={`url(#${gid})`} />}
+        {pts.length > 1 && <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
+      </svg>
+      {last && (
+        <span
+          className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white dark:ring-slate-900"
+          style={{ left: `${(last[0] / n) * 100}%`, top: `${(y(last[1]) / H) * 100}%`, background: color }}
+        />
+      )}
+      {refLine?.label && finite(refLine.value) && (
+        <span className="absolute left-0 -translate-y-full pb-0.5 text-[10px] font-semibold text-slate-400" style={{ top: `${(y(refLine.value) / H) * 100}%` }}>{refLine.label}</span>
+      )}
+    </div>
+  );
+}
+
 // Panel plano: título, enlace al detalle y cuerpo. Sin sombra ni icono: la
 // jerarquía la pone la pista de arriba, no cada caja.
 export function Panel({ title, sub, link, className = '', children }) {
   return (
     <section className={`flex flex-col min-w-0 rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${className}`}>
-      <header className="flex items-baseline gap-2 px-5 pt-4 pb-3">
+      <header className="flex items-baseline gap-2 px-4 pt-3 pb-2">
         <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">{title}</h3>
         {sub && <span className="hidden sm:inline text-xs text-slate-500 truncate">{sub}</span>}
         {link && <span className="ml-auto">{link}</span>}
       </header>
-      <div className="flex-1 flex flex-col px-5 pb-5 min-w-0">{children}</div>
+      <div className="flex-1 flex flex-col px-4 pb-4 min-w-0">{children}</div>
     </section>
   );
 }

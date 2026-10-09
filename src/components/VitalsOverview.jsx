@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import cloudStorage from '../lib/cloudStorage';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -420,67 +421,32 @@ function VitalExpanded({ metricKey, metrics, periodControls, domain, xFmt, bands
     </ResponsiveContainer>
   );
 
-  const pill = (on) => `px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${on ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
-  const stat = (label, value, sub, tone = "text-slate-900") => (
-    <div className="min-w-0">
-      <p className="text-label font-bold uppercase text-slate-500">{label}</p>
-      <p className={`text-base font-extrabold tabular-nums leading-tight ${tone}`}>
-        {value}{value !== "—" && primary.unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{primary.unit}</span>}
-      </p>
-      {sub && <p className="text-xs text-slate-500 truncate">{sub}</p>}
-    </div>
-  );
+  const pill = (on) => `px-2 py-0.5 rounded-md text-xs font-semibold transition-all ${on ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
   const inPrimaryY = (v) => v >= primary.yDomain[0] && v <= primary.yDomain[1];
-  const offScale = (v) => (v != null && !inPrimaryY(v) ? " · fuera de escala" : "");
   const { range, history, fmt } = primary;
+  // Cifra + fecha en una línea: las estadísticas van resumidas para dejar sitio al gráfico.
+  const num = (v) => <b className="text-slate-900 tabular-nums">{fmt(v)}</b>;
+  const histOff = history && (!inPrimaryY(history.min.v) || !inPrimaryY(history.max.v));
 
   return (
-    <div className="h-full flex flex-col gap-3">
-      {periodControls}
-
-      {/* Estadísticas de la métrica principal: rango visible/seleccionado vs histórico */}
-      <div className="flex flex-wrap items-stretch gap-3">
-        <div className="flex-1 min-w-[260px] rounded-xl border border-slate-200 px-4 py-2.5">
-          <p className="text-xs font-semibold text-slate-600 mb-1.5">
-            {zoomFits ? "Rango seleccionado" : "Período visible"}
-            <span className="font-normal text-slate-500"> · {fmtDateFull(xDomain[0])} – {fmtDateFull(xDomain[1])}</span>
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {stat("Máx", fmt(range?.max.v), range && fmtDateFull(range.max.ms))}
-            {stat("Mín", fmt(range?.min.v), range && fmtDateFull(range.min.ms))}
-            {stat(avgLabel, fmt(primary.mean), `${primary.n} puntos`)}
-          </div>
-        </div>
-        {history && (
-          <div className="flex-1 min-w-[220px] rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-2.5">
-            <p className="text-xs font-semibold text-slate-600 mb-1.5">
-              Histórico <span className="font-normal text-slate-500">· todo tu registro</span>
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {stat("Máx histórico", fmt(history.max.v), fmtDateFull(history.max.ms) + offScale(history.max.v), "text-slate-700")}
-              {stat("Mín histórico", fmt(history.min.v), fmtDateFull(history.min.ms) + offScale(history.min.v), "text-slate-700")}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Controles */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="h-full flex flex-col gap-2">
+      {/* Barra única: período, escala, comparación y rango */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {periodControls}
+        <span className="w-px h-5 bg-slate-200" />
         <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-          <button className={pill(scale === "fit")} onClick={() => setScale("fit")}>Escala ajustada</button>
-          {history && <button className={pill(scale === "hist")} onClick={() => setScale("hist")}>Incluir histórico</button>}
+          <button className={pill(scale === "fit")} onClick={() => setScale("fit")}>Ajustada</button>
+          {history && <button className={pill(scale === "hist")} onClick={() => setScale("hist")} title="Incluir el histórico en la escala">Histórico</button>}
         </div>
         {all.some((s) => s.hasRaw) && (
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none" title="Ajustar la escala a los puntos diarios">
             <input type="checkbox" className="w-3.5 h-3.5" style={{ accentColor: primary.stroke }} checked={fitRaw} onChange={(e) => setFitRaw(e.target.checked)} />
-            Ajustar a puntos diarios
+            Diarios
           </label>
         )}
-
         <span className="w-px h-5 bg-slate-200" />
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500">Comparar con:</span>
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs font-semibold text-slate-500">Comparar:</span>
           {others.map((m) => {
             const on = compare.includes(m.key);
             const empty = !m.data.some((d) => d.smooth != null);
@@ -492,7 +458,7 @@ function VitalExpanded({ metricKey, metrics, periodControls, domain, xFmt, bands
                 disabled={empty}
                 aria-pressed={on}
                 title={empty ? "Sin datos en este período" : undefined}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border transition-all ${
                   on ? "bg-white shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
                 } disabled:opacity-40 disabled:cursor-not-allowed`}
                 style={on ? { borderColor: c, color: c } : undefined}
@@ -509,13 +475,30 @@ function VitalExpanded({ metricKey, metrics, periodControls, domain, xFmt, bands
             <button className={pill(layout === "overlay")} onClick={() => setLayout("overlay")}>Superpuestos</button>
           </div>
         )}
-
         {zoomFits && (
-          <button onClick={() => setZoom(null)} className="px-2.5 py-1 rounded-md text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
+          <button onClick={() => setZoom(null)} className="px-2 py-0.5 rounded-md text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
             Restablecer rango
           </button>
         )}
-        <span className="ml-auto text-xs text-slate-500">Arrastra sobre el gráfico para seleccionar un rango</span>
+      </div>
+
+      {/* Estadísticas de la métrica principal en una línea: rango visible vs histórico */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-slate-500 px-1">
+        <span className="font-semibold text-slate-600">
+          {zoomFits ? "Rango" : "Período"} {fmtDateFull(xDomain[0])} – {fmtDateFull(xDomain[1])}
+        </span>
+        {range && <span>máx {num(range.max.v)} {primary.unit} · {fmtDate(range.max.ms)}</span>}
+        {range && <span>mín {num(range.min.v)} {primary.unit} · {fmtDate(range.min.ms)}</span>}
+        <span>{avgLabel.toLowerCase()} {num(primary.mean)} {primary.unit}</span>
+        {history && (
+          <span
+            className="text-slate-400"
+            title={`Máx histórico ${fmt(history.max.v)} (${fmtDateFull(history.max.ms)}) · mín histórico ${fmt(history.min.v)} (${fmtDateFull(history.min.ms)})`}
+          >
+            histórico {fmt(history.min.v)}–{fmt(history.max.v)} {primary.unit}{histOff ? " · fuera de escala" : ""}
+          </span>
+        )}
+        <span className="ml-auto text-slate-400">Arrastra sobre el gráfico para seleccionar un rango</span>
       </div>
 
       {/* Gráficos */}
@@ -566,7 +549,16 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
   }
 
   const hasData = data.some((d) => d.smooth != null || d.raw != null);
-  const [expanded, setExpanded] = useState(false);
+  // `?focus=<metricKey>` (desde las tarjetas de la portada) abre este panel ya
+  // ampliado; al cerrarlo se quita de la URL para que recargar no lo reabra.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [expanded, setExpandedState] = useState(() => !!metricKey && searchParams.get('focus') === metricKey);
+  const setExpanded = (o) => {
+    setExpandedState(o);
+    if (!o && searchParams.has('focus')) {
+      setSearchParams((sp) => { sp.delete('focus'); return sp; }, { replace: true });
+    }
+  };
 
   const currentValue = current != null && (
     <span className="text-2xl font-extrabold tracking-tight text-slate-900">

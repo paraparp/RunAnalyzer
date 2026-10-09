@@ -25,8 +25,11 @@ import { DISTANCE_KM } from '../lib/raceDistances';
 import { karvonenBounds, classifyHR, POLARIZED_TARGETS } from '../lib/hrZones';
 import { zoneMix, polarizedGroups, polarizationStatus } from '../lib/zoneMix';
 import { formatPaceFromSpeed, formatPaceFromSecPerKm, formatMinutesHm, formatDuration } from '../lib/timeFormat';
-import { Ring, Scale, WorkoutProfile, RouteShape, DetailLink, Panel } from './TodayVisuals';
+import { efficiencyMPerBeat } from '../lib/efficiencyFactor';
+import { Ring, Scale, WorkoutProfile, RouteShape, DetailLink, Panel, TrendChart } from './TodayVisuals';
+import RouteMap from './RouteMap';
 import { COLORS } from '../lib/palette';
+import { weekStartKey } from '../lib/isoWeek';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoy. La portada contesta "¿cómo voy y qué hago?" de un vistazo, de lo
@@ -85,10 +88,10 @@ const sparkPath = (values, { w = 100, h = 24, pad = 3 } = {}) => {
     .join(' ');
 };
 
+const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const DISPLAY = "font-['Plus_Jakarta_Sans',Inter,sans-serif]";
 // Respuesta física de los botones: transición, hundirse al pulsar y foco visible.
 const PRESS = 'transition-all duration-200 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
-const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 const TONE = {
   emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: COLORS.good, text: 'text-emerald-600 dark:text-emerald-400', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
@@ -110,30 +113,35 @@ const HERO_TEXT = {
 
 // Una señal del readiness en la cabecera: valor, lectura contra su referencia
 // y su tendencia (sparkline real) o su nivel (barra).
-function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar }) {
+// Con `onClick` la tarjeta es un botón que lleva al gráfico de esa señal.
+function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar, onClick }) {
   const stroke = (TONE[tone] ?? TONE.slate).stroke;
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="p-3.5 rounded bg-white/[0.06] border border-white/10 flex flex-col gap-1.5 min-w-0 transition-colors duration-200 hover:bg-white/[0.09] hover:border-white/20">
+    <Tag
+      {...(onClick ? { type: 'button', onClick, title: `Ver el gráfico de ${label}` } : {})}
+      className={`px-3 py-2 rounded bg-white/[0.06] border border-white/10 flex flex-col gap-0.5 min-w-0 text-left transition-colors duration-200 hover:bg-white/[0.09] hover:border-white/20${onClick ? ' cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40' : ''}`}
+    >
       <div className="flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] text-white/50">{icon}</span>
         <span className="text-label font-bold uppercase text-white/50 truncate">{label}</span>
         <span className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ background: stroke, boxShadow: `0 0 8px ${stroke}` }} />
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-black text-white tabular-nums leading-none">{value}</span>
+        <span className="text-xl font-black text-white tabular-nums leading-none">{value}</span>
         <span className="text-xs text-white/40 font-semibold">{unit}</span>
       </div>
       <span className={`text-xs font-bold truncate ${HERO_TEXT[tone] ?? HERO_TEXT.slate}`}>{note}</span>
       {spark ? (
-        <svg className="w-full h-5" preserveAspectRatio="none" viewBox="0 0 100 24">
+        <svg className="w-full h-3.5 mt-0.5" preserveAspectRatio="none" viewBox="0 0 100 24">
           <path d={spark} fill="none" stroke={stroke} strokeLinecap="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         </svg>
       ) : bar != null ? (
-        <div className="h-1.5 my-[7px] rounded-full bg-white/10 overflow-hidden">
+        <div className="h-1.5 my-[4px] rounded-full bg-white/10 overflow-hidden">
           <div className="h-full rounded-full" style={{ width: `${bar}%`, background: stroke }} />
         </div>
-      ) : <div className="h-5" />}
-    </div>
+      ) : <div className="h-3.5 mt-0.5" />}
+    </Tag>
   );
 }
 
@@ -167,56 +175,97 @@ const bandColor = (bands, v) => (v == null || !Number.isFinite(v) ? COLORS.inkFa
 const fmtSigned = (v, digits = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(digits).replace('.', ',')}`;
 const fmtDec = (v, digits = 1) => (v == null || !Number.isFinite(v) ? DASH : v.toFixed(digits).replace('.', ','));
 
-// Una cifra de carga (forma, riesgo, fitness) con su escala debajo.
-function LoadGauge({ label, value, tag, tagColor, children, note, link }) {
+// Una cifra de carga como tarjeta, con la anatomía de las señales del readiness:
+// icono y etiqueta, punto de estado, valor, lectura en color y su gráfico.
+// La tarjeta entera lleva al detalle; la explicación va en el title.
+function LoadTile({ icon, label, value, unit, note, color, tip, onClick, className = "", children }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="flex flex-col gap-3 min-w-0">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-slate-600 dark:text-slate-300">{label}</span>
-        {link}
+    <Tag
+      {...(onClick ? { type: 'button', onClick } : {})}
+      title={tip}
+      className={`${className} group px-4 py-3.5 rounded border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col gap-1.5 min-w-0 text-left ${onClick ? 'cursor-pointer' : ''} transition-colors duration-200 hover:border-slate-300 hover:shadow-[0_4px_14px_-6px_rgba(15,23,42,0.18)] dark:border-slate-800 dark:from-slate-800/60 dark:to-slate-900 dark:hover:bg-slate-800/70 dark:hover:border-slate-700 ${PRESS}`}
+    >
+      <div className="flex items-center gap-1.5 w-full">
+        <span className="material-symbols-outlined text-[16px] text-slate-400">{icon}</span>
+        <span className="text-label font-bold uppercase text-slate-500 truncate">{label}</span>
+        <span className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
       </div>
-      <div className="flex items-baseline gap-2.5">
-        <span className={`${DISPLAY} text-4xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-slate-50`}>{value}</span>
-        {tag && <span className="text-sm font-semibold" style={{ color: tagColor }}>{tag}</span>}
+      {value !== undefined && <TileFigure value={value} unit={unit} note={note} color={color} />}
+      <div className={`${value !== undefined ? 'mt-auto pt-3' : 'flex-1'} w-full flex flex-col gap-1.5`}>{children}</div>
+    </Tag>
+  );
+}
+
+// La cifra de una tarjeta: valor con unidad y su lectura en color.
+function TileFigure({ value, unit, note, color }) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <div className="flex items-baseline gap-1">
+        <span className="text-[26px] font-black text-slate-900 dark:text-white tabular-nums leading-none tracking-tight">{value}</span>
+        {unit && <span className="text-xs text-slate-400 font-semibold">{unit}</span>}
       </div>
-      {children}
-      {note && <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{note}</p>}
+      <span className="text-xs font-bold truncate w-full" style={{ color }}>{note}</span>
     </div>
   );
 }
 
-// Reparto de una ventana en una barra: las cinco zonas y la marca del objetivo
-// de volumen fácil.
-function ZoneStack({ label, mix }) {
+// Una línea clicable de una tarjeta: la cifra (etiqueta, valor y lectura) al
+// inicio y su escala a continuación, alineada con las de las otras líneas.
+function TileRow({ label, value, note, color, tip, onClick, children }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-slate-600 dark:text-slate-300">{label}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      title={tip}
+      className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-center gap-3 w-full [&:not(:first-child)]:pt-2.5 min-w-0 text-left rounded cursor-pointer -mx-1.5 px-1.5 py-1.5 transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+    >
+      <div className="flex flex-col gap-1 min-w-0">
+        <span className="text-[11px] font-semibold text-slate-400 truncate">{label}</span>
+        <span className="text-[22px] font-black text-slate-900 dark:text-white tabular-nums leading-none tracking-tight">{value}</span>
+        <span className="text-xs font-bold truncate" style={{ color }}>{note}</span>
+      </div>
+      <div className="flex flex-col gap-1.5 min-w-0">{children}</div>
+    </button>
+  );
+}
+
+// Pie de un gráfico de tarjeta: sus marcas repartidas a lo ancho.
+function TileAxis({ children }) {
+  return <div className="flex justify-between gap-1.5 text-[11px] leading-none text-slate-400 tabular-nums">{children}</div>;
+}
+
+// Reparto de una ventana en una barra fina: las cinco zonas, su lectura y la
+// marca del objetivo de volumen fácil.
+function ZoneBar({ label, mix }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-2 text-[11px]">
+        <span className="text-slate-500">{label}</span>
         {mix.hasData ? (
-          <span className="text-xs text-slate-500 tabular-nums">
+          <span className="text-slate-500 tabular-nums">
             <b className="text-slate-900 dark:text-slate-100">{Math.round(mix.groups.low)} %</b> fácil en {hoursStr(mix.totalSec)}
           </span>
         ) : (
-          <span className="text-xs text-slate-500">Sin sesiones con FC</span>
+          <span className="text-slate-400">Sin sesiones con FC</span>
         )}
       </div>
-      <div className="relative">
-        <div className="h-3 w-full rounded-full overflow-hidden flex gap-[2px] bg-slate-100 dark:bg-slate-800">
-          {mix.hasData && ZONES.map((z, i) => mix.pct[i] > 0 && (
-            <div
-              key={z.name}
-              className="h-full"
-              style={{ width: `${mix.pct[i]}%`, background: z.color }}
-              title={`${z.name} ${z.role}: ${mix.pct[i]} % (${hoursStr(mix.times[i])})`}
-            />
-          ))}
-        </div>
-        <div
-          className="absolute -top-1 -bottom-1 w-[2px] rounded bg-slate-900 dark:bg-white"
-          style={{ left: `${POLARIZED_TARGETS.low}%` }}
-          title={`Objetivo: ${POLARIZED_TARGETS.low} % fácil`}
-        />
+    <div className="relative">
+      <div className="h-2.5 w-full rounded-full overflow-hidden flex gap-[2px] bg-slate-200 dark:bg-slate-700">
+        {mix.hasData && ZONES.map((z, i) => mix.pct[i] > 0 && (
+          <div
+            key={z.name}
+            className="h-full"
+            style={{ width: `${mix.pct[i]}%`, background: z.color }}
+            title={`${z.name} ${z.role}: ${mix.pct[i]} % (${hoursStr(mix.times[i])})`}
+          />
+        ))}
       </div>
+      <div
+        className="absolute -top-1 -bottom-1 w-[2px] rounded bg-slate-900 dark:bg-white"
+        style={{ left: `${POLARIZED_TARGETS.low}%` }}
+      />
+    </div>
     </div>
   );
 }
@@ -661,6 +710,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       zoneIdx: hr != null && bounds ? classifyHR(hr, bounds) : -1,
       cadence: rawCad ? Math.round(rawCad < 120 ? rawCad * 2 : rawCad) : null,
       elev: r.total_elevation_gain != null ? Math.round(r.total_elevation_gain) : null,
+      // Eficiencia de la sesión entera (m/latido): misma fórmula que `sessionEfficiency.whole`.
+      ef: efficiencyMPerBeat(r.average_speed, r.average_heartrate),
       polyline: r.map?.summary_polyline ?? null,
       splits,
     };
@@ -671,25 +722,28 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   // portada. Los cálculos son los MISMOS (`computeStats`), no una copia.
   const briefing = useMemo(() => {
     if (!stats) return null;
-    const { sparkData, chartDataFull } = stats;
+    const { chartDataFull } = stats;
 
-    const ctlSpark = sparkData.map(d => ({ v: d.ctl }));
-    const atlSpark = sparkData.map(d => ({ v: d.atl }));
-    const tsbSpark = sparkData.map(d => ({ v: d.tsb }));
-    // Km REALES por semana (8 últimas): la serie del PMC trae las actividades
-    // de cada día, así que no hace falta el proxy de TSS/1000 que daba ceros.
-    const volSpark = Array.from({ length: 8 }, (_, k) => {
-      const i = 7 - k;
-      const slice = chartDataFull.slice(-(i + 1) * 7, i > 0 ? -i * 7 : undefined);
-      const km = slice.reduce(
-        (s, d) => s + (d.activities ?? []).filter(isRun).reduce((a, act) => a + (act.distance ?? 0), 0),
-        0,
-      ) / 1000;
-      return { v: Math.round(km) };
+    // Km REALES por semana NATURAL (lunes a domingo, 8 últimas): la última es
+    // la semana en curso, la misma que la tira L–D, para que las cifras cuadren.
+    const thisMonday = weekStartKey(new Date(nowMs));
+    const byWeek = new Map();
+    chartDataFull.forEach(d => {
+      const wk = weekStartKey(new Date(Number(d.date.slice(0, 4)), Number(d.date.slice(5, 7)) - 1, Number(d.date.slice(8, 10))));
+      const km = (d.activities ?? []).filter(isRun).reduce((a, act) => a + (act.distance ?? 0), 0) / 1000;
+      byWeek.set(wk, (byWeek.get(wk) ?? 0) + km);
+    });
+    const volWeeks = Array.from({ length: 8 }, (_, k) => {
+      const m = new Date(Number(thisMonday.slice(0, 4)), Number(thisMonday.slice(5, 7)) - 1, Number(thisMonday.slice(8, 10)) - (7 - k) * 7);
+      const key = weekStartKey(m);
+      return { key, v: Math.round(byWeek.get(key) ?? 0), current: k === 7 };
     });
 
-    return { ctlSpark, atlSpark, tsbSpark, volSpark };
-  }, [stats]);
+    // CTL diario de las 6 últimas semanas, para la tendencia de Fitness.
+    const ctlTrend = chartDataFull.slice(-42).map(d => d.ctl);
+
+    return { volWeeks, ctlTrend };
+  }, [stats, nowMs]);
 
   const activeAiModel = useMemo(() => cloudStorage.getItem('ai_model') || null, []);
 
@@ -742,15 +796,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     onOpenChat();
   } : null;
 
-  // ── 13. Cuenta atrás de la carrera objetivo ───────────────────────────────
-  const raceDays = targetRace?.date ? daysUntil(targetRace.date) : null;
-  const raceWeeks = raceDays != null ? Math.max(0, Math.ceil(raceDays / 7)) : null;
-  const raceDistanceKm = targetRace?.distance ? DISTANCE_KM[targetRace.distance] ?? null : null;
-  const raceGoalPace = targetRace?.goalTimeMin && raceDistanceKm
-    ? formatPaceFromSpeed((raceDistanceKm * 1000) / (targetRace.goalTimeMin * 60), DASH)
-    : DASH;
-  const raceGoalTime = targetRace?.goalTimeMin ? formatMinutes(targetRace.goalTimeMin) : DASH;
-
+  // ── 13. Carreras objetivo ──────────────────────────────────────────────────
   // Próximas 3 carreras (hoy o futuras), de la más cercana a la más lejana. La
   // principal no puede quedarse fuera: si cae más lejos, ocupa el tercer hueco.
   const upcomingRaces = useMemo(() => {
@@ -835,10 +881,14 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   );
 
   const volAvg = stats?.avgWeekKmYear ?? 0;
-  const volMax = briefing ? Math.max(...briefing.volSpark.map(w => w.v), volAvg, 1) : 1;
+  const volMax = briefing ? Math.max(...briefing.volWeeks.map(w => w.v), volAvg, 1) : 1;
+  const volPct = volAvg > 0 ? weekStrip.totalKm / volAvg : 0;
+  const ctlTrend = (briefing?.ctlTrend ?? []).filter(v => Number.isFinite(v));
+  const ctlMin = ctlTrend.length ? Math.max(0, Math.floor(Math.min(...ctlTrend) - 4)) : 0;
+  const ctlMax = Math.ceil(Math.max(stats?.peakCTL ?? 0, ...ctlTrend, 1) + 2);
 
   return (
-    <div className="today-stagger space-y-6">
+    <div className="today-stagger space-y-4">
 
       {/* ── Acciones: sincronizar, coach y calibración ──────────────────────── */}
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -874,13 +924,13 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         </button>
       </div>
 
-      {/* ── CARRERA OBJETIVO: una franja, no un cartel ──────────────────────── */}
-      <section aria-label="Carrera objetivo" className="relative overflow-hidden rounded bg-blue-700 text-white px-5 py-4 sm:px-6 shadow-[0_12px_32px_-16px_rgb(29_78_216_/_0.55)]">
-        <div aria-hidden="true" className="absolute -right-16 -top-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl pointer-events-none" />
-        {upcomingRaces.length > 1 ? (
-          // Varias carreras: las próximas, de la más cercana a la más lejana. La
-          // principal se distingue con la etiqueta y el recuadro de días en blanco.
-          <div className={`relative z-10 grid grid-cols-1 gap-2 ${upcomingRaces.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+      {/* ── CARRERA OBJETIVO: una franja fina, una línea por carrera ─────────── */}
+      <section aria-label="Carrera objetivo" className="rounded-none bg-blue-700 text-white border border-blue-800/40 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
+        {upcomingRaces.length > 0 ? (
+          // Las próximas carreras, de la más cercana a la más lejana, separadas
+          // por una línea fina (no por hueco). La principal se distingue con el
+          // recuadro de días en blanco y la etiqueta.
+          <div className={`grid grid-cols-1 divide-y divide-white/10 md:divide-y-0 ${upcomingRaces.length === 2 ? 'md:grid-cols-2 md:divide-x' : upcomingRaces.length >= 3 ? 'md:grid-cols-3 md:divide-x' : ''}`}>
             {upcomingRaces.map((r) => {
               const isMain = r.id === targetRace?.id;
               const d = daysUntil(r.date);
@@ -892,92 +942,54 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   type="button"
                   onClick={() => onNavigate(`targets/${r.id}`)}
                   title={isMain ? 'Carrera principal: abrir su plan' : 'Abrir el plan de esta carrera'}
-                  className={`group text-left flex items-center gap-3.5 min-w-0 p-2.5 rounded cursor-pointer focus-visible:outline-white ${PRESS} ${isMain ? 'bg-white/15 ring-1 ring-white/40 hover:bg-white/20' : 'hover:bg-white/10'}`}
+                  className={`group text-left flex items-center gap-3 min-w-0 px-3 py-2 rounded-none cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${PRESS} ${isMain ? 'bg-white/10 hover:bg-white/15' : 'hover:bg-white/5'}`}
                 >
-                  <div className={`flex flex-col items-center justify-center w-16 h-16 rounded shrink-0 ${isMain ? 'bg-white text-indigo-700 shadow-[0_6px_16px_-6px_rgb(30_27_75_/_0.5)]' : 'bg-white/15 backdrop-blur'}`}>
-                    <span className="text-2xl font-black leading-none tabular-nums">{d === 0 ? 'Hoy' : d}</span>
-                    {d !== 0 && (
-                      <span className={`text-label font-bold uppercase mt-0.5 ${isMain ? 'text-indigo-400' : 'text-blue-200'}`}>{t('targets.days_unit')}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-label font-bold uppercase text-cyan-200">
-                      {isMain && <span className="px-1.5 py-px rounded bg-amber-300 text-amber-950 normal-case tracking-normal">Principal</span>}
-                      {d > 0 ? `${Math.ceil(d / 7)} ${Math.ceil(d / 7) === 1 ? 'semana' : 'semanas'}` : 'Hoy'}
+                  {/* Cuenta atrás: número sobre unidad, centrado en las dos líneas */}
+                  <span className={`flex flex-col items-center justify-center w-12 h-11 rounded-none shrink-0 tabular-nums border ${d === 0 ? 'bg-emerald-400 text-emerald-950 border-emerald-300' : isMain ? 'bg-white text-blue-800 border-white' : 'bg-white/10 text-white border-white/15'}`}>
+                    <span className="text-lg font-black leading-none">{d === 0 ? 'Hoy' : d}</span>
+                    {d !== 0 && <span className={`text-label font-bold uppercase leading-none mt-1 ${isMain ? 'text-blue-700/70' : 'text-blue-200'}`}>{t('targets.days_unit')}</span>}
+                  </span>
+                  {/* Qué carrera: nombre y, debajo, cuándo y cuánto */}
+                  <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-sm font-extrabold tracking-tight leading-tight truncate">{r.name}</span>
+                      {isMain && <span className="shrink-0 px-1.5 py-px rounded-none bg-amber-300 text-amber-950 text-label font-bold leading-snug">Principal</span>}
                     </span>
-                    <h2 className="text-base sm:text-lg font-extrabold tracking-tight leading-tight truncate">{r.name}</h2>
-                    <p className="text-xs text-blue-100/90 font-medium truncate">
+                    <span className="text-xs text-blue-100/80 tabular-nums leading-tight truncate">
                       {[
-                        r.date ? new Date(r.date + 'T00:00:00').toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+                        r.date ? new Date(r.date + 'T00:00:00').toLocaleDateString(lang, { day: 'numeric', month: 'short' }) : null,
                         km != null ? `${km.toLocaleString(lang, { maximumFractionDigits: 1 })} km` : null,
-                      ].filter(Boolean).join(' • ')}
-                    </p>
-                    {r.goalTimeMin ? (
-                      <p className="text-xs font-bold tabular-nums truncate">
-                        <span className="text-emerald-300">{formatMinutes(r.goalTimeMin)}</span>
-                        {pace && <span className="text-cyan-300"> · {pace}<span className="font-normal text-blue-100">/km</span></span>}
-                      </p>
-                    ) : null}
-                  </div>
-                  <ArrowRightIcon className="w-4 h-4 shrink-0 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+                      ].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  {/* Objetivo: tiempo y ritmo meta, alineados a la derecha */}
+                  {r.goalTimeMin ? (
+                    <span className="shrink-0 flex flex-col items-end gap-0.5 tabular-nums border-l border-white/10 pl-3">
+                      <span className="flex items-baseline gap-1.5 leading-tight">
+                        <span className="text-label font-bold uppercase text-blue-200">Meta</span>
+                        <span className="text-sm font-black text-white">{formatMinutes(r.goalTimeMin)}</span>
+                      </span>
+                      {pace && <span className="text-xs font-semibold leading-tight text-blue-100">{pace}<span className="font-normal text-blue-200">/km</span></span>}
+                    </span>
+                  ) : null}
+                  <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 text-white/30 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
                 </button>
               );
             })}
           </div>
         ) : (
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex items-center gap-4 min-w-0 flex-1">
-              <div className="flex flex-col items-center justify-center w-16 h-16 rounded bg-white/15 backdrop-blur shrink-0">
-                <span className="text-2xl font-black leading-none tabular-nums">
-                  {raceDays === 0 ? 'Hoy' : raceDays ?? DASH}
-                </span>
-                {raceDays !== 0 && (
-                  <span className="text-label font-bold uppercase text-blue-200 mt-0.5">{t('targets.days_unit')}</span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <span className="text-label font-bold uppercase text-cyan-200">
-                  {targetRace ? t('targets.next_race') : t('targets.no_target', 'Sin objetivo fijado')}
-                  {raceWeeks != null && raceDays > 0 ? ` · ${raceWeeks} semanas` : ''}
-                </span>
-                <h2 className="text-lg sm:text-xl font-extrabold tracking-tight leading-tight truncate">
-                  {targetRace ? targetRace.name : 'Fija tu carrera objetivo'}
-                </h2>
-                <p className="text-xs text-blue-100/90 font-medium truncate">
-                  {targetRace
-                    ? [
-                        targetRace.date ? new Date(targetRace.date + 'T00:00:00').toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }) : null,
-                        targetRace.location,
-                        raceDistanceKm != null ? `${raceDistanceKm} km` : null,
-                      ].filter(Boolean).join(' • ')
-                    : 'Sin carrera objetivo no hay cuenta atrás, ni ritmo meta, ni plan al que apuntar.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {targetRace && (
-                <>
-                  <div className="px-3 py-1.5 rounded bg-white/10">
-                    <span className="block text-label font-bold uppercase text-blue-200">Ritmo meta</span>
-                    <span className="text-sm font-black text-cyan-300 tabular-nums">{raceGoalPace}<span className="text-xs font-normal text-blue-100"> /km</span></span>
-                  </div>
-                  <div className="px-3 py-1.5 rounded bg-white/10">
-                    <span className="block text-label font-bold uppercase text-blue-200">{t('targets.goal_time')}</span>
-                    <span className="text-sm font-black text-emerald-300 tabular-nums">{raceGoalTime}</span>
-                  </div>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => targetRace ? onNavigate(`targets/${targetRace.id}`) : onNavigate('targets')}
-                className={`group flex items-center gap-1.5 px-3.5 py-2 rounded bg-white text-slate-900 text-xs font-bold shadow-[0_6px_16px_-6px_rgb(30_27_75_/_0.5)] hover:bg-blue-50 hover:-translate-y-px cursor-pointer focus-visible:outline-white ${PRESS}`}
-              >
-                <span>{targetRace ? t('targets.open_plan') : t('targets.manage', 'Fijar objetivo')}</span>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-indigo-600 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </button>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('targets')}
+            className={`group w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-none hover:bg-white/5 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${PRESS}`}
+          >
+            <span className="text-sm font-extrabold">{t('targets.no_target', 'Sin objetivo fijado')}</span>
+            <span className="text-xs text-blue-100/90 truncate">Fija una carrera para tener cuenta atrás, ritmo meta y plan.</span>
+            <span className="ml-auto flex items-center gap-1 text-xs font-bold shrink-0">
+              {t('targets.manage', 'Fijar objetivo')}
+              <ArrowRightIcon className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </span>
+          </button>
         )}
       </section>
 
@@ -986,32 +998,43 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         <div aria-hidden="true" className="absolute -left-24 -top-24 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none" style={{ background: readinessColor }} />
         <div aria-hidden="true" className="absolute -right-24 -bottom-32 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
 
-        <div className="relative grid grid-cols-1 xl:grid-cols-12 gap-6 p-5 sm:p-7">
-          {/* Readiness: el número grande y lo que significa */}
-          <div className="xl:col-span-5 flex items-center gap-5">
-            <Ring value={readiness?.score} size={164} stroke={14} color={readinessColor} trackClass="text-white/10">
-              <span className="text-5xl font-black tabular-nums leading-none">{readiness?.score ?? DASH}</span>
-              <span className="text-label font-bold uppercase text-white/50 mt-1.5">readiness</span>
+        <div className="relative grid grid-cols-1 xl:grid-cols-12 gap-3 p-3 sm:px-4">
+          {/* Readiness: el número y lo que significa, con sus acciones */}
+          <div className="xl:col-span-4 flex items-center gap-3.5">
+            <Ring value={readiness?.score} size={76} stroke={8} color={readinessColor} trackClass="text-white/10">
+              <span className="text-[26px] font-black tabular-nums leading-none">{readiness?.score ?? DASH}</span>
             </Ring>
-            <div className="min-w-0 flex flex-col gap-2">
-              <span className="text-label font-bold uppercase text-white/50">Tu estado hoy</span>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-none" style={{ color: readinessColor }}>
-                {readinessHead}
-              </h2>
-              {readinessTail && <p className="text-sm font-semibold text-white/80 leading-snug">{readinessTail}</p>}
-              {phase && (
-                <span className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full" style={{ background: formColor }} />
-                  Forma: {phase.label}
-                </span>
-              )}
+            <div className="min-w-0 flex flex-col gap-1">
+              <span
+                className="text-label font-bold uppercase text-white/50 truncate"
+                title={`${sources}${garminStats?.lastDate ? ` · último dato Garmin ${garminStats.lastDate}` : ''}`}
+              >
+                Readiness · tu estado hoy
+              </span>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h2 className="text-xl font-black tracking-tight leading-none" style={{ color: readinessColor }}>{readinessHead}</h2>
+                {readinessTail && <span className="text-sm font-semibold text-white/70 leading-none">{readinessTail}</span>}
+              </div>
+              <div className="flex items-center gap-1 -ml-2 mt-0.5">
+                {askCoach && (
+                  <button
+                    type="button"
+                    onClick={() => askCoach('readiness')}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-bold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer focus-visible:outline-white ${PRESS}`}
+                  >
+                    <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" /> Explícamelo
+                  </button>
+                )}
+                <DetailLink dark onClick={() => onNavigate('health')}>Salud</DetailLink>
+              </div>
             </div>
           </div>
 
           {/* Las cuatro señales que forman el score */}
-          <div className="xl:col-span-7 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4 gap-2.5 content-center">
+          <div className="xl:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-2 content-center">
             <HeroSignal
               icon="monitor_heart"
+              onClick={() => onNavigate('health/resumen?focus=hrv')}
               label="VFC"
               value={wearables.hrv?.latest != null ? Math.round(wearables.hrv.latest) : DASH}
               unit="ms"
@@ -1021,6 +1044,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="favorite"
+              onClick={() => onNavigate('health/resumen?focus=rhr')}
               label="FC reposo"
               value={wearables.rhr ? Math.round(wearables.rhr.r7) : DASH}
               unit="ppm"
@@ -1030,6 +1054,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="bedtime"
+              onClick={() => onNavigate('health/sueno?focus=sleep')}
               label="Sueño"
               value={wearables.sleep?.score ?? DASH}
               unit="/100"
@@ -1041,6 +1066,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="battery_charging_full"
+              onClick={() => onNavigate('health/cardiaco?focus=bb')}
               label="Body Battery"
               value={wearables.bb?.high ?? DASH}
               unit="/100"
@@ -1052,23 +1078,6 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
 
         </div>
 
-        <div className="relative flex flex-wrap items-center gap-2 px-5 sm:px-7 py-3.5 border-t border-white/10 bg-black/10">
-          <span className="text-xs text-white/50 truncate">
-            {sources}{garminStats?.lastDate ? ` · último dato Garmin ${garminStats.lastDate}` : ''}
-          </span>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {askCoach && (
-              <button
-                type="button"
-                onClick={() => askCoach('readiness')}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white/80 hover:text-white hover:bg-white/10 cursor-pointer focus-visible:outline-white ${PRESS}`}
-              >
-                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" /> Explícamelo
-              </button>
-            )}
-            <DetailLink dark onClick={() => onNavigate('health')}>Salud y recuperación</DetailLink>
-          </div>
-        </div>
       </section>
 
       {/* ═══════════ CARGA: forma, riesgo, fitness, intensidad y volumen ═══════════ */}
@@ -1078,120 +1087,122 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         link={<DetailLink onClick={() => onNavigate('pmc')}>Ver PMC</DetailLink>}
       >
         {stats ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-8 md:gap-10 2xl:gap-8 pt-1">
-            <LoadGauge
-              label="Forma (TSB)"
-              value={fmtSigned(tsbValue)}
-              tag={phase?.label}
-              tagColor={formColor}
-              note={phase?.description}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-3">
+            <LoadTile
+              icon="balance"
+              label="Forma y riesgo"
+              color={acwrKey === 'caution' || acwrKey === 'danger' ? bandColor(ACWR_BANDS, currentACWR) : formColor}
             >
-              <Scale value={tsbValue} min={-tsbSpan} max={tsbSpan} bands={TSB_BANDS} />
-              <div className="flex justify-between text-xs text-slate-500 -mt-1">
-                <span>Fatiga</span><span>Fresco</span>
+              <div className="flex flex-col justify-around gap-2 h-full divide-y divide-slate-200/70 dark:divide-slate-800">
+                <TileRow
+                  label="TSB"
+                  value={fmtSigned(tsbValue)}
+                  note={phase?.label ?? 'Sin datos'}
+                  color={formColor}
+                  tip={`Fitness menos fatiga. ${phase?.description ?? ''}`}
+                  onClick={() => onNavigate('pmc')}
+                >
+                  <Scale value={tsbValue} min={-tsbSpan} max={tsbSpan} bands={TSB_BANDS} />
+                  <TileAxis><span>Fatiga</span><span>Fresco</span></TileAxis>
+                </TileRow>
+                <TileRow
+                  label="ACWR"
+                  value={fmtDec(currentACWR, 2)}
+                  note={acwrKey ? { underload: 'Carga baja', optimal: 'Zona segura', caution: 'Precaución', danger: 'Riesgo' }[acwrKey] : 'Sin datos'}
+                  color={bandColor(ACWR_BANDS, currentACWR)}
+                  tip={acwrKey ? `${ACWR_INFO[acwrKey]} Rampa de fitness: ${fmtSigned(ctlRamp)} por semana.` : 'Sin carga suficiente para calcular el ratio.'}
+                  onClick={() => onNavigate('injury')}
+                >
+                  <Scale value={currentACWR} min={0.4} max={acwrMax} bands={ACWR_BANDS} />
+                  <TileAxis><span>0,4</span><span>0,8</span><span>1,3</span><span>{acwrMax.toFixed(1).replace('.', ',')}</span></TileAxis>
+                </TileRow>
               </div>
-            </LoadGauge>
+            </LoadTile>
 
-            <LoadGauge
-              label="Riesgo (ACWR)"
-              value={fmtDec(currentACWR, 2)}
-              tag={acwrKey ? { underload: 'Carga baja', optimal: 'Zona segura', caution: 'Precaución', danger: 'Riesgo' }[acwrKey] : null}
-              tagColor={bandColor(ACWR_BANDS, currentACWR)}
-              note={acwrKey ? `${ACWR_INFO[acwrKey]} Rampa de fitness: ${fmtSigned(ctlRamp)} por semana.` : 'Sin carga suficiente para calcular el ratio.'}
-              link={<DetailLink onClick={() => onNavigate('injury')}>Ver riesgo</DetailLink>}
-            >
-              <Scale value={currentACWR} min={0.4} max={acwrMax} bands={ACWR_BANDS} />
-              <div className="flex justify-between text-xs text-slate-500 -mt-1 tabular-nums">
-                <span>0,4</span><span>0,8</span><span>1,3</span><span>{acwrMax.toFixed(1).replace('.', ',')}</span>
-              </div>
-            </LoadGauge>
-
-            <LoadGauge
-              label="Fitness (CTL)"
+            <LoadTile
+              icon="monitoring"
+              label="Fitness · CTL"
               value={fmtDec(stats.currentCTL)}
-              tag={`${fmtSigned(stats.currentCTL - stats.ctl7ago)} en 7 días`}
-              tagColor={stats.currentCTL - stats.ctl7ago >= 0 ? C_GOOD : C_WARN}
-              note={`${stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0} % de tu pico histórico (${fmtDec(stats.peakCTL)}). Pico de este año: ${fmtDec(stats.peakCTLYear)}.`}
+              note={`${fmtSigned(stats.currentCTL - stats.ctl7ago)} en 7 días`}
+              color={stats.currentCTL - stats.ctl7ago >= 0 ? C_GOOD : C_WARN}
+              tip={`${stats.peakCTL > 0 ? Math.round((stats.currentCTL / stats.peakCTL) * 100) : 0} % de tu pico histórico (${fmtDec(stats.peakCTL)}). Pico de este año: ${fmtDec(stats.peakCTLYear)}.`}
+              onClick={() => onNavigate('pmc')}
             >
-              <Scale value={stats.currentCTL} min={0} max={Math.max(stats.peakCTL, stats.currentCTL, 1)} bands={[{ to: Infinity, color: COLORS.signalLight }]} />
-              <div className="flex justify-between text-xs text-slate-500 -mt-1">
-                <span>0</span><span>Tu pico</span>
-              </div>
-            </LoadGauge>
+              <TrendChart className="h-12" values={briefing?.ctlTrend} min={ctlMin} max={ctlMax} color={COLORS.signal} refLine={{ value: stats.peakCTL, label: `Tu pico ${fmtDec(stats.peakCTL)}` }} />
+              <TileAxis><span>6 semanas</span><span>Pico del año {fmtDec(stats.peakCTLYear)}</span></TileAxis>
+            </LoadTile>
 
-            {/* Intensidad: el reparto por zonas en dos barras; el detalle, en Zonas. */}
-            <LoadGauge
-              label="Intensidad (28 días)"
-              value={zoneDistribution.hasData ? `${Math.round(zoneDistribution.groups.low)} %` : DASH}
-              tag={zoneDistribution.hasData ? 'en fácil' : null}
-              tagColor={COLORS.inkMuted}
-              note={!bounds
-                ? 'Calibra tu FC máxima y de reposo para ver el reparto por zonas.'
-                : zoneDistribution.hasData
-                  ? `${VERDICT[zoneDistribution.verdictKey].label} La marca es el objetivo del ${POLARIZED_TARGETS.low} % en fácil.`
-                  : 'Sin sesiones con FC en los últimos 28 días.'}
-              link={<DetailLink onClick={() => onNavigate(bounds ? 'zones' : 'calibration')}>{bounds ? 'Ver zonas' : 'Calibrar FC'}</DetailLink>}
+            <LoadTile
+              icon="local_fire_department"
+              label="Intensidad · 28 días"
+              value={zoneDistribution.hasData ? Math.round(zoneDistribution.groups.low) : DASH}
+              unit={zoneDistribution.hasData ? '% en fácil' : null}
+              note={!bounds ? 'Calibra tu FC' : zoneDistribution.hasData ? VERDICT[zoneDistribution.verdictKey].label : 'Sin sesiones con FC'}
+              color={!zoneDistribution.hasData ? COLORS.inkFaint : zoneDistribution.verdictKey === 'ok' ? C_GOOD : C_WARN}
+              tip={!bounds ? 'Calibra tu FC máxima y de reposo para ver el reparto por zonas.' : `La marca es el objetivo del ${POLARIZED_TARGETS.low} % en fácil.`}
+              onClick={() => onNavigate(bounds ? 'zones' : 'calibration')}
             >
               {bounds && (
-                <div className="flex flex-col gap-3">
-                  <ZoneStack label="28 días" mix={zoneDistribution} />
-                  <ZoneStack label="Esta semana" mix={zoneWeek} />
+                <div className="flex flex-col gap-2.5">
+                  <ZoneBar label="28 días" mix={zoneDistribution} />
+                  <ZoneBar label="Esta semana" mix={zoneWeek} />
                 </div>
               )}
-            </LoadGauge>
+            </LoadTile>
 
-            {/* Volumen: la semana día a día y las 8 últimas, lado a lado. */}
-            <div className="md:col-span-2 flex flex-col gap-3 min-w-0">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm text-slate-600 dark:text-slate-300">Volumen (esta semana)</span>
-                <DetailLink onClick={() => onNavigate('weekly')}>Ver progresión</DetailLink>
-              </div>
-              <div className="flex items-baseline gap-2.5 flex-wrap">
-                <span className={`${DISPLAY} text-4xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-slate-50`}>{fmtDec(weekStrip.totalKm)} km</span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  en {weekStrip.activeDays} {weekStrip.activeDays === 1 ? 'día' : 'días'}
-                  {volAvg > 0 ? `, el ${Math.round((weekStrip.totalKm / volAvg) * 100)} % de tu semana media` : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Semana en curso */}
-                <div className="flex items-end gap-1.5 h-24">
-                  {weekStrip.days.map((d, i) => (
-                    <div key={d.key} className="flex-1 flex flex-col items-center gap-1 h-full">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tabular-nums h-4">{d.km > 0 ? d.km.toFixed(0) : ''}</span>
-                      <div className="flex-1 w-full flex items-end justify-center">
+            <LoadTile
+              className="sm:col-span-2"
+              icon="route"
+              label="Volumen · esta semana"
+              value={fmtDec(weekStrip.totalKm)}
+              unit="km"
+              note={`en ${weekStrip.activeDays} ${weekStrip.activeDays === 1 ? 'día' : 'días'}${volAvg > 0 ? `, el ${Math.round(volPct * 100)} % de tu semana media` : ''}`}
+              color={volAvg <= 0 ? COLORS.inkFaint : volPct > 1.3 ? C_WARN : volPct < 0.7 ? C_FRESH : C_GOOD}
+              tip="Semanas naturales, de lunes a domingo."
+              onClick={() => onNavigate('weekly')}
+            >
+              <div className="grid grid-cols-2 gap-5">
+                {/* Semana en curso, día a día */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-end gap-1.5 h-16">
+                    {weekStrip.days.map(d => (
+                      <div key={d.key} className="flex-1 flex flex-col items-center justify-end gap-1 h-full" title={d.km > 0 ? `${d.km.toFixed(1)} km` : 'Sin carrera'}>
+                        {d.km > 0 && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tabular-nums leading-none">{d.km.toFixed(0)}</span>}
                         <div
-                          className={`w-2 rounded-full ${d.km > 0 ? (d.isToday ? 'bg-slate-900 dark:bg-white' : 'bg-blue-500') : d.future ? 'bg-slate-100 dark:bg-slate-800' : 'bg-slate-200 dark:bg-slate-700'}`}
-                          style={{ height: d.km > 0 ? `${Math.max(10, (d.km / weekStrip.maxKm) * 100)}%` : '4px' }}
-                          title={d.km > 0 ? `${d.km.toFixed(1)} km` : 'Sin carrera'}
+                          className={`w-full max-w-[14px] rounded-t-[3px] rounded-b-[1px] ${d.km > 0 ? (d.isToday ? 'bg-slate-900 dark:bg-white' : 'bg-blue-500') : d.future ? 'border border-dashed border-slate-300 dark:border-slate-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                          style={{ height: d.km > 0 ? `${Math.max(10, (d.km / weekStrip.maxKm) * 75)}%` : d.future ? '12%' : '3px' }}
                         />
                       </div>
-                      <span className={`text-xs ${d.isToday ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-500'}`}>{WEEKDAYS[i]}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <TileAxis>
+                    {WEEKDAYS.map((w, i) => (
+                      <span key={w} className={`flex-1 text-center ${weekStrip.days[i].isToday ? 'font-bold text-slate-900 dark:text-white' : ''}`}>{w}</span>
+                    ))}
+                  </TileAxis>
                 </div>
-                {/* Últimas 8 semanas, con la media del año */}
+                {/* 8 semanas naturales (la última es esta), con la media del año */}
                 {briefing && (
-                  <div className="flex flex-col">
-                    <div className="relative flex items-end gap-1.5 flex-1 min-h-[5rem]">
+                  <div className="flex flex-col gap-1">
+                    <div className="relative flex items-end gap-1.5 h-16">
                       {volAvg > 0 && (
-                        <div className="absolute inset-x-0 border-t border-dashed border-slate-400 dark:border-slate-500 pointer-events-none" style={{ bottom: `${(volAvg / volMax) * 80}%` }} />
+                        <div className="absolute inset-x-0 border-t border-dashed border-slate-300 dark:border-slate-600 pointer-events-none" style={{ bottom: `${(volAvg / volMax) * 75}%` }} />
                       )}
-                      {briefing.volSpark.map((w, i) => (
-                        <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`${w.v} km`}>
-                          <span className="text-xs text-slate-500 tabular-nums">{w.v}</span>
+                      {briefing.volWeeks.map(w => (
+                        <div key={w.key} className="flex-1 h-full flex flex-col items-center justify-end gap-1" title={`Semana del ${w.key.slice(8, 10)}/${w.key.slice(5, 7)}: ${w.v} km`}>
+                          <span className={`text-[11px] tabular-nums leading-none ${w.current ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-500'}`}>{w.v}</span>
                           <div
-                            className={`w-2 rounded-full ${i === briefing.volSpark.length - 1 ? 'bg-slate-900 dark:bg-white' : 'bg-slate-300 dark:bg-slate-700'}`}
-                            style={{ height: `${Math.max(3, (w.v / volMax) * 80)}%` }}
+                            className={`w-full max-w-[14px] rounded-t-[3px] rounded-b-[1px] ${w.current ? 'bg-slate-900 dark:bg-white' : 'bg-slate-300 dark:bg-slate-600'}`}
+                            style={{ height: `${Math.max(3, (w.v / volMax) * 75)}%` }}
                           />
                         </div>
                       ))}
                     </div>
-                    <span className="text-xs text-slate-500 mt-1">8 últimas semanas{volAvg > 0 ? `, media del año ${volAvg.toFixed(0)} km` : ''}</span>
+                    <TileAxis><span>8 últimas semanas</span><span>media {volAvg.toFixed(0)} km</span></TileAxis>
                   </div>
                 )}
               </div>
-            </div>
+            </LoadTile>
           </div>
         ) : (
           <div className="py-6 flex flex-col items-start gap-2 max-w-prose">
@@ -1211,8 +1222,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       </Panel>
 
       {/* ═══════════ SESIÓN, COACH Y ÚLTIMA CARRERA ═══════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-5 flex flex-col min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-4 flex flex-col min-w-0">
           {todaySession.source === 'auto' ? (
             <Panel
               className="flex-1"
@@ -1226,7 +1237,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               </p>
               <p className="text-xs text-slate-500 mt-1">{suggested.note}</p>
 
-              <dl className="grid grid-cols-3 gap-3 mt-4">
+              <dl className="grid grid-cols-3 gap-3 mt-3">
                 {[
                   { label: 'Distancia', value: suggested.distance },
                   { label: 'Ritmo', value: suggested.pace },
@@ -1239,7 +1250,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 ))}
               </dl>
 
-              <div className="mt-5">
+              <div className="mt-3">
                 {suggested.segments.length > 0 ? (
                   <WorkoutProfile segments={suggested.segments} />
                 ) : (
@@ -1293,64 +1304,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           )}
         </div>
 
-        {/* ═══════════ LECTURA DEL COACH ═══════════ */}
+        {/* Última carrera: recorrido real, cifras y ritmo por km, al lado de "Hoy toca" */}
         <Panel
-          className="lg:col-span-7"
-          title="Lectura del coach"
-          sub={ai.cacheTs ? `Análisis ${formatTs(ai.cacheTs)}` : undefined}
-          link={<AskChatBtn onAsk={askCoach} focus={activeCoachTab.focus} />}
-        >
-          <CoachBanners ai={ai} />
-          <div role="tablist" className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800">
-            {coachTabs.map(tb => (
-              <button
-                key={tb.id}
-                type="button"
-                role="tab"
-                aria-selected={coachTab === tb.id}
-                onClick={() => { setCoachTab(tb.id); setCoachExpanded(false); }}
-                className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${coachTab === tb.id
-                  ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}
-              >
-                {tb.label}
-              </button>
-            ))}
-          </div>
-          <div className="max-w-[75ch] pt-4">
-            {activeCoachTab.badge && (
-            <div className="flex items-center gap-2 mb-2">
-              <CoachBadge badge={activeCoachTab.badge} />
-            </div>
-          )}
-          <div className={`relative ${coachLong && !coachExpanded ? 'max-h-52 overflow-hidden' : ''}`}>
-              <CoachText
-                ai={ai}
-                text={activeCoachTab.text}
-                accent={activeCoachTab.accent}
-                fallback={activeCoachTab.id === 'cur' ? diagFallback : (
-                  <p className="text-sm text-slate-500">El coach aún no ha hecho este análisis. Pulsa «Recalcular» para pedirlo.</p>
-                )}
-              />
-              {coachLong && !coachExpanded && (
-                <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white dark:from-slate-900 pointer-events-none" />
-              )}
-            </div>
-            {coachLong && (
-              <button
-                type="button"
-                onClick={() => setCoachExpanded(v => !v)}
-                className="mt-2 text-xs font-semibold rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-              >
-                {coachExpanded ? 'Mostrar menos' : 'Leer completo'}
-              </button>
-            )}
-          </div>
-        </Panel>
-
-        {/* Última carrera: recorrido, cifras, ritmo por km y lectura del coach */}
-        <Panel
-          className="lg:col-span-12"
+          className="lg:col-span-8"
           title="Última carrera"
           sub={`${runs.length} carreras en total`}
           link={lastRun && (
@@ -1375,70 +1331,74 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <button
-                type="button"
-                onClick={() => onNavigate(`activity/${lastRun.id}`)}
-                className={`lg:col-span-3 cursor-pointer rounded hover:opacity-90 focus-visible:outline-blue-500 ${PRESS}`}
-                title="Abrir la sesión"
-              >
-                <RouteShape encoded={lastRun.polyline} className="w-full aspect-[4/3] lg:aspect-square max-h-64" />
-              </button>
-
-              <div className="lg:col-span-5 flex flex-col gap-4 min-w-0">
-                <div className="min-w-0">
-                  <p className={`${DISPLAY} text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 truncate`}>{lastRun.name}</p>
-                  <p className="text-xs text-slate-500 first-letter:uppercase">
-                    {lastRun.date.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' })}, {lastRun.date.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-8 gap-4">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onNavigate(`activity/${lastRun.id}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(`activity/${lastRun.id}`); } }}
+                  className={`sm:col-span-3 cursor-pointer rounded overflow-hidden hover:opacity-90 focus-visible:outline-blue-500 ${PRESS}`}
+                  title="Abrir la sesión"
+                >
+                  <RouteMap encoded={lastRun.polyline} interactive={false} theme="dark" className="relative w-full aspect-square max-h-48" />
                 </div>
-                <dl className="grid grid-cols-3 gap-x-4 gap-y-3">
-                  {[
-                    { label: 'Distancia', value: fmtDec(lastRun.distKm, 2), unit: 'km' },
-                    { label: 'Tiempo', value: lastRun.movingTime != null ? formatDuration(lastRun.movingTime) : DASH },
-                    { label: 'Ritmo', value: lastRun.pace, unit: '/km' },
-                    {
-                      label: 'FC media',
-                      value: lastRun.hr ?? DASH,
-                      unit: lastRun.hr != null ? `ppm${lastRun.zoneIdx >= 0 ? `, Z${lastRun.zoneIdx + 1}` : ''}` : null,
-                      dot: lastRun.zoneIdx >= 0 ? ZONES[lastRun.zoneIdx].color : null,
-                    },
-                    { label: 'Desnivel', value: lastRun.elev != null ? `+${lastRun.elev}` : DASH, unit: lastRun.elev != null ? 'm' : null },
-                    { label: 'Cadencia', value: lastRun.cadence ?? DASH, unit: lastRun.cadence != null ? 'spm' : null },
-                  ].map(m => (
-                    <div key={m.label} className="min-w-0">
-                      <dt className="text-xs text-slate-500">{m.label}</dt>
-                      <dd className="flex items-baseline gap-1 min-w-0">
-                        {m.dot && <span className="w-2 h-2 rounded-full shrink-0 self-center" style={{ background: m.dot }} />}
-                        <span className={`${DISPLAY} text-lg font-extrabold tabular-nums text-slate-900 dark:text-slate-50`}>{m.value}</span>
-                        {m.unit && <span className="text-xs text-slate-500 truncate">{m.unit}</span>}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
 
-                {lastRun.splits.length > 1 && (() => {
-                  const speeds = lastRun.splits.map(sp => sp.speed);
-                  const lo = Math.min(...speeds), hi = Math.max(...speeds), span = hi - lo || 1;
-                  return (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1.5">Ritmo por kilómetro (más alto, más rápido; color por zona de FC)</p>
-                      <div className="flex items-end gap-1 h-16">
-                        {lastRun.splits.map((sp, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 min-w-[3px] rounded"
-                            style={{ height: `${30 + ((sp.speed - lo) / span) * 70}%`, background: sp.zoneIdx >= 0 ? ZONES[sp.zoneIdx].color : COLORS.signalLight }}
-                            title={`Km ${i + 1}: ${formatPaceFromSpeed(sp.speed, DASH)}/km${sp.hr ? `, ${sp.hr} ppm` : ''}`}
-                          />
-                        ))}
+                <div className="sm:col-span-5 flex flex-col gap-3 min-w-0">
+                  <div className="min-w-0">
+                    <p className={`${DISPLAY} text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 truncate`}>{lastRun.name}</p>
+                    <p className="text-xs text-slate-500 first-letter:uppercase">
+                      {lastRun.date.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' })}, {lastRun.date.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <dl className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    {[
+                      { label: 'Distancia', value: fmtDec(lastRun.distKm, 2), unit: 'km' },
+                      { label: 'Tiempo', value: lastRun.movingTime != null ? formatDuration(lastRun.movingTime) : DASH },
+                      { label: 'Ritmo', value: lastRun.pace, unit: '/km' },
+                      {
+                        label: 'FC media',
+                        value: lastRun.hr ?? DASH,
+                        unit: lastRun.hr != null ? `ppm${lastRun.zoneIdx >= 0 ? `, Z${lastRun.zoneIdx + 1}` : ''}` : null,
+                        dot: lastRun.zoneIdx >= 0 ? ZONES[lastRun.zoneIdx].color : null,
+                      },
+                      { label: 'Desnivel', value: lastRun.elev != null ? `+${lastRun.elev}` : DASH, unit: lastRun.elev != null ? 'm' : null },
+                      { label: 'Eficiencia', value: fmtDec(lastRun.ef, 2), unit: lastRun.ef != null ? 'm/lat' : null },
+                    ].map(m => (
+                      <div key={m.label} className="min-w-0">
+                        <dt className="text-xs text-slate-500">{m.label}</dt>
+                        <dd className="flex items-baseline gap-1 min-w-0">
+                          {m.dot && <span className="w-2 h-2 rounded-full shrink-0 self-center" style={{ background: m.dot }} />}
+                          <span className={`${DISPLAY} text-lg font-extrabold tabular-nums text-slate-900 dark:text-slate-50`}>{m.value}</span>
+                          {m.unit && <span className="text-xs text-slate-500 truncate">{m.unit}</span>}
+                        </dd>
                       </div>
-                    </div>
-                  );
-                })()}
+                    ))}
+                  </dl>
+
+                  {lastRun.splits.length > 1 && (() => {
+                    const speeds = lastRun.splits.map(sp => sp.speed);
+                    const lo = Math.min(...speeds), hi = Math.max(...speeds), span = hi - lo || 1;
+                    return (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1.5">Ritmo por kilómetro (más alto, más rápido; color por zona de FC)</p>
+                        <div className="flex items-end gap-1 h-16">
+                          {lastRun.splits.map((sp, i) => (
+                            <div
+                              key={i}
+                              className="flex-1 min-w-[3px] rounded"
+                              style={{ height: `${30 + ((sp.speed - lo) / span) * 70}%`, background: sp.zoneIdx >= 0 ? ZONES[sp.zoneIdx].color : COLORS.signalLight }}
+                              title={`Km ${i + 1}: ${formatPaceFromSpeed(sp.speed, DASH)}/km${sp.hr ? `, ${sp.hr} ppm` : ''}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              <div className="lg:col-span-4 flex flex-col gap-2 min-w-0 pt-4 lg:pt-0 lg:pl-6 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col gap-2.5 min-w-0 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cómo la ejecutaste</span>
                   <AskChatBtn onAsk={askCoach} focus="briefing" />
@@ -1446,19 +1406,71 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 {lastActivity && lastActivity.id !== lastRun.id && ai.lastWork && (
                   <p className="text-xs text-slate-500">El análisis del coach es de tu última actividad, «{lastActivity.name}».</p>
                 )}
-                <div className="max-h-64 overflow-y-auto pr-1">
-                  <CoachText
-                    ai={ai}
-                    text={ai.lastWork}
-                    accent="text-amber-500"
-                    fallback={<p className="text-sm text-slate-500">El coach aún no ha analizado esta sesión. Pulsa «Recalcular» para pedirlo.</p>}
-                  />
-                </div>
+                <CoachText
+                  ai={ai}
+                  text={ai.lastWork}
+                  accent="text-amber-500"
+                  fallback={<p className="text-sm text-slate-500">El coach aún no ha analizado esta sesión. Pulsa «Recalcular» para pedirlo.</p>}
+                />
               </div>
             </div>
           )}
         </Panel>
       </div>
+
+      {/* ═══════════ LECTURA DEL COACH ═══════════ */}
+      <Panel
+        title="Lectura del coach"
+        sub={ai.cacheTs ? `Análisis ${formatTs(ai.cacheTs)}` : undefined}
+        link={<AskChatBtn onAsk={askCoach} focus={activeCoachTab.focus} />}
+      >
+        <CoachBanners ai={ai} />
+        <div role="tablist" className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-800">
+          {coachTabs.map(tb => (
+            <button
+              key={tb.id}
+              type="button"
+              role="tab"
+              aria-selected={coachTab === tb.id}
+              onClick={() => { setCoachTab(tb.id); setCoachExpanded(false); }}
+              className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${coachTab === tb.id
+                ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+        <div className="max-w-[75ch] pt-4">
+          {activeCoachTab.badge && (
+          <div className="flex items-center gap-2 mb-2">
+            <CoachBadge badge={activeCoachTab.badge} />
+          </div>
+        )}
+        <div className={`relative ${coachLong && !coachExpanded ? 'max-h-44 overflow-hidden' : ''}`}>
+            <CoachText
+              ai={ai}
+              text={activeCoachTab.text}
+              accent={activeCoachTab.accent}
+              fallback={activeCoachTab.id === 'cur' ? diagFallback : (
+                <p className="text-sm text-slate-500">El coach aún no ha hecho este análisis. Pulsa «Recalcular» para pedirlo.</p>
+              )}
+            />
+            {coachLong && !coachExpanded && (
+              <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white dark:from-slate-900 pointer-events-none" />
+            )}
+          </div>
+          {coachLong && (
+            <button
+              type="button"
+              onClick={() => setCoachExpanded(v => !v)}
+              className="mt-2 text-xs font-semibold rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 transition-colors duration-200 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+            >
+              {coachExpanded ? 'Mostrar menos' : 'Leer completo'}
+            </button>
+          )}
+        </div>
+      </Panel>
 
     </div>
   );

@@ -17,14 +17,17 @@ const writeTab = (key, id) => {
  * @param {{id: string, labelKey: string, label: string, icon?: React.ComponentType, render: () => JSX.Element}[]} tabs
  *   `labelKey` es la clave i18n y `label` el texto español de respaldo. `render`
  *   es una función para que solo se monte el panel activo, como antes.
- * @param {string} [initial] id de la pestaña inicial (por defecto, la primera).
+ * @param {string} [initial] id de la pestaña con la que abrir (p. ej. desde un
+ *   enlace profundo); si es válido manda sobre la recordada. Si no, la recordada
+ *   o la primera.
  * @param {string} [storageKey] si se da, recuerda la última pestaña abierta.
  */
 const TabbedHub = ({ tabs, initial, storageKey }) => {
   const { t } = useTranslation();
   const [tab, setTab] = useState(() => {
+    if (tabs.some((x) => x.id === initial)) return initial;
     const saved = readTab(storageKey);
-    return tabs.some((x) => x.id === saved) ? saved : (initial ?? tabs[0]?.id);
+    return tabs.some((x) => x.id === saved) ? saved : tabs[0]?.id;
   });
   const active = tabs.find((x) => x.id === tab) ?? tabs[0];
   const select = (id) => { setTab(id); writeTab(storageKey, id); };

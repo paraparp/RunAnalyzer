@@ -15,8 +15,9 @@ import WeightTrend from './WeightTrend';
 //
 // "Forma aeróbica" va aquí y no en FitnessHub a propósito: lo que mide es FC a
 // esfuerzo fijo, la misma familia que el desacople, y las dos se leen juntas.
-const HealthHub = ({ activities, onOpenConnections }) => (
-  <TabbedHub storageKey="health" tabs={[
+// `tab` abre directamente una pestaña (ruta /health/<tab>, p. ej. desde la portada).
+const HealthHub = ({ activities, onOpenConnections, tab }) => (
+  <TabbedHub storageKey="health" initial={tab} tabs={[
     { id: 'resumen', labelKey: 'hubs.vitals', label: 'Resumen Vital', icon: HeartIcon, render: () => <VitalsOverview activities={activities} /> },
     { id: 'cardiaco', labelKey: 'hubs.cardiac_monitor', label: 'Monitor Cardiaco', icon: SignalIcon, render: () => <GarminCardiac onOpenConnections={onOpenConnections} /> },
     { id: 'desacople', labelKey: 'hubs.decoupling', label: 'Desacople', icon: ArrowsRightLeftIcon, render: () => <CardiacDecoupling activities={activities} /> },

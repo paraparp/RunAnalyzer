@@ -20,7 +20,9 @@
       "Bash(node -e ' *)",
       "Bash(node --check api/_lib/mcp-store.js)",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).scripts\\)\")",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "ClaudeInChromeDomain(localhost:5173)"
     ]
   }
 }

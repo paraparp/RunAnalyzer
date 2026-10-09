@@ -676,7 +676,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 planner:     <TrainingPlanner activities={runningActivities} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 fitness:     <FitnessHub activities={runningActivities} />,
-                health:      <HealthHub activities={runningActivities} onOpenConnections={() => setCurrentView('connections')} />,
+                health:      <HealthHub key={routeId} tab={routeId} activities={runningActivities} onOpenConnections={() => setCurrentView('connections')} />,
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
                 calibration: <HrCalibration hrParams={hrParams} />,
                 connections: <Connections stravaData={stravaData} onConnectStrava={connectToStrava} />,
