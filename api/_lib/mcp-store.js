@@ -24,6 +24,7 @@ import { efficiencyMPerBeat } from '../../src/lib/efficiencyFactor.js';
 import { dayKey } from '../../src/lib/trainingLoad.js';
 import { computeCalibratedPMC, OVERRIDES_KEY as HR_OVERRIDES_KEY } from '../../src/lib/loadCalibration.js';
 import { sessionHeat } from '../../src/lib/weather.js';
+import { runsByDay, workoutActual, weeklyVolume, isRestWorkout } from '../../src/lib/planActuals.js';
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2268,53 +2269,80 @@ async function readTrainingPlans(userId) {
   return Array.isArray(list) ? list : [];
 }
 
-function shapeWorkout(w) {
+// `ctx.byDay` (carreras por día, lib/planActuals) añade lo corrido de verdad. El
+// estado efectivo sigue el MISMO criterio que el marcado automático de la app
+// (autoDoneCandidates): un entreno pendiente con carrera ese día cuenta como
+// hecho, salvo que su estado se haya fijado a mano.
+function shapeWorkout(w, { byDay = null, todayISO = null } = {}) {
+  const stored = WORKOUT_STATUSES.includes(w.status) ? w.status : 'planned';
+  const actual = byDay && w.date && todayISO && w.date <= todayISO ? workoutActual(w, byDay) : null;
+  const auto = stored === 'planned' && !w.status_manual && !!actual && !isRestWorkout(w);
   return {
     id: w.id,
     date: w.date || null,
     type: w.type || null,
     summary: w.summary || null,
-    status: WORKOUT_STATUSES.includes(w.status) ? w.status : 'planned',
+    status: auto ? 'done' : stored,
+    ...(auto ? { status_auto: true } : {}),
     distance_km: Number.isFinite(w.distance_km) ? w.distance_km : null,
     duration_min: Number.isFinite(w.duration_min) ? w.duration_min : null,
     coach_note: w.coach_note || null,
+    on_watch: w.garmin_workout_id ? { garmin_workout_id: w.garmin_workout_id, date: w.garmin_date || null } : null,
     structured_workout: Array.isArray(w.structured_workout) ? w.structured_workout : null,
+    ...(byDay ? {
+      actual: actual ? {
+        ...actual,
+        pace: actual.pace_min_km != null ? formatMinutes(actual.pace_min_km) : null,
+        pace_min_km: actual.pace_min_km != null ? round(actual.pace_min_km) : null,
+      } : null,
+    } : {}),
   };
 }
 
 // `races` resuelve el raceId a nombre/fecha para que el modelo no tenga que
 // cruzarlo a mano con list_target_races. Un raceId huérfano (carrera borrada)
 // sale con race: null, no como error.
-function shapePlan(p, { include_workouts = true, races = [] } = {}) {
+function shapePlan(p, { include_workouts = true, races = [], byDay = null, todayISO = null } = {}) {
   const workouts = Array.isArray(p.workouts)
     ? [...p.workouts].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
     : [];
   const race = p.raceId ? races.find((r) => String(r.id) === String(p.raceId)) : null;
+  const shaped = workouts.map((w) => shapeWorkout(w, { byDay, todayISO }));
   return {
     id: p.id,
     name: p.name ?? null,
     race_id: race ? race.id : null,
     race: race ? { name: race.name ?? null, date: race.date || null, distance: race.distance ?? null, days_until: daysUntil(race.date) } : null,
     workout_count: workouts.length,
-    done_count: workouts.filter((w) => w.status === 'done').length,
+    done_count: shaped.filter((w) => w.status === 'done').length,
     first_date: workouts[0]?.date || null,
     last_date: workouts[workouts.length - 1]?.date || null,
-    ...(include_workouts ? { workouts: workouts.map(shapeWorkout) } : {}),
+    ...(byDay ? { weeks: weeklyVolume(p, byDay, todayISO) } : {}),
+    ...(include_workouts ? { workouts: shaped } : {}),
   };
 }
 
-/** Lista los planes de entrenamiento del usuario. Sin entrenos por defecto (pueden ser muchos). */
-export async function listTrainingPlans(userId, { include_workouts = false } = {}) {
-  const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
-  return { count: list.length, plans: list.map((p) => shapePlan(p, { include_workouts, races })) };
+/** Contexto de lo corrido (carreras por día + hoy), solo cuando hace falta: pesa. */
+async function actualsContext(userId) {
+  return { byDay: runsByDay(await getActivities(userId)), todayISO: dayKey(new Date()) };
 }
 
-/** Un plan concreto con todos sus entrenos. */
+/**
+ * Lista los planes de entrenamiento del usuario. Sin entrenos por defecto (pueden
+ * ser muchos); con `include_workouts` trae además lo corrido y el volumen semanal.
+ */
+export async function listTrainingPlans(userId, { include_workouts = false } = {}) {
+  const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
+  const ctx = include_workouts ? await actualsContext(userId) : {};
+  return { count: list.length, plans: list.map((p) => shapePlan(p, { include_workouts, races, ...ctx })) };
+}
+
+/** Un plan concreto con todos sus entrenos, lo corrido de cada uno y el volumen por semana. */
 export async function getTrainingPlan(userId, planId) {
   const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
   const plan = list.find((p) => String(p.id) === String(planId));
   if (!plan) return { error: `No existe el plan "${planId}"` };
-  return shapePlan(plan, { include_workouts: true, races });
+  return shapePlan(plan, { include_workouts: true, races, ...(await actualsContext(userId)) });
 }
 
 /**
@@ -2355,16 +2383,56 @@ export async function deleteTrainingPlan(userId, planId) {
  * formato que el planificador IA de la app (fases con duration_min/pace/hr/
  * reps/recovery/description), opcional.
  */
-export async function upsertPlannedWorkout(userId, {
-  plan_id, workout_id, date, type, summary, status, structured_workout,
-  distance_km, duration_min, coach_note,
-} = {}) {
+export async function upsertPlannedWorkout(userId, { plan_id, ...args } = {}) {
   const list = await readTrainingPlans(userId);
   const plan = list.find((p) => String(p.id) === String(plan_id));
   if (!plan) return { error: `No existe el plan "${plan_id}"` };
+  const res = applyWorkout(plan, args);
+  if (res.error) return res;
+  await writeKey(userId, TRAINING_PLANS_KEY, list);
+  return { ok: true, created: res.created, plan_id: plan.id, workout: shapeWorkout(res.workout) };
+}
+
+// Tope de entrenos por llamada en lote: un bloque de 16 semanas con 6-7 sesiones
+// cabe de sobra, y acota el tamaño del blob que se reescribe.
+const MAX_BULK_WORKOUTS = 150;
+
+/**
+ * Varios entrenos de un plan en UNA llamada y UNA escritura (volcar un bloque
+ * entero). Todo o nada: si alguno no es válido no se guarda ninguno y se devuelve
+ * el índice y el motivo de cada fallo, para corregirlo y reenviar la lista.
+ */
+export async function upsertPlannedWorkouts(userId, { plan_id, workouts } = {}) {
+  if (!Array.isArray(workouts) || !workouts.length) return { error: 'Falta `workouts`: lista de entrenos' };
+  if (workouts.length > MAX_BULK_WORKOUTS) return { error: `Máximo ${MAX_BULK_WORKOUTS} entrenos por llamada` };
+  const list = await readTrainingPlans(userId);
+  const plan = list.find((p) => String(p.id) === String(plan_id));
+  if (!plan) return { error: `No existe el plan "${plan_id}"` };
+  const results = workouts.map((w) => applyWorkout(plan, w || {}));
+  const errors = results.map((r, index) => (r.error ? { index, error: r.error } : null)).filter(Boolean);
+  if (errors.length) return { error: 'No se ha guardado nada: corrige los entrenos con error', errors };
+  await writeKey(userId, TRAINING_PLANS_KEY, list);
+  return {
+    ok: true,
+    plan_id: plan.id,
+    created: results.filter((r) => r.created).length,
+    updated: results.filter((r) => !r.created).length,
+    workouts: results.map((r) => ({ id: r.workout.id, date: r.workout.date, type: r.workout.type, created: r.created })),
+  };
+}
+
+/**
+ * Aplica un entreno sobre `plan` en memoria (crea o hace merge parcial) y
+ * devuelve `{ workout, created }` o `{ error }`. No escribe: lo hace quien llama,
+ * una sola vez.
+ */
+function applyWorkout(plan, {
+  workout_id, date, type, summary, status, structured_workout,
+  distance_km, duration_min, coach_note,
+} = {}) {
   if (!Array.isArray(plan.workouts)) plan.workouts = [];
   const idx = workout_id ? plan.workouts.findIndex((w) => String(w.id) === String(workout_id)) : -1;
-  if (workout_id && idx < 0) return { error: `No existe el entreno "${workout_id}" en el plan "${plan_id}"` };
+  if (workout_id && idx < 0) return { error: `No existe el entreno "${workout_id}" en el plan "${plan.id}"` };
   if (!workout_id && (!date || !type)) return { error: 'Faltan `date` y `type` para crear un entreno' };
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date debe tener formato YYYY-MM-DD' };
   if (status && !WORKOUT_STATUSES.includes(status)) return { error: `status debe ser una de: ${WORKOUT_STATUSES.join(', ')}` };
@@ -2384,7 +2452,8 @@ export async function upsertPlannedWorkout(userId, {
     ...(idx >= 0 ? plan.workouts[idx] : { id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()), status: 'planned' }),
     ...(date !== undefined ? { date } : {}),
     ...(type !== undefined ? { type } : {}),
-    ...(status !== undefined ? { status } : {}),
+    // Un estado fijado explícitamente no lo pisa el marcado automático de la app.
+    ...(status !== undefined ? { status, status_manual: true } : {}),
   };
   setOpt(workout, 'summary', summary);
   setOpt(workout, 'distance_km', distance_km);
@@ -2393,9 +2462,7 @@ export async function upsertPlannedWorkout(userId, {
   setOpt(workout, 'structured_workout', structured_workout);
   if (idx >= 0) plan.workouts[idx] = workout; else plan.workouts.push(workout);
   plan.workouts.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-
-  await writeKey(userId, TRAINING_PLANS_KEY, list);
-  return { ok: true, created: idx < 0, plan_id: plan.id, workout: shapeWorkout(workout) };
+  return { workout, created: idx < 0 };
 }
 
 /** Borra un entreno planificado de un plan por id. */

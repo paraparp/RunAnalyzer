@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next';
 import {
     CalendarDaysIcon, PlusIcon, TrashIcon, PencilSquareIcon, XMarkIcon,
     ChevronDownIcon, ClockIcon, CheckCircleIcon, ChatBubbleLeftRightIcon, FlagIcon,
+    ArrowsRightLeftIcon, PaperAirplaneIcon, DocumentDuplicateIcon, ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import {
-    getTrainingPlans, saveTrainingPlan, deleteTrainingPlan,
+    getTrainingPlans, saveTrainingPlan, deleteTrainingPlan, duplicateWeek,
     saveWorkout, deleteWorkout, TRAINING_PLANS_EVENT, WORKOUT_STATUSES,
 } from '../lib/trainingPlans';
+import { runsByDay, workoutActual, weeklyVolume } from '../lib/planActuals';
 import { getTargetRaces, daysUntil } from '../lib/targetRaces';
+import { formatMinutes } from '../lib/timeFormat';
 import { toISODate } from '../lib/planSchedule';
+import { pushPlanDays, deleteGarminWorkout } from '../services/garminWorkouts';
 
 const EMPTY_WORKOUT = {
     date: '', type: '', summary: '', status: 'planned',
@@ -32,6 +36,9 @@ const STATUS_STYLE = {
     skipped: 'bg-slate-100 text-slate-500 ring-slate-200',
 };
 
+const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
+const shortDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+
 const Chip = ({ className = '', children }) => (
     <span className={`px-2 py-0.5 rounded-full text-label font-bold uppercase ring-1 ring-inset ${className}`}>
         {children}
@@ -39,6 +46,7 @@ const Chip = ({ className = '', children }) => (
 );
 
 const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
+const iconBtn = "p-1.5 rounded-lg text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 /** Pasos del entreno estructurado, si los trae (mismo formato que el planificador IA). */
 const StructuredSteps = ({ steps }) => (
@@ -72,6 +80,8 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
             coach_note: form.coach_note.trim(),
             distance_km: form.distance_km === '' ? undefined : Number(form.distance_km),
             duration_min: form.duration_min === '' ? undefined : Number(form.duration_min),
+            // Un estado elegido a mano no lo pisa el marcado automático.
+            status_manual: form.status !== initial.status ? true : initial.status_manual,
         });
     };
 
@@ -122,18 +132,58 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
     );
 };
 
-const WorkoutRow = ({ workout, onEdit, onDelete, onToggleDone, t }) => {
+/** Lo corrido ese día frente a lo planificado. Pulsar abre la actividad. */
+const ActualLine = ({ actual, workout, onOpen, t }) => {
+    const parts = [
+        `${actual.distance_km} km`,
+        actual.pace_min_km != null ? `${formatMinutes(actual.pace_min_km)}/km` : null,
+        `${actual.moving_time_min} min`,
+        actual.avg_hr ? `${actual.avg_hr} ppm` : null,
+    ].filter(Boolean);
+    const delta = Number.isFinite(workout.distance_km) && workout.distance_km > 0
+        ? Math.round(((actual.distance_km - workout.distance_km) / workout.distance_km) * 100)
+        : null;
+    return (
+        <button
+            type="button"
+            onClick={() => actual.activity_id && onOpen?.(actual.activity_id)}
+            title={actual.name || t('trainingplans.open_activity')}
+            className="mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs text-slate-600 hover:border-blue-200 hover:text-blue-700 transition-colors"
+        >
+            <span className="font-black uppercase text-label text-slate-500">{t('trainingplans.actual')}</span>
+            <span className="font-bold tabular-nums">{parts.join(' · ')}</span>
+            {delta != null && Math.abs(delta) >= 5 && (
+                <span className="font-semibold tabular-nums text-slate-500">({delta > 0 ? '+' : ''}{delta}% {t('trainingplans.vs_plan')})</span>
+            )}
+        </button>
+    );
+};
+
+const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, onMove, onSendToWatch, onOpenActivity, t }) => {
     const [expanded, setExpanded] = useState(false);
-    const date = workout.date ? new Date(`${workout.date}T00:00:00`) : null;
+    const [moving, setMoving] = useState(false);
+    const [send, setSend] = useState(null); // null | 'sending' | { error }
     const hasSteps = Array.isArray(workout.structured_workout) && workout.structured_workout.length > 0;
-    const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
+    const onWatch = !!workout.garmin_workout_id;
+    // Enviado al reloj para otro día: tras moverlo hay que reenviarlo.
+    const watchStale = onWatch && workout.garmin_date && workout.garmin_date !== workout.date;
+
+    const sendToWatch = async () => {
+        setSend('sending');
+        try {
+            await onSendToWatch(workout);
+            setSend(null);
+        } catch (e) {
+            setSend({ error: e.message });
+        }
+    };
 
     return (
         <div className={`bg-white rounded-xl border border-slate-100 p-4 ${workout.status === 'skipped' ? 'opacity-60' : ''}`}>
             <div className="flex items-start gap-3">
                 <div className="shrink-0 w-14 text-center">
                     <p className="text-xs font-black text-slate-900 tabular-nums leading-none">
-                        {date ? date.toLocaleDateString(locale, { day: '2-digit', month: 'short' }) : '—'}
+                        {workout.date ? shortDate(workout.date) : '—'}
                     </p>
                 </div>
                 <div className="min-w-0 flex-1">
@@ -148,8 +198,15 @@ const WorkoutRow = ({ workout, onEdit, onDelete, onToggleDone, t }) => {
                         {workout.duration_min != null && (
                             <span className="text-xs font-bold text-slate-500 tabular-nums">{workout.duration_min} min</span>
                         )}
+                        {onWatch && (
+                            <span className={`inline-flex items-center gap-1 text-xs font-bold ${watchStale ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                <PaperAirplaneIcon className="w-3 h-3" />
+                                {watchStale ? t('trainingplans.watch_stale', { date: shortDate(workout.garmin_date) }) : t('trainingplans.on_watch')}
+                            </span>
+                        )}
                     </div>
                     {workout.summary && <p className="text-sm text-slate-600 leading-relaxed">{workout.summary}</p>}
+                    {actual && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
                     {workout.coach_note && (
                         <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
@@ -168,19 +225,47 @@ const WorkoutRow = ({ workout, onEdit, onDelete, onToggleDone, t }) => {
                         </button>
                     )}
                     {hasSteps && expanded && <StructuredSteps steps={workout.structured_workout} />}
+                    {moving && (
+                        <div className="mt-2 inline-flex items-center gap-2">
+                            <input
+                                type="date"
+                                autoFocus
+                                defaultValue={workout.date}
+                                onChange={(e) => { if (e.target.value) { onMove(workout, e.target.value); setMoving(false); } }}
+                                className="px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                            />
+                            <button type="button" onClick={() => setMoving(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                                <XMarkIcon className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    )}
+                    {send?.error && <p className="mt-2 text-xs font-semibold text-rose-600">{send.error}</p>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                     <button
                         onClick={() => onToggleDone(workout)}
-                        className={`p-1.5 rounded-lg transition-colors ${workout.status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        className={`${iconBtn} ${workout.status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
                         title={workout.status === 'done' ? t('trainingplans.mark_planned') : t('trainingplans.mark_done')}
                     >
                         <CheckCircleIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onEdit(workout)} className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.edit')}>
+                    {hasSteps && !isPast && (
+                        <button
+                            onClick={sendToWatch}
+                            disabled={send === 'sending'}
+                            className={`${iconBtn} hover:text-blue-600 hover:bg-blue-50 ${send === 'sending' ? 'animate-pulse' : ''}`}
+                            title={send === 'sending' ? t('trainingplans.sending') : onWatch ? t('trainingplans.resend_watch') : t('trainingplans.send_watch')}
+                        >
+                            <PaperAirplaneIcon className="w-4 h-4" />
+                        </button>
+                    )}
+                    <button onClick={() => setMoving((v) => !v)} className={`${iconBtn} hover:text-blue-600 hover:bg-blue-50`} title={t('trainingplans.move')}>
+                        <ArrowsRightLeftIcon className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onEdit(workout)} className={`${iconBtn} hover:text-blue-600 hover:bg-blue-50`} title={t('trainingplans.edit')}>
                         <PencilSquareIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onDelete(workout.id)} className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors" title={t('trainingplans.delete')}>
+                    <button onClick={() => onDelete(workout.id)} className={`${iconBtn} hover:text-rose-600 hover:bg-rose-50`} title={t('trainingplans.delete')}>
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -189,14 +274,70 @@ const WorkoutRow = ({ workout, onEdit, onDelete, onToggleDone, t }) => {
     );
 };
 
-const TrainingPlans = () => {
+/**
+ * Volumen por semana: barra de progreso por semana, con lo planificado como
+ * carril gris y lo corrido como relleno. Las cifras van escritas (no dependen del
+ * color) y la subida brusca se avisa con icono y texto.
+ */
+const WeeklyVolume = ({ weeks, onDuplicate, t }) => {
+    const max = Math.max(1, ...weeks.map((w) => Math.max(w.planned_km, w.actual_km ?? 0)));
+    if (!weeks.some((w) => w.planned_km > 0 || (w.actual_km ?? 0) > 0)) {
+        return <p className="text-xs font-medium text-slate-500">{t('trainingplans.no_volume')}</p>;
+    }
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-200" />{t('trainingplans.legend_planned')}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-blue-600" />{t('trainingplans.legend_actual')}</span>
+            </div>
+            {weeks.map((w) => (
+                <div
+                    key={w.week_start}
+                    className={`grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 px-2 py-1.5 rounded-lg ${w.is_current ? 'bg-blue-50/60' : ''}`}
+                    title={t('trainingplans.week_tooltip', { done: w.done, total: w.sessions, planned: w.planned_km, actual: w.actual_km ?? '—' })}
+                >
+                    <span className="text-xs font-bold text-slate-600 tabular-nums">{shortDate(w.week_start)}</span>
+                    <div className="relative h-4">
+                        <div className="absolute inset-y-0 left-0 rounded bg-slate-200" style={{ width: `${(w.planned_km / max) * 100}%` }} />
+                        {w.actual_km != null && w.actual_km > 0 && (
+                            <div className="absolute top-1 bottom-1 left-0 rounded bg-blue-600" style={{ width: `${(w.actual_km / max) * 100}%` }} />
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                        <span className="text-xs font-bold text-slate-700 tabular-nums whitespace-nowrap">
+                            {w.actual_km != null ? `${w.actual_km} / ` : ''}{w.planned_km} km
+                        </span>
+                        {w.ramp_warning && (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700" title={t('trainingplans.ramp_hint')}>
+                                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                +{w.ramp_pct}%
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => onDuplicate(w.week_start)}
+                            className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title={t('trainingplans.duplicate_week')}
+                        >
+                            <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const { t } = useTranslation();
     const [plans, setPlans] = useState(getTrainingPlans);
     const [selectedPlanId, setSelectedPlanId] = useState(() => getTrainingPlans()[0]?.id || null);
     const [showPast, setShowPast] = useState(false);
+    const [showVolume, setShowVolume] = useState(true);
     const [editingWorkout, setEditingWorkout] = useState(null); // 'new' | workout | null
     const [newPlanName, setNewPlanName] = useState('');
     const [addingPlan, setAddingPlan] = useState(false);
+    const [notice, setNotice] = useState('');
 
     useEffect(() => {
         const reload = () => {
@@ -208,18 +349,20 @@ const TrainingPlans = () => {
         return () => window.removeEventListener(TRAINING_PLANS_EVENT, reload);
     }, []);
 
+    const todayISO = toISODate(new Date());
+    const byDay = useMemo(() => runsByDay(activities), [activities]);
     const selectedPlan = plans.find((p) => p.id === selectedPlanId) || null;
     const targetRaces = getTargetRaces();
     const linkedRace = selectedPlan?.raceId ? targetRaces.find((r) => r.id === selectedPlan.raceId) : null;
+    const weeks = useMemo(() => weeklyVolume(selectedPlan, byDay, todayISO), [selectedPlan, byDay, todayISO]);
 
     const { upcoming, past } = useMemo(() => {
-        const todayISO = toISODate(new Date());
         const workouts = selectedPlan?.workouts || [];
         const up = [], pa = [];
         for (const w of workouts) ((w.date || '') < todayISO ? pa : up).push(w);
         pa.reverse();
         return { upcoming: up, past: pa };
-    }, [selectedPlan]);
+    }, [selectedPlan, todayISO]);
 
     const createPlan = (e) => {
         e.preventDefault();
@@ -254,8 +397,60 @@ const TrainingPlans = () => {
 
     const handleToggleDone = useCallback((workout) => {
         if (!selectedPlan) return;
-        saveWorkout(selectedPlan.id, { id: workout.id, status: workout.status === 'done' ? 'planned' : 'done' });
+        saveWorkout(selectedPlan.id, {
+            id: workout.id,
+            status: workout.status === 'done' ? 'planned' : 'done',
+            status_manual: true,
+        });
     }, [selectedPlan]);
+
+    const handleMove = useCallback((workout, date) => {
+        if (!selectedPlan || date === workout.date) return;
+        saveWorkout(selectedPlan.id, { id: workout.id, date });
+    }, [selectedPlan]);
+
+    // Reenviar = borrar el que había en Garmin y crear el nuevo en su fecha actual:
+    // así mover un entreno o editarlo no deja duplicados en el reloj.
+    const handleSendToWatch = useCallback(async (workout) => {
+        if (!selectedPlan) return;
+        if (workout.garmin_workout_id) {
+            try { await deleteGarminWorkout(workout.garmin_workout_id); } catch { /* ya no existía en Garmin */ }
+        }
+        const { results } = await pushPlanDays([workout]);
+        const r = results?.[0];
+        if (!r?.ok) {
+            saveWorkout(selectedPlan.id, { id: workout.id, garmin_workout_id: undefined, garmin_date: undefined });
+            throw new Error(r?.error || t('trainingplans.send_error'));
+        }
+        saveWorkout(selectedPlan.id, {
+            id: workout.id,
+            garmin_workout_id: r.workout_id,
+            garmin_date: r.scheduled ? r.date : undefined,
+        });
+    }, [selectedPlan, t]);
+
+    const handleDuplicateWeek = useCallback((weekStart) => {
+        if (!selectedPlan) return;
+        const n = duplicateWeek(selectedPlan.id, weekStart);
+        setNotice(n ? t('trainingplans.duplicated', { n }) : t('trainingplans.nothing_to_duplicate'));
+        setTimeout(() => setNotice(''), 2500);
+    }, [selectedPlan, t]);
+
+    const renderRow = (w) => (
+        <WorkoutRow
+            key={w.id}
+            workout={w}
+            actual={w.date <= todayISO ? workoutActual(w, byDay) : null}
+            isPast={w.date < todayISO}
+            onEdit={setEditingWorkout}
+            onDelete={handleDeleteWorkout}
+            onToggleDone={handleToggleDone}
+            onMove={handleMove}
+            onSendToWatch={handleSendToWatch}
+            onOpenActivity={onOpenActivity}
+            t={t}
+        />
+    );
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto fade-in">
@@ -365,6 +560,20 @@ const TrainingPlans = () => {
                         </p>
                     )}
 
+                    {weeks.length > 0 && (
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setShowVolume((v) => !v)}
+                                className="inline-flex items-center gap-1.5 text-label font-bold text-slate-500 uppercase px-1 hover:text-slate-600 transition-colors"
+                            >
+                                {t('trainingplans.weekly_title')}
+                                <ChevronDownIcon className={`w-3 h-3 transition-transform ${showVolume ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showVolume && <WeeklyVolume weeks={weeks} onDuplicate={handleDuplicateWeek} t={t} />}
+                            {notice && <p className="text-xs font-semibold text-emerald-600 px-1">{notice}</p>}
+                        </div>
+                    )}
+
                     {editingWorkout === 'new' && (
                         <WorkoutForm initial={EMPTY_WORKOUT} onSave={handleSaveWorkout} onCancel={() => setEditingWorkout(null)} t={t} />
                     )}
@@ -382,11 +591,7 @@ const TrainingPlans = () => {
                             {upcoming.length > 0 && (
                                 <div className="space-y-3">
                                     <h4 className="text-label font-bold text-slate-500 uppercase px-1">{t('trainingplans.upcoming')} · {upcoming.length}</h4>
-                                    <div className="space-y-3">
-                                        {upcoming.map((w) => (
-                                            <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} onToggleDone={handleToggleDone} t={t} />
-                                        ))}
-                                    </div>
+                                    <div className="space-y-3">{upcoming.map(renderRow)}</div>
                                 </div>
                             )}
                             {past.length > 0 && (
@@ -398,13 +603,7 @@ const TrainingPlans = () => {
                                         {t('trainingplans.past')} · {past.length}
                                         <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />
                                     </button>
-                                    {showPast && (
-                                        <div className="space-y-3">
-                                            {past.map((w) => (
-                                                <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} onToggleDone={handleToggleDone} t={t} />
-                                            ))}
-                                        </div>
-                                    )}
+                                    {showPast && <div className="space-y-3">{past.map(renderRow)}</div>}
                                 </div>
                             )}
                         </div>

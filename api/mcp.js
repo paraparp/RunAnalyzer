@@ -19,7 +19,7 @@ import {
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
   listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace, setPrimaryTargetRace,
   listTrainingPlans, getTrainingPlan, upsertTrainingPlan, deleteTrainingPlan,
-  upsertPlannedWorkout, deletePlannedWorkout,
+  upsertPlannedWorkout, upsertPlannedWorkouts, deletePlannedWorkout,
   getCriticalSpeed, getRacePrediction,
 } from './_lib/mcp-store.js';
 import {
@@ -37,6 +37,35 @@ import { ensureFresh } from './_lib/mcp-sync.js';
 // su `run(userId, args)` juntos, para que schema y handler no puedan desincronizarse.
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
 const WORKOUT_STATUSES = ['planned', 'done', 'skipped'];
+
+// Campos de un entreno de plan: los comparten upsert_planned_workout y su versión en lote.
+const WORKOUT_FIELDS = {
+  workout_id: { type: 'string', description: 'Id del entreno a editar; omítelo para crear uno nuevo' },
+  date: { ...dateArg, description: 'Fecha exacta YYYY-MM-DD del entreno (obligatoria al crear)' },
+  type: { type: 'string', description: 'Tipo de sesión, p.ej. "Series", "Rodaje suave", "Tirada larga", "Descanso" (obligatorio al crear)' },
+  summary: { type: ['string', 'null'], description: 'Resumen en texto libre de en qué consiste la sesión' },
+  status: { type: 'string', enum: WORKOUT_STATUSES, description: 'planned (por defecto) | done | skipped' },
+  distance_km: { type: ['number', 'null'], description: 'Distancia total prevista de la sesión en km (p.ej. una tirada larga de 18)' },
+  duration_min: { type: ['number', 'null'], description: 'Duración total prevista de la sesión en minutos' },
+  coach_note: { type: ['string', 'null'], description: 'Nota del coach: valoración de cómo fue la sesión real frente a lo planificado, ajustes para las siguientes...' },
+  structured_workout: {
+    type: ['array', 'null'],
+    description: 'Estructura detallada por fases, opcional (calentamiento/series/vuelta a la calma...)',
+    items: {
+      type: 'object',
+      properties: {
+        phase: { type: 'string' },
+        duration_min: { type: 'number' },
+        reps: { type: 'number' },
+        pace: { type: 'string' },
+        hr: { type: 'string' },
+        recovery: { type: 'string' },
+        description: { type: 'string' },
+        intensity: { type: 'number', description: '1 (muy suave) a 5 (máxima)' },
+      },
+    },
+  },
+};
 
 // Resultado de tool. NO emitimos `structuredContent` en el camino de éxito: la spec
 // obliga a mandar además el JSON serializado en `content`, así que el payload viaja
@@ -531,7 +560,7 @@ const TOOLS = [
   },
   {
     name: 'get_training_plan',
-    description: 'Lee un plan de entrenamiento concreto con TODOS sus entrenos (fecha, tipo, resumen, estado y, si lo tiene, la estructura detallada).',
+    description: 'Lee un plan de entrenamiento concreto con TODOS sus entrenos (fecha, tipo, resumen, estado, estructura) y lo corrido de verdad: cada entreno ya pasado trae `actual` (las carreras de ese día sumadas: km, tiempo, ritmo, FC media, activity_id) y el plan trae `weeks` (km planificados vs corridos por semana, con `ramp_warning` si lo planificado sube >10%). Un entreno pendiente con carrera ese día sale como done con `status_auto: true`. Úsalo para valorar la sesión antes de escribir `coach_note`.',
     inputSchema: {
       type: 'object',
       properties: { plan_id: { type: 'string' } },
@@ -564,40 +593,33 @@ const TOOLS = [
   },
   {
     name: 'upsert_planned_workout',
-    description: 'Crea (sin workout_id) o edita (con workout_id) un entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados; en los opcionales, null los borra. Tras la sesión, marca `status` (done/skipped) y deja en `coach_note` la valoración de cómo fue frente a lo planificado (contrástalo con la actividad real de ese día vía list_activities). `structured_workout` es opcional y sigue el mismo formato que usa el planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`. Se guarda en Supabase y aparece en la app.',
+    description: 'Crea (sin workout_id) o edita (con workout_id) UN entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Para volcar varios a la vez usa upsert_planned_workouts. Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados; en los opcionales, null los borra. Tras la sesión, lee get_training_plan (trae lo corrido en `actual`), fija `status` (done/skipped) si hace falta y deja en `coach_note` la valoración frente a lo planificado. Un `status` enviado aquí queda fijado: el marcado automático de la app ya no lo cambia. `structured_workout` es opcional y sigue el formato del planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`; solo los entrenos con estructura se pueden enviar al reloj desde la app.',
     inputSchema: {
       type: 'object',
       properties: {
         plan_id: { type: 'string', description: 'Id del plan donde vive (o va a vivir) el entreno' },
-        workout_id: { type: 'string', description: 'Id del entreno a editar; omítelo para crear uno nuevo' },
-        date: { ...dateArg, description: 'Fecha exacta YYYY-MM-DD del entreno (obligatoria al crear)' },
-        type: { type: 'string', description: 'Tipo de sesión, p.ej. "Series", "Rodaje suave", "Tirada larga" (obligatorio al crear)' },
-        summary: { type: ['string', 'null'], description: 'Resumen en texto libre de en qué consiste la sesión' },
-        status: { type: 'string', enum: WORKOUT_STATUSES, description: 'planned (por defecto) | done | skipped' },
-        distance_km: { type: ['number', 'null'], description: 'Distancia total prevista de la sesión en km (p.ej. una tirada larga de 18)' },
-        duration_min: { type: ['number', 'null'], description: 'Duración total prevista de la sesión en minutos' },
-        coach_note: { type: ['string', 'null'], description: 'Nota del coach: valoración de cómo fue la sesión real frente a lo planificado, ajustes para las siguientes...' },
-        structured_workout: {
-          type: ['array', 'null'],
-          description: 'Estructura detallada por fases, opcional (calentamiento/series/vuelta a la calma...)',
-          items: {
-            type: 'object',
-            properties: {
-              phase: { type: 'string' },
-              duration_min: { type: 'number' },
-              reps: { type: 'number' },
-              pace: { type: 'string' },
-              hr: { type: 'string' },
-              recovery: { type: 'string' },
-              description: { type: 'string' },
-              intensity: { type: 'number', description: '1 (muy suave) a 5 (máxima)' },
-            },
-          },
-        },
+        ...WORKOUT_FIELDS,
       },
       required: ['plan_id'],
     },
     run: (userId, args) => upsertPlannedWorkout(userId, args).then(text),
+  },
+  {
+    name: 'upsert_planned_workouts',
+    description: `Crea o edita VARIOS entrenos de un plan en una sola llamada (hasta 150): úsalo para volcar un bloque o un plan entero de una vez. Cada elemento acepta los mismos campos que upsert_planned_workout (con workout_id edita, sin él crea). Todo o nada: si algún elemento no es válido no se guarda ninguno y la respuesta trae \`errors\` con el índice y el motivo de cada fallo.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_id: { type: 'string', description: 'Id del plan (de list_training_plans o upsert_training_plan)' },
+        workouts: {
+          type: 'array',
+          description: 'Entrenos a crear o editar',
+          items: { type: 'object', properties: WORKOUT_FIELDS },
+        },
+      },
+      required: ['plan_id', 'workouts'],
+    },
+    run: (userId, args) => upsertPlannedWorkouts(userId, args).then(text),
   },
   {
     name: 'delete_planned_workout',
@@ -743,6 +765,7 @@ const TITLES = {
   list_training_plans: 'Listar planes de entrenamiento', get_training_plan: 'Leer plan de entrenamiento',
   upsert_training_plan: 'Crear/renombrar plan', delete_training_plan: 'Borrar plan de entrenamiento',
   upsert_planned_workout: 'Crear/editar entreno planificado', delete_planned_workout: 'Borrar entreno planificado',
+  upsert_planned_workouts: 'Volcar varios entrenos planificados',
   report_issue: 'Reportar incidencia', list_issues: 'Listar incidencias',
   delete_issue: 'Borrar incidencia',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
@@ -766,6 +789,7 @@ const ANNOTATIONS = {
   upsert_training_plan: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_training_plan: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   upsert_planned_workout: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  upsert_planned_workouts: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_planned_workout: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   // Buzón de incidencias: escribe en nuestra BD, no toca datos del atleta.
   report_issue: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
@@ -851,7 +875,8 @@ const INSTRUCTIONS = [
   'Objetivo: la carrera con `is_primary` es el OBJETIVO PRINCIPAL del atleta; basa planes,',
   'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
   'Las carreras pasadas traen `result` (tiempo real vs objetivo).',
-  'Planes: las sesiones concretas con fecha van en los planes de entrenamiento (upsert_planned_workout),',
+  'Planes: las sesiones concretas con fecha van en los planes de entrenamiento (upsert_planned_workouts',
+  'para volcar un bloque de una vez; get_training_plan trae lo corrido de cada sesión),',
   'no como texto en el `plan` de la carrera; vincula el plan a su carrera con `race_id`.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
   'Calor: si `weather.wbgt_plausible` es false, la unidad de la temperatura de origen venía mal',

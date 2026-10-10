@@ -1,4 +1,6 @@
 import cloudStorage from './cloudStorage';
+import { runsByDay, autoDoneCandidates } from './planActuals';
+import { toISODate } from './planSchedule';
 
 // ============================================================================
 // trainingPlans — planes de entrenamiento con entrenos persistidos POR FECHA.
@@ -23,6 +25,10 @@ import cloudStorage from './cloudStorage';
 //     poder verlos/filtrarlos de un vistazo sin desplegar structured_workout.
 //   coach_note: texto libre que el coach (o el MCP, tras comparar lo planificado
 //     con la actividad real) deja sobre cómo fue la sesión. Opcional.
+//   status_manual: true si el estado lo fijó una persona o el MCP; el marcado
+//     automático (syncPlanStatuses) no lo toca.
+//   garmin_workout_id: id del entreno creado en Garmin al enviarlo al reloj; al
+//     reenviarlo se borra ese y se crea el nuevo, para no duplicarlo.
 //   structured_workout: mismo formato que usa el planificador IA (fases con
 //     duration_min/pace/hr/reps/recovery/description), opcional.
 // ============================================================================
@@ -94,4 +100,50 @@ export function deleteWorkout(planId, workoutId) {
   if (plan) plan.workouts = (plan.workouts || []).filter((w) => w.id !== workoutId);
   persist(list);
   return list;
+}
+
+const shiftISO = (iso, days) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return toISODate(new Date(y, m - 1, d + days));
+};
+
+/**
+ * Copia los entrenos de la semana que empieza en `weekStart` (lunes) a la
+ * siguiente, como pendientes: sin estado, nota del coach ni envío a Garmin.
+ * Devuelve cuántos copió.
+ */
+export function duplicateWeek(planId, weekStart) {
+  const list = getTrainingPlans();
+  const plan = list.find((p) => p.id === planId);
+  if (!plan) return 0;
+  const weekEnd = shiftISO(weekStart, 6);
+  const copies = (plan.workouts || [])
+    .filter((w) => w.date >= weekStart && w.date <= weekEnd)
+    .map((w) => {
+      const copy = { ...w, id: newId(), date: shiftISO(w.date, 7), status: 'planned' };
+      for (const k of ['status_manual', 'coach_note', 'garmin_workout_id', 'garmin_date']) delete copy[k];
+      return copy;
+    });
+  if (!copies.length) return 0;
+  plan.workouts = [...plan.workouts, ...copies]
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  persist(list);
+  return copies.length;
+}
+
+/**
+ * Marca como hechos los entrenos que ya tienen carrera ese día (planActuals).
+ * Una sola escritura y solo si hay algo que cambiar: se llama en cada cambio de
+ * actividades (tras sincronizar).
+ */
+export function syncPlanStatuses(activities, todayISO = toISODate(new Date())) {
+  const list = getTrainingPlans();
+  const pending = autoDoneCandidates(list, runsByDay(activities), todayISO);
+  if (!pending.length) return 0;
+  for (const { planId, workoutId } of pending) {
+    const w = list.find((p) => p.id === planId)?.workouts?.find((x) => x.id === workoutId);
+    if (w) w.status = 'done';
+  }
+  persist(list);
+  return pending.length;
 }

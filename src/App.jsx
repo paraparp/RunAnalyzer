@@ -55,6 +55,7 @@ import { computeStreamGap, needsStreamGap } from './lib/streamGap';
 import { computeHrEffort, needsHrEffort } from './lib/hrEffortWindow';
 import { slimActivity, persistStravaData, readStravaData } from './lib/stravaStore';
 import syncAll from './lib/syncAll';
+import { syncPlanStatuses } from './lib/trainingPlans';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
@@ -406,6 +407,11 @@ const Dashboard = ({ user, handleLogout }) => {
     ? stravaData.activities.filter(activity => RUNNING_TYPES.includes(activity.type) || RUNNING_TYPES.includes(activity.sport_type))
     : [], [stravaData]);
 
+  // Entrenos del plan ya corridos → hechos (lib/planActuals). Tras cada sync.
+  useEffect(() => {
+    if (runningActivities.length) syncPlanStatuses(runningActivities);
+  }, [runningActivities]);
+
   // Memoizada por el mismo motivo que `runningActivities`: el modelo de carga
   // (CTL/ATL/ACWR) consume TODOS los deportes, y una identidad nueva por render
   // le hace recalcular el PMC entero en cada repintado.
@@ -676,7 +682,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 racehistory: <RaceDetector activities={runningActivities} />,
                 criticalspeed: <CriticalSpeed activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
-                trainingplans: <TrainingPlans />,
+                trainingplans: <TrainingPlans activities={runningActivities} onOpenActivity={openActivity} />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 fitness:     <FitnessHub activities={runningActivities} />,
                 health:      <HealthHub key={routeId} tab={routeId} activities={runningActivities} allActivities={allActivities} onOpenConnections={() => setCurrentView('connections')} />,

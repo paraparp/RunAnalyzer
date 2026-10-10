@@ -11,6 +11,7 @@ vi.mock('./cloudStorage', () => ({
 
 const {
   getTrainingPlans, saveTrainingPlan, deleteTrainingPlan, saveWorkout, deleteWorkout,
+  duplicateWeek, syncPlanStatuses,
 } = await import('./trainingPlans');
 
 const newPlan = (name = 'San Sebastián') => {
@@ -76,5 +77,41 @@ describe('trainingPlans', () => {
   it('guardar en un plan inexistente no hace nada', () => {
     saveWorkout('nope', { date: '2026-11-01', type: 'Rodaje' });
     expect(getTrainingPlans()).toEqual([]);
+  });
+
+  it('duplicar semana copia a +7 días como pendientes, sin nota ni envío a Garmin', () => {
+    const plan = newPlan();
+    saveWorkout(plan.id, { date: '2026-09-22', type: 'Series', status: 'done', coach_note: 'ok', garmin_workout_id: 9, status_manual: true });
+    saveWorkout(plan.id, { date: '2026-09-27', type: 'Tirada larga', distance_km: 18 });
+    saveWorkout(plan.id, { date: '2026-09-29', type: 'Rodaje' }); // fuera de la semana
+    expect(duplicateWeek(plan.id, '2026-09-21')).toBe(2);
+    const copies = getTrainingPlans()[0].workouts.filter((w) => w.date === '2026-09-29' || w.date === '2026-10-04');
+    expect(copies).toHaveLength(3);
+    const series = copies.find((w) => w.type === 'Series');
+    expect(series).toMatchObject({ date: '2026-09-29', status: 'planned' });
+    expect(series.coach_note).toBeUndefined();
+    expect(series.garmin_workout_id).toBeUndefined();
+    expect(series.status_manual).toBeUndefined();
+    expect(copies.find((w) => w.type === 'Tirada larga')).toMatchObject({ date: '2026-10-04', distance_km: 18 });
+  });
+
+  it('duplicar una semana vacía no escribe nada', () => {
+    const plan = newPlan();
+    expect(duplicateWeek(plan.id, '2026-09-21')).toBe(0);
+  });
+
+  it('syncPlanStatuses marca hechos los entrenos ya corridos', () => {
+    const plan = newPlan();
+    saveWorkout(plan.id, { date: '2026-09-22', type: 'Rodaje' });
+    saveWorkout(plan.id, { date: '2026-09-23', type: 'Rodaje', status: 'planned', status_manual: true });
+    const runs = ['2026-09-22', '2026-09-23'].map((d) => ({
+      id: d, type: 'Run', start_date_local: `${d}T08:00:00Z`, distance: 10000, moving_time: 3000,
+    }));
+    expect(syncPlanStatuses(runs, '2026-09-24')).toBe(1);
+    const [a, b] = getTrainingPlans()[0].workouts;
+    expect(a.status).toBe('done');
+    expect(b.status).toBe('planned');
+    // Idempotente: una segunda pasada no reescribe.
+    expect(syncPlanStatuses(runs, '2026-09-24')).toBe(0);
   });
 });

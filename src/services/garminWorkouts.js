@@ -8,16 +8,32 @@
 import { authHeaders } from './ai';
 import { nextDateForDay } from '../lib/planSchedule';
 
-/** Un día del plan → payload del endpoint (con la fecha en la que agendarlo). */
+/**
+ * Un día del plan → payload del endpoint (con la fecha en la que agendarlo). Los
+ * entrenos de los planes de entrenamiento traen ya su `date` exacta; el plan
+ * semanal del Entrenador IA solo el día de la semana.
+ */
 function toPayloadDay(day) {
   return {
     day: day?.day ?? null,
     type: day?.type ?? null,
     summary: day?.summary ?? null,
     structured_workout: day?.structured_workout ?? null,
-    date: nextDateForDay(day?.day),
-    name: [day?.type, day?.day].filter(Boolean).join(' - ') || 'Sesión RunAnalyzer',
+    date: day?.date ?? nextDateForDay(day?.day),
+    name: [day?.type, day?.date ?? day?.day].filter(Boolean).join(' - ') || 'Sesión RunAnalyzer',
   };
+}
+
+/** Borra de Garmin un entreno enviado antes (para reenviarlo sin duplicarlo). */
+export async function deleteGarminWorkout(workoutId, { signal } = {}) {
+  const res = await fetch(`/api/garmin/workouts?workout_id=${encodeURIComponent(workoutId)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status} al borrar el entreno en Garmin.`);
+  return data;
 }
 
 /**
