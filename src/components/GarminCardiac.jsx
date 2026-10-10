@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import cloudStorage from '../lib/cloudStorage';
 import {
   readCardiac, readSleep, readGarminCreds, LAST_SYNC_KEY, SYNC_COMPLETE_EVENT,
@@ -203,30 +202,16 @@ export default function GarminCardiac({ onOpenConnections }) {
   const [sleepData, setSleepData] = useState(() => nonEmpty(readSleep()));
 
   // UI state
-  // `?focus=hrv|rhr|bb` (desde las tarjetas de la portada): abre el gráfico de
-  // tendencias ya ampliado y solo con esa métrica encendida.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [focus] = useState(() => {
-    const f = searchParams.get('focus');
-    return ['hrv', 'rhr', 'bb'].includes(f) ? f : null;
-  });
-  const [showHRV, setShowHRV] = useState(focus == null || focus === 'hrv');
-  const [showHR, setShowHR] = useState(focus == null || focus === 'rhr');
-  const [showBBHigh, setShowBBHigh] = useState(focus === 'bb');
-  const [showBBLow, setShowBBLow] = useState(focus === 'bb');
+  const [showHRV, setShowHRV] = useState(true);
+  const [showHR, setShowHR] = useState(true);
+  const [showBBHigh, setShowBBHigh] = useState(false);
+  const [showBBLow, setShowBBLow] = useState(false);
   const [showSleep, setShowSleep] = useState(false);
   const [showReadiness, setShowReadiness] = useState(false);
   const [showBaseline, setShowBaseline] = useState(false);
   const [normalizeChart, setNormalizeChart] = useState(true);
   const [chartGranularity, setChartGranularity] = useState('day'); // changed default to day for better readiness view
-  const [expanded, setExpandedState] = useState(focus ? 'trends' : null); // gráfico abierto en modal ('trends' | 'adaptation')
-  // Al cerrar el modal se quita el `focus` de la URL: recargar o volver atrás no lo reabre.
-  const setExpanded = (v) => {
-    setExpandedState(v);
-    if (!v && searchParams.has('focus')) {
-      setSearchParams((sp) => { sp.delete('focus'); return sp; }, { replace: true });
-    }
-  };
+  const [expanded, setExpanded] = useState(null); // gráfico abierto en modal ('trends' | 'adaptation')
   const [lastSync, setLastSync] = useState(() => cloudStorage.getItem(LAST_SYNC_KEY) || null);
   // "Ahora" estable por montaje: leer el reloj en cada render mete y saca el
   // mismo día de las ventanas de 7/21/365 días según cuántas veces se repinte.

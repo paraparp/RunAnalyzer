@@ -1034,7 +1034,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
           <div className="xl:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-2 content-center">
             <HeroSignal
               icon="monitor_heart"
-              onClick={() => onNavigate('health/resumen?focus=hrv')}
+              onClick={() => onNavigate('health/resumen?m=hrv')}
               label="VFC"
               value={wearables.hrv?.latest != null ? Math.round(wearables.hrv.latest) : DASH}
               unit="ms"
@@ -1044,7 +1044,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="favorite"
-              onClick={() => onNavigate('health/resumen?focus=rhr')}
+              onClick={() => onNavigate('health/resumen?m=rhr')}
               label="FC reposo"
               value={wearables.rhr ? Math.round(wearables.rhr.r7) : DASH}
               unit="ppm"
@@ -1054,7 +1054,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="bedtime"
-              onClick={() => onNavigate('health/sueno?focus=sleep')}
+              onClick={() => onNavigate('health/resumen?m=sleep')}
               label="Sueño"
               value={wearables.sleep?.score ?? DASH}
               unit="/100"
@@ -1066,7 +1066,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             />
             <HeroSignal
               icon="battery_charging_full"
-              onClick={() => onNavigate('health/cardiaco?focus=bb')}
+              onClick={() => onNavigate('health/resumen?m=bb')}
               label="Body Battery"
               value={wearables.bb?.high ?? DASH}
               unit="/100"
