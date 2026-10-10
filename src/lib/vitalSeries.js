@@ -28,6 +28,10 @@ export const ACCENTS = {
   indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
   orange: { stroke: COLORS.elevated, fill: "rgba(249,115,22,0.10)", chip: "bg-orange-50 text-orange-600", icon: "bg-orange-50 text-orange-500" },
   cyan: { stroke: COLORS.seriesCyan, fill: "rgba(8,145,178,0.10)", chip: "bg-cyan-50 text-cyan-600", icon: "bg-cyan-50 text-cyan-500" },
+  blue: { stroke: COLORS.signal, fill: "rgba(37,99,235,0.10)", chip: "bg-blue-50 text-blue-600", icon: "bg-blue-50 text-blue-500" },
+  fuchsia: { stroke: "#d946ef", fill: "rgba(217,70,239,0.10)", chip: "bg-fuchsia-50 text-fuchsia-600", icon: "bg-fuchsia-50 text-fuchsia-500" },
+  lime: { stroke: "#65a30d", fill: "rgba(101,163,13,0.10)", chip: "bg-lime-50 text-lime-700", icon: "bg-lime-50 text-lime-600" },
+  teal: { stroke: "#14b8a6", fill: "rgba(20,184,166,0.10)", chip: "bg-teal-50 text-teal-600", icon: "bg-teal-50 text-teal-500" },
   slate: { stroke: COLORS.inkSecondary, fill: "rgba(71,85,105,0.10)", chip: "bg-slate-100 text-slate-600", icon: "bg-slate-100 text-slate-500" },
 };
 
@@ -192,12 +196,13 @@ const tsOf = (iso) => new Date(iso).getTime();
  * @param {Array}  p.garmin      filas diarias de Garmin `{ date, hrv, restingHR, bbHigh, bbLow }`
  * @param {Array}  [p.sleep]     semanas de sueño `{ weekStart, score, durationMin }`
  * @param {Array}  [p.weights]   pesadas `{ date, weight_kg }`
+ * @param {Array}  [p.pmc]       serie diaria del PMC calibrado `{ date, load, ctl, atl, tsb }`
  * @param {Array}  p.activities  carreras (para VO₂max submáximo y eficiencia)
  * @returns {{ metrics: Array, goodBands: Array, effThreshold: number|null, cutoff: number }}
  *   `metrics` = [{ key, title, accent, unit, decimals, invertY, data, history }]
  */
 export function buildVitalMetrics({
-  garmin = [], sleep = [], weights = [], activities = [],
+  garmin = [], sleep = [], weights = [], pmc = [], activities = [],
   days, gran, gapAdjust = false, hrmax, hrrest, nowMs,
 }) {
   const cutoff = nowMs - days * MS_DAY;
@@ -210,10 +215,12 @@ export function buildVitalMetrics({
   // Serie del período + extremos del histórico completo (misma granularidad y suavizado).
   // `sparse`: datos de baja frecuencia (sueño semanal) — en diario la media solo
   // se pinta donde hay dato y la línea los une, en vez de escalones de 7 días.
-  const build = (allPts, smoothWindow, dec, { sparse = false } = {}) => {
+  // `noRaw`: series ya suavizadas (CTL/ATL/TSB) — sin puntos diarios encima.
+  const build = (allPts, smoothWindow, dec, { sparse = false, noRaw = false } = {}) => {
     const sorted = [...allPts].sort((a, b) => a.ms - b.ms);
     const make = (pts) => {
       const out = series(pts, smoothWindow, dec);
+      if (noRaw) return out.map((d) => ({ ...d, raw: null }));
       return sparse && isDay ? out.map((d) => (d.raw == null ? { ...d, smooth: null } : d)) : out;
     };
     return {
@@ -243,6 +250,18 @@ export function buildVitalMetrics({
   const weight = build(
     weights.filter((w) => w.weight_kg != null).map((w) => ({ ms: tsOf(w.date), v: w.weight_kg })), 7, 1,
   );
+
+  // ── Carga de entrenamiento (PMC calibrado, el único CTL de la app) ──
+  // CTL/ATL/TSB ya son medias exponenciales: ventana 0 = se pintan tal cual.
+  // La carga diaria incluye los días de descanso (carga 0) para que su media de
+  // 7 días sea la carga media real de la semana.
+  const pmcPts = (field) => pmc
+    .filter((d) => d[field] != null)
+    .map((d) => ({ ms: tsOf(`${d.date}T00:00:00`), v: d[field] }));
+  const load = build(pmcPts("load"), 7, 0);
+  const ctl = build(pmcPts("ctl"), 0, 1, { noRaw: true });
+  const atl = build(pmcPts("atl"), 0, 1, { noRaw: true });
+  const tsb = build(pmcPts("tsb"), 0, 1, { noRaw: true });
 
   // ── VO₂max submáximo (proxy de eficiencia) desde los runs de Strava ──
   // FCmax / FCreposo vienen de useHrParams (detectMaxHR / detectRestHR), no de
@@ -282,6 +301,10 @@ export function buildVitalMetrics({
     { key: "sleep", title: "Sueño", accent: "indigo", unit: "/100", decimals: 0, invertY: false, ...sleepScore },
     { key: "sleepHours", title: "Horas de sueño", accent: "cyan", unit: "h", decimals: 1, invertY: false, ...sleepHours },
     { key: "weight", title: "Peso", accent: "slate", unit: "kg", decimals: 1, invertY: false, ...weight },
+    { key: "load", title: "Carga diaria", accent: "teal", unit: "TSS", decimals: 0, invertY: false, ...load },
+    { key: "ctl", title: "Forma (CTL)", accent: "blue", unit: "", decimals: 1, invertY: false, ...ctl },
+    { key: "atl", title: "Fatiga (ATL)", accent: "fuchsia", unit: "", decimals: 1, invertY: false, ...atl },
+    { key: "tsb", title: "Frescura (TSB)", accent: "lime", unit: "", decimals: 1, invertY: false, ...tsb },
     { key: "vo2", title: "VO₂max sub.", accent: "violet", unit: "ml/kg/min", decimals: 0, invertY: false, ...vo2 },
     { key: "eff", title: "Eficiencia", accent: "sky", unit: "m/latido", decimals: 2, invertY: false, ...eff },
   ];

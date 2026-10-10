@@ -202,7 +202,8 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
 // peso) y se comparan. `?m=<métrica>` lo abre directamente (tarjetas de Today).
 const PANEL_KEYS = ["hrv", "rhr", "vo2", "eff"];
 
-export default function VitalsOverview({ activities = [] }) {
+// `allActivities` (cruzado incluido) alimenta la carga, como en la pestaña PMC.
+export default function VitalsOverview({ activities = [], allActivities }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const viewerKey = searchParams.get("m");
   const openViewer = (k) => setSearchParams((sp) => { sp.set("m", k); return sp; });
@@ -212,7 +213,7 @@ export default function VitalsOverview({ activities = [] }) {
   const {
     metrics, goodBands, effThreshold, garmin, hasGarmin, domainFor,
     days, gran, setGran, gapAdjust, setGapAdjust, nowMs, xFmt, granLabel, avgLabel,
-  } = useVitalMetrics(activities, { withWeight: viewerKey != null });
+  } = useVitalMetrics(activities, { withWeight: viewerKey != null, loadActivities: allActivities });
 
   // Medias de 7/28 días y récords históricos de FC reposo y recuperación. Las
   // tarjetas de arriba cuentan la TENDENCIA; esto cuenta contra qué se compara.

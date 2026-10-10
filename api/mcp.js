@@ -18,6 +18,8 @@ import {
   getPersonalRecords, getBestEffortsProgression,
   getTrainingLoadModel, getHealthAlerts, detectThresholdTests, getTimeInZones,
   listTargetRaces, getTargetRace, upsertTargetRace, deleteTargetRace, setPrimaryTargetRace,
+  listTrainingPlans, getTrainingPlan, upsertTrainingPlan, deleteTrainingPlan,
+  upsertPlannedWorkout, deletePlannedWorkout,
   getCriticalSpeed, getRacePrediction,
 } from './_lib/mcp-store.js';
 import {
@@ -34,6 +36,7 @@ import { ensureFresh } from './_lib/mcp-sync.js';
 // Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
 // su `run(userId, args)` juntos, para que schema y handler no puedan desincronizarse.
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
+const WORKOUT_STATUSES = ['planned', 'done', 'skipped'];
 
 // Resultado de tool. NO emitimos `structuredContent` en el camino de éxito: la spec
 // obliga a mandar además el JSON serializado en `content`, así que el payload viaja
@@ -514,6 +517,97 @@ const TOOLS = [
     },
     run: (userId, args) => deleteTargetRace(userId, args.race_id).then(text),
   },
+  // ── Planes de entrenamiento (Supabase, entrenos persistidos POR FECHA) ────
+  // Distinto de upsert_target_race: aquí cada sesión tiene su fecha exacta y no
+  // caduca, y puede haber varios planes a la vez (p.ej. uno por carrera).
+  {
+    name: 'list_training_plans',
+    description: 'Lista los planes de entrenamiento del usuario (id, nombre, nº de entrenos). Puede haber varios planes a la vez. Usa include_workouts:true para traer también sus entrenos, o get_training_plan para uno concreto.',
+    inputSchema: {
+      type: 'object',
+      properties: { include_workouts: { type: 'boolean', description: 'Incluir los entrenos de cada plan (por defecto false)' } },
+    },
+    run: (userId, args) => listTrainingPlans(userId, args).then(text),
+  },
+  {
+    name: 'get_training_plan',
+    description: 'Lee un plan de entrenamiento concreto con TODOS sus entrenos (fecha, tipo, resumen, estado y, si lo tiene, la estructura detallada).',
+    inputSchema: {
+      type: 'object',
+      properties: { plan_id: { type: 'string' } },
+      required: ['plan_id'],
+    },
+    run: (userId, args) => getTrainingPlan(userId, args.plan_id).then(text),
+  },
+  {
+    name: 'upsert_training_plan',
+    description: 'Crea (sin plan_id) o renombra (con plan_id) un plan de entrenamiento. Los entrenos se gestionan aparte con upsert_planned_workout. Aparece en la sección "Planes de Entrenamiento" de la app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_id: { type: 'string', description: 'Id del plan a renombrar; omítelo para crear uno nuevo' },
+        name: { type: 'string', description: 'Nombre del plan (obligatorio al crear), p.ej. el nombre de la carrera objetivo' },
+      },
+    },
+    run: (userId, args) => upsertTrainingPlan(userId, args).then(text),
+  },
+  {
+    name: 'delete_training_plan',
+    description: 'Borra un plan de entrenamiento entero y TODOS sus entrenos por plan_id (usa list_training_plans para obtenerlo). Para borrar solo un entreno usa delete_planned_workout.',
+    inputSchema: {
+      type: 'object',
+      properties: { plan_id: { type: 'string' } },
+      required: ['plan_id'],
+    },
+    run: (userId, args) => deleteTrainingPlan(userId, args.plan_id).then(text),
+  },
+  {
+    name: 'upsert_planned_workout',
+    description: 'Crea (sin workout_id) o edita (con workout_id) un entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados. `structured_workout` es opcional y sigue el mismo formato que usa el planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`. Se guarda en Supabase y aparece en la app al momento.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_id: { type: 'string', description: 'Id del plan donde vive (o va a vivir) el entreno' },
+        workout_id: { type: 'string', description: 'Id del entreno a editar; omítelo para crear uno nuevo' },
+        date: { ...dateArg, description: 'Fecha exacta YYYY-MM-DD del entreno (obligatoria al crear)' },
+        type: { type: 'string', description: 'Tipo de sesión, p.ej. "Series", "Rodaje suave", "Tirada larga" (obligatorio al crear)' },
+        summary: { type: 'string', description: 'Resumen en texto libre de en qué consiste la sesión' },
+        status: { type: 'string', enum: WORKOUT_STATUSES, description: 'planned (por defecto) | done | skipped' },
+        structured_workout: {
+          type: 'array',
+          description: 'Estructura detallada por fases, opcional (calentamiento/series/vuelta a la calma...)',
+          items: {
+            type: 'object',
+            properties: {
+              phase: { type: 'string' },
+              duration_min: { type: 'number' },
+              reps: { type: 'number' },
+              pace: { type: 'string' },
+              hr: { type: 'string' },
+              recovery: { type: 'string' },
+              description: { type: 'string' },
+              intensity: { type: 'number', description: '1 (muy suave) a 5 (máxima)' },
+            },
+          },
+        },
+      },
+      required: ['plan_id'],
+    },
+    run: (userId, args) => upsertPlannedWorkout(userId, args).then(text),
+  },
+  {
+    name: 'delete_planned_workout',
+    description: 'Borra un entreno de un plan de entrenamiento por plan_id + workout_id (usa get_training_plan para obtenerlos).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_id: { type: 'string' },
+        workout_id: { type: 'string' },
+      },
+      required: ['plan_id', 'workout_id'],
+    },
+    run: (userId, args) => deletePlannedWorkout(userId, args.plan_id, args.workout_id).then(text),
+  },
   // ── Buzón de incidencias (canal discreto agente → mantenedor) ─────────────
   // No aparece en las `instructions` del servidor a propósito: es para avisar de
   // un problema encontrado analizando, no una tool de análisis más.
@@ -642,6 +736,9 @@ const TITLES = {
   list_target_races: 'Listar carreras objetivo', get_target_race: 'Leer carrera objetivo',
   upsert_target_race: 'Crear/editar carrera y plan', delete_target_race: 'Borrar carrera objetivo',
   set_primary_target_race: 'Fijar objetivo principal',
+  list_training_plans: 'Listar planes de entrenamiento', get_training_plan: 'Leer plan de entrenamiento',
+  upsert_training_plan: 'Crear/renombrar plan', delete_training_plan: 'Borrar plan de entrenamiento',
+  upsert_planned_workout: 'Crear/editar entreno planificado', delete_planned_workout: 'Borrar entreno planificado',
   report_issue: 'Reportar incidencia', list_issues: 'Listar incidencias',
   delete_issue: 'Borrar incidencia',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
@@ -661,6 +758,11 @@ const ANNOTATIONS = {
   upsert_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   set_primary_target_race: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   delete_target_race: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  // Planes de entrenamiento: escriben en Supabase (nuestra propia BD), no en un sistema externo.
+  upsert_training_plan: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  delete_training_plan: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  upsert_planned_workout: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  delete_planned_workout: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   // Buzón de incidencias: escribe en nuestra BD, no toca datos del atleta.
   report_issue: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_issue: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },

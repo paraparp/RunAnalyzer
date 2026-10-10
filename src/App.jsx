@@ -29,6 +29,7 @@ const TargetRaces = lazy(() => import('./components/TargetRaces'));
 const RaceDetector = lazy(() => import('./components/RaceDetector'));
 const CriticalSpeed = lazy(() => import('./components/CriticalSpeed'));
 const TrainingPlanner = lazy(() => import('./components/TrainingPlanner'));
+const TrainingPlans = lazy(() => import('./components/TrainingPlans'));
 const RacePredictor = lazy(() => import('./components/RacePredictor'));
 const FitnessHub = lazy(() => import('./components/FitnessHub'));
 const HealthHub = lazy(() => import('./components/HealthHub'));
@@ -107,6 +108,7 @@ const NAV_ITEMS = [
   { id: 'racehistory', icon: ClockIcon },
   { id: 'criticalspeed', icon: BoltIcon },
   { id: 'planner', icon: SparklesIcon },
+  { id: 'trainingplans', icon: CalendarDaysIcon },
   { id: 'predictor', icon: ArrowTrendingUpIcon },
   { id: 'fitness', icon: BeakerIcon },
   { id: 'health', icon: HeartIcon },
@@ -137,7 +139,7 @@ const NAV_CATEGORIES = [
   // (la tendencia: respuesta cardíaca, técnica, vitales). Son los dos ejes en
   // los que las fases 3-5 van a fundir estos seis ítems.
   { id: 'engine', icon: BeakerIcon, itemIds: ['criticalspeed', 'fitness', 'zones', 'hranalysis', 'technique', 'health'] },
-  { id: 'racing', icon: TrophyIcon, itemIds: ['targets', 'planner', 'predictor', 'racehistory'] },
+  { id: 'racing', icon: TrophyIcon, itemIds: ['targets', 'planner', 'trainingplans', 'predictor', 'racehistory'] },
   { id: 'settings', icon: Cog6ToothIcon, itemIds: ['calibration', 'connections', 'export'] },
 ];
 
@@ -674,9 +676,10 @@ const Dashboard = ({ user, handleLogout }) => {
                 racehistory: <RaceDetector activities={runningActivities} />,
                 criticalspeed: <CriticalSpeed activities={runningActivities} />,
                 planner:     <TrainingPlanner activities={runningActivities} />,
+                trainingplans: <TrainingPlans />,
                 predictor:   <RacePredictor activities={runningActivities} />,
                 fitness:     <FitnessHub activities={runningActivities} />,
-                health:      <HealthHub key={routeId} tab={routeId} activities={runningActivities} onOpenConnections={() => setCurrentView('connections')} />,
+                health:      <HealthHub key={routeId} tab={routeId} activities={runningActivities} allActivities={allActivities} onOpenConnections={() => setCurrentView('connections')} />,
                 export:      <DataExporter activities={allActivities} onEnrichActivity={handleFetchDetails} />,
                 calibration: <HrCalibration hrParams={hrParams} />,
                 connections: <Connections stravaData={stravaData} onConnectStrava={connectToStrava} />,

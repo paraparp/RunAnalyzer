@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-07T13:06:21.439Z",
         "reason": "DESIGN.md (Navigation > Active; Don'ts) sanctions the 4px right-edge indicator on the active sidebar category as the one established exception"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/components/TrainingPlans.jsx"
+        ],
+        "createdAt": "2026-10-10T09:27:39.826Z",
+        "reason": "icon-only action buttons: transparent at rest, hover pairs text+bg tint together, same pattern as existing TargetRaces.jsx RaceCard buttons"
       }
     ]
   }

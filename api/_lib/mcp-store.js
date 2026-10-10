@@ -2255,6 +2255,126 @@ export async function deleteTargetRace(userId, raceId) {
   return { ok: true, deleted: String(raceId), remaining: next.length };
 }
 
+// ── Planes de entrenamiento (Supabase, mismo dato que la app) ──────────────
+// A diferencia de target_races (plan = texto libre) o del plan semanal del
+// Entrenador IA (plantilla por día de la semana que caduca a los 7 días), aquí
+// cada entreno lleva su fecha exacta YYYY-MM-DD y no caduca. Puede haber varios
+// planes a la vez. Mismo almacén y mismo dato que lee/escribe src/lib/trainingPlans.
+const TRAINING_PLANS_KEY = 'training_plans';
+const WORKOUT_STATUSES = ['planned', 'done', 'skipped'];
+
+async function readTrainingPlans(userId) {
+  const list = await readKeyFresh(userId, TRAINING_PLANS_KEY);
+  return Array.isArray(list) ? list : [];
+}
+
+function shapeWorkout(w) {
+  return {
+    id: w.id,
+    date: w.date || null,
+    type: w.type || null,
+    summary: w.summary || null,
+    status: WORKOUT_STATUSES.includes(w.status) ? w.status : 'planned',
+    structured_workout: Array.isArray(w.structured_workout) ? w.structured_workout : null,
+  };
+}
+
+function shapePlan(p, { include_workouts = true } = {}) {
+  const workouts = Array.isArray(p.workouts)
+    ? [...p.workouts].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+    : [];
+  return {
+    id: p.id,
+    name: p.name ?? null,
+    workout_count: workouts.length,
+    ...(include_workouts ? { workouts: workouts.map(shapeWorkout) } : {}),
+  };
+}
+
+/** Lista los planes de entrenamiento del usuario. Sin entrenos por defecto (pueden ser muchos). */
+export async function listTrainingPlans(userId, { include_workouts = false } = {}) {
+  const list = await readTrainingPlans(userId);
+  return { count: list.length, plans: list.map((p) => shapePlan(p, { include_workouts })) };
+}
+
+/** Un plan concreto con todos sus entrenos. */
+export async function getTrainingPlan(userId, planId) {
+  const list = await readTrainingPlans(userId);
+  const plan = list.find((p) => String(p.id) === String(planId));
+  if (!plan) return { error: `No existe el plan "${planId}"` };
+  return shapePlan(plan, { include_workouts: true });
+}
+
+/** Crea (sin plan_id) o renombra (con plan_id) un plan de entrenamiento. */
+export async function upsertTrainingPlan(userId, { plan_id, name } = {}) {
+  const list = await readTrainingPlans(userId);
+  const idx = plan_id ? list.findIndex((p) => String(p.id) === String(plan_id)) : -1;
+  if (plan_id && idx < 0) return { error: `No existe el plan "${plan_id}"` };
+  if (!plan_id && !name) return { error: 'Falta `name` para crear un plan' };
+  const plan = {
+    ...(idx >= 0 ? list[idx] : { id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()), workouts: [] }),
+    ...(name !== undefined ? { name } : {}),
+  };
+  if (idx >= 0) list[idx] = plan; else list.push(plan);
+  await writeKey(userId, TRAINING_PLANS_KEY, list);
+  return { ok: true, created: idx < 0, plan: shapePlan(plan, { include_workouts: false }) };
+}
+
+/** Borra un plan de entrenamiento entero (y todos sus entrenos) por id. */
+export async function deleteTrainingPlan(userId, planId) {
+  const list = await readTrainingPlans(userId);
+  const next = list.filter((p) => String(p.id) !== String(planId));
+  if (next.length === list.length) return { error: `No existe el plan "${planId}"` };
+  await writeKey(userId, TRAINING_PLANS_KEY, next);
+  return { ok: true, deleted: String(planId), remaining: next.length };
+}
+
+/**
+ * Crea o edita un entreno planificado dentro de un plan, por fecha. Sin
+ * `workout_id` crea uno nuevo (`date` y `type` obligatorios); con él hace MERGE
+ * parcial, igual que upsert_target_race. `structured_workout` sigue el mismo
+ * formato que el planificador IA de la app (fases con duration_min/pace/hr/
+ * reps/recovery/description), opcional.
+ */
+export async function upsertPlannedWorkout(userId, {
+  plan_id, workout_id, date, type, summary, status, structured_workout,
+} = {}) {
+  const list = await readTrainingPlans(userId);
+  const plan = list.find((p) => String(p.id) === String(plan_id));
+  if (!plan) return { error: `No existe el plan "${plan_id}"` };
+  if (!Array.isArray(plan.workouts)) plan.workouts = [];
+  const idx = workout_id ? plan.workouts.findIndex((w) => String(w.id) === String(workout_id)) : -1;
+  if (workout_id && idx < 0) return { error: `No existe el entreno "${workout_id}" en el plan "${plan_id}"` };
+  if (!workout_id && (!date || !type)) return { error: 'Faltan `date` y `type` para crear un entreno' };
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date debe tener formato YYYY-MM-DD' };
+  if (status && !WORKOUT_STATUSES.includes(status)) return { error: `status debe ser una de: ${WORKOUT_STATUSES.join(', ')}` };
+
+  const workout = {
+    ...(idx >= 0 ? plan.workouts[idx] : { id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()), status: 'planned' }),
+    ...(date !== undefined ? { date } : {}),
+    ...(type !== undefined ? { type } : {}),
+    ...(summary !== undefined ? { summary } : {}),
+    ...(status !== undefined ? { status } : {}),
+    ...(structured_workout !== undefined ? { structured_workout } : {}),
+  };
+  if (idx >= 0) plan.workouts[idx] = workout; else plan.workouts.push(workout);
+
+  await writeKey(userId, TRAINING_PLANS_KEY, list);
+  return { ok: true, created: idx < 0, plan_id: plan.id, workout: shapeWorkout(workout) };
+}
+
+/** Borra un entreno planificado de un plan por id. */
+export async function deletePlannedWorkout(userId, planId, workoutId) {
+  const list = await readTrainingPlans(userId);
+  const plan = list.find((p) => String(p.id) === String(planId));
+  if (!plan) return { error: `No existe el plan "${planId}"` };
+  const before = (plan.workouts || []).length;
+  plan.workouts = (plan.workouts || []).filter((w) => String(w.id) !== String(workoutId));
+  if (plan.workouts.length === before) return { error: `No existe el entreno "${workoutId}" en el plan "${planId}"` };
+  await writeKey(userId, TRAINING_PLANS_KEY, list);
+  return { ok: true, deleted: String(workoutId), remaining: plan.workouts.length };
+}
+
 // ── Velocidad crítica ───────────────────────────────────────────────────────
 // El modelo vive ENTERO en src/lib/criticalSpeed.js (curva mean-max + ajuste de
 // dos parámetros d = CS·t + D′), compartido con la UI para que la tool y la

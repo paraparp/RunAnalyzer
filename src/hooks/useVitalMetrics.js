@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import useHrParams from './useHrParams';
+import useCalibratedPMC from './useCalibratedPMC';
 import useTimeScope from './useTimeScope';
 import { scopeDays } from '../lib/timeScope';
 import { readCardiac, readSleep, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
@@ -19,8 +20,10 @@ const WEIGHT_DAYS = 1825;
  * @param {Array}   activities  carreras (VO₂max submáximo y eficiencia)
  * @param {object}  [opts]
  * @param {boolean} [opts.withWeight] pedir el peso a Garmin (llamada en vivo)
+ * @param {Array}   [opts.loadActivities] actividades para la carga (todas, con
+ *   cruzado, como la pestaña PMC); por defecto `activities`
  */
-export default function useVitalMetrics(activities, { withWeight = false } = {}) {
+export default function useVitalMetrics(activities, { withWeight = false, loadActivities } = {}) {
   // "Todo" no tiene días: se usa un tope que cubre cualquier histórico.
   const [scope] = useTimeScope();
   const days = scopeDays(scope) ?? 99999;
@@ -57,9 +60,13 @@ export default function useVitalMetrics(activities, { withWeight = false } = {})
   // manual → detección → fórmula), para que el VO₂max cuadre con su pestaña.
   const { hrmax, hrrest } = useHrParams(activities);
 
+  // Carga: el PMC calibrado compartido (mismo CTL que la pestaña PMC y el coach).
+  const { pmc } = useCalibratedPMC(loadActivities ?? activities);
+  const pmcSeries = pmc?.series;
+
   const built = useMemo(
-    () => buildVitalMetrics({ garmin, sleep, weights, activities, days, gran, gapAdjust, hrmax, hrrest, nowMs }),
-    [garmin, sleep, weights, activities, days, gran, gapAdjust, hrmax, hrrest, nowMs],
+    () => buildVitalMetrics({ garmin, sleep, weights, pmc: pmcSeries ?? [], activities, days, gran, gapAdjust, hrmax, hrrest, nowMs }),
+    [garmin, sleep, weights, pmcSeries, activities, days, gran, gapAdjust, hrmax, hrrest, nowMs],
   );
 
   return {
