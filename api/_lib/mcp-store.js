@@ -2275,49 +2275,68 @@ function shapeWorkout(w) {
     type: w.type || null,
     summary: w.summary || null,
     status: WORKOUT_STATUSES.includes(w.status) ? w.status : 'planned',
+    distance_km: Number.isFinite(w.distance_km) ? w.distance_km : null,
+    duration_min: Number.isFinite(w.duration_min) ? w.duration_min : null,
+    coach_note: w.coach_note || null,
     structured_workout: Array.isArray(w.structured_workout) ? w.structured_workout : null,
   };
 }
 
-function shapePlan(p, { include_workouts = true } = {}) {
+// `races` resuelve el raceId a nombre/fecha para que el modelo no tenga que
+// cruzarlo a mano con list_target_races. Un raceId huérfano (carrera borrada)
+// sale con race: null, no como error.
+function shapePlan(p, { include_workouts = true, races = [] } = {}) {
   const workouts = Array.isArray(p.workouts)
     ? [...p.workouts].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
     : [];
+  const race = p.raceId ? races.find((r) => String(r.id) === String(p.raceId)) : null;
   return {
     id: p.id,
     name: p.name ?? null,
+    race_id: race ? race.id : null,
+    race: race ? { name: race.name ?? null, date: race.date || null, distance: race.distance ?? null, days_until: daysUntil(race.date) } : null,
     workout_count: workouts.length,
+    done_count: workouts.filter((w) => w.status === 'done').length,
+    first_date: workouts[0]?.date || null,
+    last_date: workouts[workouts.length - 1]?.date || null,
     ...(include_workouts ? { workouts: workouts.map(shapeWorkout) } : {}),
   };
 }
 
 /** Lista los planes de entrenamiento del usuario. Sin entrenos por defecto (pueden ser muchos). */
 export async function listTrainingPlans(userId, { include_workouts = false } = {}) {
-  const list = await readTrainingPlans(userId);
-  return { count: list.length, plans: list.map((p) => shapePlan(p, { include_workouts })) };
+  const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
+  return { count: list.length, plans: list.map((p) => shapePlan(p, { include_workouts, races })) };
 }
 
 /** Un plan concreto con todos sus entrenos. */
 export async function getTrainingPlan(userId, planId) {
-  const list = await readTrainingPlans(userId);
+  const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
   const plan = list.find((p) => String(p.id) === String(planId));
   if (!plan) return { error: `No existe el plan "${planId}"` };
-  return shapePlan(plan, { include_workouts: true });
+  return shapePlan(plan, { include_workouts: true, races });
 }
 
-/** Crea (sin plan_id) o renombra (con plan_id) un plan de entrenamiento. */
-export async function upsertTrainingPlan(userId, { plan_id, name } = {}) {
-  const list = await readTrainingPlans(userId);
+/**
+ * Crea (sin plan_id) o edita (con plan_id) un plan de entrenamiento. `race_id`
+ * lo vincula a una carrera objetivo; null lo desvincula; omitido no lo toca.
+ */
+export async function upsertTrainingPlan(userId, { plan_id, name, race_id } = {}) {
+  const [list, races] = await Promise.all([readTrainingPlans(userId), readTargetRaces(userId)]);
   const idx = plan_id ? list.findIndex((p) => String(p.id) === String(plan_id)) : -1;
   if (plan_id && idx < 0) return { error: `No existe el plan "${plan_id}"` };
   if (!plan_id && !name) return { error: 'Falta `name` para crear un plan' };
+  if (race_id != null && !races.some((r) => String(r.id) === String(race_id))) {
+    return { error: `No existe la carrera objetivo "${race_id}" (usa list_target_races)` };
+  }
   const plan = {
     ...(idx >= 0 ? list[idx] : { id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()), workouts: [] }),
     ...(name !== undefined ? { name } : {}),
+    ...(race_id !== undefined ? { raceId: race_id } : {}),
   };
   if (idx >= 0) list[idx] = plan; else list.push(plan);
   await writeKey(userId, TRAINING_PLANS_KEY, list);
-  return { ok: true, created: idx < 0, plan: shapePlan(plan, { include_workouts: false }) };
+  return { ok: true, created: idx < 0, plan: shapePlan(plan, { include_workouts: false, races }) };
 }
 
 /** Borra un plan de entrenamiento entero (y todos sus entrenos) por id. */
@@ -2338,6 +2357,7 @@ export async function deleteTrainingPlan(userId, planId) {
  */
 export async function upsertPlannedWorkout(userId, {
   plan_id, workout_id, date, type, summary, status, structured_workout,
+  distance_km, duration_min, coach_note,
 } = {}) {
   const list = await readTrainingPlans(userId);
   const plan = list.find((p) => String(p.id) === String(plan_id));
@@ -2348,16 +2368,31 @@ export async function upsertPlannedWorkout(userId, {
   if (!workout_id && (!date || !type)) return { error: 'Faltan `date` y `type` para crear un entreno' };
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date debe tener formato YYYY-MM-DD' };
   if (status && !WORKOUT_STATUSES.includes(status)) return { error: `status debe ser una de: ${WORKOUT_STATUSES.join(', ')}` };
+  for (const [k, v] of [['distance_km', distance_km], ['duration_min', duration_min]]) {
+    if (v != null && !(Number.isFinite(v) && v >= 0)) return { error: `${k} debe ser un número >= 0 (null para borrarlo)` };
+  }
+  if (structured_workout != null && !Array.isArray(structured_workout)) {
+    return { error: 'structured_workout debe ser una lista de fases (null para borrarla)' };
+  }
 
+  // null borra el campo opcional; undefined (omitido) no lo toca.
+  const setOpt = (obj, key, v) => {
+    if (v === undefined) return;
+    if (v === null || v === '') delete obj[key]; else obj[key] = v;
+  };
   const workout = {
     ...(idx >= 0 ? plan.workouts[idx] : { id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()), status: 'planned' }),
     ...(date !== undefined ? { date } : {}),
     ...(type !== undefined ? { type } : {}),
-    ...(summary !== undefined ? { summary } : {}),
     ...(status !== undefined ? { status } : {}),
-    ...(structured_workout !== undefined ? { structured_workout } : {}),
   };
+  setOpt(workout, 'summary', summary);
+  setOpt(workout, 'distance_km', distance_km);
+  setOpt(workout, 'duration_min', duration_min);
+  setOpt(workout, 'coach_note', coach_note);
+  setOpt(workout, 'structured_workout', structured_workout);
   if (idx >= 0) plan.workouts[idx] = workout; else plan.workouts.push(workout);
+  plan.workouts.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 
   await writeKey(userId, TRAINING_PLANS_KEY, list);
   return { ok: true, created: idx < 0, plan_id: plan.id, workout: shapeWorkout(workout) };

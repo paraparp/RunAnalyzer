@@ -541,12 +541,13 @@ const TOOLS = [
   },
   {
     name: 'upsert_training_plan',
-    description: 'Crea (sin plan_id) o renombra (con plan_id) un plan de entrenamiento. Los entrenos se gestionan aparte con upsert_planned_workout. Aparece en la sección "Planes de Entrenamiento" de la app.',
+    description: 'Crea (sin plan_id) o edita (con plan_id) un plan de entrenamiento: nombre y carrera objetivo vinculada. Los entrenos se gestionan aparte con upsert_planned_workout. Edición parcial: solo se tocan los campos enviados. Aparece en la sección "Planes de Entrenamiento" de la app.',
     inputSchema: {
       type: 'object',
       properties: {
-        plan_id: { type: 'string', description: 'Id del plan a renombrar; omítelo para crear uno nuevo' },
+        plan_id: { type: 'string', description: 'Id del plan a editar; omítelo para crear uno nuevo' },
         name: { type: 'string', description: 'Nombre del plan (obligatorio al crear), p.ej. el nombre de la carrera objetivo' },
+        race_id: { type: ['string', 'null'], description: 'Id de la carrera objetivo hacia la que va el plan (de list_target_races); null lo desvincula' },
       },
     },
     run: (userId, args) => upsertTrainingPlan(userId, args).then(text),
@@ -563,7 +564,7 @@ const TOOLS = [
   },
   {
     name: 'upsert_planned_workout',
-    description: 'Crea (sin workout_id) o edita (con workout_id) un entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados. `structured_workout` es opcional y sigue el mismo formato que usa el planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`. Se guarda en Supabase y aparece en la app al momento.',
+    description: 'Crea (sin workout_id) o edita (con workout_id) un entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados; en los opcionales, null los borra. Tras la sesión, marca `status` (done/skipped) y deja en `coach_note` la valoración de cómo fue frente a lo planificado (contrástalo con la actividad real de ese día vía list_activities). `structured_workout` es opcional y sigue el mismo formato que usa el planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`. Se guarda en Supabase y aparece en la app.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -571,10 +572,13 @@ const TOOLS = [
         workout_id: { type: 'string', description: 'Id del entreno a editar; omítelo para crear uno nuevo' },
         date: { ...dateArg, description: 'Fecha exacta YYYY-MM-DD del entreno (obligatoria al crear)' },
         type: { type: 'string', description: 'Tipo de sesión, p.ej. "Series", "Rodaje suave", "Tirada larga" (obligatorio al crear)' },
-        summary: { type: 'string', description: 'Resumen en texto libre de en qué consiste la sesión' },
+        summary: { type: ['string', 'null'], description: 'Resumen en texto libre de en qué consiste la sesión' },
         status: { type: 'string', enum: WORKOUT_STATUSES, description: 'planned (por defecto) | done | skipped' },
+        distance_km: { type: ['number', 'null'], description: 'Distancia total prevista de la sesión en km (p.ej. una tirada larga de 18)' },
+        duration_min: { type: ['number', 'null'], description: 'Duración total prevista de la sesión en minutos' },
+        coach_note: { type: ['string', 'null'], description: 'Nota del coach: valoración de cómo fue la sesión real frente a lo planificado, ajustes para las siguientes...' },
         structured_workout: {
-          type: 'array',
+          type: ['array', 'null'],
           description: 'Estructura detallada por fases, opcional (calentamiento/series/vuelta a la calma...)',
           items: {
             type: 'object',
@@ -845,8 +849,10 @@ const INSTRUCTIONS = [
   'Dinámica: list_running_dynamics excluye por defecto los runs < 3 km (calentamientos sueltos que',
   'sesgan las medias); `min_distance_km: 0` los incluye.',
   'Objetivo: la carrera con `is_primary` es el OBJETIVO PRINCIPAL del atleta; basa planes,',
-  'predicciones y consejos en ella. Las carreras pasadas traen `result` (tiempo real vs objetivo).',
   'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
+  'Las carreras pasadas traen `result` (tiempo real vs objetivo).',
+  'Planes: las sesiones concretas con fecha van en los planes de entrenamiento (upsert_planned_workout),',
+  'no como texto en el `plan` de la carrera; vincula el plan a su carrera con `race_id`.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
   'Calor: si `weather.wbgt_plausible` es false, la unidad de la temperatura de origen venía mal',
   'etiquetada y no se puede recuperar: ignora el calor de esa sesión, no la penalización.',

@@ -11,9 +11,18 @@ import cloudStorage from './cloudStorage';
 // que el resto de datos de la app: se sincroniza con Supabase por usuario y lo
 // puede leer y escribir el MCP.
 //
-// Cada plan: { id, name, workouts: Workout[] }
-// Cada entreno: { id, date: 'YYYY-MM-DD', type, summary, status, structured_workout? }
+// Cada plan: { id, name, raceId?: string|null, workouts: Workout[] }
+//   raceId: id de la carrera objetivo (lib/targetRaces) a la que apunta el plan,
+//     opcional — un plan puede ir "suelto" sin carrera asociada.
+// Cada entreno: {
+//   id, date: 'YYYY-MM-DD', type, summary, status,
+//   distance_km?, duration_min?, coach_note?, structured_workout?,
+// }
 //   status: 'planned' | 'done' | 'skipped'
+//   distance_km / duration_min: totales de la sesión (número), opcionales, para
+//     poder verlos/filtrarlos de un vistazo sin desplegar structured_workout.
+//   coach_note: texto libre que el coach (o el MCP, tras comparar lo planificado
+//     con la actividad real) deja sobre cómo fue la sesión. Opcional.
 //   structured_workout: mismo formato que usa el planificador IA (fases con
 //     duration_min/pace/hr/reps/recovery/description), opcional.
 // ============================================================================

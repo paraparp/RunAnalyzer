@@ -2,15 +2,29 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     CalendarDaysIcon, PlusIcon, TrashIcon, PencilSquareIcon, XMarkIcon,
-    ChevronDownIcon, ClockIcon, CheckCircleIcon,
+    ChevronDownIcon, ClockIcon, CheckCircleIcon, ChatBubbleLeftRightIcon, FlagIcon,
 } from "@heroicons/react/24/outline";
 import {
     getTrainingPlans, saveTrainingPlan, deleteTrainingPlan,
     saveWorkout, deleteWorkout, TRAINING_PLANS_EVENT, WORKOUT_STATUSES,
 } from '../lib/trainingPlans';
+import { getTargetRaces, daysUntil } from '../lib/targetRaces';
 import { toISODate } from '../lib/planSchedule';
 
-const EMPTY_WORKOUT = { date: '', type: '', summary: '', status: 'planned' };
+const EMPTY_WORKOUT = {
+    date: '', type: '', summary: '', status: 'planned',
+    distance_km: '', duration_min: '', coach_note: '',
+};
+
+/** Normaliza un entreno guardado (campos opcionales pueden faltar) a valores de formulario. */
+const toFormWorkout = (w) => ({
+    ...EMPTY_WORKOUT,
+    ...w,
+    summary: w.summary || '',
+    coach_note: w.coach_note || '',
+    distance_km: w.distance_km != null ? String(w.distance_km) : '',
+    duration_min: w.duration_min != null ? String(w.duration_min) : '',
+});
 
 const STATUS_STYLE = {
     planned: 'bg-blue-50 text-blue-600 ring-blue-100',
@@ -27,7 +41,7 @@ const Chip = ({ className = '', children }) => (
 const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
 
 /** Pasos del entreno estructurado, si los trae (mismo formato que el planificador IA). */
-const StructuredSteps = ({ steps, t }) => (
+const StructuredSteps = ({ steps }) => (
     <div className="mt-3 space-y-1.5">
         {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
@@ -36,7 +50,7 @@ const StructuredSteps = ({ steps, t }) => (
                     {step.reps > 1 ? `${step.reps} × ${step.duration_min}′` : `${step.duration_min}′`}
                 </span>
                 {step.pace && <span className="shrink-0 text-slate-500">{step.pace}</span>}
-                {step.hr && <span className="shrink-0 text-slate-500">{step.hr} {t('planner.structure')}</span>}
+                {step.hr && <span className="shrink-0 text-slate-500">{step.hr} ppm</span>}
                 <span className="truncate text-slate-500">{step.description}</span>
             </div>
         ))}
@@ -51,7 +65,14 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
         e.preventDefault();
         if (!form.date) { setError(t('trainingplans.err_date')); return; }
         if (!form.type.trim()) { setError(t('trainingplans.err_type')); return; }
-        onSave({ ...form, type: form.type.trim(), summary: form.summary.trim() });
+        onSave({
+            ...form,
+            type: form.type.trim(),
+            summary: form.summary.trim(),
+            coach_note: form.coach_note.trim(),
+            distance_km: form.distance_km === '' ? undefined : Number(form.distance_km),
+            duration_min: form.duration_min === '' ? undefined : Number(form.duration_min),
+        });
     };
 
     return (
@@ -71,10 +92,22 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
                         {WORKOUT_STATUSES.map((s) => <option key={s} value={s}>{t(`trainingplans.status_${s}`)}</option>)}
                     </select>
                 </div>
+                <div>
+                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.distance')}</label>
+                    <input type="number" step="0.1" min="0" value={form.distance_km} onChange={(e) => setForm((f) => ({ ...f, distance_km: e.target.value }))} placeholder={t('trainingplans.distance_ph')} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.duration')}</label>
+                    <input type="number" step="1" min="0" value={form.duration_min} onChange={(e) => setForm((f) => ({ ...f, duration_min: e.target.value }))} placeholder={t('trainingplans.duration_ph')} className={inputClass} />
+                </div>
             </div>
             <div>
                 <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.summary')}</label>
                 <textarea value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} placeholder={t('trainingplans.summary_ph')} rows={3} className={`${inputClass} resize-y`} />
+            </div>
+            <div>
+                <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.coach_note')}</label>
+                <textarea value={form.coach_note} onChange={(e) => setForm((f) => ({ ...f, coach_note: e.target.value }))} placeholder={t('trainingplans.coach_note_ph')} rows={2} className={`${inputClass} resize-y`} />
             </div>
             {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
             <div className="flex items-center gap-2">
@@ -89,7 +122,7 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
     );
 };
 
-const WorkoutRow = ({ workout, onEdit, onDelete, t }) => {
+const WorkoutRow = ({ workout, onEdit, onDelete, onToggleDone, t }) => {
     const [expanded, setExpanded] = useState(false);
     const date = workout.date ? new Date(`${workout.date}T00:00:00`) : null;
     const hasSteps = Array.isArray(workout.structured_workout) && workout.structured_workout.length > 0;
@@ -109,8 +142,20 @@ const WorkoutRow = ({ workout, onEdit, onDelete, t }) => {
                         <Chip className={STATUS_STYLE[workout.status] || STATUS_STYLE.planned}>
                             {t(`trainingplans.status_${workout.status || 'planned'}`)}
                         </Chip>
+                        {workout.distance_km != null && (
+                            <span className="text-xs font-bold text-slate-500 tabular-nums">{workout.distance_km} km</span>
+                        )}
+                        {workout.duration_min != null && (
+                            <span className="text-xs font-bold text-slate-500 tabular-nums">{workout.duration_min} min</span>
+                        )}
                     </div>
                     {workout.summary && <p className="text-sm text-slate-600 leading-relaxed">{workout.summary}</p>}
+                    {workout.coach_note && (
+                        <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-800 font-medium leading-relaxed">{workout.coach_note}</p>
+                        </div>
+                    )}
                     {hasSteps && (
                         <button
                             type="button"
@@ -122,9 +167,16 @@ const WorkoutRow = ({ workout, onEdit, onDelete, t }) => {
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                         </button>
                     )}
-                    {hasSteps && expanded && <StructuredSteps steps={workout.structured_workout} t={t} />}
+                    {hasSteps && expanded && <StructuredSteps steps={workout.structured_workout} />}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={() => onToggleDone(workout)}
+                        className={`p-1.5 rounded-lg transition-colors ${workout.status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        title={workout.status === 'done' ? t('trainingplans.mark_planned') : t('trainingplans.mark_done')}
+                    >
+                        <CheckCircleIcon className="w-4 h-4" />
+                    </button>
                     <button onClick={() => onEdit(workout)} className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.edit')}>
                         <PencilSquareIcon className="w-4 h-4" />
                     </button>
@@ -157,6 +209,8 @@ const TrainingPlans = () => {
     }, []);
 
     const selectedPlan = plans.find((p) => p.id === selectedPlanId) || null;
+    const targetRaces = getTargetRaces();
+    const linkedRace = selectedPlan?.raceId ? targetRaces.find((r) => r.id === selectedPlan.raceId) : null;
 
     const { upcoming, past } = useMemo(() => {
         const todayISO = toISODate(new Date());
@@ -196,6 +250,11 @@ const TrainingPlans = () => {
     const handleDeleteWorkout = useCallback((workoutId) => {
         if (!selectedPlan) return;
         deleteWorkout(selectedPlan.id, workoutId);
+    }, [selectedPlan]);
+
+    const handleToggleDone = useCallback((workout) => {
+        if (!selectedPlan) return;
+        saveWorkout(selectedPlan.id, { id: workout.id, status: workout.status === 'done' ? 'planned' : 'done' });
     }, [selectedPlan]);
 
     return (
@@ -264,7 +323,7 @@ const TrainingPlans = () => {
             ) : (
                 <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-black text-slate-900">{selectedPlan.name || t('trainingplans.untitled')}</h3>
                             <button onClick={() => renamePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.rename')}>
                                 <PencilSquareIcon className="w-4 h-4" />
@@ -272,6 +331,18 @@ const TrainingPlans = () => {
                             <button onClick={() => removePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" title={t('trainingplans.delete_plan')}>
                                 <TrashIcon className="w-4 h-4" />
                             </button>
+                            <div className="inline-flex items-center gap-1.5 ml-1">
+                                <FlagIcon className="w-3.5 h-3.5 text-slate-400" />
+                                <select
+                                    value={linkedRace ? linkedRace.id : ''}
+                                    onChange={(e) => saveTrainingPlan({ id: selectedPlan.id, raceId: e.target.value || null })}
+                                    className="px-2 py-1 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    title={t('trainingplans.link_race')}
+                                >
+                                    <option value="">{t('trainingplans.no_race')}</option>
+                                    {targetRaces.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                            </div>
                         </div>
                         {editingWorkout === null && (
                             <button
@@ -284,11 +355,21 @@ const TrainingPlans = () => {
                         )}
                     </div>
 
+                    {linkedRace && (
+                        <p className="text-xs font-semibold text-slate-500 -mt-3">
+                            {t('trainingplans.towards_race', { name: linkedRace.name })}
+                            {linkedRace.date && (() => {
+                                const d = daysUntil(linkedRace.date);
+                                return d != null ? ` · ${t('trainingplans.days_to_race', { n: d })}` : '';
+                            })()}
+                        </p>
+                    )}
+
                     {editingWorkout === 'new' && (
                         <WorkoutForm initial={EMPTY_WORKOUT} onSave={handleSaveWorkout} onCancel={() => setEditingWorkout(null)} t={t} />
                     )}
                     {editingWorkout && editingWorkout !== 'new' && (
-                        <WorkoutForm initial={editingWorkout} onSave={handleSaveWorkout} onCancel={() => setEditingWorkout(null)} t={t} />
+                        <WorkoutForm key={editingWorkout.id} initial={toFormWorkout(editingWorkout)} onSave={handleSaveWorkout} onCancel={() => setEditingWorkout(null)} t={t} />
                     )}
 
                     {upcoming.length === 0 && past.length === 0 ? (
@@ -303,7 +384,7 @@ const TrainingPlans = () => {
                                     <h4 className="text-label font-bold text-slate-500 uppercase px-1">{t('trainingplans.upcoming')} · {upcoming.length}</h4>
                                     <div className="space-y-3">
                                         {upcoming.map((w) => (
-                                            <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} t={t} />
+                                            <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} onToggleDone={handleToggleDone} t={t} />
                                         ))}
                                     </div>
                                 </div>
@@ -320,7 +401,7 @@ const TrainingPlans = () => {
                                     {showPast && (
                                         <div className="space-y-3">
                                             {past.map((w) => (
-                                                <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} t={t} />
+                                                <WorkoutRow key={w.id} workout={w} onEdit={setEditingWorkout} onDelete={handleDeleteWorkout} onToggleDone={handleToggleDone} t={t} />
                                             ))}
                                         </div>
                                     )}
