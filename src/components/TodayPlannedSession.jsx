@@ -6,6 +6,8 @@
 // descargar, se enseña por defecto la versión regenerativa (`adapted`), con
 // opción de volver a la original y de mandar la adaptada al reloj.
 import { workoutBlocks } from '../lib/todaySession';
+import { isRestWorkout } from '../lib/planActuals';
+import WorkoutCard from './WorkoutCard';
 
 // Color por intensidad (1-5) del bloque, de suave a máximo.
 const INTENSITY_CLS = {
@@ -23,7 +25,6 @@ const sourceLabel = (session) => (
 );
 
 const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-const REST_RE = /descanso|reposo|\brest\b|\boff\b/i;
 
 /** La semana del plan (lunes-domingo) con hoy marcado: deja ver de un vistazo que hoy es hueco. */
 function WeekStrip({ week, todayISO }) {
@@ -33,7 +34,7 @@ function WeekStrip({ week, todayISO }) {
       {week.map((d, i) => {
         const w = d.workouts.find((x) => x.status !== 'skipped') ?? d.workouts[0];
         const isToday = d.date === todayISO;
-        const rest = !w || w.status === 'skipped' || (REST_RE.test(w.type || '') && !w.structured_workout?.length);
+        const rest = !w || w.status === 'skipped' || isRestWorkout(w);
         const tone = !w
           ? 'bg-slate-50 text-slate-400 dark:bg-slate-800/40 dark:text-slate-500'
           : w.status === 'done'
@@ -253,7 +254,22 @@ export default function TodayPlannedSession({ session, day, todayISO, action, ad
   return (
     <Card>
       <Header session={session} day={day} action={action} />
-      <PlanBody session={session} />
+      {session.source === 'training_plan' && session.workout ? (
+        <>
+          <div>
+            <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.type}</p>
+            {session.summary && <p className="text-xs text-slate-500 dark:text-slate-400">{session.summary}</p>}
+            {(session.dist || session.time) && (
+              <p className="text-xs font-mono text-slate-500 mt-0.5">{[session.dist, session.time].filter(Boolean).join(' · ')}</p>
+            )}
+          </div>
+          {(session.workout.structured_workout?.length > 0 || session.workout.key_rule) && (
+            <WorkoutCard workout={session.workout} showHeader={false} />
+          )}
+        </>
+      ) : (
+        <PlanBody session={session} />
+      )}
       {session.source === 'training_plan' && <CoachNote note={session.coachNote} />}
       <Conflict session={session} adapted={adapted} />
       {banner}

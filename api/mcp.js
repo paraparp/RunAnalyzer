@@ -38,12 +38,29 @@ import { ensureFresh } from './_lib/mcp-sync.js';
 const dateArg = { type: 'string', description: 'Fecha ISO YYYY-MM-DD (opcional)', pattern: '^\\d{4}-\\d{2}-\\d{2}$' };
 const WORKOUT_STATUSES = ['planned', 'done', 'skipped'];
 
+// Protocolo de registro de un entreno: el formato de "ficha técnica" que la app
+// pinta (categoría con color, título con la dosis, perfil por bloques, línea de
+// tiempo con ritmo y FC, regla clave). lintWorkout (src/lib/workoutProtocol) lo
+// revisa al escribir y devuelve `protocol_warnings`.
+const WORKOUT_PROTOCOL = [
+  'PROTOCOLO DE REGISTRO (la app lo pinta como ficha técnica; si falta algo, la respuesta trae `protocol_warnings`: corrígelos):',
+  '1) `category`: easy | quality | long | test | race | rest.',
+  '2) `type` = TÍTULO TÉCNICO con la dosis, no el genérico: "4 × 6′ a 4:24", "24 km con 25′ a ritmo maratón", "10 km fáciles". `summary` = subtítulo de una línea ("Sub-umbral · pausas cortas").',
+  '3) Totales: `distance_km` y/o `duration_min`.',
+  '4) `structured_workout` (obligatorio salvo easy/rest), un bloque por fase en orden, cada uno con `phase` (nombre), `kind` (warmup | work | recovery | cooldown | steady | drills | fuel | note), `duration_min` o `distance_km`, `intensity` 1-5, `pace` en min/km ("4:24" o "5:40–5:55"), `hr` como rango "170–177" o límite "<152" (sin "ppm"), `description` (la prescripción) y `note` (el porqué o el aviso, una frase).',
+  '   Las series van en UN bloque con `reps`, `duration_min` de una repetición y `recovery` ("75″ de trote"): la app las despliega. Toda sesión de calidad lleva warmup y cooldown. Geles o "después" van como `kind: fuel|note`, sin duración.',
+  '5) `key_rule`: la regla que decide si se corrige ("Techo 177: si acabas una serie por encima, +4 s/km la próxima"). Obligatoria en quality y race.',
+  '6) Tras la sesión: `status` y `coach_note` con datos reales (ritmo y FC por serie, desacople, calor), contrastando con `actual` de get_training_plan.',
+].join(' ');
+
 // Campos de un entreno de plan: los comparten upsert_planned_workout y su versión en lote.
 const WORKOUT_FIELDS = {
   workout_id: { type: 'string', description: 'Id del entreno a editar; omítelo para crear uno nuevo' },
   date: { ...dateArg, description: 'Fecha exacta YYYY-MM-DD del entreno (obligatoria al crear)' },
-  type: { type: 'string', description: 'Tipo de sesión, p.ej. "Series", "Rodaje suave", "Tirada larga", "Descanso" (obligatorio al crear)' },
-  summary: { type: ['string', 'null'], description: 'Resumen en texto libre de en qué consiste la sesión' },
+  category: { type: ['string', 'null'], enum: ['easy', 'quality', 'long', 'test', 'race', 'rest', null], description: 'Categoría de la sesión: da el color y decide descanso/sesión dura' },
+  type: { type: 'string', description: 'Título técnico con la dosis: "4 × 6′ a 4:24", "24 km con 25′ a ritmo maratón", "Descanso" (obligatorio al crear)' },
+  summary: { type: ['string', 'null'], description: 'Subtítulo de una línea: qué es y para qué' },
+  key_rule: { type: ['string', 'null'], description: 'Regla clave de la sesión, la que decide si se corrige' },
   status: { type: 'string', enum: WORKOUT_STATUSES, description: 'planned (por defecto) | done | skipped' },
   distance_km: { type: ['number', 'null'], description: 'Distancia total prevista de la sesión en km (p.ej. una tirada larga de 18)' },
   duration_min: { type: ['number', 'null'], description: 'Duración total prevista de la sesión en minutos' },
@@ -54,14 +71,17 @@ const WORKOUT_FIELDS = {
     items: {
       type: 'object',
       properties: {
-        phase: { type: 'string' },
-        duration_min: { type: 'number' },
+        phase: { type: 'string', description: 'Nombre del bloque: "Calentamiento", "Series", "Bloque", "Frenada"' },
+        kind: { type: 'string', enum: ['warmup', 'work', 'recovery', 'cooldown', 'steady', 'drills', 'fuel', 'note'] },
+        duration_min: { type: 'number', description: 'Minutos (de UNA repetición si hay reps)' },
+        distance_km: { type: 'number', description: 'Alternativa a duration_min para bloques por distancia' },
         reps: { type: 'number' },
-        pace: { type: 'string' },
-        hr: { type: 'string' },
-        recovery: { type: 'string' },
-        description: { type: 'string' },
+        recovery: { type: 'string', description: 'Pausa entre repeticiones: "75″ de trote", "2′ andando"' },
+        pace: { type: 'string', description: 'min/km: "4:24" o "5:40–5:55"' },
+        hr: { type: 'string', description: 'Rango "170–177" o límite "<152", sin "ppm"' },
         intensity: { type: 'number', description: '1 (muy suave) a 5 (máxima)' },
+        description: { type: 'string', description: 'La prescripción del bloque' },
+        note: { type: 'string', description: 'El porqué o el aviso, una frase' },
       },
     },
   },
@@ -593,7 +613,7 @@ const TOOLS = [
   },
   {
     name: 'upsert_planned_workout',
-    description: 'Crea (sin workout_id) o edita (con workout_id) UN entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Para volcar varios a la vez usa upsert_planned_workouts. Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados; en los opcionales, null los borra. Tras la sesión, lee get_training_plan (trae lo corrido en `actual`), fija `status` (done/skipped) si hace falta y deja en `coach_note` la valoración frente a lo planificado. Un `status` enviado aquí queda fijado: el marcado automático de la app ya no lo cambia. `structured_workout` es opcional y sigue el formato del planificador IA de la app: lista de fases `{ phase, duration_min, reps?, pace?, hr?, recovery?, description, intensity }`; solo los entrenos con estructura se pueden enviar al reloj desde la app.',
+    description: 'Crea (sin workout_id) o edita (con workout_id) UN entreno dentro de un plan de entrenamiento, con su fecha EXACTA YYYY-MM-DD (a diferencia del plan semanal del Entrenador IA, este no caduca). Para volcar varios a la vez usa upsert_planned_workouts. Al crear son obligatorios `date` y `type`. La edición es parcial: solo se tocan los campos enviados; en los opcionales, null los borra. Tras la sesión, lee get_training_plan (trae lo corrido en `actual`), fija `status` (done/skipped) si hace falta y deja en `coach_note` la valoración frente a lo planificado. Un `status` enviado aquí queda fijado: el marcado automático de la app ya no lo cambia. Solo los entrenos con `structured_workout` se pueden enviar al reloj desde la app. ' + WORKOUT_PROTOCOL,
     inputSchema: {
       type: 'object',
       properties: {
@@ -606,7 +626,7 @@ const TOOLS = [
   },
   {
     name: 'upsert_planned_workouts',
-    description: `Crea o edita VARIOS entrenos de un plan en una sola llamada (hasta 150): úsalo para volcar un bloque o un plan entero de una vez. Cada elemento acepta los mismos campos que upsert_planned_workout (con workout_id edita, sin él crea). Todo o nada: si algún elemento no es válido no se guarda ninguno y la respuesta trae \`errors\` con el índice y el motivo de cada fallo.`,
+    description: `Crea o edita VARIOS entrenos de un plan en una sola llamada (hasta 150): úsalo para volcar un bloque o un plan entero de una vez. Cada elemento acepta los mismos campos que upsert_planned_workout (con workout_id edita, sin él crea). Todo o nada: si algún elemento no es válido no se guarda ninguno y la respuesta trae \`errors\` con el índice y el motivo de cada fallo. ${WORKOUT_PROTOCOL}`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -876,7 +896,8 @@ const INSTRUCTIONS = [
   'predicciones y consejos en ella salvo que se pida otra cosa. Las demás son informativas.',
   'Las carreras pasadas traen `result` (tiempo real vs objetivo).',
   'Planes: las sesiones concretas con fecha van en los planes de entrenamiento (upsert_planned_workouts',
-  'para volcar un bloque de una vez; get_training_plan trae lo corrido de cada sesión),',
+  'para volcar un bloque de una vez, siguiendo el PROTOCOLO DE REGISTRO de su descripción;',
+  'get_training_plan trae lo corrido de cada sesión),',
   'no como texto en el `plan` de la carrera; vincula el plan a su carrera con `race_id`.',
   'VFC: usa `hrv_deviation` (above/below/within) para el semáforo; `hrv_status` de Garmin no indica el sentido.',
   'Calor: si `weather.wbgt_plausible` es false, la unidad de la temperatura de origen venía mal',

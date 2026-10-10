@@ -25,6 +25,7 @@ import { dayKey } from '../../src/lib/trainingLoad.js';
 import { computeCalibratedPMC, OVERRIDES_KEY as HR_OVERRIDES_KEY } from '../../src/lib/loadCalibration.js';
 import { sessionHeat } from '../../src/lib/weather.js';
 import { runsByDay, workoutActual, weeklyVolume, isRestWorkout } from '../../src/lib/planActuals.js';
+import { WORKOUT_CATEGORIES, workoutCategory, lintWorkout } from '../../src/lib/workoutProtocol.js';
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2307,8 +2308,12 @@ function shapeWorkout(w, { byDay = null, todayISO = null } = {}) {
   return {
     id: w.id,
     date: w.date || null,
+    // Deducida del tipo si el entreno es anterior al protocolo (`category_inferred`).
+    category: workoutCategory(w),
+    ...(WORKOUT_CATEGORIES.includes(w.category) ? {} : { category_inferred: true }),
     type: w.type || null,
     summary: w.summary || null,
+    key_rule: w.key_rule || null,
     status: auto ? 'done' : stored,
     ...(auto ? { status_auto: true } : {}),
     distance_km: Number.isFinite(w.distance_km) ? w.distance_km : null,
@@ -2417,7 +2422,14 @@ export async function upsertPlannedWorkout(userId, { plan_id, ...args } = {}) {
   const res = applyWorkout(plan, args);
   if (res.error) return res;
   await writeKey(userId, TRAINING_PLANS_KEY, list);
-  return { ok: true, created: res.created, plan_id: plan.id, workout: shapeWorkout(res.workout) };
+  const protocol_warnings = lintWorkout(res.workout);
+  return {
+    ok: true,
+    created: res.created,
+    plan_id: plan.id,
+    workout: shapeWorkout(res.workout),
+    ...(protocol_warnings.length ? { protocol_warnings } : {}),
+  };
 }
 
 // Tope de entrenos por llamada en lote: un bloque de 16 semanas con 6-7 sesiones
@@ -2439,12 +2451,17 @@ export async function upsertPlannedWorkouts(userId, { plan_id, workouts } = {}) 
   const errors = results.map((r, index) => (r.error ? { index, error: r.error } : null)).filter(Boolean);
   if (errors.length) return { error: 'No se ha guardado nada: corrige los entrenos con error', errors };
   await writeKey(userId, TRAINING_PLANS_KEY, list);
+  // Avisos del protocolo solo de los entrenos que los tienen, con su índice.
+  const protocol_warnings = results
+    .map((r, index) => ({ index, date: r.workout.date, warnings: lintWorkout(r.workout) }))
+    .filter((x) => x.warnings.length);
   return {
     ok: true,
     plan_id: plan.id,
     created: results.filter((r) => r.created).length,
     updated: results.filter((r) => !r.created).length,
     workouts: results.map((r) => ({ id: r.workout.id, date: r.workout.date, type: r.workout.type, created: r.created })),
+    ...(protocol_warnings.length ? { protocol_warnings } : {}),
   };
 }
 
@@ -2455,8 +2472,11 @@ export async function upsertPlannedWorkouts(userId, { plan_id, workouts } = {}) 
  */
 function applyWorkout(plan, {
   workout_id, date, type, summary, status, structured_workout,
-  distance_km, duration_min, coach_note,
+  distance_km, duration_min, coach_note, category, key_rule,
 } = {}) {
+  if (category != null && !WORKOUT_CATEGORIES.includes(category)) {
+    return { error: `category debe ser una de: ${WORKOUT_CATEGORIES.join(', ')}` };
+  }
   if (!Array.isArray(plan.workouts)) plan.workouts = [];
   const idx = workout_id ? plan.workouts.findIndex((w) => String(w.id) === String(workout_id)) : -1;
   if (workout_id && idx < 0) return { error: `No existe el entreno "${workout_id}" en el plan "${plan.id}"` };
@@ -2483,6 +2503,8 @@ function applyWorkout(plan, {
     ...(status !== undefined ? { status, status_manual: true } : {}),
   };
   setOpt(workout, 'summary', summary);
+  setOpt(workout, 'category', category);
+  setOpt(workout, 'key_rule', key_rule);
   setOpt(workout, 'distance_km', distance_km);
   setOpt(workout, 'duration_min', duration_min);
   setOpt(workout, 'coach_note', coach_note);

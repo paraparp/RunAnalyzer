@@ -28,6 +28,8 @@
 import { isRestDay, nextDateForDay, toISODate } from './planSchedule.js';
 import { parseWorkout } from './aiInsights.js';
 import { weekStartKey } from './isoWeek.js';
+import { isRestWorkout } from './planActuals.js';
+import { workoutCategory } from './workoutProtocol.js';
 
 /** Clave de cloudStorage del último plan del Entrenador IA. */
 export const AI_PLAN_KEY = 'ai_training_plan';
@@ -43,8 +45,6 @@ const HARD_INTENSITY = 4;
 const LONG_MIN = 90;
 // El calendario de Garmin solo trae el título: si nombra trabajo de calidad, es duro.
 const HARD_TITLE = /series|interval|tempo|umbral|threshold|fartlek|vo2|cuestas|hill|repet|ritmo de carrera|race pace/i;
-// Un entreno del plan sin estructura declarado como descanso por su tipo.
-const REST_TYPE = /descanso|reposo|\brest\b|\boff\b/i;
 
 const fromISO = (iso) => {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -137,19 +137,21 @@ export function workoutBlocks(structured) {
  */
 export function resolveTodaySession({ garminPlanned = [], savedPlan = null, trainingPlans = [], todayISO, advisesRest = false }) {
   const tp = trainingPlanDayFor(trainingPlans, todayISO);
-  const tpRest = !tp.workout || tp.workout.status === 'skipped'
-    || (REST_TYPE.test(tp.workout.type || '') && !tp.workout.structured_workout?.length);
+  const tpRest = !tp.workout || tp.workout.status === 'skipped' || isRestWorkout(tp.workout);
   const fromTrainingPlan = (rest) => {
     const w = tp.workout;
     const { blocks, totalMin: blocksMin, maxIntensity } = workoutBlocks(rest ? null : w?.structured_workout);
     const totalMin = blocksMin || (rest ? 0 : Number(w?.duration_min) || 0);
-    const hard = !rest && (maxIntensity >= HARD_INTENSITY || (!blocks.length && HARD_TITLE.test(w?.type || '')));
+    // Sin estructura, la categoría (o el título) dice si es dura.
+    const hard = !rest && (maxIntensity >= HARD_INTENSITY
+      || (!blocks.length && (['quality', 'race'].includes(workoutCategory(w)) || HARD_TITLE.test(w?.type || ''))));
     const dist = !rest && Number.isFinite(w?.distance_km) ? `${w.distance_km} km` : null;
     const time = !rest && Number.isFinite(w?.duration_min) ? `${w.duration_min} min` : null;
     return {
       source: 'training_plan',
       // Mismo formato que un día del plan IA: lo reutiliza el plan adaptativo.
       planDay: rest ? null : { type: w.type, summary: w.summary ?? null, structured_workout: w.structured_workout ?? [], daily_stats: { dist, time } },
+      workout: rest ? null : w,
       rest,
       skipped: w?.status === 'skipped',
       done: w?.status === 'done',

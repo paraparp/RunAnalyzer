@@ -155,3 +155,31 @@ describe('planDayToWorkoutSpec', () => {
       .toThrow(/no tiene estructura/);
   });
 });
+
+describe('protocolo de registro → Garmin', () => {
+  const day = {
+    type: '4 × 6′ a 4:24',
+    structured_workout: [
+      { phase: 'Salida', kind: 'warmup', duration_min: 20, intensity: 1 },
+      { phase: 'Serie', kind: 'work', duration_min: 6, reps: 4, recovery: '75″ de trote', pace: '4:24', intensity: 4 },
+      { phase: 'Cuerpo', kind: 'steady', distance_km: 8, pace: '5:40–5:55', intensity: 2 },
+      { phase: 'Frenada', kind: 'cooldown', duration_min: 10, intensity: 1 },
+      { phase: 'Geles', kind: 'fuel', description: 'uno cada 40′' },
+      { phase: 'Después', kind: 'note', description: 'hidratos + proteína' },
+    ],
+  };
+
+  it('usa `kind` por encima del nombre y no manda geles ni notas', () => {
+    const spec = planDayToWorkoutSpec(day, { name: 'x' });
+    expect(spec.steps).toHaveLength(4);
+    // "Salida" no se reconocería por nombre como calentamiento: lo dice `kind`.
+    expect(spec.steps[0].kind).toBe('warmup');
+    expect(spec.steps[1]).toMatchObject({ kind: 'repeat', repeats: 4 });
+    expect(spec.steps[3].kind).toBe('cooldown');
+  });
+
+  it('un bloque por distancia va como distancia', () => {
+    const spec = planDayToWorkoutSpec(day, { name: 'x' });
+    expect(spec.steps[2].duration).toEqual({ type: 'distance', value: 8, unit: 'km' });
+  });
+});

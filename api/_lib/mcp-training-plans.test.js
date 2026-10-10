@@ -172,6 +172,34 @@ describe('planes de entrenamiento (MCP)', () => {
     expect((await listTrainingPlans(V)).plans[0].weeks).toBeUndefined();
   });
 
+  it('protocolo: guarda category y key_rule, y avisa de lo que falta', async () => {
+    const { plan } = await upsertTrainingPlan(U, { name: 'P' });
+    const ok = await upsertPlannedWorkout(U, {
+      plan_id: plan.id, date: '2026-10-20', category: 'rest', type: 'Descanso',
+    });
+    expect(ok.protocol_warnings).toBeUndefined();
+    expect(ok.workout).toMatchObject({ category: 'rest' });
+
+    const bad = await upsertPlannedWorkout(U, { plan_id: plan.id, date: '2026-10-21', type: 'Series', category: 'quality' });
+    expect(bad.protocol_warnings.join(' ')).toMatch(/key_rule/);
+
+    expect((await upsertPlannedWorkout(U, { plan_id: plan.id, date: '2026-10-22', type: 'X', category: 'meh' })).error).toMatch(/category/);
+
+    const bulk = await upsertPlannedWorkouts(U, { plan_id: plan.id, workouts: [
+      { date: '2026-10-23', type: 'Rodaje', category: 'easy', distance_km: 10 },
+      { date: '2026-10-24', type: 'Tirada', category: 'long', distance_km: 24 },
+    ] });
+    expect(bulk.protocol_warnings).toHaveLength(1);
+    expect(bulk.protocol_warnings[0]).toMatchObject({ index: 1, date: '2026-10-24' });
+  });
+
+  it('los entrenos anteriores al protocolo salen con la categoría deducida', async () => {
+    const { plan } = await upsertTrainingPlan(U, { name: 'P' });
+    await upsertPlannedWorkout(U, { plan_id: plan.id, date: '2026-10-20', type: 'Tirada larga' });
+    const got = await getTrainingPlan(U, plan.id);
+    expect(got.workouts[0]).toMatchObject({ category: 'long', category_inferred: true });
+  });
+
   it('borra entrenos y planes', async () => {
     const { plan } = await upsertTrainingPlan(U, { name: 'P' });
     const { workout } = await upsertPlannedWorkout(U, { plan_id: plan.id, date: '2026-10-20', type: 'Rodaje' });

@@ -153,6 +153,13 @@ export async function flush() {
   await Promise.allSettled([...pending]);
 }
 
+// Reintento de escrituras fallidas: 15 s, 30 s, 60 s… con tope de 5 min. Sin esto,
+// un fallo puntual (sesión caducada, 5xx) dejaba el valor solo en local para
+// siempre, porque el dirty-check ya lo daba por subido.
+const RETRY_BASE_MS = 15000;
+const RETRY_MAX_MS = 300000;
+const retryDelay = new Map(); // clave -> próximo retardo
+
 async function upsert(key, value) {
   if (!currentUserId) return;
   const { error } = await supabase
@@ -163,10 +170,32 @@ async function upsert(key, value) {
     );
   if (error) {
     setDegraded(true);
-    console.warn(`cloudStorage upsert "${key}" falló (guardado local):`, error.message);
+    console.warn(`cloudStorage upsert "${key}" falló (guardado local, se reintentará):`, error.message);
+    // Ya no está en la nube: que el dirty-check no se trague el reintento.
+    if (lastPersisted.get(key) === value) lastPersisted.delete(key);
+    if (cache.get(key) === value && !writeTimers.has(key)) {
+      const delay = retryDelay.get(key) ?? RETRY_BASE_MS;
+      retryDelay.set(key, Math.min(delay * 2, RETRY_MAX_MS));
+      const timer = setTimeout(() => { writeTimers.delete(key); fireUpsert(key); }, delay);
+      writeTimers.set(key, timer);
+    }
   } else {
+    retryDelay.delete(key);
     setDegraded(false);
   }
+}
+
+// Al ocultar o cerrar la pestaña se suben YA las escrituras que esperaban el
+// debounce de 2 s: antes, guardar y cerrar en ese margen perdía el cambio en la
+// nube (solo se hacía flush al cerrar sesión). `visibilitychange` llega antes que
+// la descarga de la página, con tiempo para que la petición salga.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const flushNow = () => {
+    for (const [key, timer] of writeTimers) { clearTimeout(timer); fireUpsert(key); }
+    writeTimers.clear();
+  };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+  window.addEventListener('pagehide', flushNow);
 }
 
 async function removeRemote(key) {
@@ -251,6 +280,7 @@ export function reset() {
   for (const timer of writeTimers.values()) clearTimeout(timer);
   writeTimers.clear();
   lastPersisted.clear();
+  retryDelay.clear();
   cache.clear();
   currentUserId = null;
   setDegraded(false);

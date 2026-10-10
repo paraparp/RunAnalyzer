@@ -10,10 +10,10 @@
 // ============================================================================
 import { activityDayKey } from './trainingLoad.js';
 import { weekStartKey } from './isoWeek.js';
+import { workoutCategory } from './workoutProtocol.js';
 
 const RUN_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 const isRun = (a) => RUN_TYPES.includes(a?.type) || RUN_TYPES.includes(a?.sport_type);
-const REST_TYPE = /descanso|reposo|\brest\b|\boff\b/i;
 
 // Una subida del volumen planificado por encima de esto frente a la semana
 // anterior se avisa: la regla clásica del 10% semanal.
@@ -21,9 +21,9 @@ export const RAMP_WARN_PCT = 10;
 
 const round1 = (x) => Math.round(x * 10) / 10;
 
-/** Entreno de descanso: declarado por su tipo y sin estructura que correr. */
+/** Entreno de descanso: `category: 'rest'`, o declarado así por su tipo y sin estructura. */
 export function isRestWorkout(w) {
-  return !w || (REST_TYPE.test(w.type || '') && !w.structured_workout?.length);
+  return !w || workoutCategory(w) === 'rest';
 }
 
 /** Índice día (YYYY-MM-DD) → carreras de ese día. */

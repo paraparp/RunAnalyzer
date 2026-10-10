@@ -14,6 +14,7 @@
 // ritmo (lo mas especifico que prescribe el plan) y la FC queda en la
 // descripcion, que si es libre.
 import { isRestDay } from '../../src/lib/planSchedule.js';
+import { NON_RUNNING_KINDS } from '../../src/lib/workoutProtocol.js';
 
 const PACE_WINDOW_SEC = 5;   // ventana por defecto alrededor de un ritmo unico
 const HR_WINDOW_BPM = 5;     // idem para una FC unica
@@ -34,6 +35,17 @@ export function phaseKind(phase) {
   const p = norm(phase);
   for (const [re, kind] of KIND_RULES) if (re.test(p)) return kind;
   return 'interval';
+}
+
+// `kind` del protocolo de registro (src/lib/workoutProtocol) → stepType de
+// Garmin. Manda sobre el nombre de la fase, que es texto libre.
+const PROTOCOL_KIND = {
+  warmup: 'warmup', cooldown: 'cooldown', recovery: 'recovery',
+  work: 'interval', steady: 'interval', drills: 'interval',
+};
+
+function stepKindOf(step) {
+  return PROTOCOL_KIND[step?.kind] ?? phaseKind(step?.phase);
 }
 
 // "Dia de descanso" vive en src/lib/planSchedule: la portada (sesion de hoy) y el
@@ -132,6 +144,11 @@ export function parseRecoveryDuration(raw) {
 /** Duración del bloque: minutos enteros → 'min'; fracciones → segundos. */
 function stepDuration(step) {
   const min = Number(step?.duration_min);
+  const km = Number(step?.distance_km);
+  // Bloque por distancia (protocolo de registro): solo si no trae minutos.
+  if ((!Number.isFinite(min) || min <= 0) && Number.isFinite(km) && km > 0) {
+    return { type: 'distance', value: km, unit: 'km' };
+  }
   if (!Number.isFinite(min) || min <= 0) return { type: 'lap.button' };
   return Number.isInteger(min)
     ? { type: 'time', value: min, unit: 'min' }
@@ -161,7 +178,7 @@ function stepDescription(step) {
  */
 export function planStepToSpec(step) {
   const work = {
-    kind: phaseKind(step?.phase),
+    kind: stepKindOf(step),
     duration: stepDuration(step),
     target: stepTarget(step),
   };
@@ -199,6 +216,7 @@ export function planDayToWorkoutSpec(day, { name, date } = {}) {
     name: title,
     description,
     ...(date ? { date } : {}),
-    steps: blocks.map(planStepToSpec),
+    // Geles o "después: hidratos" no son pasos que el reloj pueda cronometrar.
+    steps: blocks.filter((b) => !NON_RUNNING_KINDS.has(b?.kind)).map(planStepToSpec),
   };
 }

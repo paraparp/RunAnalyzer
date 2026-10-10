@@ -278,6 +278,25 @@ describe('resiliencia', () => {
     expect(ls.map.get('stravaData')).toBe('blob');   // y en el espejo, para el próximo arranque
   });
 
+  it('una escritura fallida se reintenta sola y llega a la nube cuando vuelve', async () => {
+    await hydrate('u1');
+    db.failUpsert = true;
+    cloudStorage.setItem('target_races', 'plan-completo');
+    await settle();
+    expect(db.rows).toHaveLength(0);
+
+    // Supabase vuelve: el reintento (15 s) sube el MISMO valor, sin que se reescriba.
+    db.failUpsert = false;
+    await settle(15000);
+    expect(db.rows.find((r) => r.key === 'target_races')?.value).toBe('plan-completo');
+    expect(isDegraded()).toBe(false);
+
+    // Y ya no se reintenta más.
+    const n = db.upserts.length;
+    await settle(60000);
+    expect(db.upserts).toHaveLength(n);
+  });
+
   it('un localStorage que lanza (modo privado) no rompe la lectura ni la escritura', async () => {
     await hydrate('u1');
     ls.broken = true;

@@ -14,9 +14,12 @@ import { getTargetRaces, daysUntil } from '../lib/targetRaces';
 import { formatMinutes } from '../lib/timeFormat';
 import { toISODate } from '../lib/planSchedule';
 import { pushPlanDays, deleteGarminWorkout } from '../services/garminWorkouts';
+import { WORKOUT_CATEGORIES, workoutCategory } from '../lib/workoutProtocol';
+import WorkoutCard from './WorkoutCard';
+import { CATEGORY_STYLE } from '../lib/workoutStyle';
 
 const EMPTY_WORKOUT = {
-    date: '', type: '', summary: '', status: 'planned',
+    date: '', type: '', summary: '', status: 'planned', category: '', key_rule: '',
     distance_km: '', duration_min: '', coach_note: '',
 };
 
@@ -25,6 +28,8 @@ const toFormWorkout = (w) => ({
     ...EMPTY_WORKOUT,
     ...w,
     summary: w.summary || '',
+    category: w.category || '',
+    key_rule: w.key_rule || '',
     coach_note: w.coach_note || '',
     distance_km: w.distance_km != null ? String(w.distance_km) : '',
     duration_min: w.duration_min != null ? String(w.duration_min) : '',
@@ -48,23 +53,6 @@ const Chip = ({ className = '', children }) => (
 const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
 const iconBtn = "p-1.5 rounded-lg text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
-/** Pasos del entreno estructurado, si los trae (mismo formato que el planificador IA). */
-const StructuredSteps = ({ steps }) => (
-    <div className="mt-3 space-y-1.5">
-        {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="font-black text-slate-900 shrink-0">{step.phase}</span>
-                <span className="font-bold tabular-nums shrink-0">
-                    {step.reps > 1 ? `${step.reps} × ${step.duration_min}′` : `${step.duration_min}′`}
-                </span>
-                {step.pace && <span className="shrink-0 text-slate-500">{step.pace}</span>}
-                {step.hr && <span className="shrink-0 text-slate-500">{step.hr} ppm</span>}
-                <span className="truncate text-slate-500">{step.description}</span>
-            </div>
-        ))}
-    </div>
-);
-
 const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
     const [form, setForm] = useState(initial);
     const [error, setError] = useState('');
@@ -77,6 +65,8 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
             ...form,
             type: form.type.trim(),
             summary: form.summary.trim(),
+            category: form.category || undefined,
+            key_rule: form.key_rule.trim() || undefined,
             coach_note: form.coach_note.trim(),
             distance_km: form.distance_km === '' ? undefined : Number(form.distance_km),
             duration_min: form.duration_min === '' ? undefined : Number(form.duration_min),
@@ -103,6 +93,13 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
                     </select>
                 </div>
                 <div>
+                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.category')}</label>
+                    <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputClass}>
+                        <option value="">{t('trainingplans.category_auto')}</option>
+                        {WORKOUT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_STYLE[c].label}</option>)}
+                    </select>
+                </div>
+                <div>
                     <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.distance')}</label>
                     <input type="number" step="0.1" min="0" value={form.distance_km} onChange={(e) => setForm((f) => ({ ...f, distance_km: e.target.value }))} placeholder={t('trainingplans.distance_ph')} className={inputClass} />
                 </div>
@@ -114,6 +111,10 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
             <div>
                 <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.summary')}</label>
                 <textarea value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} placeholder={t('trainingplans.summary_ph')} rows={3} className={`${inputClass} resize-y`} />
+            </div>
+            <div>
+                <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.key_rule')}</label>
+                <input type="text" value={form.key_rule} onChange={(e) => setForm((f) => ({ ...f, key_rule: e.target.value }))} placeholder={t('trainingplans.key_rule_ph')} className={inputClass} />
             </div>
             <div>
                 <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.coach_note')}</label>
@@ -164,6 +165,8 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
     const [moving, setMoving] = useState(false);
     const [send, setSend] = useState(null); // null | 'sending' | { error }
     const hasSteps = Array.isArray(workout.structured_workout) && workout.structured_workout.length > 0;
+    const category = workoutCategory(workout);
+    const accent = CATEGORY_STYLE[category] || CATEGORY_STYLE.easy;
     const onWatch = !!workout.garmin_workout_id;
     // Enviado al reloj para otro día: tras moverlo hay que reenviarlo.
     const watchStale = onWatch && workout.garmin_date && workout.garmin_date !== workout.date;
@@ -179,7 +182,8 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
     };
 
     return (
-        <div className={`bg-white rounded-xl border border-slate-100 p-4 ${workout.status === 'skipped' ? 'opacity-60' : ''}`}>
+        <div className={`relative bg-white rounded-xl border border-slate-100 p-4 pl-5 overflow-hidden ${workout.status === 'skipped' ? 'opacity-60' : ''}`}>
+            <span className={`absolute left-0 inset-y-0 w-1 ${accent.bar}`} aria-hidden />
             <div className="flex items-start gap-3">
                 <div className="shrink-0 w-14 text-center">
                     <p className="text-xs font-black text-slate-900 tabular-nums leading-none">
@@ -188,6 +192,7 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className={`text-[11px] font-mono font-semibold uppercase tracking-wider ${accent.text}`}>{accent.label}</span>
                         <span className="text-sm font-black text-slate-900">{workout.type}</span>
                         <Chip className={STATUS_STYLE[workout.status] || STATUS_STYLE.planned}>
                             {t(`trainingplans.status_${workout.status || 'planned'}`)}
@@ -220,11 +225,16 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
                             className="mt-2 inline-flex items-center gap-1 text-label font-bold uppercase text-slate-500 hover:text-blue-600 transition-colors"
                         >
                             <ClockIcon className="w-3.5 h-3.5" />
-                            {t('trainingplans.steps', { n: workout.structured_workout.length })}
+                            {expanded ? t('trainingplans.hide_card') : t('trainingplans.show_card', { n: workout.structured_workout.length })}
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                         </button>
                     )}
-                    {hasSteps && expanded && <StructuredSteps steps={workout.structured_workout} />}
+                    {(hasSteps || workout.key_rule) && expanded && (
+                        <div className="mt-3"><WorkoutCard workout={workout} showHeader={false} /></div>
+                    )}
+                    {!hasSteps && workout.key_rule && !expanded && (
+                        <p className="mt-2 text-xs text-slate-600"><span className="font-bold text-slate-800">{t('trainingplans.key_rule')} · </span>{workout.key_rule}</p>
+                    )}
                     {moving && (
                         <div className="mt-2 inline-flex items-center gap-2">
                             <input
