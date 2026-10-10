@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planDayFor, resolveTodaySession, workoutBlocks, coachSessionFrom } from './todaySession';
+import { planDayFor, resolveTodaySession, workoutBlocks, coachSessionFrom, trainingPlanDayFor } from './todaySession';
 
 // Plan generado el lunes 21-sep-2026: cubre del 21 al 27.
 const plan = {
@@ -85,6 +85,106 @@ describe('resolveTodaySession', () => {
     });
     expect(s.isRace).toBe(true);
     expect(s.conflict).toBe(true);
+  });
+});
+
+// Plan de entrenamiento con fechas: semana del lunes 21-sep con tres sesiones, la
+// siguiente semana (28-sep a 4-oct) entera de descarga sin sesiones, y una más el 6-oct.
+const trainingPlans = [{
+  id: 'p1',
+  name: 'San Sebastián',
+  workouts: [
+    { id: 'w1', date: '2026-09-22', type: 'Series', status: 'planned', summary: '5×1000',
+      structured_workout: [
+        { phase: 'Calentamiento', duration_min: 15, intensity: 1 },
+        { phase: 'Series', duration_min: 4, reps: 5, intensity: 5 },
+      ] },
+    { id: 'w2', date: '2026-09-24', type: 'Rodaje', status: 'done', distance_km: 10, coach_note: 'Bien' },
+    { id: 'w3', date: '2026-09-26', type: 'Tirada larga', status: 'planned', distance_km: 18, duration_min: 100 },
+    { id: 'w4', date: '2026-10-06', type: 'Rodaje', status: 'planned' },
+  ],
+}];
+
+describe('trainingPlanDayFor', () => {
+  it('da el entreno de hoy y la semana lunes-domingo', () => {
+    const r = trainingPlanDayFor(trainingPlans, '2026-09-22');
+    expect(r.workout.id).toBe('w1');
+    expect(r.covered).toBe(true);
+    expect(r.week.map((d) => d.date)).toEqual([
+      '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27',
+    ]);
+  });
+
+  it('un hueco de la semana está cubierto, sin entreno', () => {
+    const r = trainingPlanDayFor(trainingPlans, '2026-09-23');
+    expect(r.workout).toBeNull();
+    expect(r.covered).toBe(true);
+  });
+
+  it('una semana sin sesiones dentro del rango del plan también está cubierta', () => {
+    expect(trainingPlanDayFor(trainingPlans, '2026-09-30').covered).toBe(true);
+  });
+
+  it('fuera del plan no cubre', () => {
+    expect(trainingPlanDayFor(trainingPlans, '2026-10-20').covered).toBe(false);
+    expect(trainingPlanDayFor([], '2026-09-22').covered).toBe(false);
+  });
+});
+
+describe('resolveTodaySession con planes de entrenamiento', () => {
+  it('el entreno del plan manda sobre Garmin y sobre el plan IA', () => {
+    const s = resolveTodaySession({
+      trainingPlans, savedPlan: saved, todayISO: '2026-09-22',
+      garminPlanned: [{ date: '2026-09-22', title: 'Series' }],
+    });
+    expect(s.source).toBe('training_plan');
+    expect(s.type).toBe('Series');
+    expect(s.planName).toBe('San Sebastián');
+    expect(s.totalMin).toBe(35);
+    expect(s.hard).toBe(true);
+  });
+
+  it('un hueco del plan es descanso, no cae al plan IA', () => {
+    // El plan IA tiene Series el miércoles 23; el plan de entrenamiento no tiene nada ese día.
+    const s = resolveTodaySession({ trainingPlans, savedPlan: saved, todayISO: '2026-09-23' });
+    expect(s.source).toBe('training_plan');
+    expect(s.rest).toBe(true);
+    expect(s.week).toHaveLength(7);
+  });
+
+  it('en un hueco del plan, lo agendado en Garmin sí manda', () => {
+    const s = resolveTodaySession({
+      trainingPlans, todayISO: '2026-09-23', garminPlanned: [{ date: '2026-09-23', title: 'Rodaje' }],
+    });
+    expect(s.source).toBe('garmin');
+  });
+
+  it('fuera del plan de entrenamiento se usa el plan IA', () => {
+    const plansLater = [{ id: 'p2', name: 'X', workouts: [{ id: 'a', date: '2026-11-10', type: 'Rodaje' }] }];
+    expect(resolveTodaySession({ trainingPlans: plansLater, savedPlan: saved, todayISO: '2026-09-23' }).source).toBe('ai_plan');
+  });
+
+  it('sin estructura usa distancia y duración del entreno', () => {
+    const s = resolveTodaySession({ trainingPlans, todayISO: '2026-09-26', advisesRest: true });
+    expect(s).toMatchObject({ dist: '18 km', time: '100 min', totalMin: 100, hard: false });
+    // Una tirada larga en día de descarga también avisa.
+    expect(s.conflict).toBe(true);
+    expect(s.planDay.type).toBe('Tirada larga');
+  });
+
+  it('hecho: trae la nota del coach y no avisa de conflicto', () => {
+    const s = resolveTodaySession({ trainingPlans, todayISO: '2026-09-24', advisesRest: true });
+    expect(s).toMatchObject({ done: true, coachNote: 'Bien', conflict: false });
+  });
+
+  it('un entreno saltado o de descanso cuenta como descanso', () => {
+    const plans = [{ id: 'p', name: 'P', workouts: [
+      { id: 'a', date: '2026-09-22', type: 'Series', status: 'skipped', summary: 'x' },
+      { id: 'b', date: '2026-09-23', type: 'Descanso' },
+    ] }];
+    const skipped = resolveTodaySession({ trainingPlans: plans, todayISO: '2026-09-22' });
+    expect(skipped).toMatchObject({ source: 'training_plan', rest: true, skipped: true, summary: null });
+    expect(resolveTodaySession({ trainingPlans: plans, todayISO: '2026-09-23' }).rest).toBe(true);
   });
 });
 

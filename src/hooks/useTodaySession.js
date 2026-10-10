@@ -3,6 +3,7 @@ import cloudStorage from '../lib/cloudStorage';
 import { readGarminCreds } from '../lib/garminHealthStore';
 import { toISODate } from '../lib/planSchedule';
 import { AI_PLAN_KEY, GARMIN_PLANNED_KEY, resolveTodaySession } from '../lib/todaySession';
+import { getTrainingPlans, TRAINING_PLANS_EVENT } from '../lib/trainingPlans';
 import { fetchPlannedWorkouts } from '../services/garminWorkouts';
 
 const readJSON = (key) => {
@@ -10,7 +11,8 @@ const readJSON = (key) => {
 };
 
 /**
- * Qué toca hoy (lib/todaySession): Garmin > plan del Entrenador IA > automática.
+ * Qué toca hoy (lib/todaySession): plan de entrenamiento > Garmin > descanso del
+ * plan > plan del Entrenador IA > automática.
  *
  * El calendario de Garmin se pide en vivo, pero como mucho UNA vez al día: se
  * cachea con la fecha en que se bajó (el rate-limit de Garmin no aguanta una
@@ -22,6 +24,13 @@ export default function useTodaySession({ advisesRest, nowMs }) {
   const todayISO = toISODate(new Date(nowMs));
   const [garminCache, setGarminCache] = useState(() => readJSON(GARMIN_PLANNED_KEY));
   const savedPlan = useMemo(() => readJSON(AI_PLAN_KEY), []);
+  const [trainingPlans, setTrainingPlans] = useState(getTrainingPlans);
+
+  useEffect(() => {
+    const reload = () => setTrainingPlans(getTrainingPlans());
+    window.addEventListener(TRAINING_PLANS_EVENT, reload);
+    return () => window.removeEventListener(TRAINING_PLANS_EVENT, reload);
+  }, []);
 
   useEffect(() => {
     if (!readGarminCreds() || garminCache?.fetched_on === todayISO) return undefined;
@@ -42,9 +51,10 @@ export default function useTodaySession({ advisesRest, nowMs }) {
     () => resolveTodaySession({
       garminPlanned: garminCache?.planned ?? [],
       savedPlan,
+      trainingPlans,
       todayISO,
       advisesRest,
     }),
-    [garminCache, savedPlan, todayISO, advisesRest],
+    [garminCache, savedPlan, trainingPlans, todayISO, advisesRest],
   );
 }

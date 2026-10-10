@@ -16,7 +16,56 @@ const INTENSITY_CLS = {
   5: 'bg-rose-600 text-white',
 };
 
-const SOURCE_LABEL = { garmin: 'Garmin', ai_plan: 'Plan del Entrenador IA' };
+const SOURCE_LABEL = { garmin: 'Garmin', ai_plan: 'Plan del Entrenador IA', training_plan: 'Plan de entrenamiento' };
+
+const sourceLabel = (session) => (
+  session.source === 'training_plan' && session.planName ? `Plan «${session.planName}»` : SOURCE_LABEL[session.source]
+);
+
+const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const REST_RE = /descanso|reposo|\brest\b|\boff\b/i;
+
+/** La semana del plan (lunes-domingo) con hoy marcado: deja ver de un vistazo que hoy es hueco. */
+function WeekStrip({ week, todayISO }) {
+  if (!Array.isArray(week) || !week.length) return null;
+  return (
+    <div className="grid grid-cols-7 gap-1">
+      {week.map((d, i) => {
+        const w = d.workouts.find((x) => x.status !== 'skipped') ?? d.workouts[0];
+        const isToday = d.date === todayISO;
+        const rest = !w || w.status === 'skipped' || (REST_RE.test(w.type || '') && !w.structured_workout?.length);
+        const tone = !w
+          ? 'bg-slate-50 text-slate-400 dark:bg-slate-800/40 dark:text-slate-500'
+          : w.status === 'done'
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+            : rest
+              ? 'bg-slate-50 text-slate-500 dark:bg-slate-800/40 dark:text-slate-400'
+              : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
+        return (
+          <div
+            key={d.date}
+            title={w ? `${w.type}${w.summary ? ` — ${w.summary}` : ''}` : 'Descanso'}
+            className={`flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-center ${tone} ${isToday ? 'ring-2 ring-blue-500' : ''}`}
+          >
+            <span className="text-label font-bold uppercase">{WEEKDAYS[i]}</span>
+            <span className="text-[10px] font-semibold leading-tight truncate w-full">
+              {w ? (w.status === 'done' ? '✓' : rest ? '—' : (Number.isFinite(w.distance_km) ? `${w.distance_km}k` : w.type)) : '—'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CoachNote({ note }) {
+  if (!note) return null;
+  return (
+    <div className="p-3 rounded bg-amber-50 border border-amber-200 text-xs text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200">
+      <span className="font-bold">Nota del coach: </span>{note}
+    </div>
+  );
+}
 
 function Card({ children }) {
   return (
@@ -27,16 +76,20 @@ function Card({ children }) {
 }
 
 function Header({ session, day, action }) {
-  const title = session.rest ? 'Hoy toca descanso' : session.isRace ? 'Hoy compites' : 'Sesión planificada para hoy';
+  const title = session.skipped
+    ? 'Sesión de hoy saltada'
+    : session.rest ? 'Hoy toca descanso'
+      : session.isRace ? 'Hoy compites'
+        : session.done ? 'Sesión de hoy hecha' : 'Sesión planificada para hoy';
   return (
     <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center">
-          <span className="material-symbols-outlined text-[20px]">{session.rest ? 'bedtime' : session.isRace ? 'flag' : 'event_available'}</span>
+          <span className="material-symbols-outlined text-[20px]">{session.rest ? 'bedtime' : session.isRace ? 'flag' : session.done ? 'task_alt' : 'event_available'}</span>
         </div>
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
-          <span className="block text-xs text-slate-500">{day} • {SOURCE_LABEL[session.source]}</span>
+          <span className="block text-xs text-slate-500">{day} • {sourceLabel(session)}</span>
         </div>
       </div>
       {action}
@@ -60,7 +113,9 @@ function PlanBody({ session }) {
     <>
       {session.rest ? (
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          {session.summary || 'Tu plan no tiene sesión para hoy. Descansar también es entrenar: es cuando se asimila la carga.'}
+          {session.skipped
+            ? 'La sesión de hoy está marcada como saltada en tu plan.'
+            : session.summary || 'Tu plan no tiene sesión para hoy. Descansar también es entrenar: es cuando se asimila la carga.'}
         </p>
       ) : (
         <>
@@ -162,7 +217,7 @@ function bodyFromPlanDay(day) {
   };
 }
 
-export default function TodayPlannedSession({ session, day, action, adapted = null, showingAdapted = false, onToggleAdapted, onSendAdapted, sendState }) {
+export default function TodayPlannedSession({ session, day, todayISO, action, adapted = null, showingAdapted = false, onToggleAdapted, onSendAdapted, sendState }) {
   const banner = adapted && (
     <AdaptedBanner session={session} showing={showingAdapted} onToggle={onToggleAdapted} onSend={onSendAdapted} sendState={sendState} />
   );
@@ -194,13 +249,15 @@ export default function TodayPlannedSession({ session, day, action, adapted = nu
     );
   }
 
-  // Plan del Entrenador IA
+  // Plan de entrenamiento o plan del Entrenador IA
   return (
     <Card>
       <Header session={session} day={day} action={action} />
       <PlanBody session={session} />
+      {session.source === 'training_plan' && <CoachNote note={session.coachNote} />}
       <Conflict session={session} adapted={adapted} />
       {banner}
+      {session.source === 'training_plan' && <WeekStrip week={session.week} todayISO={todayISO} />}
     </Card>
   );
 }

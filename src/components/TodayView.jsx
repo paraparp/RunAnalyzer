@@ -551,7 +551,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     };
   }, [runs, bounds, readiness, currentTSB, phase, nowMs]);
 
-  // ── 10b. Qué toca hoy de verdad: Garmin > plan del Entrenador IA > automática ──
+  // ── 10b. Qué toca hoy de verdad: plan de entrenamiento > Garmin > descanso del
+  // plan > plan del Entrenador IA > automática (lib/todaySession) ──
   const todaySession = useTodaySession({ advisesRest: todayWorkout.recovery, nowMs });
 
   // ── 10b'. Plan adaptativo: sesión dura + estado de descarga → versión
@@ -559,7 +560,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   const todayISO = toISODate(new Date(nowMs));
   const adaptedSession = useMemo(() => {
     if (!todaySession.conflict || todaySession.source === 'auto') return null;
-    const base = todaySession.planDay ?? { day: todayWorkout.day, type: todaySession.title };
+    const base = todaySession.planDay
+      ? { day: todayWorkout.day, ...todaySession.planDay }
+      : { day: todayWorkout.day, type: todaySession.title };
     return recoveryVersion(base, todayWorkout);
   }, [todaySession, todayWorkout]);
   const [adaptChoice, setAdaptChoice] = useState(() => readChoice(cloudStorage, todayISO));
@@ -1294,6 +1297,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
             <TodayPlannedSession
               session={todaySession}
               day={todayWorkout.day}
+              todayISO={todayISO}
               adapted={adaptedSession}
               showingAdapted={showingAdapted}
               onToggleAdapted={toggleAdapted}
