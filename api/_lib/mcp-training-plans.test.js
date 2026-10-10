@@ -28,8 +28,30 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const {
   listTrainingPlans, getTrainingPlan, upsertTrainingPlan, deleteTrainingPlan,
-  upsertPlannedWorkout, upsertPlannedWorkouts, deletePlannedWorkout,
+  upsertPlannedWorkout, upsertPlannedWorkouts, deletePlannedWorkout, upsertTargetRace,
 } = await import('./mcp-store.js');
+
+describe('upsert_target_race: plan cortado', () => {
+  it('avisa si el HTML guardado no tiene </html> y devuelve lo guardado', async () => {
+    const W = 'user-race';
+    const cut = '<!DOCTYPE html>\n<html><head><style>.vol .hd{display:flex}\n';
+    const res = await upsertTargetRace(W, { name: 'Donostia', date: '2026-11-22', distance: '42k', plan: cut });
+    expect(res.plan_chars).toBe(cut.length);
+    expect(res.warnings[0]).toMatch(/CORTADO/);
+    // La respuesta ya no repite el plan entero.
+    expect(res.race.plan).toBeUndefined();
+
+    const full = `${cut}</style></head><body>Semana 1</body></html>\n`;
+    const ok = await upsertTargetRace(W, { race_id: res.race.id, plan: full });
+    expect(ok.warnings).toBeUndefined();
+    expect(ok.plan_chars).toBe(full.length);
+  });
+
+  it('un plan en markdown o texto no avisa', async () => {
+    const res = await upsertTargetRace('user-race-2', { name: 'X', plan: '# Semana 1\n- Rodaje' });
+    expect(res.warnings).toBeUndefined();
+  });
+});
 
 const U = 'user-1';
 const saved = () => JSON.parse(store.get(`${U}:training_plans`));

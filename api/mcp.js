@@ -509,7 +509,7 @@ const TOOLS = [
   },
   {
     name: 'upsert_target_race',
-    description: 'Crea (sin race_id) o edita (con race_id) una carrera objetivo y su plan de entrenamiento. El plan es TEXTO LIBRE en cualquier formato (markdown, HTML o texto plano): se guarda tal cual. Respeta el `plan_format` que devuelven list/get_target_race al reescribirlo (si el plan es markdown, edítalo en markdown). La edición es parcial: solo se tocan los campos enviados, así que puedes escribir `plan` sin reenviar nombre/fecha. Se guarda en la base de datos y aparece en la app.',
+    description: 'Crea (sin race_id) o edita (con race_id) una carrera objetivo y su plan de entrenamiento. El plan es TEXTO LIBRE en cualquier formato (markdown, HTML o texto plano): se guarda tal cual. Respeta el `plan_format` que devuelven list/get_target_race al reescribirlo (si el plan es markdown, edítalo en markdown). La edición es parcial: solo se tocan los campos enviados, así que puedes escribir `plan` sin reenviar nombre/fecha. Se guarda en la base de datos y aparece en la app. La respuesta trae `plan_chars` (lo que de verdad quedó guardado): compruébalo, porque un argumento muy largo puede llegar truncado; si trae `warnings`, el plan quedó cortado. Para planes largos escribe por trozos con `append_plan`, y las sesiones con fecha vuélcalas en un plan de entrenamiento (upsert_planned_workouts), no dentro de este texto.',
     inputSchema: {
       type: 'object',
       properties: {

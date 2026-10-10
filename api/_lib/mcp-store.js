@@ -2244,7 +2244,34 @@ export async function upsertTargetRace(userId, {
 
   await writeKey(userId, TARGET_RACES_KEY, list);
   const primary_id = primaryRaceId(list);
-  return { ok: true, created: idx < 0, primary_race_id: primary_id, race: shapeRace(race, { primary_id }) };
+  const savedPlan = typeof race.plan === 'string' ? race.plan : '';
+  const warnings = truncatedHtmlWarning(savedPlan);
+  return {
+    ok: true,
+    created: idx < 0,
+    primary_race_id: primary_id,
+    // Lo que de verdad quedó guardado: si no cuadra con lo que se quiso enviar,
+    // el argumento llegó cortado.
+    plan_chars: savedPlan.length,
+    ...(warnings.length ? { warnings } : {}),
+    race: shapeRace(race, { primary_id, include_plan: false }),
+  };
+}
+
+/**
+ * Un documento HTML sin cierre casi siempre es un argumento de tool truncado por
+ * el camino (un plan de ~10k caracteres que acabó a mitad del <style>). No se
+ * rechaza —el plan se puede escribir a trozos con append_plan, y los trozos
+ * intermedios están incompletos por definición— pero se avisa en la respuesta.
+ */
+function truncatedHtmlWarning(plan) {
+  const isDoc = /<!doctype html|<html[\s>]/i.test(plan);
+  if (!isDoc || /<\/html>\s*$/i.test(plan)) return [];
+  return [
+    `El plan es un documento HTML sin </html> (${plan.length} caracteres guardados): parece CORTADO. `
+    + 'Si no lo estás escribiendo a trozos con append_plan, el argumento se truncó por tamaño: '
+    + 'reenvíalo en trozos con append_plan, quita el CSS, o vuelca las sesiones con upsert_planned_workouts.',
+  ];
 }
 
 /** Borra una carrera objetivo (y su plan) por id. */
