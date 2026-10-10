@@ -42,7 +42,17 @@ const STATUS_STYLE = {
 };
 
 const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
-const shortDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+const parseISO = (iso) => new Date(`${iso}T00:00:00`);
+const shortDate = (iso) => parseISO(iso).toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+const weekdayShort = (iso) => parseISO(iso).toLocaleDateString(locale, { weekday: 'short' }).replace('.', '');
+const dayDiff = (a, b) => Math.round((parseISO(a) - parseISO(b)) / 86400000);
+/** Lunes de la semana de `iso` (las semanas del plan empiezan en lunes, como weeklyVolume). */
+const mondayOf = (iso) => {
+    const d = parseISO(iso);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return toISODate(d);
+};
+const isRest = (w) => workoutCategory(w) === 'rest';
 
 const Chip = ({ className = '', children }) => (
     <span className={`px-2 py-0.5 rounded-full text-label font-bold uppercase ring-1 ring-inset ${className}`}>
@@ -160,8 +170,24 @@ const ActualLine = ({ actual, workout, onOpen, t }) => {
     );
 };
 
-const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, onMove, onSendToWatch, onOpenActivity, t }) => {
-    const [expanded, setExpanded] = useState(false);
+/** "Hoy", "Mañana", "En 3 días"… para la sesión destacada. */
+const relativeDay = (iso, todayISO, t) => {
+    const d = dayDiff(iso, todayISO);
+    if (d === 0) return t('trainingplans.today');
+    if (d === 1) return t('trainingplans.tomorrow');
+    return t('trainingplans.in_days', { n: d });
+};
+
+/**
+ * Una sesión del plan. `variant`:
+ *   featured — la siguiente sesión: grande y con la ficha desplegada.
+ *   default  — próximas: resumen visible, acciones al pasar el ratón.
+ *   compact  — historial: una línea, sin resumen ni nota desplegada.
+ */
+const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', onEdit, onDelete, onToggleDone, onMove, onSendToWatch, onOpenActivity, t }) => {
+    const featured = variant === 'featured';
+    const compact = variant === 'compact';
+    const [expanded, setExpanded] = useState(featured);
     const [moving, setMoving] = useState(false);
     const [send, setSend] = useState(null); // null | 'sending' | { error }
     const hasSteps = Array.isArray(workout.structured_workout) && workout.structured_workout.length > 0;
@@ -170,6 +196,8 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
     const onWatch = !!workout.garmin_workout_id;
     // Enviado al reloj para otro día: tras moverlo hay que reenviarlo.
     const watchStale = onWatch && workout.garmin_date && workout.garmin_date !== workout.date;
+    const isToday = workout.date === todayISO;
+    const status = workout.status || 'planned';
 
     const sendToWatch = async () => {
         setSend('sending');
@@ -181,44 +209,72 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
         }
     };
 
+    const metrics = [
+        workout.distance_km != null ? `${workout.distance_km} km` : null,
+        workout.duration_min != null ? `${workout.duration_min} min` : null,
+    ].filter(Boolean);
+
     return (
-        <div className={`relative bg-white rounded-xl border border-slate-100 p-4 pl-5 overflow-hidden ${workout.status === 'skipped' ? 'opacity-60' : ''}`}>
-            <span className={`absolute left-0 inset-y-0 w-1 ${accent.bar}`} aria-hidden />
-            <div className="flex items-start gap-3">
-                <div className="shrink-0 w-14 text-center">
-                    <p className="text-xs font-black text-slate-900 tabular-nums leading-none">
-                        {workout.date ? shortDate(workout.date) : '—'}
-                    </p>
-                </div>
+        <div className={`group relative bg-white border overflow-hidden transition-colors ${
+            featured ? 'rounded-xl border-blue-200 shadow-sm' : 'rounded-lg border-slate-100 hover:border-slate-200'
+        } ${status === 'skipped' ? 'opacity-60' : ''}`}>
+            <span className={`absolute left-0 inset-y-0 ${featured ? 'w-1.5' : 'w-1'} ${accent.bar}`} aria-hidden />
+            <div className={`flex items-start gap-4 ${featured ? 'p-5 pl-6' : compact ? 'px-4 py-2.5 pl-5' : 'p-4 pl-5'}`}>
+                {workout.date ? (
+                    <div className={`shrink-0 text-center ${featured ? 'w-14' : 'w-10'}`}>
+                        <p className={`text-label font-bold uppercase leading-none ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
+                            {weekdayShort(workout.date)}
+                        </p>
+                        <p className={`font-black tabular-nums leading-none mt-1 ${featured ? 'text-3xl' : compact ? 'text-base' : 'text-xl'} ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>
+                            {parseISO(workout.date).getDate()}
+                        </p>
+                        {featured && (
+                            <p className="text-label font-bold uppercase text-slate-400 mt-1">
+                                {parseISO(workout.date).toLocaleDateString(locale, { month: 'short' }).replace('.', '')}
+                            </p>
+                        )}
+                    </div>
+                ) : (
+                    <div className="shrink-0 w-10 text-center text-slate-400">—</div>
+                )}
+
                 <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                    {featured && (
+                        <p className="text-label font-bold uppercase text-blue-600 mb-1.5">
+                            {t('trainingplans.next_up')} · {relativeDay(workout.date, todayISO, t)}
+                        </p>
+                    )}
+                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                        <span className={`font-black text-slate-900 ${featured ? 'text-xl tracking-tight' : 'text-sm'}`}>{workout.type}</span>
                         <span className={`text-[11px] font-mono font-semibold uppercase tracking-wider ${accent.text}`}>{accent.label}</span>
-                        <span className="text-sm font-black text-slate-900">{workout.type}</span>
-                        <Chip className={STATUS_STYLE[workout.status] || STATUS_STYLE.planned}>
-                            {t(`trainingplans.status_${workout.status || 'planned'}`)}
-                        </Chip>
-                        {workout.distance_km != null && (
-                            <span className="text-xs font-bold text-slate-500 tabular-nums">{workout.distance_km} km</span>
+                        {metrics.length > 0 && (
+                            <span className={`font-bold text-slate-500 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`}>{metrics.join(' · ')}</span>
                         )}
-                        {workout.duration_min != null && (
-                            <span className="text-xs font-bold text-slate-500 tabular-nums">{workout.duration_min} min</span>
+                        {status !== 'planned' && (
+                            <Chip className={STATUS_STYLE[status]}>{t(`trainingplans.status_${status}`)}</Chip>
                         )}
-                        {onWatch && (
+                        {onWatch && !isPast && (
                             <span className={`inline-flex items-center gap-1 text-xs font-bold ${watchStale ? 'text-amber-600' : 'text-emerald-600'}`}>
                                 <PaperAirplaneIcon className="w-3 h-3" />
                                 {watchStale ? t('trainingplans.watch_stale', { date: shortDate(workout.garmin_date) }) : t('trainingplans.on_watch')}
                             </span>
                         )}
+                        {compact && workout.coach_note && (
+                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 self-center" title={workout.coach_note} />
+                        )}
                     </div>
-                    {workout.summary && <p className="text-sm text-slate-600 leading-relaxed">{workout.summary}</p>}
+
+                    {!compact && workout.summary && (
+                        <p className={`text-slate-600 leading-relaxed mt-1 ${featured ? 'text-sm' : 'text-sm line-clamp-2'}`}>{workout.summary}</p>
+                    )}
                     {actual && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
-                    {workout.coach_note && (
+                    {!compact && workout.coach_note && (
                         <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                             <p className="text-xs text-amber-800 font-medium leading-relaxed">{workout.coach_note}</p>
                         </div>
                     )}
-                    {hasSteps && (
+                    {hasSteps && !compact && (
                         <button
                             type="button"
                             onClick={() => setExpanded((v) => !v)}
@@ -229,10 +285,10 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                         </button>
                     )}
-                    {(hasSteps || workout.key_rule) && expanded && (
+                    {(hasSteps || workout.key_rule) && expanded && !compact && (
                         <div className="mt-3"><WorkoutCard workout={workout} showHeader={false} /></div>
                     )}
-                    {!hasSteps && workout.key_rule && !expanded && (
+                    {!hasSteps && workout.key_rule && !expanded && !compact && (
                         <p className="mt-2 text-xs text-slate-600"><span className="font-bold text-slate-800">{t('trainingplans.key_rule')} · </span>{workout.key_rule}</p>
                     )}
                     {moving && (
@@ -251,11 +307,13 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
                     )}
                     {send?.error && <p className="mt-2 text-xs font-semibold text-rose-600">{send.error}</p>}
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+
+                {/* Acciones: siempre visibles en táctil; en escritorio aparecen al pasar el ratón o con el foco. */}
+                <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${featured ? '' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100'}`}>
                     <button
                         onClick={() => onToggleDone(workout)}
-                        className={`${iconBtn} ${workout.status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
-                        title={workout.status === 'done' ? t('trainingplans.mark_planned') : t('trainingplans.mark_done')}
+                        className={`${iconBtn} ${status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        title={status === 'done' ? t('trainingplans.mark_planned') : t('trainingplans.mark_done')}
                     >
                         <CheckCircleIcon className="w-4 h-4" />
                     </button>
@@ -284,58 +342,120 @@ const WorkoutRow = ({ workout, actual, isPast, onEdit, onDelete, onToggleDone, o
     );
 };
 
+/** Cifra grande con etiqueta en versales y una línea de contexto. */
+const Kpi = ({ label, value, sub, children }) => (
+    <div className="min-w-0">
+        <p className="text-label font-bold uppercase text-slate-500">{label}</p>
+        <p className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-tight mt-1">{value}</p>
+        {sub && <p className="text-xs font-medium text-slate-500 mt-0.5">{sub}</p>}
+        {children}
+    </div>
+);
+
 /**
- * Volumen por semana: barra de progreso por semana, con lo planificado como
- * carril gris y lo corrido como relleno. Las cifras van escritas (no dependen del
- * color) y la subida brusca se avisa con icono y texto.
+ * Volumen por semana en columnas: lo planificado como columna gris y lo corrido
+ * como columna azul más estrecha dentro. La semana actual va resaltada; las
+ * pasadas, atenuadas. Las cifras exactas van en el tooltip y en la cabecera de
+ * cada semana de la lista, y la subida brusca se marca con un icono.
  */
-const WeeklyVolume = ({ weeks, onDuplicate, t }) => {
+const WeeklyVolume = ({ weeks, t }) => {
     const max = Math.max(1, ...weeks.map((w) => Math.max(w.planned_km, w.actual_km ?? 0)));
     if (!weeks.some((w) => w.planned_km > 0 || (w.actual_km ?? 0) > 0)) {
         return <p className="text-xs font-medium text-slate-500">{t('trainingplans.no_volume')}</p>;
     }
+    const currentIdx = weeks.findIndex((w) => w.is_current);
     return (
-        <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-200" />{t('trainingplans.legend_planned')}</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-blue-600" />{t('trainingplans.legend_actual')}</span>
-            </div>
-            {weeks.map((w) => (
-                <div
-                    key={w.week_start}
-                    className={`grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 px-2 py-1.5 rounded-lg ${w.is_current ? 'bg-blue-50/60' : ''}`}
-                    title={t('trainingplans.week_tooltip', { done: w.done, total: w.sessions, planned: w.planned_km, actual: w.actual_km ?? '—' })}
-                >
-                    <span className="text-xs font-bold text-slate-600 tabular-nums">{shortDate(w.week_start)}</span>
-                    <div className="relative h-4">
-                        <div className="absolute inset-y-0 left-0 rounded bg-slate-200" style={{ width: `${(w.planned_km / max) * 100}%` }} />
-                        {w.actual_km != null && w.actual_km > 0 && (
-                            <div className="absolute top-1 bottom-1 left-0 rounded bg-blue-600" style={{ width: `${(w.actual_km / max) * 100}%` }} />
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2 justify-end">
-                        <span className="text-xs font-bold text-slate-700 tabular-nums whitespace-nowrap">
-                            {w.actual_km != null ? `${w.actual_km} / ` : ''}{w.planned_km} km
-                        </span>
-                        {w.ramp_warning && (
-                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700" title={t('trainingplans.ramp_hint')}>
-                                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                +{w.ramp_pct}%
-                            </span>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => onDuplicate(w.week_start)}
-                            className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title={t('trainingplans.duplicate_week')}
-                        >
-                            <DocumentDuplicateIcon className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
+        <div>
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <p className="text-label font-bold uppercase text-slate-500">{t('trainingplans.weekly_title')}</p>
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200" />{t('trainingplans.legend_planned')}</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-600" />{t('trainingplans.legend_actual')}</span>
                 </div>
-            ))}
+            </div>
+            <div className="flex items-end gap-1 sm:gap-1.5 h-28">
+                {weeks.map((w, i) => {
+                    const past = currentIdx >= 0 ? i < currentIdx : w.actual_km != null && !w.is_current;
+                    return (
+                        <div
+                            key={w.week_start}
+                            className={`relative flex-1 min-w-0 h-full flex items-end justify-center rounded-sm ${w.is_current ? 'bg-blue-50' : ''}`}
+                            title={`${t('trainingplans.week_label', { n: i + 1 })} · ${shortDate(w.week_start)}\n${t('trainingplans.week_tooltip', { done: w.done, total: w.sessions, planned: w.planned_km, actual: w.actual_km ?? '—' })}`}
+                        >
+                            {w.ramp_warning && (
+                                <ExclamationTriangleIcon
+                                    className="absolute w-3 h-3 text-amber-600"
+                                    style={{ bottom: `calc(${(w.planned_km / max) * 100}% + 2px)` }}
+                                />
+                            )}
+                            <div
+                                className={`relative w-full max-w-[2.25rem] rounded-t-sm ${past ? 'bg-slate-100' : 'bg-slate-200'}`}
+                                style={{ height: `${Math.max(2, (w.planned_km / max) * 100)}%` }}
+                            />
+                            {w.actual_km != null && w.actual_km > 0 && (
+                                <div
+                                    className={`absolute bottom-0 w-1/2 max-w-[1.125rem] rounded-t-sm ${past ? 'bg-blue-600/60' : 'bg-blue-600'}`}
+                                    style={{ height: `${(w.actual_km / max) * 100}%` }}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="flex gap-1 sm:gap-1.5 mt-1.5">
+                {weeks.map((w, i) => (
+                    <span
+                        key={w.week_start}
+                        className={`flex-1 min-w-0 text-center text-[10px] font-bold tabular-nums truncate ${w.is_current ? 'text-blue-600' : 'text-slate-400'}`}
+                    >
+                        {t('trainingplans.week_short', { n: i + 1 })}
+                    </span>
+                ))}
+            </div>
         </div>
     );
+};
+
+/** Cabecera de semana en la lista de próximos: número, rango, km y acciones. */
+const WeekHeader = ({ index, weekStart, meta, onDuplicate, t }) => {
+    const end = toISODate(new Date(parseISO(weekStart).getTime() + 6 * 86400000));
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
+            <div className="flex items-baseline gap-2">
+                <h4 className={`text-sm font-black ${meta?.is_current ? 'text-blue-600' : 'text-slate-900'}`}>
+                    {meta?.is_current ? t('trainingplans.this_week') : t('trainingplans.week_label', { n: index })}
+                </h4>
+                <span className="text-xs font-medium text-slate-400 tabular-nums">{shortDate(weekStart)} – {shortDate(end)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+                {meta && meta.planned_km > 0 && (
+                    <span className="text-xs font-bold text-slate-600 tabular-nums">
+                        {meta.is_current && meta.actual_km != null ? `${meta.actual_km} / ` : ''}{meta.planned_km} km
+                    </span>
+                )}
+                {meta?.ramp_warning && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700" title={t('trainingplans.ramp_hint')}>
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                        +{meta.ramp_pct}%
+                    </span>
+                )}
+                <button
+                    type="button"
+                    onClick={() => onDuplicate(weekStart)}
+                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title={t('trainingplans.duplicate_week')}
+                >
+                    <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const ADHERENCE_DOT = {
+    done: 'bg-emerald-500',
+    skipped: 'bg-slate-300',
+    planned: 'bg-rose-400', // ya pasó y sigue pendiente: no consta que se hiciera
 };
 
 const TrainingPlans = ({ activities = [], onOpenActivity }) => {
@@ -343,7 +463,6 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const [plans, setPlans] = useState(getTrainingPlans);
     const [selectedPlanId, setSelectedPlanId] = useState(() => getTrainingPlans()[0]?.id || null);
     const [showPast, setShowPast] = useState(false);
-    const [showVolume, setShowVolume] = useState(true);
     const [editingWorkout, setEditingWorkout] = useState(null); // 'new' | workout | null
     const [newPlanName, setNewPlanName] = useState('');
     const [addingPlan, setAddingPlan] = useState(false);
@@ -364,6 +483,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const selectedPlan = plans.find((p) => p.id === selectedPlanId) || null;
     const targetRaces = getTargetRaces();
     const linkedRace = selectedPlan?.raceId ? targetRaces.find((r) => r.id === selectedPlan.raceId) : null;
+    const raceDays = linkedRace?.date ? daysUntil(linkedRace.date) : null;
     const weeks = useMemo(() => weeklyVolume(selectedPlan, byDay, todayISO), [selectedPlan, byDay, todayISO]);
 
     const { upcoming, past } = useMemo(() => {
@@ -373,6 +493,38 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
         pa.reverse();
         return { upcoming: up, past: pa };
     }, [selectedPlan, todayISO]);
+
+    // La siguiente sesión que no sea descanso se destaca; el resto se agrupa por semana.
+    const nextUp = upcoming.find((w) => w.date && !isRest(w) && w.status !== 'done') || null;
+    const upcomingByWeek = useMemo(() => {
+        const groups = [];
+        for (const w of upcoming) {
+            if (w === nextUp) continue;
+            const ws = w.date ? mondayOf(w.date) : '';
+            let g = groups[groups.length - 1];
+            if (!g || g.week_start !== ws) { g = { week_start: ws, items: [] }; groups.push(g); }
+            g.items.push(w);
+        }
+        return groups;
+    }, [upcoming, nextUp]);
+
+    const stats = useMemo(() => {
+        const pastSessions = past.filter((w) => !isRest(w));
+        const done = pastSessions.filter((w) => w.status === 'done').length;
+        const toDate = weeks.filter((w) => w.week_start <= todayISO);
+        const kmRun = toDate.reduce((s, w) => s + (w.actual_km || 0), 0);
+        const kmPlanned = toDate.reduce((s, w) => s + w.planned_km, 0);
+        const kmTotal = weeks.reduce((s, w) => s + w.planned_km, 0);
+        const currentWeek = weeks.findIndex((w) => w.is_current) + 1;
+        return {
+            done, pastTotal: pastSessions.length,
+            adherence: pastSessions.length ? Math.round((done / pastSessions.length) * 100) : null,
+            kmRun: Math.round(kmRun), kmPlanned: Math.round(kmPlanned), kmTotal: Math.round(kmTotal),
+            currentWeek, totalWeeks: weeks.length,
+            // Historial en orden cronológico para la tira de puntos.
+            strip: [...pastSessions].reverse(),
+        };
+    }, [past, weeks, todayISO]);
 
     const createPlan = (e) => {
         e.preventDefault();
@@ -446,10 +598,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
         setTimeout(() => setNotice(''), 2500);
     }, [selectedPlan, t]);
 
-    const renderRow = (w) => (
+    const renderRow = (w, variant) => (
         <WorkoutRow
             key={w.id}
             workout={w}
+            variant={variant}
+            todayISO={todayISO}
             actual={w.date <= todayISO ? workoutActual(w, byDay) : null}
             isPast={w.date < todayISO}
             onEdit={setEditingWorkout}
@@ -462,36 +616,31 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
         />
     );
 
+    const weekIndex = (ws) => weeks.findIndex((w) => w.week_start === ws) + 1;
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto fade-in">
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
-                            <CalendarDaysIcon className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('trainingplans.title')}</h2>
-                            <p className="text-slate-500 text-sm font-medium">{t('trainingplans.subtitle')}</p>
-                        </div>
-                    </div>
+            {/* Cabecera de sección + selector de plan */}
+            <div className="flex flex-wrap items-end justify-between gap-4 px-1">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">{t('trainingplans.title')}</h2>
+                    <p className="text-slate-500 text-sm font-medium mt-1.5">{t('trainingplans.subtitle')}</p>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2 mt-6">
+                <div className="flex flex-wrap items-center gap-2">
                     {plans.map((p) => (
                         <button
                             key={p.id}
                             onClick={() => setSelectedPlanId(p.id)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedPlanId === p.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedPlanId === p.id ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}
                         >
                             {p.name || t('trainingplans.untitled')}
-                            <span className="ml-1.5 opacity-70">{(p.workouts || []).length}</span>
+                            <span className="ml-1.5 opacity-60 tabular-nums">{(p.workouts || []).length}</span>
                         </button>
                     ))}
                     {!addingPlan ? (
                         <button
                             onClick={() => setAddingPlan(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-white border-2 border-dashed border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-slate-300 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
                         >
                             <PlusIcon className="w-3.5 h-3.5" />
                             {t('trainingplans.new_plan')}
@@ -504,12 +653,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                 value={newPlanName}
                                 onChange={(e) => setNewPlanName(e.target.value)}
                                 placeholder={t('trainingplans.new_plan_ph')}
-                                className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
-                            <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-blue-700">
+                            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
                                 {t('trainingplans.add')}
                             </button>
-                            <button type="button" onClick={() => { setAddingPlan(false); setNewPlanName(''); }} className="p-2 text-slate-400 hover:text-slate-600">
+                            <button type="button" onClick={() => { setAddingPlan(false); setNewPlanName(''); }} className="p-1.5 text-slate-400 hover:text-slate-600">
                                 <XMarkIcon className="w-4 h-4" />
                             </button>
                         </form>
@@ -526,63 +675,81 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     <p className="text-slate-500 font-medium max-w-sm mx-auto">{t('trainingplans.empty_desc')}</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-black text-slate-900">{selectedPlan.name || t('trainingplans.untitled')}</h3>
-                            <button onClick={() => renamePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.rename')}>
-                                <PencilSquareIcon className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => removePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" title={t('trainingplans.delete_plan')}>
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
-                            <div className="inline-flex items-center gap-1.5 ml-1">
-                                <FlagIcon className="w-3.5 h-3.5 text-slate-400" />
-                                <select
-                                    value={linkedRace ? linkedRace.id : ''}
-                                    onChange={(e) => saveTrainingPlan({ id: selectedPlan.id, raceId: e.target.value || null })}
-                                    className="px-2 py-1 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                    title={t('trainingplans.link_race')}
-                                >
-                                    <option value="">{t('trainingplans.no_race')}</option>
-                                    {targetRaces.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                </select>
+                <>
+                    {/* Resumen del plan: nombre, carrera, KPIs y volumen */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3 p-6 pb-0">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1">
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight truncate">{selectedPlan.name || t('trainingplans.untitled')}</h3>
+                                    <button onClick={() => renamePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.rename')}>
+                                        <PencilSquareIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => removePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" title={t('trainingplans.delete_plan')}>
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 mt-1">
+                                    <FlagIcon className="w-3.5 h-3.5 text-slate-400" />
+                                    <select
+                                        value={linkedRace ? linkedRace.id : ''}
+                                        onChange={(e) => saveTrainingPlan({ id: selectedPlan.id, raceId: e.target.value || null })}
+                                        className="py-0.5 pr-6 pl-0 text-xs font-semibold bg-transparent border-0 text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-0 cursor-pointer"
+                                        title={t('trainingplans.link_race')}
+                                    >
+                                        <option value="">{t('trainingplans.no_race')}</option>
+                                        {targetRaces.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
+                            {editingWorkout === null && (
+                                <button
+                                    onClick={() => setEditingWorkout('new')}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    {t('trainingplans.add_workout')}
+                                </button>
+                            )}
                         </div>
-                        {editingWorkout === null && (
-                            <button
-                                onClick={() => setEditingWorkout('new')}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                {t('trainingplans.add_workout')}
-                            </button>
+
+                        {weeks.length > 0 && (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 p-6">
+                                <Kpi
+                                    label={t('trainingplans.kpi_week')}
+                                    value={stats.currentWeek > 0 ? `${stats.currentWeek}/${stats.totalWeeks}` : `${stats.totalWeeks}`}
+                                    sub={stats.currentWeek > 0 ? t('trainingplans.kpi_week_sub') : t('trainingplans.kpi_weeks_sub')}
+                                >
+                                    {stats.currentWeek > 0 && (
+                                        <div className="mt-2 h-1 rounded-full bg-slate-100 overflow-hidden">
+                                            <div className="h-full bg-blue-600" style={{ width: `${(stats.currentWeek / stats.totalWeeks) * 100}%` }} />
+                                        </div>
+                                    )}
+                                </Kpi>
+                                <Kpi
+                                    label={t('trainingplans.kpi_adherence')}
+                                    value={stats.adherence != null ? `${stats.adherence}%` : '—'}
+                                    sub={t('trainingplans.kpi_adherence_sub', { done: stats.done, total: stats.pastTotal })}
+                                />
+                                <Kpi
+                                    label={t('trainingplans.kpi_volume')}
+                                    value={<>{stats.kmRun}<span className="text-sm font-bold text-slate-400"> / {stats.kmPlanned} km</span></>}
+                                    sub={t('trainingplans.kpi_volume_sub', { n: stats.kmTotal })}
+                                />
+                                <Kpi
+                                    label={linkedRace ? linkedRace.name : t('trainingplans.kpi_race')}
+                                    value={raceDays != null && raceDays >= 0 ? t('trainingplans.kpi_days', { n: raceDays }) : '—'}
+                                    sub={linkedRace?.date ? parseISO(linkedRace.date).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : t('trainingplans.no_race')}
+                                />
+                            </div>
+                        )}
+
+                        {weeks.length > 0 && (
+                            <div className="border-t border-slate-100 p-6">
+                                <WeeklyVolume weeks={weeks} t={t} />
+                            </div>
                         )}
                     </div>
-
-                    {linkedRace && (
-                        <p className="text-xs font-semibold text-slate-500 -mt-3">
-                            {t('trainingplans.towards_race', { name: linkedRace.name })}
-                            {linkedRace.date && (() => {
-                                const d = daysUntil(linkedRace.date);
-                                return d != null ? ` · ${t('trainingplans.days_to_race', { n: d })}` : '';
-                            })()}
-                        </p>
-                    )}
-
-                    {weeks.length > 0 && (
-                        <div className="space-y-3">
-                            <button
-                                onClick={() => setShowVolume((v) => !v)}
-                                className="inline-flex items-center gap-1.5 text-label font-bold text-slate-500 uppercase px-1 hover:text-slate-600 transition-colors"
-                            >
-                                {t('trainingplans.weekly_title')}
-                                <ChevronDownIcon className={`w-3 h-3 transition-transform ${showVolume ? 'rotate-180' : ''}`} />
-                            </button>
-                            {showVolume && <WeeklyVolume weeks={weeks} onDuplicate={handleDuplicateWeek} t={t} />}
-                            {notice && <p className="text-xs font-semibold text-emerald-600 px-1">{notice}</p>}
-                        </div>
-                    )}
 
                     {editingWorkout === 'new' && (
                         <WorkoutForm initial={EMPTY_WORKOUT} onSave={handleSaveWorkout} onCancel={() => setEditingWorkout(null)} t={t} />
@@ -598,27 +765,60 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            {upcoming.length > 0 && (
-                                <div className="space-y-3">
-                                    <h4 className="text-label font-bold text-slate-500 uppercase px-1">{t('trainingplans.upcoming')} · {upcoming.length}</h4>
-                                    <div className="space-y-3">{upcoming.map(renderRow)}</div>
-                                </div>
-                            )}
+                            {nextUp && renderRow(nextUp, 'featured')}
+
+                            {notice && <p className="text-xs font-semibold text-emerald-600 px-1">{notice}</p>}
+
+                            {upcomingByWeek.map((g) => (
+                                <section key={g.week_start || 'nodate'} className="space-y-2">
+                                    {g.week_start && (
+                                        <WeekHeader
+                                            index={weekIndex(g.week_start)}
+                                            weekStart={g.week_start}
+                                            meta={weeks.find((w) => w.week_start === g.week_start)}
+                                            onDuplicate={handleDuplicateWeek}
+                                            t={t}
+                                        />
+                                    )}
+                                    <div className="space-y-2">{g.items.map((w) => renderRow(w, 'default'))}</div>
+                                </section>
+                            ))}
+
                             {past.length > 0 && (
-                                <div className="space-y-3">
+                                <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
                                     <button
                                         onClick={() => setShowPast((v) => !v)}
-                                        className="inline-flex items-center gap-1.5 text-label font-bold text-slate-500 uppercase px-1 hover:text-slate-600 transition-colors"
+                                        className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-left"
+                                        aria-expanded={showPast}
                                     >
-                                        {t('trainingplans.past')} · {past.length}
-                                        <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />
+                                        <span className="text-label font-bold uppercase text-slate-500">{t('trainingplans.history')}</span>
+                                        <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                                            {t('trainingplans.kpi_adherence_sub', { done: stats.done, total: stats.pastTotal })}
+                                        </span>
+                                        {stats.strip.length > 0 && (
+                                            <span className="flex flex-wrap items-center gap-1 flex-1 min-w-0" aria-hidden>
+                                                {stats.strip.map((w) => (
+                                                    <span
+                                                        key={w.id}
+                                                        className={`w-2 h-2 rounded-full ${ADHERENCE_DOT[w.status] || ADHERENCE_DOT.planned}`}
+                                                        title={`${w.date ? shortDate(w.date) : ''} · ${w.type} · ${t(`trainingplans.status_${w.status || 'planned'}`)}`}
+                                                    />
+                                                ))}
+                                            </span>
+                                        )}
+                                        <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-slate-500">
+                                            {showPast ? t('trainingplans.hide_history') : t('trainingplans.show_history', { n: past.length })}
+                                            <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />
+                                        </span>
                                     </button>
-                                    {showPast && <div className="space-y-3">{past.map(renderRow)}</div>}
-                                </div>
+                                    {showPast && (
+                                        <div className="space-y-1.5 px-4 pb-4">{past.map((w) => renderRow(w, 'compact'))}</div>
+                                    )}
+                                </section>
                             )}
                         </div>
                     )}
-                </div>
+                </>
             )}
         </div>
     );
