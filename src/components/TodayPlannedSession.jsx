@@ -208,6 +208,27 @@ function AdaptedBanner({ session, showing, onToggle, onSend, sendState }) {
   );
 }
 
+const AHEAD_LABEL = { 1: 'Mañana', 2: 'Pasado mañana' };
+const WEEKDAY_LONG = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+/** Próxima sesión planificada (hasta 3 días vista) cuando hoy no hay. */
+export function UpcomingSession({ upcoming, className = '' }) {
+  if (!upcoming) return null;
+  const [y, m, d] = upcoming.date.split('-').map(Number);
+  const weekday = WEEKDAY_LONG[new Date(y, m - 1, d).getDay()];
+  const when = AHEAD_LABEL[upcoming.daysAhead] ? `${AHEAD_LABEL[upcoming.daysAhead]} (${weekday})` : `El ${weekday}`;
+  return (
+    <div className={`p-3 rounded bg-blue-50 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900 ${className}`}>
+      <p className="text-label font-bold uppercase text-blue-700 dark:text-blue-300">Siguiente sesión planificada · {when}</p>
+      <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{upcoming.isRace ? `🏁 ${upcoming.type}` : upcoming.type}</p>
+      {upcoming.summary && <p className="text-xs text-slate-500 dark:text-slate-400">{upcoming.summary}</p>}
+      {(upcoming.dist || upcoming.time) && (
+        <p className="text-xs font-mono text-slate-500 mt-0.5">{[upcoming.dist, upcoming.time].filter(Boolean).join(' · ')}</p>
+      )}
+    </div>
+  );
+}
+
 /** Día del plan → lo que pinta `PlanBody`. */
 function bodyFromPlanDay(day) {
   const { blocks, totalMin } = workoutBlocks(day.structured_workout);
@@ -270,6 +291,7 @@ export default function TodayPlannedSession({ session, day, todayISO, action, ad
       ) : (
         <PlanBody session={session} />
       )}
+      <UpcomingSession upcoming={session.upcoming} />
       {session.source === 'training_plan' && <CoachNote note={session.coachNote} />}
       <Conflict session={session} adapted={adapted} />
       {banner}

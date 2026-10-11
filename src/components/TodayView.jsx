@@ -18,7 +18,7 @@ import { pushPlanDays } from '../services/garminWorkouts';
 import useAIInsights from '../hooks/useAIInsights';
 import { CoachBadge, CoachBanners, CoachDisclosure, CoachMD, CoachSettings, CoachText } from './CoachAI';
 import { CUR_BADGES, TREND_BADGES, deriveStatusKey, deriveTrendKey, formatTs } from '../lib/aiInsights';
-import TodayPlannedSession from './TodayPlannedSession';
+import TodayPlannedSession, { UpcomingSession } from './TodayPlannedSession';
 import { computeReadiness } from '../lib/athleteContext';
 import { getPrimaryTargetRace, getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
@@ -1239,6 +1239,7 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 <span className="ml-2 align-middle text-xs font-semibold text-slate-500">{suggested.badge}</span>
               </p>
               <p className="text-xs text-slate-500 mt-1">{suggested.note}</p>
+              {todaySession.upcoming && <UpcomingSession upcoming={todaySession.upcoming} className="mt-3" />}
 
               <dl className="grid grid-cols-3 gap-3 mt-3">
                 {[

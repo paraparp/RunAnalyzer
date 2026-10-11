@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     CalendarDaysIcon, PlusIcon, TrashIcon, PencilSquareIcon, XMarkIcon,
     ChevronDownIcon, ClockIcon, CheckCircleIcon, ChatBubbleLeftRightIcon, FlagIcon,
     ArrowsRightLeftIcon, PaperAirplaneIcon, DocumentDuplicateIcon, ExclamationTriangleIcon,
+    ListBulletIcon, TableCellsIcon, BoltIcon,
 } from "@heroicons/react/24/outline";
 import {
     getTrainingPlans, saveTrainingPlan, deleteTrainingPlan, duplicateWeek,
@@ -17,6 +18,24 @@ import { pushPlanDays, deleteGarminWorkout } from '../services/garminWorkouts';
 import { WORKOUT_CATEGORIES, workoutCategory } from '../lib/workoutProtocol';
 import WorkoutCard from './WorkoutCard';
 import { CATEGORY_STYLE } from '../lib/workoutStyle';
+import {
+    PLAN_PHASES, estimateWorkoutLoad, plannedLoad, planWarnings, unplannedRuns, compareToPlan,
+    INTENSITY_BANDS, weekIntensityMix,
+} from '../lib/planInsights';
+import { buildLoadParams, sessionLoad } from '../lib/trainingLoad';
+
+// Color de cada fase del bloque: escala de índigo según la carga, cian para el taper.
+const PHASE_STYLE = {
+    base: { band: 'bg-indigo-200', text: 'text-indigo-500' },
+    build: { band: 'bg-indigo-400', text: 'text-indigo-600' },
+    peak: { band: 'bg-indigo-600', text: 'text-indigo-700' },
+    taper: { band: 'bg-cyan-500', text: 'text-cyan-700' },
+    recovery: { band: 'bg-slate-300', text: 'text-slate-500' },
+};
+
+const VIEW_KEY = 'trainingplans_view';
+const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'list'; } catch { return 'list'; } };
+const writeView = (v) => { try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin storage */ } };
 
 const EMPTY_WORKOUT = {
     date: '', type: '', summary: '', status: 'planned', category: '', key_rule: '',
@@ -52,7 +71,12 @@ const mondayOf = (iso) => {
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return toISODate(d);
 };
-const isRest = (w) => workoutCategory(w) === 'rest';
+const addDaysISO = (iso, n) => {
+    const d = parseISO(iso);
+    d.setDate(d.getDate() + n);
+    return toISODate(d);
+};
+const isRest =(w) => workoutCategory(w) === 'rest';
 
 const Chip = ({ className = '', children }) => (
     <span className={`px-2 py-0.5 rounded-full text-label font-bold uppercase ring-1 ring-inset ${className}`}>
@@ -170,6 +194,185 @@ const ActualLine = ({ actual, workout, onOpen, t }) => {
     );
 };
 
+const LEVEL_DOT = { good: 'bg-emerald-500', caution: 'bg-amber-500', risk: 'bg-rose-500' };
+
+/**
+ * Plan frente a real en columnas, con semáforo por métrica (≤10% verde, ≤25%
+ * ámbar, más rojo). El texto lleva la cifra y el %: el color solo refuerza.
+ */
+const PlanVsActual = ({ workout, actual, onOpen, t }) => {
+    const rows = compareToPlan(workout, actual);
+    const fmt = {
+        distance: (v) => `${v} km`,
+        duration: (v) => `${Math.round(v)} min`,
+        pace: (v) => `${formatMinutes(v)}/km`,
+    };
+    return (
+        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60">
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100">
+                {rows.map((r) => (
+                    <div key={r.key} className="px-3 py-2.5 min-w-0">
+                        <p className="text-label font-bold uppercase text-slate-500">{t(`trainingplans.cmp_${r.key}`)}</p>
+                        <p className="text-base font-black text-slate-900 tabular-nums mt-0.5">{r.real != null ? fmt[r.key](r.real) : '—'}</p>
+                        <p className="text-xs font-medium text-slate-500 tabular-nums flex items-center gap-1.5">
+                            {r.level && <span className={`w-1.5 h-1.5 rounded-full ${LEVEL_DOT[r.level]}`} aria-hidden />}
+                            {r.plan != null ? `${t('trainingplans.cmp_plan')} ${fmt[r.key](r.plan)}` : t('trainingplans.cmp_no_plan')}
+                            {r.delta != null && ` · ${r.delta > 0 ? '+' : ''}${r.delta}%`}
+                        </p>
+                    </div>
+                ))}
+                <div className="px-3 py-2.5 min-w-0">
+                    <p className="text-label font-bold uppercase text-slate-500">{t('trainingplans.cmp_hr')}</p>
+                    <p className="text-base font-black text-slate-900 tabular-nums mt-0.5">{actual.avg_hr ? `${actual.avg_hr} ppm` : '—'}</p>
+                    {actual.activity_id && (
+                        <button type="button" onClick={() => onOpen?.(actual.activity_id)} className="text-xs font-bold text-blue-600 hover:text-blue-700">
+                            {t('trainingplans.open_activity')} →
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/** Carrera que no estaba en el plan: una línea en el historial. */
+const ExtraRow = ({ run, onOpen, t }) => (
+    <button
+        type="button"
+        onClick={() => run.activity_id && onOpen?.(run.activity_id)}
+        className="w-full flex items-center gap-4 px-4 py-2.5 pl-5 rounded-lg border border-dashed border-slate-200 bg-white text-left hover:border-blue-200 transition-colors"
+        title={run.name || t('trainingplans.open_activity')}
+    >
+        <div className="shrink-0 w-10 text-center">
+            <p className="text-label font-bold uppercase leading-none text-slate-400">{weekdayShort(run.date)}</p>
+            <p className="text-base font-black tabular-nums leading-none mt-1 text-slate-500">{parseISO(run.date).getDate()}</p>
+        </div>
+        <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2.5">
+            <span className="text-sm font-bold text-slate-600 truncate">{run.name || t('trainingplans.extra_run')}</span>
+            <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-400">{t('trainingplans.extra_label')}</span>
+            <span className="text-xs font-bold text-slate-500 tabular-nums">
+                {[`${run.distance_km} km`, run.pace_min_km != null ? `${formatMinutes(run.pace_min_km)}/km` : null, run.avg_hr ? `${run.avg_hr} ppm` : null].filter(Boolean).join(' · ')}
+            </span>
+        </div>
+    </button>
+);
+
+/**
+ * Calendario lunes–domingo: una fila por semana, siete casillas por día. Los
+ * entrenos se arrastran de un día a otro (mismo efecto que "Mover a otro día") y
+ * al pulsarlos se editan. Las carreras fuera de plan aparecen con borde punteado.
+ */
+const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks, onToggleAll, onMove, onEdit, t }) => {
+    const [dragId, setDragId] = useState(null);
+    const [overDay, setOverDay] = useState(null);
+    const byDate = useMemo(() => {
+        const m = new Map();
+        for (const w of workouts) if (w.date) { if (!m.has(w.date)) m.set(w.date, []); m.get(w.date).push(w); }
+        return m;
+    }, [workouts]);
+    const extraByDate = useMemo(() => new Map(extras.map((r) => [r.date, r])), [extras]);
+    // Lo pasado pesa poco: por defecto solo desde la semana anterior a la actual.
+    const cutoff = mondayOf(addDaysISO(todayISO, -7));
+    const hidden = weeks.filter((w) => w.week_start < cutoff).length;
+    const visible = showAllWeeks ? weeks : weeks.filter((w) => w.week_start >= cutoff);
+    const dayLabels = Array.from({ length: 7 }, (_, i) => weekdayShort(toISODate(new Date(2024, 0, 1 + i)))); // 1-ene-2024 fue lunes
+
+    const drop = (date) => {
+        const w = workouts.find((x) => x.id === dragId);
+        if (w) onMove(w, date);
+        setDragId(null);
+        setOverDay(null);
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+            {hidden > 0 && (
+                <button type="button" onClick={onToggleAll} className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600">
+                    {showAllWeeks ? t('trainingplans.hide_old_weeks') : t('trainingplans.show_old_weeks', { n: hidden })}
+                    <ChevronDownIcon className={`w-3 h-3 transition-transform ${showAllWeeks ? 'rotate-180' : ''}`} />
+                </button>
+            )}
+            <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[4.5rem_repeat(7,minmax(0,1fr))] gap-1">
+                <span />
+                {dayLabels.map((d) => (
+                    <span key={d} className="text-center text-label font-bold uppercase text-slate-400 pb-1">{d}</span>
+                ))}
+                {visible.map((wk) => {
+                    const i = weeks.indexOf(wk);
+                    const phase = phases[wk.week_start];
+                    return [
+                        <div key={`${wk.week_start}-h`} className={`flex flex-col justify-center pr-1 ${wk.is_current ? 'text-blue-600' : 'text-slate-500'}`}>
+                            <span className="text-xs font-black tabular-nums">{t('trainingplans.week_short', { n: i + 1 })}</span>
+                            {phase && <span className={`hidden sm:block text-[10px] font-bold uppercase ${PHASE_STYLE[phase].text}`}>{t(`trainingplans.phase_${phase}`)}</span>}
+                            <span className="hidden sm:block text-[10px] font-semibold tabular-nums text-slate-400">{wk.planned_km} km</span>
+                        </div>,
+                        ...Array.from({ length: 7 }, (_, d) => {
+                            const date = addDaysISO(wk.week_start, d);
+                            const items = byDate.get(date) || [];
+                            const extra = extraByDate.get(date);
+                            const past = date < todayISO;
+                            const isToday = date === todayISO;
+                            return (
+                                <div
+                                    key={date}
+                                    onDragOver={(e) => { if (dragId) { e.preventDefault(); setOverDay(date); } }}
+                                    onDragLeave={() => setOverDay((o) => (o === date ? null : o))}
+                                    onDrop={(e) => { e.preventDefault(); drop(date); }}
+                                    className={`min-h-[4.5rem] rounded-md border p-1 flex flex-col gap-1 transition-colors ${
+                                        overDay === date ? 'border-blue-400 bg-blue-50'
+                                            : isToday ? 'border-blue-300 bg-blue-50/40'
+                                                : past ? 'border-slate-100 bg-slate-50/60' : 'border-slate-100'
+                                    }`}
+                                >
+                                    <span className={`text-[10px] font-bold tabular-nums leading-none ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
+                                        {parseISO(date).getDate()}
+                                    </span>
+                                    {items.map((w) => {
+                                        const accent = CATEGORY_STYLE[workoutCategory(w)] || CATEGORY_STYLE.easy;
+                                        const status = w.status || 'planned';
+                                        return (
+                                            <button
+                                                key={w.id}
+                                                type="button"
+                                                draggable
+                                                onDragStart={(e) => { setDragId(w.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', w.id); }}
+                                                onDragEnd={() => { setDragId(null); setOverDay(null); }}
+                                                onClick={() => onEdit(w)}
+                                                title={`${w.type}${w.distance_km != null ? ` · ${w.distance_km} km` : ''}${w.summary ? `\n${w.summary}` : ''}`}
+                                                className={`relative text-left rounded-sm bg-white border border-slate-200 pl-2 pr-1 py-1 overflow-hidden cursor-grab active:cursor-grabbing hover:border-slate-300 ${
+                                                    status === 'skipped' ? 'opacity-50 line-through' : ''
+                                                } ${past && status !== 'done' ? 'opacity-70' : ''} ${dragId === w.id ? 'opacity-40' : ''}`}
+                                            >
+                                                <span className={`absolute left-0 inset-y-0 w-1 ${accent.bar}`} aria-hidden />
+                                                <span className="flex items-center gap-1">
+                                                    {status === 'done' && <CheckCircleIcon className="w-3 h-3 text-emerald-600 shrink-0" />}
+                                                    <span className="hidden sm:block text-[11px] font-bold text-slate-800 truncate leading-tight">{w.type}</span>
+                                                </span>
+                                                {w.distance_km != null && (
+                                                    <span className="block text-[10px] font-semibold text-slate-500 tabular-nums leading-tight">{w.distance_km} km</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                    {extra && !items.some((w) => workoutCategory(w) !== 'rest') && (
+                                        <span
+                                            className="rounded-sm border border-dashed border-slate-300 px-1 py-0.5 text-[10px] font-semibold text-slate-500 tabular-nums"
+                                            title={`${t('trainingplans.extra_label')} · ${extra.name || ''}`}
+                                        >
+                                            +{extra.distance_km} km
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        }),
+                    ];
+                })}
+            </div>
+            <p className="mt-3 text-xs font-medium text-slate-400">{t('trainingplans.calendar_hint')}</p>
+        </div>
+    );
+};
+
 /** "Hoy", "Mañana", "En 3 días"… para la sesión destacada. */
 const relativeDay = (iso, todayISO, t) => {
     const d = dayDiff(iso, todayISO);
@@ -209,6 +412,7 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
         }
     };
 
+    const load = estimateWorkoutLoad(workout);
     const metrics = [
         workout.distance_km != null ? `${workout.distance_km} km` : null,
         workout.duration_min != null ? `${workout.duration_min} min` : null,
@@ -250,6 +454,11 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                         {metrics.length > 0 && (
                             <span className={`font-bold text-slate-500 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`}>{metrics.join(' · ')}</span>
                         )}
+                        {load > 0 && !compact && (
+                            <span className={`inline-flex items-center gap-0.5 font-bold text-slate-400 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`} title={t('trainingplans.load_hint')}>
+                                <BoltIcon className="w-3 h-3" />{load}
+                            </span>
+                        )}
                         {status !== 'planned' && (
                             <Chip className={STATUS_STYLE[status]}>{t(`trainingplans.status_${status}`)}</Chip>
                         )}
@@ -267,7 +476,8 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                     {!compact && workout.summary && (
                         <p className={`text-slate-600 leading-relaxed mt-1 ${featured ? 'text-sm' : 'text-sm line-clamp-2'}`}>{workout.summary}</p>
                     )}
-                    {actual && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
+                    {actual && featured && <PlanVsActual workout={workout} actual={actual} onOpen={onOpenActivity} t={t} />}
+                    {actual && !featured && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
                     {!compact && workout.coach_note && (
                         <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
@@ -352,86 +562,195 @@ const Kpi = ({ label, value, sub, children }) => (
     </div>
 );
 
+// Correr más de esto por encima de lo planificado en una semana se marca en ámbar.
+const OVER_PLAN_PCT = 10;
+const axisDate = (iso) => parseISO(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' }).replace('.', '');
+
+// Colores de las bandas de intensidad: los de las zonas de FC del sistema
+// (Z2 cielo, Z3 verde, Z4 naranja, Z5 rojo), de abajo arriba en la columna.
+const BAND_STYLE = {
+    aerobic: 'bg-sky-400',
+    marathon: 'bg-green-400',
+    threshold: 'bg-orange-400',
+    race: 'bg-red-400',
+};
+
 /**
- * Volumen por semana en columnas: lo planificado como columna gris y lo corrido
- * como columna azul más estrecha dentro. La semana actual va resaltada; las
- * pasadas, atenuadas. Las cifras exactas van en el tooltip y en la cabecera de
- * cada semana de la lista, y la subida brusca se marca con un icono.
+ * Volumen por semana en columnas apiladas: la altura es lo planificado y los
+ * tramos de color su reparto por intensidad (planInsights.intensityMix). Lo
+ * corrido es una marca horizontal a su altura, en ámbar si supera lo planificado
+ * en más de un OVER_PLAN_PCT. Las semanas ya cerradas van atenuadas: lo que
+ * importa es lo que viene. Una cifra por columna; el detalle, en el tooltip.
  */
-const WeeklyVolume = ({ weeks, t }) => {
+const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
     const max = Math.max(1, ...weeks.map((w) => Math.max(w.planned_km, w.actual_km ?? 0)));
     if (!weeks.some((w) => w.planned_km > 0 || (w.actual_km ?? 0) > 0)) {
         return <p className="text-xs font-medium text-slate-500">{t('trainingplans.no_volume')}</p>;
     }
     const currentIdx = weeks.findIndex((w) => w.is_current);
+    const dense = weeks.length > 8; // en móvil, con muchas semanas, una fecha de cada dos
+    const isOver = (w) => w.actual_km != null && w.planned_km > 0 && w.actual_km > w.planned_km * (1 + OVER_PLAN_PCT / 100);
+    const anyOver = weeks.some(isOver);
+    const usedBands = INTENSITY_BANDS.filter((b) => weeks.some((w) => (mixes[w.week_start]?.[b] || 0) > 0.05));
+    const plannedKms = weeks.map((w) => w.planned_km).filter((k) => k > 0);
+    const avg = plannedKms.length ? Math.round(plannedKms.reduce((s, k) => s + k, 0) / plannedKms.length) : 0;
+    const peak = Math.round(Math.max(0, ...plannedKms));
+
     return (
         <div>
-            <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
                 <p className="text-label font-bold uppercase text-slate-500">{t('trainingplans.weekly_title')}</p>
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200" />{t('trainingplans.legend_planned')}</span>
-                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-600" />{t('trainingplans.legend_actual')}</span>
-                </div>
+                {avg > 0 && (
+                    <p className="text-xs font-medium text-slate-500 tabular-nums">{t('trainingplans.volume_stats', { avg, peak })}</p>
+                )}
             </div>
-            <div className="flex items-end gap-1 sm:gap-1.5 h-28">
+            {Object.keys(phases).length > 0 && (
+                <div className="flex gap-1.5 sm:gap-2 mb-3">
+                    {weeks.map((w, i) => {
+                        const p = phases[w.week_start];
+                        const prev = phases[weeks[i - 1]?.week_start];
+                        return (
+                            <div key={w.week_start} className="flex-1 min-w-0" title={p ? t(`trainingplans.phase_${p}`) : undefined}>
+                                <span className={`block text-[10px] font-bold uppercase truncate h-3.5 leading-none ${p ? PHASE_STYLE[p].text : ''}`}>
+                                    {p && p !== prev ? t(`trainingplans.phase_${p}`) : ''}
+                                </span>
+                                <div className={`h-1 rounded-full ${p ? PHASE_STYLE[p].band : 'bg-slate-100'}`} />
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <div className="flex items-end gap-1.5 sm:gap-2 h-36 border-b border-slate-200">
                 {weeks.map((w, i) => {
-                    const past = currentIdx >= 0 ? i < currentIdx : w.actual_km != null && !w.is_current;
+                    const closed = currentIdx >= 0 ? i < currentIdx : w.actual_km != null && !w.is_current;
+                    const started = closed || w.is_current;
+                    const actual = w.actual_km != null && w.actual_km > 0 ? w.actual_km : null;
+                    const over = isOver(w);
+                    const shown = started && actual != null ? actual : w.planned_km;
+                    const top = Math.max(w.planned_km, actual ?? 0);
+                    const mix = mixes[w.week_start] || {};
+                    const mixSum = INTENSITY_BANDS.reduce((s, b) => s + (mix[b] || 0), 0);
+                    const tooltip = [
+                        `${t('trainingplans.week_label', { n: i + 1 })} · ${shortDate(w.week_start)}`,
+                        t('trainingplans.week_tooltip', { done: w.done, total: w.sessions, planned: w.planned_km, actual: w.actual_km ?? '—' }),
+                        ...INTENSITY_BANDS.filter((b) => (mix[b] || 0) > 0.05)
+                            .map((b) => `${t(`trainingplans.band_${b}`)}: ${Math.round(mix[b] * 10) / 10} km`),
+                        over ? t('trainingplans.over_hint', { pct: Math.round((w.actual_km / w.planned_km - 1) * 100) }) : null,
+                    ].filter(Boolean).join('\n');
                     return (
-                        <div
-                            key={w.week_start}
-                            className={`relative flex-1 min-w-0 h-full flex items-end justify-center rounded-sm ${w.is_current ? 'bg-blue-50' : ''}`}
-                            title={`${t('trainingplans.week_label', { n: i + 1 })} · ${shortDate(w.week_start)}\n${t('trainingplans.week_tooltip', { done: w.done, total: w.sessions, planned: w.planned_km, actual: w.actual_km ?? '—' })}`}
-                        >
-                            {w.ramp_warning && (
-                                <ExclamationTriangleIcon
-                                    className="absolute w-3 h-3 text-amber-600"
-                                    style={{ bottom: `calc(${(w.planned_km / max) * 100}% + 2px)` }}
-                                />
-                            )}
-                            <div
-                                className={`relative w-full max-w-[2.25rem] rounded-t-sm ${past ? 'bg-slate-100' : 'bg-slate-200'}`}
-                                style={{ height: `${Math.max(2, (w.planned_km / max) * 100)}%` }}
-                            />
-                            {w.actual_km != null && w.actual_km > 0 && (
+                        <div key={w.week_start} className="group flex-1 min-w-0 h-full pt-5" title={tooltip}>
+                            <div className="relative h-full flex items-end justify-center">
+                                {shown > 0 && (
+                                    <span
+                                        className={`absolute inset-x-0 text-center text-[11px] leading-none tabular-nums ${dense ? 'hidden sm:block' : ''} ${
+                                            over ? 'font-bold text-amber-600'
+                                                : w.is_current ? 'font-black text-slate-900'
+                                                    : closed ? 'font-medium text-slate-400' : 'font-semibold text-slate-600'
+                                        }`}
+                                        style={{ bottom: `calc(${(top / max) * 100}% + 4px)` }}
+                                    >
+                                        {Math.round(shown)}
+                                    </span>
+                                )}
+                                {/* Columna planificada, apilada por intensidad (aeróbico abajo). */}
                                 <div
-                                    className={`absolute bottom-0 w-1/2 max-w-[1.125rem] rounded-t-sm ${past ? 'bg-blue-600/60' : 'bg-blue-600'}`}
-                                    style={{ height: `${(w.actual_km / max) * 100}%` }}
-                                />
-                            )}
+                                    className={`relative w-full max-w-[1.75rem] rounded-t-[3px] overflow-hidden flex flex-col-reverse transition-opacity ${
+                                        closed ? 'opacity-45 group-hover:opacity-80' : ''
+                                    } ${w.is_current ? 'ring-2 ring-slate-900 ring-offset-1' : ''} ${mixSum > 0 ? '' : 'bg-slate-200'}`}
+                                    style={{ height: `${Math.max(1, (w.planned_km / max) * 100)}%` }}
+                                >
+                                    {mixSum > 0 && INTENSITY_BANDS.map((b) => (mix[b] > 0 ? (
+                                        <div key={b} className={BAND_STYLE[b]} style={{ height: `${(mix[b] / mixSum) * 100}%` }} />
+                                    ) : null))}
+                                </div>
+                                {/* Lo corrido: una marca a su altura, un poco más ancha que la columna. */}
+                                {actual != null && (
+                                    <div
+                                        className={`absolute left-1/2 -translate-x-1/2 w-[calc(100%+4px)] max-w-[2rem] h-[3px] rounded-full ${
+                                            over ? 'bg-amber-500' : 'bg-slate-900'
+                                        } ${closed && !over ? 'opacity-60' : ''}`}
+                                        style={{ bottom: `calc(${(actual / max) * 100}% - 1.5px)` }}
+                                    />
+                                )}
+                            </div>
                         </div>
                     );
                 })}
             </div>
-            <div className="flex gap-1 sm:gap-1.5 mt-1.5">
+            <div className="flex gap-1.5 sm:gap-2 mt-2">
                 {weeks.map((w, i) => (
                     <span
                         key={w.week_start}
-                        className={`flex-1 min-w-0 text-center text-[10px] font-bold tabular-nums truncate ${w.is_current ? 'text-blue-600' : 'text-slate-400'}`}
+                        className={`flex-1 min-w-0 text-center text-[10px] tabular-nums whitespace-nowrap overflow-visible ${
+                            w.is_current ? 'font-bold text-slate-900' : 'font-medium text-slate-400'
+                        } ${dense && i % 2 ? 'invisible sm:visible' : ''}`}
                     >
-                        {t('trainingplans.week_short', { n: i + 1 })}
+                        {axisDate(w.week_start)}
                     </span>
                 ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-xs text-slate-500">
+                {usedBands.map((b) => (
+                    <span key={b} className="inline-flex items-center gap-1.5">
+                        <span className={`w-2.5 h-2.5 rounded-[2px] ${BAND_STYLE[b]}`} />{t(`trainingplans.band_${b}`)}
+                    </span>
+                ))}
+                {usedBands.length === 0 && (
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-[2px] bg-slate-200" />{t('trainingplans.legend_planned')}</span>
+                )}
+                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-[3px] rounded-full bg-slate-900" />{t('trainingplans.legend_actual')}</span>
+                {anyOver && (
+                    <span className="inline-flex items-center gap-1.5"><span className="w-3 h-[3px] rounded-full bg-amber-500" />{t('trainingplans.legend_over', { n: OVER_PLAN_PCT })}</span>
+                )}
             </div>
         </div>
     );
 };
 
+
 /** Cabecera de semana en la lista de próximos: número, rango, km y acciones. */
-const WeekHeader = ({ index, weekStart, meta, onDuplicate, t }) => {
-    const end = toISODate(new Date(parseISO(weekStart).getTime() + 6 * 86400000));
+const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, onPhase, onSendWeek, onDuplicate, t }) => {
+    const end = addDaysISO(weekStart, 6);
     return (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <h4 className={`text-sm font-black ${meta?.is_current ? 'text-blue-600' : 'text-slate-900'}`}>
                     {meta?.is_current ? t('trainingplans.this_week') : t('trainingplans.week_label', { n: index })}
                 </h4>
                 <span className="text-xs font-medium text-slate-400 tabular-nums">{shortDate(weekStart)} – {shortDate(end)}</span>
+                <select
+                    value={phase || ''}
+                    onChange={(e) => onPhase(weekStart, e.target.value || null)}
+                    className={`py-0 pl-1 pr-6 text-[11px] font-bold uppercase bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer ${phase ? PHASE_STYLE[phase].text : 'text-slate-400'}`}
+                    title={t('trainingplans.phase_set')}
+                >
+                    <option value="">{t('trainingplans.phase_none')}</option>
+                    {PLAN_PHASES.map((p) => <option key={p} value={p}>{t(`trainingplans.phase_${p}`)}</option>)}
+                </select>
             </div>
             <div className="flex items-center gap-2">
                 {meta && meta.planned_km > 0 && (
                     <span className="text-xs font-bold text-slate-600 tabular-nums">
                         {meta.is_current && meta.actual_km != null ? `${meta.actual_km} / ` : ''}{meta.planned_km} km
                     </span>
+                )}
+                {load?.planned > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-xs font-bold text-slate-500 tabular-nums" title={t('trainingplans.load_hint')}>
+                        <BoltIcon className="w-3 h-3" />
+                        {meta?.is_current && load.actual != null ? `${load.actual} / ` : ''}{load.planned}
+                    </span>
+                )}
+                {sendable > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => onSendWeek(weekStart)}
+                        disabled={sending}
+                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50 ${sending ? 'animate-pulse' : ''}`}
+                        title={t('trainingplans.send_week_hint', { n: sendable })}
+                    >
+                        <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                        {sending ? t('trainingplans.sending') : t('trainingplans.send_week', { n: sendable })}
+                    </button>
                 )}
                 {meta?.ramp_warning && (
                     <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700" title={t('trainingplans.ramp_hint')}>
@@ -466,7 +785,20 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const [editingWorkout, setEditingWorkout] = useState(null); // 'new' | workout | null
     const [newPlanName, setNewPlanName] = useState('');
     const [addingPlan, setAddingPlan] = useState(false);
-    const [notice, setNotice] = useState('');
+    const [toast, setToast] = useState(null); // { msg, tone: 'ok' | 'warn' | 'error' }
+    const [view, setView] = useState(readView);
+    const [showAllWeeks, setShowAllWeeks] = useState(false);
+    const [sendingWeek, setSendingWeek] = useState(null);
+    const toastTimer = useRef(null);
+
+    const showToast = useCallback((msg, tone = 'ok') => {
+        setToast({ msg, tone });
+        clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 3500);
+    }, []);
+    useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+    const changeView = (v) => { setView(v); writeView(v); };
 
     useEffect(() => {
         const reload = () => {
@@ -494,8 +826,76 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
         return { upcoming: up, past: pa };
     }, [selectedPlan, todayISO]);
 
-    // La siguiente sesión que no sea descanso se destaca; el resto se agrupa por semana.
-    const nextUp = upcoming.find((w) => w.date && !isRest(w) && w.status !== 'done') || null;
+    // La siguiente sesión que no sea descanso se destaca (la de hoy aunque ya esté
+    // hecha, para ver el plan frente a lo corrido); el resto se agrupa por semana.
+    const nextUp = upcoming.find((w) => w.date && !isRest(w) && (w.status !== 'done' || w.date === todayISO)) || null;
+    const phases = useMemo(() => selectedPlan?.weekPhases || {}, [selectedPlan]);
+    const extras = useMemo(() => unplannedRuns(selectedPlan, byDay, todayISO), [selectedPlan, byDay, todayISO]);
+    const warnings = useMemo(
+        () => planWarnings(selectedPlan?.workouts || [], weeks, todayISO),
+        [selectedPlan, weeks, todayISO],
+    );
+
+    // Reparto por intensidad de lo planificado en cada semana (sin descansos ni saltados).
+    const weekMixes = useMemo(() => {
+        const out = {};
+        const workouts = (selectedPlan?.workouts || []).filter((w) => w.date && w.status !== 'skipped');
+        for (const wk of weeks) {
+            const end = addDaysISO(wk.week_start, 6);
+            out[wk.week_start] = weekIntensityMix(workouts.filter((w) => w.date >= wk.week_start && w.date <= end));
+        }
+        return out;
+    }, [selectedPlan, weeks]);
+
+    // Carga por semana: estimada para lo planificado y medida (FC/ritmo) para lo corrido.
+    const loadParams = useMemo(() => (activities.length ? buildLoadParams(activities) : null), [activities]);
+    const weekLoads = useMemo(() => {
+        const out = {};
+        const workouts = selectedPlan?.workouts || [];
+        for (const wk of weeks) {
+            const end = addDaysISO(wk.week_start, 6);
+            const planned = plannedLoad(workouts.filter((w) => w.date >= wk.week_start && w.date <= end));
+            let actual = null;
+            if (loadParams && wk.week_start <= todayISO) {
+                actual = 0;
+                for (let d = 0; d < 7; d++) {
+                    for (const a of byDay.get(addDaysISO(wk.week_start, d)) || []) actual += sessionLoad(a, loadParams).load;
+                }
+                actual = Math.round(actual);
+            }
+            out[wk.week_start] = { planned, actual };
+        }
+        return out;
+    }, [selectedPlan, weeks, byDay, loadParams, todayISO]);
+
+    // Sesiones de una semana que se pueden mandar al reloj: con estructura, de hoy en
+    // adelante y que no estén ya en el reloj para esa misma fecha.
+    const sendableIn = useCallback((weekStart) => {
+        const end = addDaysISO(weekStart, 6);
+        return (selectedPlan?.workouts || []).filter((w) => w.date >= todayISO && w.date >= weekStart && w.date <= end
+            && Array.isArray(w.structured_workout) && w.structured_workout.length > 0
+            && w.status !== 'done' && w.status !== 'skipped'
+            && !(w.garmin_workout_id && w.garmin_date === w.date));
+    }, [selectedPlan, todayISO]);
+
+    // Atajos: N = nuevo entreno, ←/→ = plan anterior/siguiente. No actúan mientras se escribe.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const el = e.target;
+            if (el?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName)) return;
+            if ((e.key === 'n' || e.key === 'N') && selectedPlanId) {
+                e.preventDefault();
+                setEditingWorkout('new');
+            } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && plans.length > 1) {
+                const i = plans.findIndex((p) => p.id === selectedPlanId);
+                const next = plans[(i + (e.key === 'ArrowRight' ? 1 : -1) + plans.length) % plans.length];
+                setSelectedPlanId(next.id);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [plans, selectedPlanId]);
     const upcomingByWeek = useMemo(() => {
         const groups = [];
         for (const w of upcoming) {
@@ -569,11 +969,25 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const handleMove = useCallback((workout, date) => {
         if (!selectedPlan || date === workout.date) return;
         saveWorkout(selectedPlan.id, { id: workout.id, date });
+        // En el reloj sigue en la fecha vieja hasta que se reenvíe.
+        showToast(
+            workout.garmin_workout_id
+                ? t('trainingplans.moved_resend', { date: shortDate(date) })
+                : t('trainingplans.moved', { date: shortDate(date) }),
+            workout.garmin_workout_id ? 'warn' : 'ok',
+        );
+    }, [selectedPlan, showToast, t]);
+
+    const handleSetPhase = useCallback((weekStart, phase) => {
+        if (!selectedPlan) return;
+        const next = { ...(selectedPlan.weekPhases || {}) };
+        if (phase) next[weekStart] = phase; else delete next[weekStart];
+        saveTrainingPlan({ id: selectedPlan.id, weekPhases: next });
     }, [selectedPlan]);
 
     // Reenviar = borrar el que había en Garmin y crear el nuevo en su fecha actual:
     // así mover un entreno o editarlo no deja duplicados en el reloj.
-    const handleSendToWatch = useCallback(async (workout) => {
+    const pushToWatch = useCallback(async (workout) => {
         if (!selectedPlan) return;
         if (workout.garmin_workout_id) {
             try { await deleteGarminWorkout(workout.garmin_workout_id); } catch { /* ya no existía en Garmin */ }
@@ -591,12 +1005,37 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
         });
     }, [selectedPlan, t]);
 
+    const handleSendToWatch = useCallback(async (workout) => {
+        try {
+            await pushToWatch(workout);
+            showToast(t('trainingplans.sent_ok', { type: workout.type, date: shortDate(workout.date) }));
+        } catch (e) {
+            showToast(e.message, 'error');
+            throw e;
+        }
+    }, [pushToWatch, showToast, t]);
+
+    // Uno a uno: el reenvío borra antes el anterior y Garmin no agradece ráfagas.
+    const handleSendWeek = useCallback(async (weekStart) => {
+        const items = sendableIn(weekStart);
+        if (!items.length) return;
+        setSendingWeek(weekStart);
+        let ok = 0;
+        for (const w of items) {
+            try { await pushToWatch(w); ok++; } catch { /* se cuenta abajo */ }
+        }
+        setSendingWeek(null);
+        showToast(
+            ok === items.length ? t('trainingplans.sent_week_ok', { n: ok }) : t('trainingplans.sent_week_partial', { ok, n: items.length }),
+            ok === items.length ? 'ok' : 'error',
+        );
+    }, [sendableIn, pushToWatch, showToast, t]);
+
     const handleDuplicateWeek = useCallback((weekStart) => {
         if (!selectedPlan) return;
         const n = duplicateWeek(selectedPlan.id, weekStart);
-        setNotice(n ? t('trainingplans.duplicated', { n }) : t('trainingplans.nothing_to_duplicate'));
-        setTimeout(() => setNotice(''), 2500);
-    }, [selectedPlan, t]);
+        showToast(n ? t('trainingplans.duplicated', { n }) : t('trainingplans.nothing_to_duplicate'), n ? 'ok' : 'warn');
+    }, [selectedPlan, showToast, t]);
 
     const renderRow = (w, variant) => (
         <WorkoutRow
@@ -617,6 +1056,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     );
 
     const weekIndex = (ws) => weeks.findIndex((w) => w.week_start === ws) + 1;
+
+    // Historial: entrenos pasados y carreras fuera de plan, del más reciente al más antiguo.
+    const pastItems = [
+        ...past.map((w) => ({ date: w.date || '', workout: w })),
+        ...extras.map((r) => ({ date: r.date, run: r, extra: true })),
+    ].sort((a, b) => b.date.localeCompare(a.date));
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto fade-in">
@@ -677,7 +1122,24 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
             ) : (
                 <>
                     {/* Resumen del plan: nombre, carrera, KPIs y volumen */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        {/* Recta final: en las 3 últimas semanas la carrera manda sobre todo lo demás. */}
+                        {linkedRace && raceDays != null && raceDays >= 0 && raceDays <= 21 && (
+                            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 bg-slate-900 text-white px-6 py-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <FlagIcon className="w-5 h-5 text-cyan-400 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-label font-bold uppercase text-cyan-400">
+                                            {raceDays === 0 ? t('trainingplans.race_day') : t('trainingplans.final_stretch')}
+                                        </p>
+                                        <p className="text-sm font-bold truncate">{linkedRace.name}</p>
+                                    </div>
+                                </div>
+                                <p className="text-3xl font-black tabular-nums tracking-tight">
+                                    {raceDays === 0 ? t('trainingplans.today') : t('trainingplans.kpi_days', { n: raceDays })}
+                                </p>
+                            </div>
+                        )}
                         <div className="flex flex-wrap items-start justify-between gap-3 p-6 pb-0">
                             <div className="min-w-0">
                                 <div className="flex items-center gap-1">
@@ -706,6 +1168,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                 <button
                                     onClick={() => setEditingWorkout('new')}
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                    title={t('trainingplans.shortcuts_hint')}
                                 >
                                     <PlusIcon className="w-4 h-4" />
                                     {t('trainingplans.add_workout')}
@@ -746,9 +1209,45 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
 
                         {weeks.length > 0 && (
                             <div className="border-t border-slate-100 p-6">
-                                <WeeklyVolume weeks={weeks} t={t} />
+                                <WeeklyVolume weeks={weeks} mixes={weekMixes} phases={phases} t={t} />
                             </div>
                         )}
+                    </div>
+
+                    {warnings.length > 0 && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-5 py-4">
+                            <p className="inline-flex items-center gap-1.5 text-label font-bold uppercase text-amber-800">
+                                <ExclamationTriangleIcon className="w-4 h-4" />
+                                {t('trainingplans.review_title', { n: warnings.length })}
+                            </p>
+                            <ul className="mt-2 space-y-1">
+                                {warnings.map((w) => (
+                                    <li key={`${w.type}-${w.week_start || w.dates?.join('-')}`} className="text-sm text-amber-900">
+                                        {w.type === 'hard_back_to_back' && t('trainingplans.warn_hard', { a: shortDate(w.dates[0]), b: shortDate(w.dates[1]) })}
+                                        {w.type === 'no_long' && t('trainingplans.warn_no_long', { week: weekIndex(w.week_start), date: shortDate(w.week_start) })}
+                                        {w.type === 'ramp_streak' && t('trainingplans.warn_ramp', { week: weekIndex(w.week_start) })}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 px-1">
+                        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="tablist">
+                            {[['list', ListBulletIcon], ['calendar', TableCellsIcon]].map(([v, Icon]) => (
+                                <button
+                                    key={v}
+                                    role="tab"
+                                    aria-selected={view === v}
+                                    onClick={() => changeView(v)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${view === v ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    {t(`trainingplans.view_${v}`)}
+                                </button>
+                            ))}
+                        </div>
+                        <span className="hidden sm:inline text-xs font-medium text-slate-400">{t('trainingplans.shortcuts_hint')}</span>
                     </div>
 
                     {editingWorkout === 'new' && (
@@ -763,11 +1262,22 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                             <CheckCircleIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                             <p className="text-slate-500 text-sm font-medium">{t('trainingplans.no_workouts')}</p>
                         </div>
+                    ) : view === 'calendar' ? (
+                        <PlanCalendar
+                            weeks={weeks}
+                            workouts={selectedPlan.workouts || []}
+                            extras={extras}
+                            phases={phases}
+                            todayISO={todayISO}
+                            showAllWeeks={showAllWeeks}
+                            onToggleAll={() => setShowAllWeeks((v) => !v)}
+                            onMove={handleMove}
+                            onEdit={setEditingWorkout}
+                            t={t}
+                        />
                     ) : (
                         <div className="space-y-6">
                             {nextUp && renderRow(nextUp, 'featured')}
-
-                            {notice && <p className="text-xs font-semibold text-emerald-600 px-1">{notice}</p>}
 
                             {upcomingByWeek.map((g) => (
                                 <section key={g.week_start || 'nodate'} className="space-y-2">
@@ -776,6 +1286,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                             index={weekIndex(g.week_start)}
                                             weekStart={g.week_start}
                                             meta={weeks.find((w) => w.week_start === g.week_start)}
+                                            phase={phases[g.week_start]}
+                                            load={weekLoads[g.week_start]}
+                                            sendable={sendableIn(g.week_start).length}
+                                            sending={sendingWeek === g.week_start}
+                                            onPhase={handleSetPhase}
+                                            onSendWeek={handleSendWeek}
                                             onDuplicate={handleDuplicateWeek}
                                             t={t}
                                         />
@@ -784,7 +1300,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                 </section>
                             ))}
 
-                            {past.length > 0 && (
+                            {(past.length > 0 || extras.length > 0) && (
                                 <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
                                     <button
                                         onClick={() => setShowPast((v) => !v)}
@@ -806,19 +1322,43 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                                 ))}
                                             </span>
                                         )}
+                                        {extras.length > 0 && (
+                                            <span className="text-xs font-semibold text-slate-500 tabular-nums">
+                                                {t('trainingplans.extra_count', { n: extras.length })}
+                                            </span>
+                                        )}
                                         <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-slate-500">
-                                            {showPast ? t('trainingplans.hide_history') : t('trainingplans.show_history', { n: past.length })}
+                                            {showPast ? t('trainingplans.hide_history') : t('trainingplans.show_history', { n: pastItems.length })}
                                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />
                                         </span>
                                     </button>
                                     {showPast && (
-                                        <div className="space-y-1.5 px-4 pb-4">{past.map((w) => renderRow(w, 'compact'))}</div>
+                                        <div className="space-y-1.5 px-4 pb-4">
+                                            {pastItems.map((it) => (it.extra
+                                                ? <ExtraRow key={`extra-${it.run.date}`} run={it.run} onOpen={onOpenActivity} t={t} />
+                                                : renderRow(it.workout, 'compact')))}
+                                        </div>
                                     )}
                                 </section>
                             )}
                         </div>
                     )}
                 </>
+            )}
+
+            {toast && (
+                <div
+                    role="status"
+                    className={`fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-50 flex items-start gap-2 rounded-lg px-4 py-3 shadow-lg text-sm font-semibold fade-in ${
+                        toast.tone === 'error' ? 'bg-rose-600 text-white' : toast.tone === 'warn' ? 'bg-amber-500 text-slate-900' : 'bg-slate-900 text-white'
+                    }`}
+                >
+                    {toast.tone === 'ok' ? <CheckCircleIcon className="w-4 h-4 shrink-0 mt-0.5" /> : <ExclamationTriangleIcon className="w-4 h-4 shrink-0 mt-0.5" />}
+                    <span className="flex-1">{toast.msg}</span>
+                    <button type="button" onClick={() => setToast(null)} className="opacity-70 hover:opacity-100" aria-label={t('trainingplans.cancel')}>
+                        <XMarkIcon className="w-4 h-4" />
+                    </button>
+                </div>
             )}
         </div>
     );

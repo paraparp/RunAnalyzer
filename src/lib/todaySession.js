@@ -124,6 +124,45 @@ export function workoutBlocks(structured) {
   };
 }
 
+/** Días hacia delante en los que se busca la próxima sesión cuando hoy no hay. */
+export const UPCOMING_DAYS = 3;
+
+/**
+ * Próxima sesión planificada en los `UPCOMING_DAYS` días siguientes a `todayISO`
+ * (mismo orden de autoridad que hoy: plan de entrenamiento, Garmin, plan IA), o null.
+ * Devuelve `{ date, daysAhead, source, type, summary, dist, time, isRace }`.
+ */
+export function upcomingSessionFrom({ garminPlanned = [], savedPlan = null, trainingPlans = [], todayISO }) {
+  for (let n = 1; n <= UPCOMING_DAYS; n++) {
+    const date = addDaysISO(todayISO, n);
+    const { workout: w } = trainingPlanDayFor(trainingPlans, date);
+    if (w && w.status !== 'skipped' && !isRestWorkout(w)) {
+      return {
+        date, daysAhead: n, source: 'training_plan', type: w.type, summary: w.summary ?? null,
+        dist: Number.isFinite(w.distance_km) ? `${w.distance_km} km` : null,
+        time: Number.isFinite(w.duration_min) ? `${w.duration_min} min` : null,
+        isRace: workoutCategory(w) === 'race',
+      };
+    }
+    const g = (garminPlanned || []).filter((x) => x?.date === date);
+    if (g.length) {
+      const item = g.find((x) => x.is_race) ?? g[0];
+      return {
+        date, daysAhead: n, source: 'garmin', type: item.title || (item.is_race ? 'Carrera' : 'Entreno'),
+        summary: null, dist: null, time: null, isRace: !!item.is_race,
+      };
+    }
+    const { day } = planDayFor(savedPlan, date);
+    if (day && !isRestDay(day)) {
+      return {
+        date, daysAhead: n, source: 'ai_plan', type: day.type, summary: day.summary ?? null,
+        dist: day.daily_stats?.dist ?? null, time: day.daily_stats?.time ?? null, isRace: false,
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * La sesión de hoy.
  *
@@ -135,7 +174,17 @@ export function workoutBlocks(structured) {
  * @param {boolean} p.advisesRest    la readiness o la forma piden descargar
  * @returns {{ source: 'training_plan'|'garmin'|'ai_plan'|'auto', ... }}
  */
-export function resolveTodaySession({ garminPlanned = [], savedPlan = null, trainingPlans = [], todayISO, advisesRest = false }) {
+export function resolveTodaySession(args) {
+  const s = resolveToday(args);
+  // Hoy sin sesión (descanso o sin plan): se enseña la próxima de los días siguientes.
+  if (s.source === 'auto' || (s.rest && !s.skipped)) {
+    const upcoming = upcomingSessionFrom(args);
+    if (upcoming) return { ...s, upcoming };
+  }
+  return s;
+}
+
+function resolveToday({ garminPlanned = [], savedPlan = null, trainingPlans = [], todayISO, advisesRest = false }) {
   const tp = trainingPlanDayFor(trainingPlans, todayISO);
   const tpRest = !tp.workout || tp.workout.status === 'skipped' || isRestWorkout(tp.workout);
   const fromTrainingPlan = (rest) => {
