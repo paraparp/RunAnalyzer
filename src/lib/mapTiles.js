@@ -12,20 +12,24 @@
  */
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY || '';
+// Fuera de localhost Stadia devuelve 401 sin dominio registrado o sin clave.
+// La clave es pública por diseño (va en el bundle del navegador).
+const STADIA_KEY = import.meta.env.VITE_STADIA_API_KEY || '';
+const STADIA_QUERY = STADIA_KEY ? `?api_key=${STADIA_KEY}` : '';
 
 export function getDarkMapTileUrl() {
   if (CARTO_KEY) {
     return `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`;
   }
   // Stadia Alidade Smooth Dark: idéntico estilo dark minimalista sin marcas de agua
-  return 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+  return `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png${STADIA_QUERY}`;
 }
 
 export function getLightMapTileUrl() {
   if (CARTO_KEY) {
     return `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_KEY}`;
   }
-  return 'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png';
+  return `https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png${STADIA_QUERY}`;
 }
 
 export function getSatelliteMapTileUrl() {
