@@ -15,7 +15,6 @@ import { ACCENTS, fmtDate, fmtDateFull, lastOf, deltaOf } from '../lib/vitalSeri
 import useVitalMetrics from '../hooks/useVitalMetrics';
 import ExpandableChart, { ExpandButton } from './ExpandableChart';
 import MetricChart, { GranSelector } from './MetricChart';
-import { TimeScopeSelector } from './TimeScope';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -236,8 +235,6 @@ export default function VitalsOverview({ activities = [], allActivities }) {
   const viewerMetric = metrics.find((m) => m.key === viewerKey) ?? null;
   const periodControls = (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-label font-bold uppercase text-slate-500">Período</span>
-      <TimeScopeSelector />
       {granSelector}
     </div>
   );

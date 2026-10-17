@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-10-10T09:27:39.826Z",
         "reason": "icon-only action buttons: transparent at rest, hover pairs text+bg tint together, same pattern as existing TargetRaces.jsx RaceCard buttons"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/components/LandingPage.jsx"
+        ],
+        "createdAt": "2026-10-11T15:12:28.907Z",
+        "reason": "Claude: white-alpha text on dark glass over a dark photo, not gray on a saturated color"
       }
     ]
   }

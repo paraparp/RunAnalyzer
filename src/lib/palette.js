@@ -39,6 +39,8 @@ export const COLORS = {
   seriesViolet: '#8b5cf6',
   seriesSky: '#0ea5e9',
   seriesCyan: '#0891b2',
+  seriesTeal: '#14b8a6',
+  seriesPink: '#ec4899',
 
   // Marca externa
   strava: '#fc4c02',

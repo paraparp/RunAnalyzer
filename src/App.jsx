@@ -43,7 +43,6 @@ const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
 // TEMPORAL: comparativa de la portada (H6). Se borra al decidir.
 // La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
-const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
 const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
 import useHrParams from './hooks/useHrParams';
 import useIsAdmin from './hooks/useIsAdmin';
@@ -602,6 +601,8 @@ const Dashboard = ({ user, handleLogout }) => {
 
               {/* Right: year filter + sync + avatar */}
               <div className="flex items-center gap-3 shrink-0 ml-auto">
+                {/* Período global: uno para toda la app, visible donde la vista lo usa. */}
+                {SCOPED_VIEWS.has(currentView) && <TimeScopeSelector className="hidden md:inline-flex" />}
                 <button
                   onClick={changeLanguage}
                   className="px-2 py-1 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg uppercase tracking-wider transition-colors"
@@ -647,8 +648,9 @@ const Dashboard = ({ user, handleLogout }) => {
               />
             )}
 
+            {/* En móvil la barra superior no tiene sitio: el período baja aquí. */}
             {SCOPED_VIEWS.has(currentView) && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="md:hidden flex flex-wrap items-center justify-end gap-2">
                 <span className="text-label font-bold uppercase text-slate-500">{t('time_scope.label')}</span>
                 <TimeScopeSelector />
               </div>
@@ -657,7 +659,6 @@ const Dashboard = ({ user, handleLogout }) => {
             {/* Conclusión del área (§6.3): la misma en todas las vistas del área. */}
             {(() => {
               const catId = navCategories.find(cat => cat.itemIds.includes(navView))?.id;
-              if (catId === 'load') return <Suspense fallback={null}><LoadVerdict activities={allActivities} /></Suspense>;
               if (catId === 'engine') return <Suspense fallback={null}><EngineVerdict runs={runningActivities} hrParams={hrParams} /></Suspense>;
               return null;
             })()}

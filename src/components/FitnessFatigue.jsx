@@ -4,99 +4,346 @@ import { useTranslation } from 'react-i18next';
 import {
   ComposedChart, BarChart, Bar, Line, Area, ScatterChart, Scatter, ZAxis, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, ReferenceLine, ReferenceArea
+  ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot
 } from 'recharts';
 import {
-  ArrowTrendingUpIcon, FireIcon, SparklesIcon, BoltIcon,
-  AdjustmentsHorizontalIcon, ExclamationTriangleIcon,
+  ArrowTrendingUpIcon, SparklesIcon, BoltIcon,
+  ExclamationTriangleIcon,
   XMarkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import { activityDayKey } from '../lib/trainingLoad';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useTimeScope from '../hooks/useTimeScope';
 import { scopeMonths } from '../lib/timeScope';
-import { formatDurationHm, formatPaceFromSpeed, formatPaceFromMinPerKm } from '../lib/timeFormat';
+import { formatPaceFromMinPerKm } from '../lib/timeFormat';
 import { monthShort } from '../lib/monthLabels';
 import { isRun, paceStr, timeStr, acwrZone, rampLevel, formZone } from '../lib/statusStats';
-import GlobalKpiGrid from './GlobalKpiGrid';
 import { COLORS, AXIS_TICK } from '../lib/palette';
 
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-// Devuelven null (no un marcador) a propósito: aquí la tarjeta omite la línea
-// entera cuando no hay dato, en vez de pintar un hueco.
-const fmtDur = (secs) => formatDurationHm(secs, null);
-const fmtPace = (speed) => formatPaceFromSpeed(speed, null);
 
-// ── Tooltips ─────────────────────────────────────────────────────────────────
-// Definidos fuera del componente: declarados dentro del render serían un tipo nuevo
-// en cada render y Recharts remontaría el subárbol del tooltip entero.
-function PMCTooltip({ active, payload, label }) {
-  const { i18n } = useTranslation();
+// ── PMC ────────────────────────────────────────────────────────────────────────
+// Al estilo de Fitness & Freshness de Strava: no hay tooltip flotante; el cursor
+// vertical recorre los tres paneles y la cabecera muestra los valores del día
+// señalado (o de hoy). Va en su propio componente para que el estado del hover
+// solo repinte la gráfica, no la pestaña entera.
+// Paleta propia del PMC: más viva que la de estado, al estilo Strava.
+const PMC = {
+  fitness: COLORS.seriesIndigo, fitnessTo: COLORS.seriesSky, fatigue: COLORS.seriesPink, load: COLORS.seriesViolet,
+  positive: COLORS.seriesTeal, negative: COLORS.elevated,
+  transition: COLORS.seriesSky, fresh: COLORS.seriesTeal, loaded: COLORS.caution, overloaded: COLORS.risk,
+};
+const NoTooltip = () => null;
+const AXIS_W = 34;
+const CURSOR = { stroke: COLORS.inkFaint, strokeWidth: 1, strokeDasharray: '3 3' };
+
+// Mismos cortes que lib/statusStats › formZone.
+const FORM_ZONES = [
+  { key: 'transition', y1: 25,   y2: 999, color: PMC.transition },
+  { key: 'fresh',      y1: 5,    y2: 25,  color: PMC.fresh },
+  { key: 'optimal',    y1: -10,  y2: 5,   color: PMC.fitness },
+  { key: 'loaded',     y1: -30,  y2: -10, color: PMC.loaded },
+  { key: 'overloaded', y1: -999, y2: -30, color: PMC.overloaded },
+];
+const zoneColor = (tsb) => FORM_ZONES.find(z => z.key === (formZone(tsb) ?? 'optimal')).color;
+
+function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peakCTL, peakCTLYear }) {
+  const { t, i18n } = useTranslation();
   const es = i18n.language.startsWith('es');
-  if (!active || !payload?.length) return null;
-  const day  = payload[0]?.payload;
-  const acts = day?.acts || [];
-  const date = new Date(label);
-  const dateFmt = !isNaN(date) ? date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'long', year: 'numeric' }) : label;
+  const [hoverDate, setHoverDate] = useState(null);
+  // Día fijado al pinchar en la carga diaria: deja las sesiones ancladas y
+  // enlazadas a Strava.
+  const [selectedDay, setSelectedDay] = useState(null);
 
-  // Only show ATL and CTL lines (skip load bar entry)
-  const lines = payload.filter(e => e.dataKey === 'Fatiga' || e.dataKey === 'Fitness');
+  const byDate = useMemo(() => new Map(data.map(d => [d.date, d])), [data]);
+  const maxLoad = useMemo(() => data.reduce((m, d) => Math.max(m, d.load || 0), 0), [data]);
+
+  // Dominio del TSB ajustado a los datos y punto de corte del degradado
+  // verde/rojo. El relleno incluye la base 0 en su caja; el trazo, no.
+  const { tsbDomain, fillSplit, strokeSplit } = useMemo(() => {
+    let lo = Infinity, hi = -Infinity;
+    for (const d of data) {
+      const v = d.Forma ?? 0;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (!isFinite(lo)) { lo = 0; hi = 0; }
+    const clamp = (x) => Math.min(Math.max(x, 0), 1);
+    const fLo = Math.min(lo, 0), fHi = Math.max(hi, 0);
+    return {
+      tsbDomain: [Math.min(-40, Math.floor((lo - 5) / 10) * 10), Math.max(30, Math.ceil((hi + 5) / 10) * 10)],
+      fillSplit: fHi - fLo > 0 ? clamp(fHi / (fHi - fLo)) : 0.5,
+      strokeSplit: hi - lo > 0 ? clamp(hi / (hi - lo)) : (hi >= 0 ? 1 : 0),
+    };
+  }, [data]);
+
+  if (!data.length) return null;
+
+  const first = data[0];
+  const last = data[data.length - 1];
+  const shown = (hoverDate && byDate.get(hoverDate)) || last;
+  const isLatest = shown === last;
+  const isToday = isLatest && offsetMonths === 0;
+
+  const onMove = (s) => {
+    const idx = s?.activeTooltipIndex ?? s?.activeIndex;
+    const date = s?.activeLabel ?? data[Number(idx)]?.date;
+    if (date && date !== hoverDate) setHoverDate(date);
+  };
+  const onLeave = () => setHoverDate(null);
+  const chartEvents = { onMouseMove: onMove, onMouseLeave: onLeave };
+
+  const MONTH_SHORT = monthShort(i18n.language);
+  const xTickFormatter = v => {
+    const d = new Date(v);
+    return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+  };
+  const xInterval = Math.max(Math.floor(data.length / 8), 1);
+
+  const fmtSigned = (v) => (v > 0 ? '+' : '') + v;
+  const ctlDelta = Math.round((shown.Fitness - first.Fitness) * 10) / 10;
+  const formKey = formZone(shown.Forma) ?? 'optimal';
+  const formColor = zoneColor(shown.Forma);
+  const dateLabel = isToday
+    ? (es ? 'Hoy' : 'Today')
+    : new Date(shown.date).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const acts = shown.acts || [];
+
+  const metrics = [
+    { label: es ? 'Fitness' : 'Fitness', abbr: 'CTL', value: Math.round(shown.Fitness), color: PMC.fitness,
+      sub: <span className={ctlDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+        {fmtSigned(ctlDelta)} <span className="text-slate-500 font-medium">{es ? 'en el periodo' : 'this period'}</span>
+      </span> },
+    { label: es ? 'Fatiga' : 'Fatigue', abbr: 'ATL', value: Math.round(shown.Fatiga), color: PMC.fatigue,
+      sub: <span className="text-slate-500 font-medium">
+        {shown.load > 0 ? `${es ? 'Carga del día' : 'Day load'} ${Math.round(shown.load)}` : (es ? 'Descanso' : 'Rest day')}
+      </span> },
+    { label: es ? 'Forma' : 'Form', abbr: 'TSB', value: fmtSigned(Math.round(shown.Forma)), color: formColor,
+      sub: <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-bold"
+        style={{ background: `${formColor}1a`, color: formColor }}>{t(`fitness.status.${formKey}`)}</span> },
+  ];
+
+  const navBtn = 'p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+  const zonesInView = FORM_ZONES
+    .map(z => ({ ...z, y1: Math.max(z.y1, tsbDomain[0]), y2: Math.min(z.y2, tsbDomain[1]) }))
+    .filter(z => z.y2 > z.y1);
 
   return (
-    <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden min-w-[240px] max-w-[290px]">
-      <div className="px-4 pt-3 pb-2 bg-slate-50 border-b border-slate-100">
-        <p className="text-label font-bold text-slate-500 uppercase">{dateFmt}</p>
-      </div>
-      <div className="px-4 py-2.5 space-y-1.5">
-        {day?.load > 0 && (
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-slate-500 font-medium">{es ? 'Carga' : 'Load'}</span>
-            <span className="text-xs font-bold text-slate-600 tabular-nums">{Math.round(day.load)}</span>
+    <Card className="shadow-lg border-slate-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex justify-between items-start gap-3 mb-5">
+        <div>
+          <Title className="text-slate-800 font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
+          <Text className="text-slate-500 text-xs">{t('fitness.pmc.desc')}</Text>
+        </div>
+        {months != null && (
+          <div className="flex gap-1 shrink-0">
+            <button onClick={() => setOffsetMonths(p => p + months)} disabled={!canGoBack} className={navBtn}
+              aria-label={es ? 'Periodo anterior' : 'Previous period'}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <button onClick={() => setOffsetMonths(p => Math.max(p - months, 0))} disabled={offsetMonths === 0} className={navBtn}
+              aria-label={es ? 'Periodo siguiente' : 'Next period'}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
         )}
-        {lines.map((e, i) => (
-          <div key={i} className="flex justify-between items-center gap-4">
+      </div>
+
+      {/* Lectura en vivo: sigue al cursor, vuelve a hoy al salir */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2 min-h-[20px]">
+        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{dateLabel}</span>
+        {acts.length > 0 ? (
+          <span className="text-xs text-slate-500 truncate max-w-full">
+            · {acts[0].name} · {(acts[0].distance / 1000).toFixed(1)} km
+            {acts.length > 1 && ` +${acts.length - 1}`}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-500">· {es ? 'Sin actividad' : 'No activity'}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+        {metrics.map((m) => (
+          <div key={m.abbr} className="rounded-2xl px-3 py-3 sm:px-4 border transition-colors"
+            style={{ background: `linear-gradient(135deg, ${m.color}14, ${m.color}05)`, borderColor: `${m.color}2e` }}>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.stroke }} />
-              <span className="text-xs font-semibold text-slate-600">{e.name}</span>
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+              <span className="text-label font-bold uppercase text-slate-500">
+                {m.label} <span className="hidden sm:inline text-slate-500">· {m.abbr}</span>
+              </span>
             </div>
-            <span className="text-sm font-black tabular-nums" style={{ color: e.stroke }}>{e.value}</span>
+            <p className="text-2xl sm:text-4xl font-black tabular-nums leading-tight mt-1 transition-colors" style={{ color: m.color }}>
+              {m.value}
+            </p>
+            <div className="text-xs font-bold tabular-nums mt-0.5 truncate">{m.sub}</div>
           </div>
         ))}
-        {day?.Forma != null && (
-          <div className="flex justify-between items-center gap-4 pt-1 border-t border-slate-100 mt-1">
-            <span className="text-xs font-semibold text-slate-500">TSB / {es ? 'Forma' : 'Form'}</span>
-            <span className={`text-sm font-black tabular-nums ${day.Forma > 5 ? 'text-emerald-600' : day.Forma < -10 ? 'text-rose-600' : 'text-slate-700'}`}>
-              {day.Forma > 0 ? '+' : ''}{day.Forma}
-            </span>
-          </div>
-        )}
       </div>
-      {acts.length > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2.5">
-          <p className="text-label font-bold text-slate-500 uppercase mb-2">{es ? 'Actividades' : 'Activities'}</p>
-          <div className="space-y-2.5">
-            {acts.map((a, i) => (
-              <div key={i}>
-                <div className="flex justify-between items-baseline gap-2">
-                  <span className="text-xs font-bold text-slate-800 truncate">{a.name}</span>
-                  <span className="text-xs text-slate-500 shrink-0">{(a.distance / 1000).toFixed(1)} km</span>
+
+      {/* Panel 1 — Fitness (área) y fatiga (línea) */}
+      <div className="h-[260px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart syncId="pmc" data={data} margin={{ top: 12, right: 4, bottom: 0, left: 0 }} {...chartEvents}>
+            <defs>
+              <linearGradient id="gradCTL" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={PMC.fitness} stopOpacity={0.38} />
+                <stop offset="100%" stopColor={PMC.fitnessTo} stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="gradCTLStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"   stopColor={PMC.fitnessTo} />
+                <stop offset="100%" stopColor={PMC.fitness} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={COLORS.hairlineSoft} vertical={false} />
+            <XAxis dataKey="date" hide />
+            <YAxis orientation="right" tick={AXIS_TICK} tickLine={false} axisLine={false} width={AXIS_W}
+              domain={[0, d => Math.max(10, Math.ceil((d * 1.12) / 10) * 10)]} tickCount={5} />
+            <RechartsTooltip content={NoTooltip} cursor={CURSOR} isAnimationActive={false} />
+            {peakCTL > 0 && (
+              <ReferenceLine y={peakCTL} stroke={PMC.fitness} strokeDasharray="2 4" strokeOpacity={0.7}
+                label={{ value: `${t('fitness.peak_all')} ${peakCTL}`, position: 'insideTopLeft', fontSize: 10, fontWeight: 700, fill: PMC.fitness }} />
+            )}
+            {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
+              <ReferenceLine y={peakCTLYear} stroke={COLORS.caution} strokeDasharray="2 4" strokeOpacity={0.7}
+                label={{ value: `${t('fitness.peak_year')} ${peakCTLYear}`, position: 'insideBottomLeft', fontSize: 10, fontWeight: 700, fill: COLORS.cautionDeep }} />
+            )}
+            <Area type="monotone" dataKey="Fitness" name={t('fitness.ctl')}
+              stroke="url(#gradCTLStroke)" strokeWidth={3} fill="url(#gradCTL)"
+              dot={false} isAnimationActive={false}
+              activeDot={{ r: 5, fill: PMC.fitness, stroke: COLORS.paper, strokeWidth: 2 }} />
+            <Line type="monotone" dataKey="Fatiga" name={t('fitness.atl')}
+              stroke={PMC.fatigue} strokeWidth={1.75} strokeOpacity={0.9}
+              dot={false} isAnimationActive={false}
+              activeDot={{ r: 4, fill: PMC.fatigue, stroke: COLORS.paper, strokeWidth: 2 }} />
+            {/* Punto final: dónde estás ahora */}
+            {!hoverDate && (
+              <ReferenceDot x={last.date} y={last.Fitness} r={5} fill={PMC.fitness} stroke={COLORS.paper} strokeWidth={2} />
+            )}
+            {!hoverDate && (
+              <ReferenceDot x={last.date} y={last.Fatiga} r={3.5} fill={PMC.fatigue} stroke={COLORS.paper} strokeWidth={2} />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Panel 2 — Carga diaria */}
+      <div className="relative h-[56px] w-full border-t border-slate-100">
+        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 pointer-events-none z-10">
+          {t('fitness.pmc.daily_load')}
+        </span>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart syncId="pmc" data={data} margin={{ top: 6, right: 4, bottom: 0, left: 0 }} barCategoryGap={1} {...chartEvents}>
+            <XAxis dataKey="date" hide />
+            <YAxis orientation="right" tick={false} tickLine={false} axisLine={false} width={AXIS_W} domain={[0, 'dataMax']} />
+            <RechartsTooltip content={NoTooltip} cursor={false} isAnimationActive={false} />
+            <Bar dataKey="load" maxBarSize={6} radius={[2, 2, 0, 0]} isAnimationActive={false}
+              className="cursor-pointer"
+              onClick={(d) => setSelectedDay(prev => (prev?.date === d.date ? null : d))}>
+              {data.map((entry) => {
+                const r = maxLoad > 0 ? (entry.load || 0) / maxLoad : 0;
+                const fill = selectedDay?.date === entry.date ? PMC.negative
+                  : entry.date === hoverDate ? PMC.fitness : PMC.load;
+                const opacity = selectedDay?.date === entry.date || entry.date === hoverDate ? 1 : 0.25 + 0.55 * r;
+                return <Cell key={entry.date} fill={fill} fillOpacity={opacity} />;
+              })}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Panel 3 — Forma (TSB): verde por encima de 0, rojo por debajo */}
+      <div className="relative h-[170px] w-full border-t border-slate-100">
+        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 pointer-events-none z-10">
+          {es ? 'Forma · TSB' : 'Form · TSB'}
+        </span>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart syncId="pmc" data={data} margin={{ top: 6, right: 4, bottom: 0, left: 0 }} {...chartEvents}>
+            <defs>
+              <linearGradient id="gradTSBFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset={0}         stopColor={PMC.positive} stopOpacity={0.4} />
+                <stop offset={fillSplit} stopColor={PMC.positive} stopOpacity={0.05} />
+                <stop offset={fillSplit} stopColor={PMC.negative} stopOpacity={0.05} />
+                <stop offset={1}         stopColor={PMC.negative} stopOpacity={0.4} />
+              </linearGradient>
+              <linearGradient id="gradTSBStroke" x1="0" y1="0" x2="0" y2="1">
+                <stop offset={strokeSplit} stopColor={PMC.positive} />
+                <stop offset={strokeSplit} stopColor={PMC.negative} />
+              </linearGradient>
+            </defs>
+            {zonesInView.map(z => (
+              <ReferenceArea key={z.key} y1={z.y1} y2={z.y2} fill={z.color} fillOpacity={0.07} strokeOpacity={0}
+                label={{ value: t(`fitness.status.${z.key}`), position: 'insideRight', fontSize: 9, fontWeight: 700, fill: z.color, opacity: 0.8 }} />
+            ))}
+            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false}
+              axisLine={{ stroke: COLORS.hairline }} tickFormatter={xTickFormatter} interval={xInterval} minTickGap={24} />
+            <YAxis orientation="right" tick={AXIS_TICK} tickLine={false} axisLine={false}
+              width={AXIS_W} domain={tsbDomain} tickCount={5} />
+            <ReferenceLine y={0} stroke={COLORS.inkFaint} strokeWidth={1} />
+            <RechartsTooltip content={NoTooltip} cursor={CURSOR} isAnimationActive={false} />
+            <Area type="monotone" dataKey="Forma" name={t('fitness.tsb')} baseValue={0}
+              stroke="url(#gradTSBStroke)" strokeWidth={2} fill="url(#gradTSBFill)"
+              dot={false} isAnimationActive={false}
+              activeDot={{ r: 4.5, fill: formColor, stroke: COLORS.paper, strokeWidth: 2 }} />
+            {!hoverDate && (
+              <ReferenceDot x={last.date} y={last.Forma} r={4} fill={zoneColor(last.Forma)} stroke={COLORS.paper} strokeWidth={2} />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Panel actividades del día seleccionado ── */}
+      {selectedDay?.acts?.length > 0 && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              {new Date(selectedDay.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-2">
+            {selectedDay.acts.map((a, i) => (
+              <a key={i} href={`https://www.strava.com/activities/${a.id}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all group"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
+                    {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
+                    {isRun(a)
+                      ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)
+                      : (a.average_speed > 0 && <span>⚡ {(a.average_speed * 3.6).toFixed(1)} km/h</span>)}
+                    {a.average_heartrate > 0 && <span>❤️ {Math.round(a.average_heartrate)} bpm</span>}
+                    {a.suffer_score > 0 && <span>🔥 SS: {Math.round(a.suffer_score)}</span>}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                  {fmtDur(a.moving_time)    && <span className="text-xs text-slate-500">⏱ {fmtDur(a.moving_time)}</span>}
-                  {fmtPace(a.average_speed) && <span className="text-xs text-slate-500">⚡ {fmtPace(a.average_speed)}/km</span>}
-                  {a.average_heartrate      && <span className="text-xs text-slate-500">❤️ {Math.round(a.average_heartrate)} bpm</span>}
-                  {a.suffer_score           && <span className="text-xs text-slate-500">🔥 SS: {a.suffer_score}</span>}
+                <div className="flex items-center gap-3 shrink-0 ml-3">
+                  <span className="font-bold text-slate-700 text-sm">{(a.distance / 1000).toFixed(1)} km</span>
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </div>
       )}
-    </div>
+      {!selectedDay && (
+        <p className="mt-3 text-xs text-slate-500">
+          {es ? 'Pulsa una barra de carga para ver las sesiones de ese día.' : 'Click a load bar to see that day’s sessions.'}
+        </p>
+      )}
+    </Card>
   );
 }
+
+// ── Tooltips ─────────────────────────────────────────────────────────────────
+// Definidos fuera del componente: declarados dentro del render serían un tipo nuevo
+// en cada render y Recharts remontaría el subárbol del tooltip entero.
 
 function ScatterTooltip({ active, payload }) {
   const { i18n } = useTranslation();
@@ -131,10 +378,6 @@ export default function FitnessFatigue({ activities }) {
   const [offset, setOffset] = useState({ scope, months: 0 });
   const offsetMonths = offset.scope === scope ? offset.months : 0;
   const setOffsetMonths = (fn) => setOffset({ scope, months: fn(offsetMonths) });
-  // Día fijado al pinchar en la carga diaria. El tooltip ya lista las sesiones,
-  // pero se va con el ratón: esto las deja ancladas y enlazadas a Strava. Venía
-  // de la vista "Mi Estado", que pintaba su propio PMC en paralelo a este.
-  const [selectedDay, setSelectedDay] = useState(null);
   // Se desestructura aquí y no dentro del useMemo: el compilador de React lee
   // `pmc.current` como el `.current` de una ref y se salta la optimización del
   // componente entero si `pmc` entra como dependencia en bloque.
@@ -277,386 +520,97 @@ export default function FitnessFatigue({ activities }) {
   // ── No data ──────────────────────────────────────────────────────────────────
   if (!current) {
     return (
-      <div className="space-y-6">
-        <GlobalKpiGrid activities={activities} />
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
-          <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
-        </Card>
-      </div>
+      <Card className="shadow-lg border-slate-200">
+        <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
+        <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
+      </Card>
     );
   }
 
-  const MONTH_SHORT = monthShort(i18n.language);
-  const xTickFormatter = v => {
-    const d = new Date(v);
-    return `${MONTH_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
-  };
-  const xInterval = Math.max(Math.floor(filteredData.length / 12), 1);
+  // Diagnóstico en una sola franja. Antes había cinco tarjetas de estado, dos de
+  // interpretación y una leyenda que repetían lo que ya dice la gráfica.
+  const tone = { sky: PMC.transition, emerald: PMC.fresh, blue: PMC.fitness, amber: PMC.loaded, rose: PMC.overloaded };
+  const rampKey = rampLevel(rampRate) ?? 'safe';
+  const insights = [
+    { icon: SparklesIcon, color: tone[formStatus?.color] ?? PMC.fitness,
+      title: es ? 'Forma' : 'Form', value: formStatus?.label, desc: formStatus?.desc },
+    { icon: BoltIcon, color: tone[acwrStatus?.color] ?? PMC.fitness,
+      title: 'ACWR', value: `${current.acwr.toFixed(2)} · ${acwrStatus?.label}`, desc: acwrStatus?.desc },
+    { icon: rampRate > 5 ? ExclamationTriangleIcon : ArrowTrendingUpIcon,
+      color: rampKey === 'high' ? PMC.overloaded : PMC.fresh,
+      title: es ? 'Rampa' : 'Ramp',
+      value: `${rampRate > 0 ? '+' : ''}${rampRate} / ${es ? 'sem' : 'wk'} · ${t(`fitness.ramp_labels.${rampKey}`)}`,
+      desc: rampRate > 5
+        ? (es ? 'El fitness sube más de +5 por semana: riesgo de lesión o sobreentrenamiento.' : 'Fitness is rising faster than +5/week: injury or overtraining risk.')
+        : (es ? 'Subida de fitness por semana. Por debajo de +5 es sostenible.' : 'Weekly fitness gain. Below +5 is sustainable.') },
+  ];
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      <PMCChart data={filteredData} months={months} offsetMonths={offsetMonths}
+        canGoBack={canGoBack} setOffsetMonths={setOffsetMonths}
+        peakCTL={peakCTL} peakCTLYear={peakCTLYear} />
 
-      {/* Totales acumulados del atleta: el contexto del que cuelga el PMC. */}
-      <GlobalKpiGrid activities={activities} />
-
-      {/* ── Status cards ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: t('fitness.ctl'),  value: current.fitness, trend: current.ctlTrend7,
-            sub: `${current.fitnessPercent}% ${t('fitness.peak_fitness')}`, progress: current.fitnessPercent,
-            color: 'text-blue-600', icon: ArrowTrendingUpIcon },
-          { label: t('fitness.atl'),  value: current.fatigue,
-            sub: t('fitness.avg_7_days'), progress: Math.min((current.fatigue / Math.max(current.peakFitness, 1)) * 100, 100),
-            color: 'text-rose-600', icon: FireIcon },
-          { label: t('fitness.tsb'),  value: (current.form > 0 ? '+' : '') + current.form,
-            sub: formStatus?.label, color: current.form > 5 ? 'text-emerald-600' : current.form > -10 ? 'text-blue-600' : 'text-rose-600',
-            icon: SparklesIcon },
-          { label: t('fitness.acwr'), value: current.acwr.toFixed(2),
-            sub: `${es ? 'Riesgo' : 'Risk'} ${acwrStatus?.risk}`,
-            color: acwrStatus?.color === 'emerald' ? 'text-emerald-600' : 'text-rose-600',
-            icon: BoltIcon, acwr: true },
-          { label: t('fitness.ramp'), value: (rampRate > 0 ? '+' : '') + rampRate,
-            sub: t(`fitness.ramp_labels.${rampLevel(rampRate) ?? 'safe'}`),
-            color: rampLevel(rampRate) === 'high' ? 'text-rose-600' : 'text-emerald-600', icon: AdjustmentsHorizontalIcon },
-        ].map((card, i) => (
-          <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
-                <card.icon className="w-5 h-5" />
-              </div>
-              <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {insights.map(it => (
+          <div key={it.title} className="rounded-2xl p-4 border"
+            style={{ background: `${it.color}0d`, borderColor: `${it.color}33` }}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="p-1.5 rounded-lg" style={{ background: `${it.color}1f`, color: it.color }}>
+                <it.icon className="w-4 h-4" />
+              </span>
+              <span className="text-label font-bold uppercase text-slate-500">{it.title}</span>
             </div>
-            <div className="flex items-baseline gap-2">
-              <p className={`text-3xl font-black tabular-nums ${card.color}`}>{card.value}</p>
-              {card.trend !== undefined && (
-                <span className={`text-xs font-black px-1.5 py-0.5 rounded-lg ${card.trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                  {card.trend > 0 ? '+' : ''}{card.trend}
-                </span>
-              )}
-            </div>
-            <div className="mt-4 space-y-2">
-              <div className="text-label font-bold uppercase tracking-tighter text-slate-500">{card.sub}</div>
-              {card.progress !== undefined && (
-                <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
-                  <div className={`h-full rounded-full transition-all duration-700 ${card.color.replace('text-', 'bg-')}`} style={{ width: `${card.progress}%` }} />
-                </div>
-              )}
-              {card.acwr && (
-                <div className="relative h-2 flex gap-0.5 mt-1">
-                  <div className="h-full flex-[0.8] bg-sky-200 rounded-l-md" />
-                  <div className="h-full flex-[0.5] bg-emerald-400" />
-                  <div className="h-full flex-[0.2] bg-amber-400" />
-                  <div className="h-full flex-[0.5] bg-rose-400 rounded-r-md" />
-                  <div className="absolute top-0 w-1.5 h-1.5 bg-slate-900 rounded-full shadow-md border border-white"
-                    style={{ left: `${Math.min(Math.max((current.acwr / 2) * 100, 2), 98)}%`, transform: 'translateX(-50%)' }} />
-                </div>
-              )}
-            </div>
+            <p className="text-sm font-black tabular-nums" style={{ color: it.color }}>{it.value}</p>
+            <p className="text-xs text-slate-600 leading-relaxed mt-1">{it.desc}</p>
           </div>
         ))}
       </div>
 
-      {/* ── PMC chart ─────────────────────────────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-          <div>
-            <Title className="text-slate-800 font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
-            <Text className="text-slate-500 text-xs">{t('fitness.pmc.desc')}</Text>
-          </div>
-          <div className="flex items-center gap-2">
-            {months != null && (
-              <div className="flex gap-1">
-                <button onClick={() => setOffsetMonths(p => p + months)} disabled={!canGoBack}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
-                  </svg>
-                </button>
-                <button onClick={() => setOffsetMonths(p => Math.max(p - months, 0))} disabled={offsetMonths === 0}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-4 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[3px] rounded-full bg-blue-600" />
-            <span className="text-xs text-slate-600 font-semibold">CTL — {es ? 'Fitness' : 'Fitness'}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-[2px]" style={{ background: 'repeating-linear-gradient(90deg,#f43f5e 0 5px,transparent 5px 9px)' }} />
-            <span className="text-xs text-slate-500 font-semibold">ATL — {es ? 'Fatiga' : 'Fatigue'}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-blue-300 opacity-70" />
-            <span className="text-xs text-slate-500 font-medium">{t('fitness.pmc.daily_load')}</span>
-          </div>
-        </div>
-
-        {/* Panel 1 — CTL + ATL lines (sin barras) */}
-        <div className="h-[240px] w-full rounded-t-xl overflow-hidden bg-slate-50/60 border border-slate-100 border-b-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart syncId="pmc" data={filteredData} margin={{ top: 16, right: 16, bottom: 0, left: 8 }}>
-              <defs>
-                <linearGradient id="gradCTL" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={COLORS.signal} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={COLORS.signal} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 8" stroke={COLORS.hairline} vertical={false} />
-              <XAxis dataKey="date" hide />
-              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={36}
-                domain={[0, d => Math.round(d * 1.15)]} tickCount={5} />
-              <RechartsTooltip content={<PMCTooltip />} />
-              <Line type="monotone" dataKey="Fatiga" name={t('fitness.atl')}
-                stroke={COLORS.risk} strokeWidth={2} strokeDasharray="6 3"
-                dot={false} isAnimationActive={false}
-                activeDot={{ r: 4, fill: COLORS.risk, stroke: COLORS.paper, strokeWidth: 2 }} />
-              <Area type="monotone" dataKey="Fitness" name={t('fitness.ctl')}
-                stroke={COLORS.signal} strokeWidth={3} fill="url(#gradCTL)"
-                dot={false} isAnimationActive={false}
-                activeDot={{ r: 6, fill: COLORS.signal, stroke: COLORS.paper, strokeWidth: 2 }} />
-              {/* Picos: la franja es el 10% superior de cada máximo */}
-              {peakCTL > 0 && (
-                <ReferenceArea y1={peakCTL * 0.9} y2={peakCTL} fill={COLORS.signalBright} fillOpacity={0.08} ifOverflow="hidden" />
-              )}
-              {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
-                <ReferenceArea y1={peakCTLYear * 0.9} y2={peakCTLYear} fill={COLORS.caution} fillOpacity={0.1} ifOverflow="hidden" />
-              )}
-              {peakCTL > 0 && (
-                <ReferenceLine y={peakCTL} stroke={COLORS.signalBright} strokeDasharray="4 3" strokeOpacity={0.6}
-                  label={{ value: `${t('fitness.peak_all')} ${peakCTL}`, position: 'insideTopRight', fontSize: 11, fill: COLORS.signalBright, opacity: 0.8 }} />
-              )}
-              {peakCTLYear > 0 && Math.abs(peakCTLYear - peakCTL) > 0.5 && (
-                <ReferenceLine y={peakCTLYear} stroke={COLORS.caution} strokeDasharray="4 3" strokeOpacity={0.6}
-                  label={{ value: `${t('fitness.peak_year')} ${peakCTLYear}`, position: 'insideBottomRight', fontSize: 11, fill: COLORS.caution, opacity: 0.8 }} />
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Panel 2 — Carga diaria (eje Y propio, siempre proporcional) */}
-        <div className="h-[72px] w-full bg-white border border-slate-100 border-t-slate-200">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart syncId="pmc" data={filteredData} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide domain={[0, 'dataMax']} width={36} />
-              <RechartsTooltip content={<PMCTooltip />} />
-              <Bar dataKey="load" barSize={3} radius={[2, 2, 0, 0]} isAnimationActive={false}
-                className="cursor-pointer"
-                onClick={(data) => setSelectedDay(prev => (prev?.date === data.date ? null : data))}>
-                {filteredData.map((entry, i) => {
-                  const maxV = Math.max(...filteredData.map(d => d.load));
-                  const r = maxV > 0 ? entry.load / maxV : 0;
-                  return (
-                    <Cell key={i}
-                      fill={selectedDay?.date === entry.date ? COLORS.elevated
-                        : r > 0.75 ? COLORS.signalDeep : r > 0.45 ? COLORS.signalLight : r > 0 ? '#bfdbfe' : 'transparent'}
-                    />
-                  );
-                })}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 my-3">
-          <div className="h-px flex-1 bg-slate-100" />
-          <span className="text-label font-bold text-slate-500 uppercase">
-            TSB — {es ? 'Forma del Día' : 'Daily Form'}
-          </span>
-          <div className="flex items-center gap-1">
-            {[
-              { label: es ? 'Trans.' : 'Trans.', bg: '#dbeafe', fg: COLORS.signalDeep },
-              { label: es ? 'Fresco' : 'Fresh',  bg: '#d1fae5', fg: '#065f46' },
-              { label: es ? 'Óptimo' : 'Optimal', bg: '#fef9c3', fg: '#92400e' },
-              { label: es ? 'Cargado' : 'Loaded', bg: '#ffedd5', fg: '#9a3412' },
-              { label: es ? 'Sobrecar.' : 'Over.', bg: '#fee2e2', fg: '#991b1b' },
-            ].map(z => (
-              <span key={z.label} className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: z.bg, color: z.fg }}>{z.label}</span>
-            ))}
-          </div>
-          <div className="h-px flex-1 bg-slate-100" />
-        </div>
-
-        {/* Panel 3 — TSB zones */}
-        <div className="h-[170px] w-full rounded-b-xl overflow-hidden border border-slate-100">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart syncId="pmc" data={filteredData} margin={{ top: 0, right: 16, bottom: 20, left: 8 }}>
-              <ReferenceArea y1={25}  y2={80}  fill="#dbeafe" fillOpacity={0.85} ifOverflow="hidden" />
-              <ReferenceArea y1={5}   y2={25}  fill="#d1fae5" fillOpacity={0.85} ifOverflow="hidden" />
-              <ReferenceArea y1={-10} y2={5}   fill="#fef9c3" fillOpacity={0.85} ifOverflow="hidden" />
-              <ReferenceArea y1={-30} y2={-10} fill="#ffedd5" fillOpacity={0.85} ifOverflow="hidden" />
-              <ReferenceArea y1={-80} y2={-30} fill="#fee2e2" fillOpacity={0.85} ifOverflow="hidden" />
-              <CartesianGrid strokeDasharray="2 8" stroke={COLORS.hairlineSoft} vertical={false} />
-              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false}
-                axisLine={{ stroke: COLORS.hairline }} tickFormatter={xTickFormatter} interval={xInterval} />
-              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false}
-                width={36} domain={[-80, 80]} tickCount={5} />
-              <ReferenceLine y={0} stroke={COLORS.inkMuted} strokeWidth={1.5} />
-              <RechartsTooltip content={<PMCTooltip />} />
-              <Line type="monotone" dataKey="Forma" name={t('fitness.tsb')}
-                stroke={COLORS.ink} strokeWidth={2.5} dot={false} isAnimationActive={false}
-                activeDot={{ r: 5, fill: COLORS.ink, stroke: COLORS.paper, strokeWidth: 2 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* ── Panel actividades del día seleccionado ── */}
-        {selectedDay?.acts?.length > 0 && (
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {new Date(selectedDay.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-2">
-              {selectedDay.acts.map((a, i) => (
-                <a key={i} href={`https://www.strava.com/activities/${a.id}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all group"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
-                      {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
-                      {isRun(a)
-                        ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)
-                        : (a.average_speed > 0 && <span>⚡ {(a.average_speed * 3.6).toFixed(1)} km/h</span>)}
-                      {a.average_heartrate > 0 && <span>❤️ {Math.round(a.average_heartrate)} bpm</span>}
-                      {a.suffer_score > 0 && <span>🔥 SS: {Math.round(a.suffer_score)}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0 ml-3">
-                    <span className="font-bold text-slate-700 text-sm">{(a.distance / 1000).toFixed(1)} km</span>
-                    <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* La carga semanal vive en Carga › Semanal, junto al volumen (un número,
-          una vista dueña). */}
-
-      {/* ── Scatter: TSB vs performance ──────────────────────────────────────── */}
+      {/* ── Scatter: forma vs rendimiento ────────────────────────────────────── */}
       {topEfforts.length > 0 && (
         <Card className="shadow-lg border-slate-200">
           <Title className="text-slate-800 font-bold mb-1">{t('fitness.performance_vs_fitness')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('fitness.pmc.desc')}</Text>
-          <div className="h-80 w-full bg-slate-50/50 rounded-xl p-4 border border-slate-100">
+          <Text className="text-slate-500 text-xs mb-4">
+            {es ? 'Rodajes llanos de 3 km o más: ritmo frente a fitness, coloreados por la forma de ese día.'
+                : 'Flat runs of 3 km or more: pace against fitness, coloured by that day\u2019s form.'}
+          </Text>
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
+              <ScatterChart margin={{ top: 10, right: 16, bottom: 20, left: 4 }}>
+                <CartesianGrid stroke={COLORS.hairlineSoft} />
                 <XAxis type="number" dataKey="Fitness" name="Fitness (CTL)" domain={['dataMin - 2', 'dataMax + 2']}
-                  label={{ value: 'Fitness (CTL)', position: 'insideBottom', offset: -10, fill: COLORS.inkMuted, fontSize: 12 }}
-                  tick={{ fill: COLORS.inkMuted, fontSize: 12 }} />
+                  label={{ value: 'Fitness (CTL)', position: 'insideBottom', offset: -10, fill: COLORS.inkMuted, fontSize: 11 }}
+                  tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: COLORS.hairline }} />
                 <YAxis type="number" dataKey="pace" name={es ? 'Ritmo' : 'Pace'} domain={['auto', 'auto']} reversed
-                  tickFormatter={v => formatPaceFromMinPerKm(v)}
-                  label={{ value: es ? 'Ritmo (min/km)' : 'Pace (min/km)', angle: -90, position: 'insideLeft', offset: -5, fill: COLORS.inkMuted, fontSize: 12 }}
-                  tick={{ fill: COLORS.inkMuted, fontSize: 12 }} />
+                  tickFormatter={v => formatPaceFromMinPerKm(v)} tick={AXIS_TICK} tickLine={false} axisLine={false}
+                  label={{ value: es ? 'Ritmo (min/km)' : 'Pace (min/km)', angle: -90, position: 'insideLeft', offset: 10, fill: COLORS.inkMuted, fontSize: 11 }} />
                 <ZAxis type="number" dataKey="distance" range={[40, 400]} />
                 <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} content={<ScatterTooltip />} />
                 <Scatter data={topEfforts} onClick={e => window.open(`https://www.strava.com/activities/${e.id}`, '_blank')} className="cursor-pointer">
                   {topEfforts.map((e, i) => (
-                    <Cell key={i} fill={e.Forma > 5 ? COLORS.good : e.Forma < -10 ? COLORS.risk : COLORS.signal} fillOpacity={0.7} />
+                    <Cell key={i} fill={e.Forma > 5 ? PMC.fresh : e.Forma < -10 ? PMC.overloaded : PMC.fitness}
+                      fillOpacity={0.65} stroke={COLORS.paper} strokeWidth={1} />
                   ))}
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex flex-wrap gap-4 mt-4 px-2">
+          <div className="flex flex-wrap gap-4 mt-3">
             {[
-              { color: 'bg-emerald-500', label: es ? 'Marcas estando fresco (TSB > 5)' : 'Fresh PRs (TSB > 5)' },
-              { color: 'bg-blue-500',    label: es ? 'Estado neutro/óptimo' : 'Neutral/optimal state' },
-              { color: 'bg-rose-500',    label: es ? 'Con fatiga (TSB < −10)' : 'With fatigue (TSB < −10)' },
+              { color: PMC.fresh,      label: es ? 'Fresco (TSB > 5)' : 'Fresh (TSB > 5)' },
+              { color: PMC.fitness,    label: es ? 'Neutro' : 'Neutral' },
+              { color: PMC.overloaded, label: es ? 'Con fatiga (TSB < −10)' : 'Fatigued (TSB < −10)' },
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1.5">
-                <div className={`w-3 h-3 rounded-full ${l.color} opacity-70`} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
                 <span className="text-xs text-slate-500 font-medium">{l.label}</span>
               </div>
             ))}
           </div>
         </Card>
       )}
-
-      {/* ── Interpretation ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {[
-          { status: formStatus, label: es ? 'Estado de Forma' : 'Form Status', icon: SparklesIcon },
-          { status: acwrStatus, label: 'ACWR', icon: BoltIcon },
-        ].map((item, i) => (
-          <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex gap-5 items-start">
-              <div className={`p-4 rounded-2xl shrink-0 ${item.status?.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : item.status?.color === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
-                <item.icon className="w-8 h-8" />
-              </div>
-              <div>
-                <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-2">
-                  {item.label}: <span className={item.status?.color === 'emerald' ? 'text-emerald-600' : 'text-blue-600'}>{item.status?.label}</span>
-                </h4>
-                <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.status?.desc}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {rampRate > 5 && (
-        <div className="bg-white border border-rose-200 rounded-2xl p-6 flex gap-5 items-start shadow-sm">
-          <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl shrink-0">
-            <ExclamationTriangleIcon className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-1">
-              {es ? 'Alerta: Rampa de Carga' : 'Alert: Load Ramp'}
-            </h4>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed">
-              {es
-                ? `Tu CTL está aumentando a +${rampRate}/semana. Un aumento superior a +5 es un indicador de riesgo de sobreentrenamiento o lesión.`
-                : `Your CTL is increasing at +${rampRate}/week. An increase higher than +5 signals overtraining or injury risk.`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Legend ────────────────────────────────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">{t('fitness.how_to_read')}</Title>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-          {[
-            { color: 'bg-blue-500', title: 'CTL (Fitness)', desc: es ? 'Media exponencial 42 días. Crece con entrenamiento consistente.' : '42-day exponential average. Grows with consistent training.' },
-            { color: 'bg-rose-500', title: 'ATL (Fatiga)', desc: es ? 'Media exponencial 7 días. Refleja la fatiga reciente.' : '7-day exponential average. Reflects recent fatigue.' },
-            { color: 'bg-emerald-500', title: 'TSB (Forma)', desc: es ? 'CTL − ATL. Positivo = fresco. Negativo = fatiga acumulada.' : 'CTL − ATL. Positive = fresh. Negative = accumulated fatigue.' },
-            { title: 'ACWR', desc: es ? 'ATL / CTL. Zona segura: 0.8–1.3. Encima de 1.5 = riesgo alto de lesión.' : 'ATL / CTL. Safe zone: 0.8–1.3. Above 1.5 = high injury risk.' },
-            { title: es ? 'Rampa Semanal' : 'Weekly Ramp', desc: es ? 'Incremento de CTL/semana. No debería superar +5.' : 'CTL increase per week. Should not exceed +5.' },
-            { title: es ? 'Carga Semanal' : 'Weekly Load', desc: es ? 'Suma de esfuerzo por semana. Rojo = semana muy alta. Gris = muy baja.' : 'Total effort per week. Red = very high. Grey = very low.' },
-          ].map((item, i) => (
-            <div key={i} className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                {item.color && <div className={`w-3 h-3 rounded-full ${item.color}`} />}
-                <p className="font-semibold text-slate-700 text-sm">{item.title}</p>
-              </div>
-              <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

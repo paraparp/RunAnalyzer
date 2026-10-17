@@ -16,7 +16,7 @@ import { formatMinutes } from '../lib/timeFormat';
 import { toISODate } from '../lib/planSchedule';
 import { pushPlanDays, deleteGarminWorkout } from '../services/garminWorkouts';
 import { WORKOUT_CATEGORIES, workoutCategory } from '../lib/workoutProtocol';
-import WorkoutCard from './WorkoutCard';
+import WorkoutCard, { MiniProfile } from './WorkoutCard';
 import { CATEGORY_STYLE } from '../lib/workoutStyle';
 import {
     PLAN_PHASES, estimateWorkoutLoad, plannedLoad, planWarnings, unplannedRuns, compareToPlan,
@@ -26,11 +26,11 @@ import { buildLoadParams, sessionLoad } from '../lib/trainingLoad';
 
 // Color de cada fase del bloque: escala de índigo según la carga, cian para el taper.
 const PHASE_STYLE = {
-    base: { band: 'bg-indigo-200', text: 'text-indigo-500' },
-    build: { band: 'bg-indigo-400', text: 'text-indigo-600' },
-    peak: { band: 'bg-indigo-600', text: 'text-indigo-700' },
-    taper: { band: 'bg-cyan-500', text: 'text-cyan-700' },
-    recovery: { band: 'bg-slate-300', text: 'text-slate-500' },
+    base: { band: 'bg-indigo-200', text: 'text-indigo-500', wash: 'bg-indigo-50' },
+    build: { band: 'bg-indigo-400', text: 'text-indigo-600', wash: 'bg-indigo-50' },
+    peak: { band: 'bg-indigo-600', text: 'text-indigo-700', wash: 'bg-indigo-100' },
+    taper: { band: 'bg-cyan-500', text: 'text-cyan-700', wash: 'bg-cyan-50' },
+    recovery: { band: 'bg-slate-300', text: 'text-slate-500', wash: 'bg-slate-100' },
 };
 
 const VIEW_KEY = 'trainingplans_view';
@@ -240,16 +240,17 @@ const ExtraRow = ({ run, onOpen, t }) => (
     <button
         type="button"
         onClick={() => run.activity_id && onOpen?.(run.activity_id)}
-        className="w-full flex items-center gap-4 px-4 py-2.5 pl-5 rounded-lg border border-dashed border-slate-200 bg-white text-left hover:border-blue-200 transition-colors"
+        className="relative w-full flex items-center gap-4 px-4 py-2.5 pl-5 text-left hover:bg-slate-50/80 transition-colors"
         title={run.name || t('trainingplans.open_activity')}
     >
+        <span className="absolute left-0 inset-y-2 border-l-2 border-dashed border-slate-300" aria-hidden />
         <div className="shrink-0 w-10 text-center">
             <p className="text-label font-bold uppercase leading-none text-slate-400">{weekdayShort(run.date)}</p>
             <p className="text-base font-black tabular-nums leading-none mt-1 text-slate-500">{parseISO(run.date).getDate()}</p>
         </div>
         <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2.5">
             <span className="text-sm font-bold text-slate-600 truncate">{run.name || t('trainingplans.extra_run')}</span>
-            <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-400">{t('trainingplans.extra_label')}</span>
+            <span className="px-1.5 py-0.5 rounded text-[11px] font-bold border border-dashed border-slate-300 text-slate-500">{t('trainingplans.extra_label')}</span>
             <span className="text-xs font-bold text-slate-500 tabular-nums">
                 {[`${run.distance_km} km`, run.pace_min_km != null ? `${formatMinutes(run.pace_min_km)}/km` : null, run.avg_hr ? `${run.avg_hr} ppm` : null].filter(Boolean).join(' · ')}
             </span>
@@ -292,16 +293,16 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                     <ChevronDownIcon className={`w-3 h-3 transition-transform ${showAllWeeks ? 'rotate-180' : ''}`} />
                 </button>
             )}
-            <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[4.5rem_repeat(7,minmax(0,1fr))] gap-1">
+            <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[4.5rem_repeat(7,minmax(0,1fr))] gap-1 sm:gap-1.5">
                 <span />
-                {dayLabels.map((d) => (
-                    <span key={d} className="text-center text-label font-bold uppercase text-slate-400 pb-1">{d}</span>
+                {dayLabels.map((d, i) => (
+                    <span key={d} className={`text-center text-label font-bold uppercase pb-1 ${i >= 5 ? 'text-slate-500' : 'text-slate-400'}`}>{d}</span>
                 ))}
                 {visible.map((wk) => {
                     const i = weeks.indexOf(wk);
                     const phase = phases[wk.week_start];
                     return [
-                        <div key={`${wk.week_start}-h`} className={`flex flex-col justify-center pr-1 ${wk.is_current ? 'text-blue-600' : 'text-slate-500'}`}>
+                        <div key={`${wk.week_start}-h`} className={`flex flex-col justify-center gap-0.5 pr-1 sm:pl-2 border-l-2 ${wk.is_current ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}>
                             <span className="text-xs font-black tabular-nums">{t('trainingplans.week_short', { n: i + 1 })}</span>
                             {phase && <span className={`hidden sm:block text-[10px] font-bold uppercase ${PHASE_STYLE[phase].text}`}>{t(`trainingplans.phase_${phase}`)}</span>}
                             <span className="hidden sm:block text-[10px] font-semibold tabular-nums text-slate-400">{wk.planned_km} km</span>
@@ -318,13 +319,13 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                                     onDragOver={(e) => { if (dragId) { e.preventDefault(); setOverDay(date); } }}
                                     onDragLeave={() => setOverDay((o) => (o === date ? null : o))}
                                     onDrop={(e) => { e.preventDefault(); drop(date); }}
-                                    className={`min-h-[4.5rem] rounded-md border p-1 flex flex-col gap-1 transition-colors ${
-                                        overDay === date ? 'border-blue-400 bg-blue-50'
-                                            : isToday ? 'border-blue-300 bg-blue-50/40'
-                                                : past ? 'border-slate-100 bg-slate-50/60' : 'border-slate-100'
+                                    className={`min-h-[4.5rem] sm:min-h-[5.5rem] rounded-lg border p-1 sm:p-1.5 flex flex-col gap-1 transition-colors ${
+                                        overDay === date ? 'border-blue-400 bg-blue-50 border-dashed'
+                                            : isToday ? 'border-blue-300 bg-white ring-2 ring-blue-500/15'
+                                                : past ? 'border-transparent bg-slate-50' : 'border-slate-100 bg-white'
                                     }`}
                                 >
-                                    <span className={`text-[10px] font-bold tabular-nums leading-none ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
+                                    <span className={`self-start text-[10px] font-bold tabular-nums leading-none ${isToday ? 'px-1.5 py-0.5 rounded-full bg-blue-600 text-white' : 'text-slate-400'}`}>
                                         {parseISO(date).getDate()}
                                     </span>
                                     {items.map((w) => {
@@ -339,7 +340,7 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                                                 onDragEnd={() => { setDragId(null); setOverDay(null); }}
                                                 onClick={() => onEdit(w)}
                                                 title={`${w.type}${w.distance_km != null ? ` · ${w.distance_km} km` : ''}${w.summary ? `\n${w.summary}` : ''}`}
-                                                className={`relative text-left rounded-sm bg-white border border-slate-200 pl-2 pr-1 py-1 overflow-hidden cursor-grab active:cursor-grabbing hover:border-slate-300 ${
+                                                className={`relative text-left rounded-md ${accent.wash} pl-2 pr-1 py-1 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-sm hover:-translate-y-px transition ${
                                                     status === 'skipped' ? 'opacity-50 line-through' : ''
                                                 } ${past && status !== 'done' ? 'opacity-70' : ''} ${dragId === w.id ? 'opacity-40' : ''}`}
                                             >
@@ -356,7 +357,7 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                                     })}
                                     {extra && !items.some((w) => workoutCategory(w) !== 'rest') && (
                                         <span
-                                            className="rounded-sm border border-dashed border-slate-300 px-1 py-0.5 text-[10px] font-semibold text-slate-500 tabular-nums"
+                                            className="rounded-md border border-dashed border-slate-300 px-1 py-0.5 text-[10px] font-semibold text-slate-500 tabular-nums"
                                             title={`${t('trainingplans.extra_label')} · ${extra.name || ''}`}
                                         >
                                             +{extra.distance_km} km
@@ -419,27 +420,33 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
     ].filter(Boolean);
 
     return (
-        <div className={`group relative bg-white border overflow-hidden transition-colors ${
-            featured ? 'rounded-xl border-blue-200 shadow-sm' : 'rounded-lg border-slate-100 hover:border-slate-200'
+        // Fuera de la destacada, las filas viven dentro de la tarjeta de su semana:
+        // sin borde propio, separadas por líneas y con el color de categoría en una barra corta.
+        <div className={`group relative overflow-hidden transition-colors ${
+            featured
+                ? 'rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-white to-white shadow-sm'
+                : 'bg-white hover:bg-slate-50/80'
         } ${status === 'skipped' ? 'opacity-60' : ''}`}>
-            <span className={`absolute left-0 inset-y-0 ${featured ? 'w-1.5' : 'w-1'} ${accent.bar}`} aria-hidden />
-            <div className={`flex items-start gap-4 ${featured ? 'p-5 pl-6' : compact ? 'px-4 py-2.5 pl-5' : 'p-4 pl-5'}`}>
+            <div className={`flex items-start gap-4 ${featured ? 'p-5 sm:p-6' : compact ? 'px-4 py-2.5' : 'px-4 py-3.5'}`}>
+                {/* Casilla de fecha teñida con el color de la categoría: el ojo agrupa por tipo antes de leer. */}
                 {workout.date ? (
-                    <div className={`shrink-0 text-center ${featured ? 'w-14' : 'w-10'}`}>
-                        <p className={`text-label font-bold uppercase leading-none ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
+                    <div className={`shrink-0 rounded-xl flex flex-col items-center justify-center leading-none ${
+                        featured ? 'w-16 h-[4.5rem] shadow-sm' : compact ? 'w-10 h-10' : 'w-12 h-12'
+                    } ${featured ? `${accent.bar} text-white` : isToday ? 'bg-blue-600 text-white' : `${accent.wash} ${accent.text}`}`}>
+                        <span className={`font-bold uppercase ${compact ? 'text-[9px]' : 'text-[10px]'} opacity-80`}>
                             {weekdayShort(workout.date)}
-                        </p>
-                        <p className={`font-black tabular-nums leading-none mt-1 ${featured ? 'text-3xl' : compact ? 'text-base' : 'text-xl'} ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>
+                        </span>
+                        <span className={`font-black tabular-nums mt-0.5 ${featured ? 'text-3xl' : compact ? 'text-sm' : 'text-lg'}`}>
                             {parseISO(workout.date).getDate()}
-                        </p>
+                        </span>
                         {featured && (
-                            <p className="text-label font-bold uppercase text-slate-400 mt-1">
+                            <span className="text-[10px] font-bold uppercase opacity-80 mt-0.5">
                                 {parseISO(workout.date).toLocaleDateString(locale, { month: 'short' }).replace('.', '')}
-                            </p>
+                            </span>
                         )}
                     </div>
                 ) : (
-                    <div className="shrink-0 w-10 text-center text-slate-400">—</div>
+                    <div className="shrink-0 w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">—</div>
                 )}
 
                 <div className="min-w-0 flex-1">
@@ -450,9 +457,9 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                     )}
                     <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                         <span className={`font-black text-slate-900 ${featured ? 'text-xl tracking-tight' : 'text-sm'}`}>{workout.type}</span>
-                        <span className={`text-[11px] font-mono font-semibold uppercase tracking-wider ${accent.text}`}>{accent.label}</span>
-                        {metrics.length > 0 && (
-                            <span className={`font-bold text-slate-500 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`}>{metrics.join(' · ')}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${accent.wash} ${accent.text}`}>{accent.label}</span>
+                        {compact && metrics.length > 0 && (
+                            <span className="font-bold text-slate-500 tabular-nums text-xs">{metrics.join(' · ')}</span>
                         )}
                         {load > 0 && !compact && (
                             <span className={`inline-flex items-center gap-0.5 font-bold text-slate-400 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`} title={t('trainingplans.load_hint')}>
@@ -475,6 +482,9 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
 
                     {!compact && workout.summary && (
                         <p className={`text-slate-600 leading-relaxed mt-1 ${featured ? 'text-sm' : 'text-sm line-clamp-2'}`}>{workout.summary}</p>
+                    )}
+                    {hasSteps && !compact && !featured && (
+                        <MiniProfile workout={workout} className="h-5 mt-2 max-w-xs" />
                     )}
                     {actual && featured && <PlanVsActual workout={workout} actual={actual} onOpen={onOpenActivity} t={t} />}
                     {actual && !featured && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
@@ -518,6 +528,24 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                     {send?.error && <p className="mt-2 text-xs font-semibold text-rose-600">{send.error}</p>}
                 </div>
 
+                {/* La dosis en grande a la derecha: se compara de un vistazo bajando por la lista. */}
+                {!compact && (workout.distance_km != null || workout.duration_min != null) && (
+                    <div className="shrink-0 text-right leading-none pt-0.5">
+                        {workout.distance_km != null ? (
+                            <p className={`font-black text-slate-900 tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
+                                {workout.distance_km}<span className={`font-bold text-slate-400 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>km</span>
+                            </p>
+                        ) : (
+                            <p className={`font-black text-slate-900 tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
+                                {workout.duration_min}<span className={`font-bold text-slate-400 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>min</span>
+                            </p>
+                        )}
+                        {workout.distance_km != null && workout.duration_min != null && (
+                            <p className={`font-semibold text-slate-400 tabular-nums mt-1 ${featured ? 'text-sm' : 'text-[11px]'}`}>{workout.duration_min} min</p>
+                        )}
+                    </div>
+                )}
+
                 {/* Acciones: siempre visibles en táctil; en escritorio aparecen al pasar el ratón o con el foco. */}
                 <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${featured ? '' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100'}`}>
                     <button
@@ -551,16 +579,6 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
         </div>
     );
 };
-
-/** Cifra grande con etiqueta en versales y una línea de contexto. */
-const Kpi = ({ label, value, sub, children }) => (
-    <div className="min-w-0">
-        <p className="text-label font-bold uppercase text-slate-500">{label}</p>
-        <p className="text-2xl font-black text-slate-900 tabular-nums tracking-tight leading-tight mt-1">{value}</p>
-        {sub && <p className="text-xs font-medium text-slate-500 mt-0.5">{sub}</p>}
-        {children}
-    </div>
-);
 
 // Correr más de esto por encima de lo planificado en una semana se marca en ámbar.
 const OVER_PLAN_PCT = 10;
@@ -711,9 +729,15 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
 /** Cabecera de semana en la lista de próximos: número, rango, km y acciones. */
 const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, onPhase, onSendWeek, onDuplicate, t }) => {
     const end = addDaysISO(weekStart, 6);
+    const progress = meta?.is_current && meta.planned_km > 0 && meta.actual_km != null
+        ? Math.min(100, (meta.actual_km / meta.planned_km) * 100)
+        : null;
     return (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className={`relative flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 ${meta?.is_current ? 'bg-blue-50/50' : 'bg-slate-50/60'}`}>
+            {progress != null && (
+                <div className="absolute left-0 bottom-0 h-0.5 bg-blue-600 transition-all" style={{ width: `${progress}%` }} aria-hidden />
+            )}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <h4 className={`text-sm font-black ${meta?.is_current ? 'text-blue-600' : 'text-slate-900'}`}>
                     {meta?.is_current ? t('trainingplans.this_week') : t('trainingplans.week_label', { n: index })}
                 </h4>
@@ -721,7 +745,7 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
                 <select
                     value={phase || ''}
                     onChange={(e) => onPhase(weekStart, e.target.value || null)}
-                    className={`py-0 pl-1 pr-6 text-[11px] font-bold uppercase bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer ${phase ? PHASE_STYLE[phase].text : 'text-slate-400'}`}
+                    className={`py-0.5 pl-2 pr-6 rounded-full text-[11px] font-bold uppercase border-0 bg-[length:1rem] bg-[right_0.25rem_center] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer ${phase ? `${PHASE_STYLE[phase].text} ${PHASE_STYLE[phase].wash}` : 'text-slate-400 bg-transparent hover:bg-slate-100'}`}
                     title={t('trainingplans.phase_set')}
                 >
                     <option value="">{t('trainingplans.phase_none')}</option>
@@ -771,6 +795,127 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
     );
 };
 
+/** Anillo de progreso para el hero oscuro: la cifra en el centro, la etiqueta debajo. */
+const Ring = ({ pct, color = '#60a5fa', size = 76, children, label, sub }) => {
+    const r = (size - 8) / 2;
+    const c = 2 * Math.PI * r;
+    const p = Math.max(0, Math.min(100, pct ?? 0));
+    return (
+        <div className="flex items-center gap-3 min-w-0">
+            <div className="relative shrink-0" style={{ width: size, height: size }}>
+                <svg width={size} height={size} className="-rotate-90">
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
+                    {pct != null && (
+                        <circle
+                            cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+                            strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)}
+                            style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+                        />
+                    )}
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-base font-black tabular-nums tracking-tight">{children}</div>
+            </div>
+            <div className="min-w-0">
+                <p className="text-label font-bold uppercase text-white/50">{label}</p>
+                {sub && <p className="text-xs font-semibold text-white/80 mt-0.5 truncate">{sub}</p>}
+            </div>
+        </div>
+    );
+};
+
+// Fases sobre fondo oscuro: más luminosas que en la gráfica clara para que se lean.
+const PHASE_DARK = {
+    base: 'bg-indigo-300/70', build: 'bg-indigo-400', peak: 'bg-violet-400', taper: 'bg-cyan-400', recovery: 'bg-slate-400/60',
+};
+
+/**
+ * Línea del bloque completo: un tramo por semana coloreado por fase, lo ya
+ * recorrido opaco y lo que falta atenuado, con un marcador en la semana actual
+ * y la bandera de meta al final si hay carrera.
+ */
+const PlanTimeline = ({ weeks, phases, hasRace, t }) => {
+    if (!weeks.length) return null;
+    const current = weeks.findIndex((w) => w.is_current);
+    return (
+        <div>
+            <div className="flex items-center gap-1">
+                {weeks.map((w, i) => {
+                    const p = phases[w.week_start];
+                    const prev = phases[weeks[i - 1]?.week_start];
+                    const ahead = current >= 0 ? i > current : false;
+                    return (
+                        <div key={w.week_start} className="relative flex-1 min-w-0" title={`${t('trainingplans.week_label', { n: i + 1 })}${p ? ` · ${t(`trainingplans.phase_${p}`)}` : ''}`}>
+                            <span className="block h-4 text-[10px] font-bold uppercase text-white/60 truncate">
+                                {p && p !== prev ? t(`trainingplans.phase_${p}`) : ''}
+                            </span>
+                            <div className={`h-2 rounded-full ${p ? PHASE_DARK[p] : 'bg-white/20'} ${ahead ? 'opacity-40' : ''}`} />
+                            {i === current && (
+                                <span className="absolute left-1/2 -translate-x-1/2 top-[1.15rem] w-3.5 h-3.5 rounded-full bg-white ring-4 ring-white/20 shadow" aria-hidden />
+                            )}
+                        </div>
+                    );
+                })}
+                {hasRace && <FlagIcon className="w-4 h-4 text-cyan-300 shrink-0 mt-4 ml-1" />}
+            </div>
+        </div>
+    );
+};
+
+/**
+ * La semana de un vistazo: siete columnas con una barra por día, alta según los
+ * km planificados (escala común a todo el plan) y del color de su categoría.
+ * Hecho = barra llena con check; pasado sin hacer = contorno rojo; descanso = punto.
+ */
+const WeekStrip = ({ weekStart, byDate, maxKm, todayISO, onEdit }) => (
+    <div className="grid grid-cols-7 gap-1.5 sm:gap-2 px-4 pt-3 pb-2.5 border-b border-slate-100">
+        {Array.from({ length: 7 }, (_, d) => {
+            const date = addDaysISO(weekStart, d);
+            const items = (byDate.get(date) || []).filter((w) => !isRest(w));
+            const main = items[0];
+            const km = items.reduce((s, w) => s + (Number(w.distance_km) || 0), 0);
+            const accent = main ? (CATEGORY_STYLE[workoutCategory(main)] || CATEGORY_STYLE.easy) : null;
+            const done = main && items.every((w) => w.status === 'done');
+            const missed = main && !done && date < todayISO && items.some((w) => (w.status || 'planned') === 'planned');
+            const isToday = date === todayISO;
+            return (
+                <button
+                    key={date}
+                    type="button"
+                    disabled={!main}
+                    onClick={() => main && onEdit(main)}
+                    className="group/day flex flex-col items-center gap-1 min-w-0 disabled:cursor-default"
+                    title={main ? `${main.type}${km ? ` · ${km} km` : ''}` : undefined}
+                >
+                    <div className="relative h-12 w-full flex items-end justify-center">
+                        {main ? (
+                            <div
+                                className={`relative w-full max-w-[2.25rem] rounded-md transition-transform group-hover/day:-translate-y-0.5 ${
+                                    missed ? 'border-2 border-rose-300 bg-rose-50' : accent.bar
+                                } ${!done && !missed && date >= todayISO ? 'opacity-80' : ''}`}
+                                style={{ height: `${Math.max(22, (km / maxKm) * 100)}%` }}
+                            >
+                                {done && <CheckCircleIcon className="absolute top-0.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 text-white" />}
+                                {km > 0 && (
+                                    <span className={`absolute -top-4 inset-x-0 text-center text-[10px] font-bold tabular-nums ${missed ? 'text-rose-500' : 'text-slate-600'}`}>
+                                        {Math.round(km)}
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200 mb-1" />
+                        )}
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase leading-none ${
+                        isToday ? 'px-1.5 py-0.5 rounded-full bg-blue-600 text-white' : 'text-slate-400'
+                    }`}>
+                        {weekdayShort(date)}
+                    </span>
+                </button>
+            );
+        })}
+    </div>
+);
+
 const ADHERENCE_DOT = {
     done: 'bg-emerald-500',
     skipped: 'bg-slate-300',
@@ -816,6 +961,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
     const targetRaces = getTargetRaces();
     const linkedRace = selectedPlan?.raceId ? targetRaces.find((r) => r.id === selectedPlan.raceId) : null;
     const raceDays = linkedRace?.date ? daysUntil(linkedRace.date) : null;
+    const finalStretch = raceDays != null && raceDays >= 0 && raceDays <= 21;
     const weeks = useMemo(() => weeklyVolume(selectedPlan, byDay, todayISO), [selectedPlan, byDay, todayISO]);
 
     const { upcoming, past } = useMemo(() => {
@@ -828,6 +974,15 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
 
     // La siguiente sesión que no sea descanso se destaca (la de hoy aunque ya esté
     // hecha, para ver el plan frente a lo corrido); el resto se agrupa por semana.
+    // Para la tira semanal: entrenos por fecha y el día más largo del plan (escala común).
+    const { workoutsByDate, maxDayKm } = useMemo(() => {
+        const m = new Map();
+        for (const w of selectedPlan?.workouts || []) if (w.date) { if (!m.has(w.date)) m.set(w.date, []); m.get(w.date).push(w); }
+        let max = 1;
+        for (const list of m.values()) max = Math.max(max, list.reduce((s, w) => s + (Number(w.distance_km) || 0), 0));
+        return { workoutsByDate: m, maxDayKm: max };
+    }, [selectedPlan]);
+
     const nextUp = upcoming.find((w) => w.date && !isRest(w) && (w.status !== 'done' || w.date === todayISO)) || null;
     const phases = useMemo(() => selectedPlan?.weekPhases || {}, [selectedPlan]);
     const extras = useMemo(() => unplannedRuns(selectedPlan, byDay, todayISO), [selectedPlan, byDay, todayISO]);
@@ -1072,16 +1227,22 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     <p className="text-slate-500 text-sm font-medium mt-1.5">{t('trainingplans.subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    {plans.map((p) => (
-                        <button
-                            key={p.id}
-                            onClick={() => setSelectedPlanId(p.id)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedPlanId === p.id ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}
-                        >
-                            {p.name || t('trainingplans.untitled')}
-                            <span className="ml-1.5 opacity-60 tabular-nums">{(p.workouts || []).length}</span>
-                        </button>
-                    ))}
+                    {plans.length > 0 && (
+                        <div className="inline-flex flex-wrap rounded-xl border border-slate-200 bg-white p-1 gap-0.5" role="tablist">
+                            {plans.map((p) => (
+                                <button
+                                    key={p.id}
+                                    role="tab"
+                                    aria-selected={selectedPlanId === p.id}
+                                    onClick={() => setSelectedPlanId(p.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${selectedPlanId === p.id ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                    {p.name || t('trainingplans.untitled')}
+                                    <span className="ml-1.5 opacity-60 tabular-nums">{(p.workouts || []).length}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     {!addingPlan ? (
                         <button
                             onClick={() => setAddingPlan(true)}
@@ -1121,98 +1282,100 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                 </div>
             ) : (
                 <>
-                    {/* Resumen del plan: nombre, carrera, KPIs y volumen */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        {/* Recta final: en las 3 últimas semanas la carrera manda sobre todo lo demás. */}
-                        {linkedRace && raceDays != null && raceDays >= 0 && raceDays <= 21 && (
-                            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 bg-slate-900 text-white px-6 py-4">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <FlagIcon className="w-5 h-5 text-cyan-400 shrink-0" />
-                                    <div className="min-w-0">
-                                        <p className="text-label font-bold uppercase text-cyan-400">
-                                            {raceDays === 0 ? t('trainingplans.race_day') : t('trainingplans.final_stretch')}
-                                        </p>
-                                        <p className="text-sm font-bold truncate">{linkedRace.name}</p>
+                    {/* Hero del plan: nombre, carrera, progreso en anillos y la línea de fases. */}
+                    <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white shadow-lg">
+                        <div className="pointer-events-none absolute -top-24 -right-16 w-80 h-80 rounded-full bg-blue-600/30 blur-3xl" aria-hidden />
+                        <div className="pointer-events-none absolute -bottom-32 -left-10 w-72 h-72 rounded-full bg-indigo-500/20 blur-3xl" aria-hidden />
+                        <div className="relative p-6 sm:p-8 space-y-7">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-1">
+                                        <h3 className="text-2xl sm:text-3xl font-black tracking-tight truncate">{selectedPlan.name || t('trainingplans.untitled')}</h3>
+                                        <button onClick={() => renamePlan(selectedPlan)} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors" title={t('trainingplans.rename')}>
+                                            <PencilSquareIcon className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => removePlan(selectedPlan)} className="p-1.5 rounded-lg text-white/40 hover:text-rose-300 hover:bg-white/10 transition-colors" title={t('trainingplans.delete_plan')}>
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <div className="inline-flex items-center gap-1.5 mt-1.5 pl-2.5 rounded-full bg-white/10 hover:bg-white/15 transition-colors">
+                                        <FlagIcon className="w-3.5 h-3.5 text-cyan-300" />
+                                        <select
+                                            value={linkedRace ? linkedRace.id : ''}
+                                            onChange={(e) => saveTrainingPlan({ id: selectedPlan.id, raceId: e.target.value || null })}
+                                            className="py-1 pr-7 pl-0 text-xs font-semibold bg-transparent border-0 text-white/90 focus:outline-none focus:ring-0 cursor-pointer [&>option]:text-slate-900"
+                                            title={t('trainingplans.link_race')}
+                                        >
+                                            <option value="">{t('trainingplans.no_race')}</option>
+                                            {targetRaces.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                        </select>
                                     </div>
                                 </div>
-                                <p className="text-3xl font-black tabular-nums tracking-tight">
-                                    {raceDays === 0 ? t('trainingplans.today') : t('trainingplans.kpi_days', { n: raceDays })}
-                                </p>
-                            </div>
-                        )}
-                        <div className="flex flex-wrap items-start justify-between gap-3 p-6 pb-0">
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-1">
-                                    <h3 className="text-xl font-black text-slate-900 tracking-tight truncate">{selectedPlan.name || t('trainingplans.untitled')}</h3>
-                                    <button onClick={() => renamePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title={t('trainingplans.rename')}>
-                                        <PencilSquareIcon className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={() => removePlan(selectedPlan)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors" title={t('trainingplans.delete_plan')}>
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div className="inline-flex items-center gap-1.5 mt-1">
-                                    <FlagIcon className="w-3.5 h-3.5 text-slate-400" />
-                                    <select
-                                        value={linkedRace ? linkedRace.id : ''}
-                                        onChange={(e) => saveTrainingPlan({ id: selectedPlan.id, raceId: e.target.value || null })}
-                                        className="py-0.5 pr-6 pl-0 text-xs font-semibold bg-transparent border-0 text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-0 cursor-pointer"
-                                        title={t('trainingplans.link_race')}
+                                {editingWorkout === null && (
+                                    <button
+                                        onClick={() => setEditingWorkout('new')}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 shadow-sm transition-all"
+                                        title={t('trainingplans.shortcuts_hint')}
                                     >
-                                        <option value="">{t('trainingplans.no_race')}</option>
-                                        {targetRaces.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                    </select>
+                                        <PlusIcon className="w-4 h-4" />
+                                        {t('trainingplans.add_workout')}
+                                    </button>
+                                )}
+                            </div>
+
+                            {weeks.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] gap-6 items-center">
+                                    <Ring
+                                        pct={stats.currentWeek > 0 ? (stats.currentWeek / stats.totalWeeks) * 100 : 0}
+                                        color="#60a5fa"
+                                        label={t('trainingplans.kpi_week')}
+                                        sub={stats.currentWeek > 0 ? t('trainingplans.kpi_week_sub') : t('trainingplans.kpi_weeks_sub')}
+                                    >
+                                        {stats.currentWeek > 0 ? <span>{stats.currentWeek}<span className="text-white/40 text-xs">/{stats.totalWeeks}</span></span> : stats.totalWeeks}
+                                    </Ring>
+                                    <Ring
+                                        pct={stats.adherence}
+                                        color={stats.adherence == null ? undefined : stats.adherence >= 80 ? '#34d399' : stats.adherence >= 60 ? '#fbbf24' : '#fb7185'}
+                                        label={t('trainingplans.kpi_adherence')}
+                                        sub={t('trainingplans.kpi_adherence_sub', { done: stats.done, total: stats.pastTotal })}
+                                    >
+                                        {stats.adherence != null ? `${stats.adherence}%` : '—'}
+                                    </Ring>
+                                    <Ring
+                                        pct={stats.kmTotal > 0 ? (stats.kmRun / stats.kmTotal) * 100 : null}
+                                        color="#a78bfa"
+                                        label={t('trainingplans.kpi_volume')}
+                                        sub={`${stats.kmRun} / ${stats.kmPlanned} km · ${t('trainingplans.kpi_volume_sub', { n: stats.kmTotal })}`}
+                                    >
+                                        <span>{stats.kmRun}<span className="text-white/40 text-xs">km</span></span>
+                                    </Ring>
+                                    {/* Cuenta atrás: en la recta final (≤ 21 días) se enciende en cian. */}
+                                    <div className={`rounded-2xl px-5 py-4 text-center sm:col-span-2 lg:col-span-1 ${finalStretch ? 'bg-cyan-400 text-slate-900' : 'bg-white/10'}`}>
+                                        <p className={`text-label font-bold uppercase ${finalStretch ? 'text-slate-900/70' : 'text-white/50'}`}>
+                                            {raceDays === 0 ? t('trainingplans.race_day') : finalStretch ? t('trainingplans.final_stretch') : (linkedRace?.name || t('trainingplans.kpi_race'))}
+                                        </p>
+                                        <p className="text-4xl font-black tabular-nums tracking-tight leading-none mt-1.5">
+                                            {raceDays != null && raceDays >= 0 ? (raceDays === 0 ? t('trainingplans.today') : raceDays) : '—'}
+                                        </p>
+                                        <p className="text-xs font-semibold mt-1 opacity-70">
+                                            {raceDays != null && raceDays > 0
+                                                ? t('trainingplans.days_to_go')
+                                                : linkedRace ? '' : t('trainingplans.no_race')}
+                                            {linkedRace?.date && raceDays > 0 ? ` · ${parseISO(linkedRace.date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}` : ''}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            {editingWorkout === null && (
-                                <button
-                                    onClick={() => setEditingWorkout('new')}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
-                                    title={t('trainingplans.shortcuts_hint')}
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    {t('trainingplans.add_workout')}
-                                </button>
                             )}
+
+                            {weeks.length > 0 && <PlanTimeline weeks={weeks} phases={phases} hasRace={!!linkedRace} t={t} />}
                         </div>
-
-                        {weeks.length > 0 && (
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 p-6">
-                                <Kpi
-                                    label={t('trainingplans.kpi_week')}
-                                    value={stats.currentWeek > 0 ? `${stats.currentWeek}/${stats.totalWeeks}` : `${stats.totalWeeks}`}
-                                    sub={stats.currentWeek > 0 ? t('trainingplans.kpi_week_sub') : t('trainingplans.kpi_weeks_sub')}
-                                >
-                                    {stats.currentWeek > 0 && (
-                                        <div className="mt-2 h-1 rounded-full bg-slate-100 overflow-hidden">
-                                            <div className="h-full bg-blue-600" style={{ width: `${(stats.currentWeek / stats.totalWeeks) * 100}%` }} />
-                                        </div>
-                                    )}
-                                </Kpi>
-                                <Kpi
-                                    label={t('trainingplans.kpi_adherence')}
-                                    value={stats.adherence != null ? `${stats.adherence}%` : '—'}
-                                    sub={t('trainingplans.kpi_adherence_sub', { done: stats.done, total: stats.pastTotal })}
-                                />
-                                <Kpi
-                                    label={t('trainingplans.kpi_volume')}
-                                    value={<>{stats.kmRun}<span className="text-sm font-bold text-slate-400"> / {stats.kmPlanned} km</span></>}
-                                    sub={t('trainingplans.kpi_volume_sub', { n: stats.kmTotal })}
-                                />
-                                <Kpi
-                                    label={linkedRace ? linkedRace.name : t('trainingplans.kpi_race')}
-                                    value={raceDays != null && raceDays >= 0 ? t('trainingplans.kpi_days', { n: raceDays }) : '—'}
-                                    sub={linkedRace?.date ? parseISO(linkedRace.date).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : t('trainingplans.no_race')}
-                                />
-                            </div>
-                        )}
-
-                        {weeks.length > 0 && (
-                            <div className="border-t border-slate-100 p-6">
-                                <WeeklyVolume weeks={weeks} mixes={weekMixes} phases={phases} t={t} />
-                            </div>
-                        )}
                     </div>
+
+                    {weeks.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <WeeklyVolume weeks={weeks} mixes={weekMixes} t={t} />
+                        </div>
+                    )}
 
                     {warnings.length > 0 && (
                         <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-5 py-4">
@@ -1280,7 +1443,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                             {nextUp && renderRow(nextUp, 'featured')}
 
                             {upcomingByWeek.map((g) => (
-                                <section key={g.week_start || 'nodate'} className="space-y-2">
+                                <section
+                                    key={g.week_start || 'nodate'}
+                                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+                                        weeks.find((w) => w.week_start === g.week_start)?.is_current ? 'border-blue-200' : 'border-slate-100'
+                                    }`}
+                                >
                                     {g.week_start && (
                                         <WeekHeader
                                             index={weekIndex(g.week_start)}
@@ -1296,12 +1464,15 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                             t={t}
                                         />
                                     )}
-                                    <div className="space-y-2">{g.items.map((w) => renderRow(w, 'default'))}</div>
+                                    {g.week_start && (
+                                        <WeekStrip weekStart={g.week_start} byDate={workoutsByDate} maxKm={maxDayKm} todayISO={todayISO} onEdit={setEditingWorkout} />
+                                    )}
+                                    <div className="divide-y divide-slate-100">{g.items.map((w) => renderRow(w, 'default'))}</div>
                                 </section>
                             ))}
 
                             {(past.length > 0 || extras.length > 0) && (
-                                <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                     <button
                                         onClick={() => setShowPast((v) => !v)}
                                         className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-left"
@@ -1333,7 +1504,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                         </span>
                                     </button>
                                     {showPast && (
-                                        <div className="space-y-1.5 px-4 pb-4">
+                                        <div className="divide-y divide-slate-100 border-t border-slate-100">
                                             {pastItems.map((it) => (it.extra
                                                 ? <ExtraRow key={`extra-${it.run.date}`} run={it.run} onOpen={onOpenActivity} t={t} />
                                                 : renderRow(it.workout, 'compact')))}

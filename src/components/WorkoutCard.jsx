@@ -21,6 +21,29 @@ const fmtMin = (m) => {
     return `${h}h${String(Math.round(r - h * 60)).padStart(2, '0')}`;
 };
 
+const stepLevel = (r) => (r.kind === 'recovery' ? 1 : Math.min(5, Math.max(1, Math.round(Number(r.intensity) || (r.kind === 'work' ? 4 : 2)))));
+
+/** Perfil en miniatura, sin ejes ni rótulos: la firma visual de la sesión en una fila. */
+export function MiniProfile({ workout, className = 'h-5' }) {
+    const { rows, totalMin } = expandSteps(workout?.structured_workout);
+    const timed = rows.filter((r) => r.min > 0);
+    if (!timed.length || !(totalMin > 0)) return null;
+    return (
+        <div className={`flex items-end gap-px ${className}`} aria-hidden>
+            {timed.map((r, i) => {
+                const lvl = stepLevel(r);
+                return (
+                    <div
+                        key={i}
+                        className={`rounded-t-[2px] ${r.kind === 'recovery' ? 'bg-slate-200' : INTENSITY_BG[lvl]}`}
+                        style={{ width: `${(r.min / totalMin) * 100}%`, height: INTENSITY_H[lvl], minWidth: '2px' }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
 /** Perfil: una barra por bloque, ancho ∝ minutos y alto ∝ intensidad. */
 function Profile({ rows, totalMin }) {
     const timed = rows.filter((r) => r.min > 0);
@@ -29,7 +52,7 @@ function Profile({ rows, totalMin }) {
         <div className="px-4 sm:px-5 pb-3">
             <div className="flex items-end gap-0.5 h-12">
                 {timed.map((r, i) => {
-                    const lvl = r.kind === 'recovery' ? 1 : Math.min(5, Math.max(1, Math.round(Number(r.intensity) || (r.kind === 'work' ? 4 : 2))));
+                    const lvl = stepLevel(r);
                     return (
                         <div
                             key={i}

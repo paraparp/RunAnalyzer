@@ -1,24 +1,130 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, useScroll, useTransform } from "framer-motion";
+import heroImage from '../assets/Gemini_Generated_Image_5svrde5svrde5svr.jpeg';
 import {
-    CpuChipIcon, BoltIcon, GlobeAmericasIcon, ArrowTrendingUpIcon,
-    SparklesIcon, ChartBarIcon, HeartIcon, ShieldExclamationIcon,
-    FireIcon, SignalIcon, MapIcon, CalendarDaysIcon, BeakerIcon,
-    StarIcon, ChatBubbleLeftRightIcon, ArrowDownTrayIcon, LinkIcon
+    ArrowTrendingUpIcon, SparklesIcon, ChartBarIcon, HeartIcon,
+    ShieldExclamationIcon, FireIcon, SignalIcon, MapIcon,
+    CalendarDaysIcon, BeakerIcon, StarIcon, ChatBubbleLeftRightIcon,
+    BoltIcon, CpuChipIcon, ArrowRightIcon, ChevronDownIcon
 } from "@heroicons/react/24/outline";
 import Logo from './Logo';
 import { useTranslation } from 'react-i18next';
-import { formatPaceFromSecPerKm } from '../lib/timeFormat';
 
 const tx = (lang, en, es) => (lang.startsWith('es') ? es : en);
+
+// Accent sampled from the hero image's sunset
+const ACCENT_TEXT = 'text-orange-300';
+
+const GoogleIcon = ({ className = 'w-5 h-5' }) => (
+    <svg className={className} viewBox="0 0 48 48">
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+        <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+    </svg>
+);
+
+const Reveal = ({ children, delay = 0, className = '' }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-80px' }}
+        transition={{ duration: 0.8, delay, ease: [0.22, 1, 0.36, 1] }}
+        className={className}
+    >
+        {children}
+    </motion.div>
+);
+
+const SectionHeading = ({ eyebrow, title, subtitle, align = 'center' }) => (
+    <Reveal className={`mb-14 ${align === 'center' ? 'text-center mx-auto' : ''} max-w-3xl`}>
+        <p className="inline-flex items-center gap-2 text-teal-300 text-xs font-bold uppercase tracking-[0.25em] mb-5">
+            <span className="w-6 h-px bg-teal-300/60" />
+            {eyebrow}
+        </p>
+        <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-[0.95] mb-5">
+            {title}
+        </h2>
+        {subtitle && <p className="text-white/55 text-lg leading-relaxed">{subtitle}</p>}
+    </Reveal>
+);
+
+const Sparkline = () => (
+    <svg viewBox="0 0 120 32" className="w-full h-8" preserveAspectRatio="none">
+        <defs>
+            <linearGradient id="spark" x1="0" x2="1">
+                <stop offset="0%" stopColor="#5eead4" />
+                <stop offset="100%" stopColor="#fb923c" />
+            </linearGradient>
+        </defs>
+        <motion.path
+            d="M0 26 L12 22 L24 24 L36 17 L48 19 L60 12 L72 14 L84 8 L96 10 L108 4 L120 6"
+            fill="none" stroke="url(#spark)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+            transition={{ duration: 1.8, delay: 1.2, ease: 'easeInOut' }}
+        />
+    </svg>
+);
+
+const HeroMetric = ({ label, value, unit, accent }) => (
+    <div className="px-4 py-3">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/50 font-semibold mb-1">{label}</p>
+        <p className="text-2xl font-black tabular-nums text-white">
+            {value}<span className={`text-sm font-semibold ml-0.5 ${accent}`}>{unit}</span>
+        </p>
+    </div>
+);
+
+const BentoCard = ({ icon: Icon, title, description, className = '', glow = 'teal', children, delay = 0 }) => (
+    <Reveal delay={delay} className={className}>
+        <div className="group relative h-full overflow-hidden rounded-md border border-white/10 bg-white/[0.03] p-7 transition-colors duration-300 hover:border-white/25 hover:bg-white/[0.05]">
+            <div className={`pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${glow === 'teal' ? 'bg-teal-400/20' : 'bg-orange-400/20'}`} />
+            <div className={`relative w-11 h-11 rounded-sm flex items-center justify-center mb-6 ring-1 ${glow === 'teal' ? 'bg-teal-400/10 ring-teal-300/30 text-teal-300' : 'bg-orange-400/10 ring-orange-300/30 text-orange-300'}`}>
+                <Icon className="w-5 h-5" />
+            </div>
+            <h3 className="relative text-xl font-bold text-white mb-2 tracking-tight">{title}</h3>
+            <p className="relative text-white/55 text-sm leading-relaxed">{description}</p>
+            {children}
+        </div>
+    </Reveal>
+);
+
+const TestimonialCard = ({ quote, name, role, delay = 0 }) => (
+    <Reveal delay={delay}>
+        <figure className="h-full rounded-md border border-white/10 bg-white/[0.03] p-7 flex flex-col justify-between">
+            <blockquote className="text-white/80 text-base leading-relaxed mb-6">“{quote}”</blockquote>
+            <figcaption className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-sm bg-gradient-to-br from-teal-400 to-orange-400 flex items-center justify-center">
+                    <span className="text-slate-950 font-black text-xs">{name.substring(0, 2).toUpperCase()}</span>
+                </div>
+                <div>
+                    <p className="text-white font-bold text-sm">{name}</p>
+                    <p className="text-white/45 text-xs">{role}</p>
+                </div>
+            </figcaption>
+        </figure>
+    </Reveal>
+);
 
 const LandingPage = () => {
     const { t, i18n } = useTranslation();
     const lang = i18n.language;
     const heroRef = useRef(null);
-    const { scrollY } = useScroll();
-    const heroBgY = useTransform(scrollY, [0, 500], [0, 60]);
+    const [scrolled, setScrolled] = useState(false);
+
+    const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
+    const imgScale = useTransform(scrollYProgress, [0, 1], [1.05, 1.25]);
+    const imgY = useTransform(scrollYProgress, [0, 1], ['0%', '15%']);
+    const contentY = useTransform(scrollYProgress, [0, 1], ['0%', '40%']);
+    const contentOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 40);
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
 
     const changeLanguage = () => {
         const newLang = lang.startsWith('en') ? 'es' : 'en';
@@ -31,845 +137,463 @@ const LandingPage = () => {
             provider: 'google',
             options: { redirectTo: window.location.origin },
         });
-        if (error) console.error('Login con Google falló', error);
+        if (error) console.error('Login error:', error);
     };
 
+    const tools = [
+        { icon: HeartIcon, label: tx(lang, 'HR Analysis', 'Análisis FC') },
+        { icon: ChartBarIcon, label: tx(lang, 'Fitness & Fatigue', 'Fitness y Fatiga') },
+        { icon: FireIcon, label: tx(lang, 'Technique', 'Técnica') },
+        { icon: SignalIcon, label: tx(lang, 'Training Zones', 'Zonas FC') },
+        { icon: MapIcon, label: tx(lang, 'Global Heatmap', 'Heatmap Global') },
+        { icon: CalendarDaysIcon, label: tx(lang, 'Consistency', 'Consistencia') },
+        { icon: BeakerIcon, label: tx(lang, 'VDOT Estimator', 'Estimador VDOT') },
+        { icon: StarIcon, label: tx(lang, 'Gear Tracker', 'Zapatillas') },
+        { icon: SparklesIcon, label: tx(lang, 'AI Coach', 'Entrenador IA') },
+        { icon: ArrowTrendingUpIcon, label: tx(lang, 'Race Predictor', 'Predictor') },
+        { icon: ChatBubbleLeftRightIcon, label: tx(lang, 'AI Q&A', 'Preguntas IA') },
+        { icon: BoltIcon, label: tx(lang, 'Splits', 'Parciales') },
+    ];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans overflow-x-hidden">
+        <div className="min-h-screen bg-[#07090d] text-white overflow-x-hidden antialiased selection:bg-teal-300/30">
+            <style>{`
+                @keyframes ra-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+                .ra-marquee { animation: ra-marquee 40s linear infinite; }
+                .ra-marquee:hover { animation-play-state: paused; }
+                .ra-grain { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
+                @media (prefers-reduced-motion: reduce) { .ra-marquee { animation: none; } }
+            `}</style>
 
-            {/* ══════════════════════ NAVBAR ══════════════════════ */}
-            <nav className="fixed top-0 left-0 right-0 z-50">
-                <div className="flex justify-between items-center px-6 py-4 md:px-12 max-w-7xl mx-auto w-full relative">
-                    <div className="absolute inset-0 -z-10 bg-white/90 backdrop-blur-md border-b border-slate-200/70" />
-                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-3">
-                        <Logo className="w-9 h-9 rounded-xl ring-1 ring-slate-200 shadow-sm" />
-                        <span className="font-black text-lg tracking-tighter text-slate-900">RunAnalyzer</span>
-                    </motion.div>
-
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-5 text-sm font-medium">
-                        <span className="hidden md:block text-slate-500 hover:text-blue-600 transition-colors cursor-pointer">
-                            {t('landing.features')}
+            {/* ==================== NAVBAR ==================== */}
+            <motion.nav
+                initial={{ y: -40, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#07090d]/70 backdrop-blur-xl border-b border-white/10' : 'bg-transparent border-b border-transparent'}`}
+            >
+                <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <Logo className="w-8 h-8 rounded-sm ring-1 ring-white/20" />
+                        <span className="font-black text-lg tracking-tighter">RunAnalyzer</span>
+                        <span className="px-2 py-0.5 rounded-sm bg-teal-300/10 ring-1 ring-teal-300/30 text-teal-200 text-[10px] font-bold uppercase tracking-wider">
+                            Beta
                         </span>
-                        <span className="hidden md:block text-slate-500 hover:text-blue-600 transition-colors cursor-pointer">
-                            {t('landing.privacy')}
-                        </span>
-                        <div className="px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-label text-blue-600 font-bold uppercase">
-                            Beta v1.0
-                        </div>
-                        <button onClick={changeLanguage}
-                            className="px-2.5 py-1 text-label font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 rounded-full uppercase transition-colors">
-                            {lang.startsWith('en') ? 'EN' : 'ES'}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <a href="#features" className="hidden md:block text-sm text-white/70 hover:text-white transition-colors px-3">
+                            {tx(lang, 'Features', 'Funciones')}
+                        </a>
+                        <button
+                            onClick={changeLanguage}
+                            className="px-3 py-1.5 rounded-sm border border-white/20 text-white/80 text-xs font-bold uppercase hover:bg-white/10 transition-colors"
+                        >
+                            {lang.startsWith('en') ? 'ES' : 'EN'}
                         </button>
-                    </motion.div>
+                        <button
+                            onClick={handleGoogleLogin}
+                            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-sm bg-white text-slate-950 text-xs font-bold hover:bg-teal-100 transition-colors"
+                        >
+                            <GoogleIcon className="w-4 h-4" />
+                            {t('landing.get_started_short', 'Start')}
+                        </button>
+                    </div>
                 </div>
-            </nav>
+            </motion.nav>
 
-            {/* ══════════════════════ HERO ══════════════════════ */}
-            <section ref={heroRef} className="relative min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center overflow-hidden pt-24 pb-32">
-
-                {/* Light orbs */}
-                <motion.div style={{ y: heroBgY }} className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-[-10%] left-[-5%]  w-[50%] h-[50%] bg-blue-400/10  rounded-full blur-[130px] animate-pulse-slow" />
-                    <div className="absolute bottom-[-5%]  right-[-5%] w-[45%] h-[45%] bg-sky-400/8   rounded-full blur-[110px] animate-pulse-slow delay-1000" />
-                    <div className="absolute top-[35%]  right-[10%]  w-[30%] h-[30%] bg-indigo-300/8  rounded-full blur-[90px]" />
+            {/* ==================== HERO — full-bleed cinematic image ==================== */}
+            <section ref={heroRef} className="relative h-[100svh] min-h-[680px] overflow-hidden">
+                <motion.div style={{ scale: imgScale, y: imgY }} className="absolute inset-0 will-change-transform">
+                    <motion.img
+                        src={heroImage}
+                        alt={tx(lang, 'Runner at sunset on a mountain road above the city', 'Corredora al atardecer en una carretera de montaña sobre la ciudad')}
+                        className="w-full h-full object-cover object-[38%_center] md:object-center"
+                        loading="eager"
+                        fetchpriority="high"
+                        initial={{ opacity: 0, scale: 1.08 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 1.8, ease: [0.22, 1, 0.36, 1] }}
+                    />
                 </motion.div>
 
-                {/* Mesh grid */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.03)_1px,transparent_1px),linear-gradient(to_right,rgba(15,23,42,0.03)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_50%,transparent_100%)]" />
+                {/* Overlays: keep the image vivid, only darken where text sits */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent h-1/2" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-[#07090d] via-[#07090d]/60 to-transparent" />
+                <div className="absolute inset-0 ra-grain opacity-[0.07] mix-blend-overlay pointer-events-none" />
 
-                <div className="relative z-10 max-w-6xl mx-auto px-6 text-center">
-
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-200 bg-white shadow-sm mb-8">
-                        <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-slate-600 text-xs font-semibold tracking-wide">
-                            {t('landing.powered_by')} <span className="text-slate-900 font-bold">Gemini 2.0 Flash</span>
-                        </span>
+                <motion.div
+                    style={{ y: contentY, opacity: contentOpacity }}
+                    className="relative z-10 h-full max-w-7xl mx-auto px-6 flex flex-col justify-center pt-16"
+                >
+                    <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4, duration: 0.6 }}
+                        className="inline-flex self-start items-center gap-2 pl-1.5 pr-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md ring-1 ring-white/20 text-xs font-semibold mb-8"
+                    >
+                        <span className="px-2 py-0.5 rounded-sm bg-teal-300 text-slate-950 text-[10px] font-black uppercase">IA</span>
+                        <span className="text-white/90">{tx(lang, 'AI-powered running analytics', 'Analítica de running con IA')}</span>
                     </motion.div>
 
-                    <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
-                        className="text-5xl sm:text-7xl md:text-[96px] font-black tracking-[-0.04em] leading-[0.9] mb-6 text-slate-900 uppercase">
-                        {t('landing.title_1')}
-                        <br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 animate-gradient-x">
-                            {t('landing.title_2')}
-                        </span>
-                    </motion.h1>
+                    <h1 className="font-black tracking-[-0.045em] leading-[0.85] text-[clamp(3.5rem,11vw,10rem)] mb-8">
+                        <motion.span
+                            className="block text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]"
+                            initial={{ opacity: 0, y: 60 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5, duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {tx(lang, 'Run', 'Corre')}
+                        </motion.span>
+                        <motion.span
+                            className={`block ${ACCENT_TEXT} pb-2`}
+                            initial={{ opacity: 0, y: 60 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.65, duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {tx(lang, 'without limits.', 'sin límites.')}
+                        </motion.span>
+                    </h1>
 
-                    <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-                        className="text-slate-500 text-base md:text-lg max-w-xl mx-auto mb-10 leading-relaxed font-medium">
-                        {t('landing.subtitle')}
+                    <motion.p
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.85, duration: 0.8 }}
+                        className="text-lg md:text-xl text-white/80 max-w-md mb-10 leading-relaxed"
+                    >
+                        {tx(lang,
+                            'Your Strava and Garmin data, turned into AI insights to reach what you once thought impossible.',
+                            'Tus datos de Strava y Garmin convertidos en insights con IA para alcanzar lo que creías imposible.'
+                        )}
                     </motion.p>
 
-                    <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.35 }}
-                        className="flex flex-col items-center gap-3">
-                        <div className="p-1 rounded-full bg-white shadow-xl ring-1 ring-slate-200 hover:ring-blue-300 hover:shadow-2xl transition-all duration-300">
-                            <div className="w-full max-w-xs md:max-w-sm">
-                                <button onClick={handleGoogleLogin}
-                                    className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors">
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-                                        <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
-                                        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
-                                        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
-                                    </svg>
-                                    {t('landing.continue_with_google', 'Continuar con Google')}
-                                </button>
-                            </div>
-                        </div>
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1, duration: 0.8 }}
+                        className="flex flex-col sm:flex-row gap-3"
+                    >
+                        <button
+                            onClick={handleGoogleLogin}
+                            className="group flex items-center justify-center gap-3 px-7 py-4 rounded-sm bg-white text-slate-950 font-bold text-sm shadow-[0_10px_40px_-10px_rgba(94,234,212,0.6)] hover:shadow-[0_10px_50px_-5px_rgba(94,234,212,0.8)] transition-all"
+                        >
+                            <GoogleIcon />
+                            {t('landing.continue_with_google', 'Continuar con Google')}
+                            <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                        </button>
+                        <a
+                            href="#features"
+                            className="flex items-center justify-center gap-2 px-7 py-4 rounded-full bg-white/10 backdrop-blur-md ring-1 ring-white/25 text-white font-bold text-sm hover:bg-white/20 transition-colors"
+                        >
+                            {tx(lang, 'Discover more', 'Descubrir más')}
+                        </a>
                     </motion.div>
+                </motion.div>
 
-                    {/* ── Dashboard Mockup (light) ── */}
-                    {/* ── Floating Metric Cards ── */}
-                    <div className="mt-24 hidden md:block relative mx-auto max-w-4xl h-[380px]">
-
-                        {/* Card 1 — VO2max gauge (left) */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 40, rotate: -8 }}
-                            animate={{ opacity: 1, y: 0, rotate: -6 }}
-                            transition={{ duration: 0.9, delay: 0.7, type: "spring" }}
-                            className="absolute left-0 top-6 w-52 bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
-                            <p className="text-slate-500 text-label font-bold uppercase mb-3">VO2max</p>
-                            <div className="flex items-center justify-center my-1">
-                                <svg width="96" height="96" viewBox="0 0 96 96">
-                                    <circle cx="48" cy="48" r="38" fill="none" stroke="#e2e8f0" strokeWidth="8" />
-                                    <motion.circle cx="48" cy="48" r="38" fill="none" stroke="#2563eb" strokeWidth="8"
-                                        strokeLinecap="round" strokeDasharray="238.76"
-                                        initial={{ strokeDashoffset: 238.76 }}
-                                        animate={{ strokeDashoffset: 238.76 * (1 - 0.73) }}
-                                        transition={{ duration: 1.4, delay: 1.0, ease: "easeOut" }}
-                                        transform="rotate(-90 48 48)" />
-                                    <text x="48" y="44" textAnchor="middle" className="font-black" fill="#0f172a" fontSize="18" fontWeight="900">58.4</text>
-                                    <text x="48" y="58" textAnchor="middle" fill="#64748b" fontSize="8">ml/kg/min</text>
-                                </svg>
-                            </div>
-                            <div className="mt-1 text-center">
-                                <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
-                                    Excellent
+                {/* Floating live-metrics glass card, sits over the road */}
+                <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.1, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                    className="hidden lg:block absolute z-10 right-8 xl:right-[max(2rem,calc((100vw-80rem)/2+1.5rem))] bottom-24 w-[380px]"
+                >
+                    <div className="rounded-md bg-black/30 backdrop-blur-2xl ring-1 ring-white/15 shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-5 pt-4">
+                            <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">
+                                <span className="relative flex w-2 h-2">
+                                    <span className="absolute inline-flex h-full w-full rounded-full bg-teal-300 opacity-75 animate-ping" />
+                                    <span className="relative inline-flex w-2 h-2 rounded-full bg-teal-300" />
                                 </span>
+                                {tx(lang, 'Sunset run', 'Rodaje al atardecer')}
+                            </span>
+                            <span className="text-[11px] text-white/50 tabular-nums">12.4 km</span>
+                        </div>
+                        <div className="grid grid-cols-3 divide-x divide-white/10">
+                            <HeroMetric label={tx(lang, 'Pace', 'Ritmo')} value="4:52" unit="/km" accent="text-teal-300" />
+                            <HeroMetric label={tx(lang, 'HR', 'FC')} value="148" unit="ppm" accent="text-orange-300" />
+                            <HeroMetric label="VO2max" value="54" unit="" accent="" />
+                        </div>
+                        <div className="px-5 pb-4">
+                            <div className="flex justify-between text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">
+                                <span>{tx(lang, 'Fitness · 8 weeks', 'Forma · 8 semanas')}</span>
+                                <span className="text-teal-300 font-bold">+12%</span>
                             </div>
-                        </motion.div>
+                            <Sparkline />
+                        </div>
+                    </div>
+                </motion.div>
 
-                        {/* Card 2 — Race Predictor (center, hero card) */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 60, rotate: 3 }}
-                            animate={{ opacity: 1, y: 0, rotate: 2 }}
-                            transition={{ duration: 1.0, delay: 0.85, type: "spring" }}
-                            className="absolute left-1/2 -translate-x-1/2 top-0 w-64 bg-white rounded-2xl border border-slate-200 shadow-2xl p-5">
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-                                    <ArrowTrendingUpIcon className="w-4 h-4 text-white" />
-                                </div>
-                                <p className="text-slate-700 text-xs font-bold uppercase tracking-widest">Race Predictor</p>
-                            </div>
-                            {[
-                                { dist: '5K', time: '19:42', color: 'text-sky-600' },
-                                { dist: '10K', time: '41:28', color: 'text-blue-600' },
-                                { dist: 'Half', time: '1:31:05', color: 'text-indigo-600' },
-                                { dist: 'Marathon', time: '3:11:48', color: 'text-violet-600' },
-                            ].map((r, i) => (
-                                <motion.div key={i}
-                                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 1.2 + i * 0.1 }}
-                                    className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                                    <span className="text-slate-500 text-xs font-semibold">{r.dist}</span>
-                                    <span className={`text-sm font-black tabular-nums ${r.color}`}>{r.time}</span>
-                                </motion.div>
-                            ))}
-                        </motion.div>
+                <motion.a
+                    href="#features"
+                    aria-label={tx(lang, 'Scroll down', 'Bajar')}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, y: [0, 8, 0] }}
+                    transition={{ opacity: { delay: 1.6 }, y: { repeat: Infinity, duration: 2, ease: 'easeInOut' } }}
+                    className="absolute z-10 bottom-6 left-1/2 -translate-x-1/2 text-white/60 hover:text-white"
+                >
+                    <ChevronDownIcon className="w-6 h-6" />
+                </motion.a>
+            </section>
 
-                        {/* Card 3 — AI Insight (right) */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 40, rotate: 5 }}
-                            animate={{ opacity: 1, y: 0, rotate: 5 }}
-                            transition={{ duration: 0.9, delay: 1.0, type: "spring" }}
-                            className="absolute right-0 top-10 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
-                            <div className="flex items-center gap-1.5 mb-3">
-                                <SparklesIcon className="w-3.5 h-3.5 text-blue-500" />
-                                <p className="text-blue-600 text-label font-bold uppercase">AI Coach</p>
-                            </div>
-                            <p className="text-slate-600 text-xs leading-relaxed mb-3">
-                                "Add one tempo run this week. Your aerobic base supports a higher lactate threshold effort."
-                            </p>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {['80/20', 'Tempo', 'Week 3'].map(tag => (
-                                    <span key={tag} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold border border-blue-100">{tag}</span>
+            {/* ==================== TOOLS MARQUEE ==================== */}
+            <section className="relative py-10 border-y border-white/5 overflow-hidden">
+                <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#07090d] to-transparent z-10" />
+                <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#07090d] to-transparent z-10" />
+                <div className="flex w-max ra-marquee gap-3">
+                    {[...tools, ...tools].map((tool, i) => (
+                        <div key={i} className="flex items-center gap-2.5 px-5 py-2.5 rounded-sm border border-white/10 bg-white/[0.03] whitespace-nowrap">
+                            <tool.icon className="w-4 h-4 text-teal-300" />
+                            <span className="text-sm font-semibold text-white/75">{tool.label}</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ==================== FEATURES — bento ==================== */}
+            <section id="features" className="relative py-28 scroll-mt-16">
+                <div className="pointer-events-none absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-teal-500/10 blur-[120px]" />
+                <div className="pointer-events-none absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-orange-500/10 blur-[120px]" />
+                <div className="relative max-w-7xl mx-auto px-6">
+                    <SectionHeading
+                        eyebrow={tx(lang, 'Everything you need', 'Todo lo que necesitas')}
+                        title={<>{tx(lang, 'Analytics that ', 'Analítica que ')}<span className={ACCENT_TEXT}>{tx(lang, 'move you.', 'te mueve.')}</span></>}
+                        subtitle={tx(lang,
+                            'From predicting race times to preventing injuries, our AI tools give you the insights you need.',
+                            'Desde predecir tiempos hasta prevenir lesiones, nuestras herramientas con IA te dan lo que necesitas.'
+                        )}
+                    />
+
+                    <div className="grid md:grid-cols-6 gap-4 auto-rows-fr">
+                        <BentoCard
+                            className="md:col-span-4"
+                            icon={ArrowTrendingUpIcon}
+                            title={tx(lang, 'Race Predictor', 'Predictor de Carreras')}
+                            description={tx(lang,
+                                'Predict your 5K, 10K, Half and Marathon times from your current fitness.',
+                                'Predice tus tiempos de 5K, 10K, Media y Maratón según tu forma actual.'
+                            )}
+                        >
+                            <div className="relative mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {[['5K', '21:48'], ['10K', '45:30'], ['21K', '1:41:12'], ['42K', '3:32:40']].map(([d, time]) => (
+                                    <div key={d} className="rounded-sm bg-white/[0.04] ring-1 ring-white/10 px-4 py-3">
+                                        <p className="text-[10px] font-bold tracking-[0.2em] text-white/40">{d}</p>
+                                        <p className="text-xl font-black tabular-nums text-white">{time}</p>
+                                    </div>
                                 ))}
                             </div>
-                        </motion.div>
-
-                        {/* Card 4 — Injury Risk (bottom-left) */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 30, rotate: -4 }}
-                            animate={{ opacity: 1, y: 0, rotate: -3 }}
-                            transition={{ duration: 0.8, delay: 1.15, type: "spring" }}
-                            className="absolute left-20 bottom-0 w-48 bg-white rounded-2xl border border-slate-200 shadow-lg p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                                <ShieldExclamationIcon className="w-4 h-4 text-amber-500" />
-                                <p className="text-slate-500 text-label font-bold uppercase">Injury Risk</p>
-                            </div>
-                            <div className="flex items-end gap-1 mb-2">
-                                <span className="text-3xl font-black text-amber-500 tabular-nums leading-none">24</span>
-                                <span className="text-slate-500 text-xs mb-1">/ 100</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: '24%' }}
-                                    transition={{ duration: 0.8, delay: 1.5 }}
-                                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-amber-400" />
-                            </div>
-                            <p className="text-emerald-600 text-xs font-bold mt-1.5">Low risk</p>
-                        </motion.div>
-
-                        {/* Card 5 — Heart Rate pulse (bottom-right) */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 30, rotate: 4 }}
-                            animate={{ opacity: 1, y: 0, rotate: 3 }}
-                            transition={{ duration: 0.8, delay: 1.3, type: "spring" }}
-                            className="absolute right-14 bottom-4 w-48 bg-white rounded-2xl border border-slate-200 shadow-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-500 text-label font-bold uppercase">Avg HR</p>
-                                <HeartIcon className="w-3.5 h-3.5 text-rose-400" />
-                            </div>
-                            <p className="text-3xl font-black text-rose-500 tabular-nums leading-none mb-2">148 <span className="text-sm text-slate-500 font-semibold">bpm</span></p>
-                            <svg viewBox="0 0 120 32" className="w-full" fill="none">
-                                <motion.polyline
-                                    points="0,16 10,16 14,6 18,26 22,16 32,16 38,16 44,10 50,22 56,16 66,16 72,4 76,28 80,16 90,16 96,12 100,20 104,16 120,16"
-                                    stroke="#f43f5e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                                    initial={{ pathLength: 0, opacity: 0 }}
-                                    animate={{ pathLength: 1, opacity: 1 }}
-                                    transition={{ duration: 1.2, delay: 1.6, ease: "easeInOut" }}
-                                />
-                            </svg>
-                        </motion.div>
-
+                        </BentoCard>
+                        <BentoCard
+                            className="md:col-span-2"
+                            glow="orange"
+                            icon={SparklesIcon}
+                            title={tx(lang, 'AI Coach', 'Entrenador IA')}
+                            description={tx(lang,
+                                'Personalised training advice based on your real performance data.',
+                                'Consejos de entrenamiento personalizados basados en tus datos reales.'
+                            )}
+                            delay={0.05}
+                        />
+                        <BentoCard
+                            className="md:col-span-2"
+                            glow="orange"
+                            icon={HeartIcon}
+                            title={tx(lang, 'Heart Rate', 'Frecuencia Cardiaca')}
+                            description={tx(lang,
+                                'Advanced HR analysis, drift detection and zone training.',
+                                'Análisis avanzado de FC, deriva cardiaca y entrenamiento por zonas.'
+                            )}
+                            delay={0.1}
+                        />
+                        <BentoCard
+                            className="md:col-span-2"
+                            icon={ChartBarIcon}
+                            title={tx(lang, 'Fitness & Fatigue', 'Fitness y Fatiga')}
+                            description={tx(lang,
+                                'Track training load, fitness progression and fatigue over time.',
+                                'Monitoriza carga, progresión de forma y fatiga a lo largo del tiempo.'
+                            )}
+                            delay={0.15}
+                        />
+                        <BentoCard
+                            className="md:col-span-2"
+                            glow="orange"
+                            icon={ShieldExclamationIcon}
+                            title={tx(lang, 'Injury Risk', 'Riesgo de Lesión')}
+                            description={tx(lang,
+                                'Spot overtraining signals before they become injuries with ACWR.',
+                                'Detecta señales de sobreentrenamiento antes de que sean lesiones.'
+                            )}
+                            delay={0.2}
+                        />
                     </div>
                 </div>
             </section>
 
-            {/* ══════════════════════ STATS BAR ══════════════════════ */}
-            <section className="bg-white border-y border-slate-100 py-14">
-                <div className="max-w-5xl mx-auto px-6">
-                    <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }} transition={{ duration: 0.6 }}
-                        className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        {[
-                            { value: '20+', label: t('landing.stats.tools', 'Analytics Tools'), color: 'text-blue-600' },
-                            { value: 'AI', label: t('landing.stats.ai', 'Gemini Powered'), color: 'text-sky-600' },
-                            { value: '∞', label: t('landing.stats.activities', 'Strava Activities'), color: 'text-indigo-600' },
-                            { value: 'VO2', label: t('landing.stats.vo2', 'VO2max Tracker'), color: 'text-emerald-600' },
-                        ].map((s, i) => (
-                            <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                                className="flex flex-col items-center text-center p-6 rounded-2xl bg-slate-50 border border-slate-100">
-                                <span className={`text-4xl font-black tracking-tighter ${s.color}`}>{s.value}</span>
-                                <span className="text-slate-500 text-sm font-medium mt-1">{s.label}</span>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ FEATURES ══════════════════════ */}
-            <section className="bg-[#F8FAFC] py-24">
+            {/* ==================== SHOWCASE — image again, wide ==================== */}
+            <section className="relative py-12 md:py-20">
                 <div className="max-w-7xl mx-auto px-6">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }} className="text-center mb-16">
-                        <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-                            {t('landing.everything_you_need', 'Everything you need')}
-                        </p>
-                        <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-4">
-                            {t('landing.tech_title')}
-                        </h2>
-                        <p className="text-slate-500 max-w-xl mx-auto text-base">{t('landing.tech_desc')}</p>
-                    </motion.div>
+                    <Reveal>
+                        <div className="relative overflow-hidden rounded-md ring-1 ring-white/10 min-h-[520px] flex items-end">
+                            <img
+                                src={heroImage}
+                                alt=""
+                                loading="lazy"
+                                className="absolute inset-0 w-full h-full object-cover object-[20%_75%] scale-110"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
 
-                    <div className="grid md:grid-cols-3 gap-5">
-                        {[
-                            { icon: CpuChipIcon, color: 'blue', badge: 'AI', title: t('landing.bento_1_title'), desc: t('landing.bento_1_desc'), cols: 'md:col-span-2' },
-                            { icon: ArrowTrendingUpIcon, color: 'cyan', title: t('landing.bento_2_title'), desc: t('landing.bento_2_desc') },
-                            { icon: GlobeAmericasIcon, color: 'indigo', title: t('landing.bento_3_title'), desc: t('landing.bento_3_desc') },
-                            { icon: ChartBarIcon, color: 'violet', badge: 'Deep', title: t('landing.bento_4_title'), desc: t('landing.bento_4_desc'), cols: 'md:col-span-2' },
-                            {
-                                icon: HeartIcon, color: 'rose',
-                                title: tx(lang, 'HR & Zones', 'FC & Zonas'),
-                                desc: tx(lang, 'Full cardiac decoupling analysis and training zone breakdown for every run.',
-                                    'Análisis de decoupling cardíaco y desglose de zonas para cada carrera.')
-                            },
-                            {
-                                icon: ShieldExclamationIcon, color: 'amber',
-                                title: tx(lang, 'Injury Risk', 'Riesgo de Lesión'),
-                                desc: tx(lang, 'Detect overtraining signals before they become injuries using ACWR and load metrics.',
-                                    'Detecta señales de sobreentrenamiento antes de lesiones mediante ACWR.')
-                            },
-                        ].map((card, i) => <FeatureCard key={i} {...card} delay={i * 0.07} />)}
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ HEATMAP SHOWCASE ══════════════════════ */}
-            <section className="bg-white py-24 border-t border-slate-100 overflow-hidden">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="grid md:grid-cols-2 gap-16 items-center">
-
-                        {/* Left: text */}
-                        <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
-                            <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
-                                {t('maps.title')}
-                            </p>
-                            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-5 leading-tight">
-                                {t('landing.heatmap_tagline', "Every km you've run, visually mapped.")}
-                            </h2>
-                            <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
-                                {t('maps.subtitle')}
-                            </p>
-                            <div className="grid grid-cols-3 gap-4">
-                                {[
-                                    { val: '1,284', label: t('dashboard.distance').toLowerCase() + ' ' + t('dashboard.tracked', 'tracked'), color: 'text-blue-600' },
-                                    { val: '247', label: t('dashboard.activities').toLowerCase(), color: 'text-indigo-600' },
-                                    { val: '18.4k', label: t('dashboard.elevation').toLowerCase(), color: 'text-sky-600' },
-                                ].map((s, i) => (
-                                    <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }}
-                                        viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
-                                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                                        <p className={`text-xl font-black tabular-nums ${s.color}`}>{s.val}</p>
-                                        <p className="text-slate-500 text-xs font-semibold mt-0.5">{s.label}</p>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </motion.div>
-
-                        {/* Right: heatmap dot visualization */}
-                        <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }} transition={{ duration: 0.7 }}
-                            className="relative">
-
-                            <div className="relative rounded-3xl bg-[#0d1117] border border-slate-200 shadow-2xl overflow-hidden p-6 aspect-[4/3]">
-                                {/* subtle glow */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-transparent to-indigo-600/5 pointer-events-none" />
-
-                                {/* dot grid heatmap */}
-                                <HeatmapViz />
-
-                                {/* overlay label */}
-                                <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                                    <MapIcon className="w-4 h-4 text-white/40" />
-                                    <span className="text-white/40 text-label font-bold uppercase">
-                                        {tx(lang, 'Global Activity Map', 'Mapa de Actividad Global')}
-                                    </span>
+                            <div className="relative w-full p-8 md:p-14 grid lg:grid-cols-2 gap-10 items-end">
+                                <div>
+                                    <p className="inline-flex items-center gap-2 text-orange-300 text-xs font-bold uppercase tracking-[0.25em] mb-5">
+                                        <MapIcon className="w-4 h-4" />
+                                        {tx(lang, 'Your running journey', 'Tu viaje corriendo')}
+                                    </p>
+                                    <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[0.95] mb-5">
+                                        {tx(lang, 'Every kilometre,', 'Cada kilómetro,')}<br />
+                                        <span className={ACCENT_TEXT}>{tx(lang, 'mapped.', 'mapeado.')}</span>
+                                    </h2>
+                                    <p className="text-white/70 text-lg max-w-md leading-relaxed">
+                                        {tx(lang,
+                                            'See where you have been, how far you have come and plan where you are going next.',
+                                            'Mira dónde has estado, cuánto has avanzado y planea adónde vas después.'
+                                        )}
+                                    </p>
                                 </div>
-
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ LACTATE THRESHOLD ══════════════════════ */}
-            <section className="bg-[#F8FAFC] py-24 border-t border-slate-100">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="grid md:grid-cols-2 gap-16 items-center">
-
-                        {/* Left: chart */}
-                        <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
-                            <LTChart />
-                        </motion.div>
-
-                        {/* Right: text */}
-                        <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }} transition={{ duration: 0.7 }}>
-                            <p className="text-indigo-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
-                                {tx(lang, 'Lactate Threshold', 'Umbral de Lactato')}
-                            </p>
-                            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-5 leading-tight">
-                                {tx(lang, 'Track how your engine gets stronger.', 'Observa cómo tu motor mejora.')}
-                            </h2>
-                            <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
-                                {tx(lang,
-                                    'Your lactate threshold pace is the most reliable marker of aerobic fitness. RunAnalyzer tracks it automatically from your heart rate data — no lab test needed.',
-                                    'El ritmo de umbral de lactato es el indicador más fiable de tu forma aeróbica. RunAnalyzer lo calcula automáticamente desde tus datos de frecuencia cardíaca — sin test de laboratorio.'
-                                )}
-                            </p>
-                            <div className="space-y-4">
-                                {[
-                                    {
-                                        icon: '📈',
-                                        title: tx(lang, 'Monthly trend', 'Tendencia mensual'),
-                                        desc: tx(lang, 'See if your threshold pace is improving or stagnating over time.', 'Ve si tu ritmo umbral mejora o se estanca mes a mes.'),
-                                    },
-                                    {
-                                        icon: '❤️',
-                                        title: tx(lang, 'Derived from HR data', 'Derivado de datos FC'),
-                                        desc: tx(lang, 'Estimated from cardiac decoupling and HR drift — no extra gear.', 'Estimado desde decoupling cardíaco y deriva de FC — sin equipamiento extra.'),
-                                    },
-                                    {
-                                        icon: '🎯',
-                                        title: tx(lang, 'Pace & power targets', 'Objetivos de ritmo'),
-                                        desc: tx(lang, 'Know your Z3/Z4 boundary and train at the right intensity.', 'Conoce tu límite Z3/Z4 y entrena a la intensidad correcta.'),
-                                    },
-                                ].map((item, i) => (
-                                    <motion.div key={i}
-                                        initial={{ opacity: 0, x: 16 }} whileInView={{ opacity: 1, x: 0 }}
-                                        viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.12 }}
-                                        className="flex gap-4 items-start p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                                        <span className="text-xl mt-0.5">{item.icon}</span>
-                                        <div>
-                                            <p className="text-slate-900 text-sm font-bold mb-0.5">{item.title}</p>
-                                            <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {[
+                                        ['1,284', tx(lang, 'km tracked', 'km registrados')],
+                                        ['247', tx(lang, 'activities', 'actividades')],
+                                        ['+85%', tx(lang, 'progress', 'progreso')],
+                                    ].map(([v, l]) => (
+                                        <div key={l} className="rounded-sm bg-white/10 backdrop-blur-xl ring-1 ring-white/15 p-4">
+                                            <p className="text-2xl md:text-3xl font-black tabular-nums">{v}</p>
+                                            <p className="text-[10px] uppercase tracking-[0.2em] text-white/55 mt-1">{l}</p>
                                         </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ HOW IT WORKS ══════════════════════ */}
-            <section className="bg-white py-24 border-t border-slate-100">
-                <div className="max-w-5xl mx-auto px-6">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }} className="text-center mb-16">
-                        <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-                            {tx(lang, 'Simple setup', 'Configuración simple')}
-                        </p>
-                        <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-                            {tx(lang, 'Up and running in seconds', 'Listo en segundos')}
-                        </h2>
-                    </motion.div>
-
-                    <div className="relative grid md:grid-cols-3 gap-8">
-                        <div className="hidden md:block absolute top-12 left-[20%] right-[20%] h-px bg-gradient-to-r from-slate-200 via-blue-300 to-slate-200" />
-                        {[
-                            {
-                                icon: LinkIcon, bg: 'bg-blue-600',
-                                title: tx(lang, 'Connect Strava', 'Conecta Strava'),
-                                desc: tx(lang, 'Sign in with Google and authorize your Strava account. Activities sync automatically.',
-                                    'Inicia sesión con Google y autoriza tu cuenta Strava. Las actividades se sincronizan solas.'),
-                            },
-                            {
-                                icon: BeakerIcon, bg: 'bg-sky-500',
-                                title: tx(lang, 'Analyze Everything', 'Analiza Todo'),
-                                desc: tx(lang, 'Explore 20+ analytics tools covering performance, health, technique, and training load.',
-                                    'Explora más de 20 herramientas de rendimiento, salud, técnica y carga de entrenamiento.'),
-                            },
-                            {
-                                icon: FireIcon, bg: 'bg-indigo-600',
-                                title: tx(lang, 'Run Smarter', 'Corre más inteligente'),
-                                desc: tx(lang, 'Let AI generate your training plan, predict race times, and answer any running question.',
-                                    'Deja que la IA genere tu plan, prediga tiempos y responda cualquier pregunta.'),
-                            },
-                        ].map((step, i) => (
-                            <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }} transition={{ delay: i * 0.15 }}
-                                className="flex flex-col items-center text-center">
-                                <div className={`relative w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-md ${step.bg}`}>
-                                    <step.icon className="w-10 h-10 text-white" />
-                                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border-2 border-slate-100 shadow flex items-center justify-center text-xs font-black text-slate-700">
-                                        {i + 1}
-                                    </span>
-                                </div>
-                                <h3 className="text-lg font-black text-slate-900 mb-2">{step.title}</h3>
-                                <p className="text-slate-500 text-sm leading-relaxed">{step.desc}</p>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ TOOLS GRID ══════════════════════ */}
-            <section className="bg-[#F8FAFC] py-24 border-t border-slate-100">
-                <div className="max-w-5xl mx-auto px-6">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }} className="text-center mb-12">
-                        <h2 className="text-3xl font-black tracking-tighter text-slate-900">
-                            {tx(lang, 'All the tools. One platform.', 'Todas las herramientas. Una plataforma.')}
-                        </h2>
-                    </motion.div>
-                    <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
-                        viewport={{ once: true }} transition={{ duration: 0.5 }}
-                        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {[
-                            { icon: HeartIcon, label: tx(lang, 'HR Analysis', 'Análisis FC') },
-                            { icon: ChartBarIcon, label: tx(lang, 'Fitness & Fatigue', 'Fitness y Fatiga') },
-                            { icon: FireIcon, label: tx(lang, 'Technique', 'Técnica') },
-                            { icon: SignalIcon, label: tx(lang, 'Training Zones', 'Zonas FC') },
-                            { icon: MapIcon, label: tx(lang, 'Global Heatmap', 'Heatmap Global') },
-                            { icon: CalendarDaysIcon, label: tx(lang, 'Consistency', 'Consistencia') },
-                            { icon: BeakerIcon, label: tx(lang, 'VDOT Estimator', 'Estimador VDOT') },
-                            { icon: StarIcon, label: tx(lang, 'Gear Tracker', 'Zapatillas') },
-                            { icon: SparklesIcon, label: tx(lang, 'AI Coach', 'Entrenador AI') },
-                            { icon: ArrowTrendingUpIcon, label: tx(lang, 'Race Predictor', 'Predictor de Carrera') },
-                            { icon: ChatBubbleLeftRightIcon, label: tx(lang, 'AI Q&A', 'Preguntas AI') },
-                            { icon: BoltIcon, label: tx(lang, 'Splits', 'Parciales') },
-                            { icon: GlobeAmericasIcon, label: tx(lang, 'Race Detector', 'Detector de Carreras') },
-                            { icon: SignalIcon, label: tx(lang, 'Cardiac Decoupling', 'Decoupling Cardíaco') },
-                            { icon: ShieldExclamationIcon, label: tx(lang, 'Injury Risk', 'Riesgo de Lesión') },
-                            { icon: ArrowDownTrayIcon, label: tx(lang, 'Data Export', 'Exportar Datos') },
-                        ].map((tool, i) => (
-                            <motion.div key={i} initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }}
-                                viewport={{ once: true }} transition={{ delay: i * 0.03 }}
-                                className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-all duration-200 cursor-default group">
-                                <div className="w-7 h-7 rounded-lg bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition-colors">
-                                    <tool.icon className="w-3.5 h-3.5 text-blue-600" />
-                                </div>
-                                <span className="text-slate-700 text-xs font-semibold leading-tight">{tool.label}</span>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ SOCIAL PROOF ══════════════════════ */}
-            <section className="bg-white py-24 border-t border-slate-100 overflow-hidden">
-                <div className="max-w-6xl mx-auto px-6">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }} className="text-center mb-16">
-                        <p className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-                            {tx(lang, 'Trusted by runners', 'Los runners confían')}
-                        </p>
-                        <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-                            {tx(lang, 'What runners are saying', 'Lo que dicen los corredores')}
-                        </h2>
-                    </motion.div>
-
-                    {/* Animated counters */}
-                    <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
-                        viewport={{ once: true }} transition={{ duration: 0.6 }}
-                        className="grid grid-cols-3 gap-8 mb-16 max-w-2xl mx-auto">
-                        {[
-                            { end: '2.4K', label: tx(lang, 'Activities Analyzed', 'Actividades Analizadas'), color: 'text-blue-600' },
-                            { end: '98%', label: tx(lang, 'Prediction Accuracy', 'Precisión de Predicción'), color: 'text-emerald-600' },
-                            { end: '4.9', label: tx(lang, 'User Rating', 'Valoración'), color: 'text-amber-500' },
-                        ].map((stat, i) => (
-                            <motion.div key={i}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: i * 0.15 }}
-                                className="text-center">
-                                <p className={`text-3xl md:text-4xl font-black tracking-tighter ${stat.color}`}>{stat.end}</p>
-                                <p className="text-slate-500 text-xs font-semibold mt-1">{stat.label}</p>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-
-                    {/* Testimonial Cards */}
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {[
-                            {
-                                name: 'Carlos M.',
-                                role: tx(lang, 'Marathon Runner', 'Maratonista'),
-                                avatar: '🏃‍♂️',
-                                text: tx(lang,
-                                    "The race predictor nailed my marathon time within 2 minutes. The AI coach suggested a taper strategy I hadn't considered. Absolutely game-changing.",
-                                    "El predictor clavó mi tiempo de maratón con 2 minutos de diferencia. El entrenador AI me sugirió una estrategia de taper que no había considerado. Revolucionario."),
-                                accent: 'border-blue-200 hover:border-blue-300',
-                            },
-                            {
-                                name: 'Laura S.',
-                                role: tx(lang, 'Trail Runner', 'Corredora de Trail'),
-                                avatar: '⛰️',
-                                text: tx(lang,
-                                    "The VO2max tracker and cardiac decoupling analysis helped me understand why my easy runs felt hard. Turns out my zones were all wrong!",
-                                    "El tracker VO2max y el análisis de decoupling cardíaco me ayudaron a entender por qué mis rodajes me costaban. ¡Resulta que mis zonas estaban mal!"),
-                                accent: 'border-emerald-200 hover:border-emerald-300',
-                            },
-                            {
-                                name: 'Pablo R.',
-                                role: tx(lang, 'Ultra Runner', 'Ultra Runner'),
-                                avatar: '🦁',
-                                text: tx(lang,
-                                    "Route Gallery is insane — seeing all my mountain runs as minimalist posters is beautiful. And the injury risk alert saved me from overtraining twice.",
-                                    "La Galería de Rutas es una locura — ver mis rutas de montaña como pósters minimalistas es precioso. Y la alerta de riesgo de lesión me salvó dos veces."),
-                                accent: 'border-violet-200 hover:border-violet-300',
-                            },
-                        ].map((review, i) => (
-                            <motion.div key={i}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: i * 0.12 }}
-                                whileHover={{ y: -4 }}
-                                className={`bg-white rounded-2xl p-7 border ${review.accent} shadow-sm hover:shadow-lg transition-all duration-300`}>
-                                <div className="flex items-center gap-3 mb-5">
-                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg">
-                                        {review.avatar}
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-black text-slate-900 leading-tight">{review.name}</p>
-                                        <p className="text-label font-bold text-slate-500 uppercase">{review.role}</p>
-                                    </div>
-                                    <div className="ml-auto flex gap-0.5">
-                                        {[...Array(5)].map((_, s) => (
-                                            <svg key={s} className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                            </svg>
-                                        ))}
-                                    </div>
-                                </div>
-                                <p className="text-slate-600 text-sm leading-relaxed italic">"{review.text}"</p>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ══════════════════════ FINAL CTA ══════════════════════ */}
-            <section className="bg-gradient-to-b from-blue-50 to-white py-28 border-t border-blue-100">
-                <div className="max-w-2xl mx-auto px-6 text-center">
-                    <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-                        <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 mb-4 uppercase leading-tight">
-                            {tx(lang, 'Start analyzing your runs today', 'Empieza a analizar tus carreras hoy')}
-                        </h2>
-                        <p className="text-slate-500 mb-10 text-base">
-                            {tx(lang, 'Connect your Strava account and unlock professional-grade analytics in seconds.',
-                                'Conecta tu cuenta de Strava y desbloquea análisis de nivel profesional en segundos.')}
-                        </p>
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="p-1 rounded-full bg-white shadow-xl ring-1 ring-slate-200 hover:ring-blue-300 hover:shadow-2xl transition-all duration-300">
-                                <div className="w-full max-w-xs md:max-w-sm">
-                                    <button onClick={handleGoogleLogin}
-                                        className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors">
-                                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                            <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-                                            <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
-                                            <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
-                                            <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
-                                        </svg>
-                                        {t('landing.continue_with_google', 'Continuar con Google')}
-                                    </button>
+                                    ))}
                                 </div>
                             </div>
                         </div>
-                    </motion.div>
+                    </Reveal>
                 </div>
             </section>
 
-            {/* ══════════════════════ FOOTER ══════════════════════ */}
-            <footer className="bg-white py-10 border-t border-slate-100">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* ==================== STATS STRIP ==================== */}
+            <section className="py-16">
+                <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-px rounded-md overflow-hidden bg-white/10 ring-1 ring-white/10">
+                    {[
+                        ['20+', t('landing.stats.tools', 'Analytics Tools'), CpuChipIcon],
+                        ['AI', t('landing.stats.ai', 'Gemini Powered'), SparklesIcon],
+                        ['∞', t('landing.stats.activities', 'Strava Activities'), ArrowTrendingUpIcon],
+                        ['VO2', t('landing.stats.vo2', 'VO2max Tracker'), HeartIcon],
+                    ].map(([v, l, Icon], i) => (
+                        <Reveal key={i} delay={i * 0.05} className="bg-[#07090d] p-8">
+                            <Icon className="w-5 h-5 text-teal-300 mb-4" />
+                            <p className="text-4xl md:text-5xl font-black tracking-tight">{v}</p>
+                            <p className="text-white/50 text-xs font-semibold uppercase tracking-[0.2em] mt-2">{l}</p>
+                        </Reveal>
+                    ))}
+                </div>
+            </section>
+
+            {/* ==================== TESTIMONIALS ==================== */}
+            <section id="testimonials" className="py-28">
+                <div className="max-w-7xl mx-auto px-6">
+                    <SectionHeading
+                        eyebrow={tx(lang, 'Trusted by runners', 'Confían los corredores')}
+                        title={tx(lang, 'What runners are saying', 'Lo que dicen los corredores')}
+                    />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <TestimonialCard
+                            quote={tx(lang,
+                                'I never thought I could break the 4-hour marathon barrier. RunAnalyzer showed me I was capable and gave me the exact plan. Crossed the line in 3:52.',
+                                'Nunca pensé que podría bajar de 4 horas en maratón. RunAnalyzer me mostró que era capaz y me dio el plan exacto. Crucé en 3:52.'
+                            )}
+                            name={tx(lang, 'Michael Chen', 'Carlos R.')}
+                            role={tx(lang, 'Marathon Runner', 'Maratonista')}
+                        />
+                        <TestimonialCard
+                            quote={tx(lang,
+                                'After three injuries in two years, I was ready to quit. RunAnalyzer helped me train smarter. Now I run pain-free and just set a new 10K PR.',
+                                'Después de tres lesiones en dos años, estaba a punto de dejarlo. RunAnalyzer me ayudó a entrenar mejor. Ahora corro sin dolor y acabo de batir mi marca en 10K.'
+                            )}
+                            name={tx(lang, 'Sarah Johnson', 'Laura M.')}
+                            role={tx(lang, 'Competitive Runner', 'Corredora Competitiva')}
+                            delay={0.1}
+                        />
+                        <TestimonialCard
+                            quote={tx(lang,
+                                'The AI coach feels like having a world-class trainer in my pocket. It understands my body, my goals, and pushes me just the right amount.',
+                                'El entrenador IA es como tener un entrenador de primer nivel en el bolsillo. Entiende mi cuerpo, mis metas y me exige lo justo.'
+                            )}
+                            name={tx(lang, 'David Kim', 'Javier L.')}
+                            role={tx(lang, '5K Specialist', 'Especialista 5K')}
+                            delay={0.15}
+                        />
+                        <TestimonialCard
+                            quote={tx(lang,
+                                'I have been running for 15 years and thought I knew everything. RunAnalyzer proved me wrong, in the best way.',
+                                'Llevo 15 años corriendo y pensaba que lo sabía todo. RunAnalyzer me demostró lo contrario, de la mejor manera.'
+                            )}
+                            name={tx(lang, 'James Wilson', 'Alejandro G.')}
+                            role={tx(lang, 'Veteran Runner', 'Corredor Veterano')}
+                            delay={0.2}
+                        />
+                    </div>
+                </div>
+            </section>
+
+            {/* ==================== FINAL CTA — sunset crop ==================== */}
+            <section className="relative overflow-hidden">
+                <img
+                    src={heroImage}
+                    alt=""
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover object-[85%_45%]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#07090d] via-black/40 to-[#07090d]" />
+                <div className="relative max-w-4xl mx-auto px-6 py-40 text-center">
+                    <Reveal>
+                        <p className="text-orange-200 text-xs font-bold uppercase tracking-[0.3em] mb-6">
+                            {tx(lang, 'Your turn', 'Tu turno')}
+                        </p>
+                        <h2 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.9] mb-6">
+                            {tx(lang, 'What will your', '¿Cuál será tu')}<br />
+                            <span className={ACCENT_TEXT}>{tx(lang, 'running story be?', 'historia corriendo?')}</span>
+                        </h2>
+                        <p className="text-white/75 text-lg max-w-xl mx-auto mb-10">
+                            {tx(lang, 'Every great achievement starts with a single step. Take yours today.', 'Todo gran logro empieza con un solo paso. Da el tuyo hoy.')}
+                        </p>
+                        <button
+                            onClick={handleGoogleLogin}
+                            className="group inline-flex items-center gap-3 px-8 py-4 rounded-sm bg-white text-slate-950 font-bold text-sm shadow-[0_10px_50px_-10px_rgba(251,146,60,0.7)] hover:shadow-[0_10px_60px_-5px_rgba(251,146,60,0.9)] transition-all"
+                        >
+                            <GoogleIcon />
+                            {tx(lang, 'Begin your journey', 'Empieza ahora')}
+                            <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                        </button>
+                    </Reveal>
+                </div>
+            </section>
+
+            {/* ==================== FOOTER ==================== */}
+            <footer className="border-t border-white/10 py-10">
+                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-center gap-3">
-                        <Logo className="w-7 h-7 opacity-70" />
-                        <span className="text-slate-500 text-sm font-bold tracking-tight">RunAnalyzer</span>
+                        <Logo className="w-8 h-8 rounded-sm" />
+                        <span className="font-black tracking-tighter">RunAnalyzer</span>
+                        <span className="text-white/40 text-sm hidden sm:inline">· {tx(lang, 'AI-powered running analytics', 'Analítica de running con IA')}</span>
                     </div>
-                    <p className="text-slate-500 text-xs">Running Data Intelligence · 2026</p>
-                    <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-slate-500 text-xs">
-                            {tx(lang, 'Powered by Strava API & Gemini AI', 'Potenciado por Strava API & Gemini AI')}
-                        </span>
+                    <div className="flex gap-6 text-sm text-white/50">
+                        <a href="#features" className="hover:text-white transition-colors">{tx(lang, 'Features', 'Funciones')}</a>
+                        <a href="#" className="hover:text-white transition-colors">{tx(lang, 'Privacy', 'Privacidad')}</a>
+                        <a href="#" className="hover:text-white transition-colors">{tx(lang, 'Contact', 'Contacto')}</a>
                     </div>
+                    <p className="text-white/35 text-xs">
+                        {tx(lang, '© 2026 RunAnalyzer. All rights reserved.', '© 2026 RunAnalyzer. Todos los derechos reservados.')}
+                    </p>
                 </div>
             </footer>
-        </div>
-    );
-};
-
-/* ─── Feature Card ─── */
-const colorMap = {
-    blue: { icon: 'bg-blue-100   text-blue-600', hover: 'hover:border-blue-200   hover:shadow-blue-50/80' },
-    cyan: { icon: 'bg-cyan-100   text-cyan-600', hover: 'hover:border-cyan-200' },
-    indigo: { icon: 'bg-indigo-100 text-indigo-600', hover: 'hover:border-indigo-200' },
-    violet: { icon: 'bg-violet-100 text-violet-600', hover: 'hover:border-violet-200' },
-    rose: { icon: 'bg-rose-100   text-rose-600', hover: 'hover:border-rose-200' },
-    amber: { icon: 'bg-amber-100  text-amber-600', hover: 'hover:border-amber-200' },
-};
-
-const FeatureCard = ({ title, desc, icon: Icon, color = 'blue', badge, cols = '', delay = 0 }) => {
-    const c = colorMap[color] ?? colorMap.blue;
-    return (
-        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.5, delay }}
-            whileHover={{ y: -4 }}
-            className={`relative overflow-hidden p-7 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 ${c.hover} ${cols}`}>
-            <div className="flex justify-between items-start mb-5">
-                <div className={`p-3 rounded-xl ${c.icon}`}>
-                    <Icon className="w-6 h-6" />
-                </div>
-                {badge && (
-                    <span className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-label font-bold uppercase">
-                        {badge}
-                    </span>
-                )}
-            </div>
-            <h3 className="text-base font-black text-slate-900 mb-2 tracking-tight">{title}</h3>
-            <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
-        </motion.div>
-    );
-};
-
-/* ─── GPS heatmap — pure CSS radial gradients, zero SVG grid ─── */
-const HeatmapViz = () => (
-    <div className="absolute inset-0 rounded-3xl overflow-hidden" style={{
-        background: '#0d1117',
-        backgroundImage: [
-            // dense core — A Coruña style cluster
-            'radial-gradient(ellipse 22% 16% at 50% 50%, rgba(251,146,60,0.85) 0%, rgba(249,115,22,0.55) 35%, transparent 70%)',
-            'radial-gradient(ellipse 14% 10% at 47% 48%, rgba(255,200,100,0.7) 0%, transparent 60%)',
-            'radial-gradient(ellipse 18% 14% at 54% 52%, rgba(251,146,60,0.6) 0%, transparent 65%)',
-            // secondary blobs
-            'radial-gradient(ellipse 10% 8% at 44% 44%, rgba(253,186,116,0.5) 0%, transparent 60%)',
-            'radial-gradient(ellipse 9% 7% at 57% 45%, rgba(249,115,22,0.45) 0%, transparent 55%)',
-            'radial-gradient(ellipse 8% 10% at 49% 58%, rgba(251,146,60,0.4) 0%, transparent 55%)',
-            // tentacles going outward (like long runs leaving the city)
-            'radial-gradient(ellipse 20% 5% at 68% 46%, rgba(234,88,12,0.3) 0%, transparent 70%)',
-            'radial-gradient(ellipse 5% 18% at 50% 68%, rgba(234,88,12,0.25) 0%, transparent 70%)',
-            'radial-gradient(ellipse 18% 5% at 34% 50%, rgba(234,88,12,0.25) 0%, transparent 70%)',
-            // faint outer glow
-            'radial-gradient(ellipse 40% 30% at 50% 50%, rgba(249,115,22,0.12) 0%, transparent 80%)',
-        ].join(','),
-    }}>
-        {/* Animated pulse on the hot core */}
-        <motion.div
-            className="absolute rounded-full"
-            style={{ width: '8%', height: '6%', left: '46%', top: '47%', background: 'rgba(255,220,120,0.25)', filter: 'blur(6px)' }}
-            animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0.2, 0.6] }}
-            transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-    </div>
-);
-
-/* ─── Lactate Threshold evolution chart ─── */
-// [month label, threshold pace in sec/km (lower = faster)]
-const LT_DATA = [
-    { m: 'Mar', v: 292 }, // 4:52
-    { m: 'Apr', v: 289 },
-    { m: 'May', v: 287 },
-    { m: 'Jun', v: 291 }, // small regression
-    { m: 'Jul', v: 284 },
-    { m: 'Aug', v: 279 },
-    { m: 'Sep', v: 276 },
-    { m: 'Oct', v: 272 },
-    { m: 'Nov', v: 268 }, // 4:28
-    { m: 'Dec', v: 265 },
-    { m: 'Jan', v: 262 },
-    { m: 'Feb', v: 258 }, // 4:18  ← best
-];
-
-const LTChart = () => {
-    const W = 420, H = 220, PL = 48, PR = 16, PT = 20, PB = 36;
-    const cW = W - PL - PR, cH = H - PT - PB;
-    const vals = LT_DATA.map(d => d.v);
-    const min = Math.min(...vals) - 6;
-    const max = Math.max(...vals) + 6;
-
-    const x = (i) => PL + (i / (LT_DATA.length - 1)) * cW;
-    const y = (v) => PT + ((max - v) / (max - min)) * cH;
-
-    const linePath = LT_DATA.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)},${y(d.v)}`).join(' ');
-
-    // smooth area fill path
-    const areaPath = [
-        `M ${x(0)},${y(LT_DATA[0].v)}`,
-        ...LT_DATA.slice(1).map((d, i) => `L ${x(i + 1)},${y(d.v)}`),
-        `L ${x(LT_DATA.length - 1)},${PT + cH}`,
-        `L ${x(0)},${PT + cH}`,
-        'Z',
-    ].join(' ');
-
-    const bestIdx = vals.indexOf(Math.min(...vals)); // last point (best pace)
-
-    return (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-lg p-6">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-                <div>
-                    <p className="text-slate-500 text-label font-bold uppercase mb-1">
-                        Threshold Pace
-                    </p>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-black text-indigo-600 tabular-nums">
-                            {formatPaceFromSecPerKm(vals[vals.length - 1])}
-                        </span>
-                        <span className="text-slate-500 text-sm">/km</span>
-                        <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
-                            ↑ {formatPaceFromSecPerKm(vals[0])} → {formatPaceFromSecPerKm(vals[vals.length - 1])}
-                        </span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span className="text-indigo-600 text-xs font-bold">12 months</span>
-                </div>
-            </div>
-
-            {/* SVG Chart */}
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-                <defs>
-                    <linearGradient id="ltgrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
-                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                    </linearGradient>
-                </defs>
-
-                {/* Horizontal grid lines */}
-                {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
-                    const gy = PT + t * cH;
-                    const paceVal = Math.round(max - t * (max - min));
-                    return (
-                        <g key={i}>
-                            <line x1={PL} y1={gy} x2={W - PR} y2={gy}
-                                stroke="#f1f5f9" strokeWidth="1" />
-                            <text x={PL - 6} y={gy + 4} textAnchor="end"
-                                fill="#64748b" fontSize="8" fontWeight="600">
-                                {formatPaceFromSecPerKm(paceVal)}
-                            </text>
-                        </g>
-                    );
-                })}
-
-                {/* Area fill */}
-                <motion.path d={areaPath} fill="url(#ltgrad)"
-                    initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.4 }} />
-
-                {/* Line */}
-                <motion.path d={linePath} fill="none"
-                    stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }}
-                    viewport={{ once: true }} transition={{ duration: 1.8, delay: 0.3, ease: 'easeInOut' }} />
-
-                {/* Data points */}
-                {LT_DATA.map((d, i) => (
-                    <motion.circle key={i} cx={x(i)} cy={y(d.v)} r={i === bestIdx ? 5 : 3}
-                        fill={i === bestIdx ? '#6366f1' : 'white'}
-                        stroke="#6366f1" strokeWidth={i === bestIdx ? 0 : 2}
-                        initial={{ scale: 0 }} whileInView={{ scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.3, delay: 0.4 + i * 0.08 }}
-                        style={{ transformOrigin: `${x(i)}px ${y(d.v)}px` }}
-                    />
-                ))}
-
-                {/* Best point label */}
-                <motion.g initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }} transition={{ delay: 1.6 }}>
-                    <rect x={x(bestIdx) - 24} y={y(vals[bestIdx]) - 26}
-                        width="48" height="18" rx="5" fill="#6366f1" />
-                    <text x={x(bestIdx)} y={y(vals[bestIdx]) - 13}
-                        textAnchor="middle" fill="white" fontSize="9" fontWeight="800">
-                        🏆 {formatPaceFromSecPerKm(vals[bestIdx])}
-                    </text>
-                </motion.g>
-
-                {/* Month labels */}
-                {LT_DATA.map((d, i) => (
-                    <text key={i} x={x(i)} y={H - 6} textAnchor="middle"
-                        fill="#64748b" fontSize="8" fontWeight="600">
-                        {d.m}
-                    </text>
-                ))}
-            </svg>
-
-            {/* Footer note */}
-            <p className="text-slate-500 text-xs text-center mt-3 font-medium">
-                Estimated automatically · No lab test required
-            </p>
         </div>
     );
 };
