@@ -346,19 +346,19 @@ INSTRUCCIONES:
 
     return (
         <div className={fullscreen
-            ? 'fixed inset-0 z-50 bg-slate-100 p-2 sm:p-4 flex flex-col gap-2 sm:gap-3 overflow-hidden'
+            ? 'fixed inset-0 z-50 bg-slate-100 dark:bg-white/[0.04] p-2 sm:p-4 flex flex-col gap-2 sm:gap-3 overflow-hidden'
             : 'flex flex-col gap-2 sm:gap-3 flex-1 min-h-0'}>
             {/* Compact Header — mismo lenguaje visual que el módulo Coach IA */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shrink-0 px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] shadow-sm shrink-0 px-3 py-2.5 sm:px-4 sm:py-3">
                 <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
                 <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                        <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 shrink-0">
                             <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-black uppercase tracking-tight text-slate-800 leading-tight truncate">Pregunta sobre tus Carreras</p>
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
+                            <p className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white leading-tight truncate">Pregunta sobre tus Carreras</p>
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 dark:text-teal-300">
                                 <BoltIcon className="w-3 h-3" />
                                 {selectedCount} carreras cargadas
                             </span>
@@ -369,8 +369,8 @@ INSTRUCCIONES:
                             onClick={() => setConfigOpen(o => !o)}
                             title="Configuración del chat"
                             className={`ml-auto lg:hidden flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${configOpen
-                                ? 'text-blue-700 bg-blue-50 border-blue-200'
-                                : 'text-slate-600 bg-white border-slate-200 hover:border-blue-300 hover:text-blue-700'}`}
+                                ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-400/10 border-teal-200 dark:border-teal-300/25'
+                                : 'text-slate-600 dark:text-white/75 bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10 hover:border-blue-300 hover:text-teal-800 dark:hover:text-teal-200'}`}
                         >
                             <Cog6ToothIcon className="w-4 h-4" />
                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
@@ -379,7 +379,7 @@ INSTRUCCIONES:
                             type="button"
                             onClick={() => setFullscreen(f => !f)}
                             title={fullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
-                            className="lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50/60 transition-colors"
+                            className="lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-white/75 bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 hover:border-blue-300 hover:text-teal-800 dark:hover:text-teal-200 hover:bg-blue-50/60 transition-colors"
                         >
                             {fullscreen
                                 ? <ArrowsPointingInIcon className="w-3.5 h-3.5" />
@@ -391,16 +391,16 @@ INSTRUCCIONES:
                     <div className={`${configOpen ? 'flex' : 'hidden'} lg:flex flex-wrap items-center gap-2`}>
                         {/* Filter mode toggle + selector */}
                         {/* Toggle buttons */}
-                        <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium flex-shrink-0">
+                        <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-medium flex-shrink-0">
                             <button
                                 onClick={() => setFilterMode('count')}
-                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'count' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'count' ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                             >
                                 Por número
                             </button>
                             <button
                                 onClick={() => setFilterMode('period')}
-                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'period' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'period' ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                             >
                                 Por periodo
                             </button>
@@ -426,8 +426,8 @@ INSTRUCCIONES:
 
                         {/* Garmin period selector */}
                         <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 flex-shrink-0">Garmin</span>
-                            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium">
+                            <span className="text-xs text-slate-500 dark:text-white/55 flex-shrink-0">Garmin</span>
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-medium">
                                 {[
                                     { value: 'none', label: 'Sin datos' },
                                     { value: '30d', label: '30 días' },
@@ -436,14 +436,14 @@ INSTRUCCIONES:
                                     <button
                                         key={value}
                                         onClick={() => setGarminPeriod(value)}
-                                        className={`px-2.5 py-1.5 transition-colors ${garminPeriod === value ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                        className={`px-2.5 py-1.5 transition-colors ${garminPeriod === value ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                                     >
                                         {label}
                                     </button>
                                 ))}
                             </div>
                             {garmin && garminPeriod !== 'none' && (
-                                <span className="text-xs text-slate-500">
+                                <span className="text-xs text-slate-500 dark:text-white/55">
                                     {[...garmin].filter(d => {
                                         const c = new Date(); c.setDate(c.getDate() - (garminPeriod === '30d' ? 30 : 90));
                                         return new Date(d.date) >= c;
@@ -457,7 +457,7 @@ INSTRUCCIONES:
 
             {/* Context from the AI panel (when arriving via "Seguir preguntando en el chat") */}
             {seed && (
-                <Card className="p-0 ring-1 ring-blue-200 shadow-sm bg-blue-50/40 shrink-0 overflow-hidden">
+                <Card className="p-0 ring-1 ring-blue-200 shadow-sm bg-teal-50 dark:bg-teal-400/10 shrink-0 overflow-hidden">
                     {/* Barra compacta: contexto añadido + desplegar */}
                     <div className="flex items-center gap-2 px-3 py-2">
                         <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -474,7 +474,7 @@ INSTRUCCIONES:
                         <button
                             onClick={() => copyMessage(seedToText(seed), 'seed')}
                             title="Copiar contexto"
-                            className="ml-auto shrink-0 text-slate-500 hover:text-blue-600 transition-colors"
+                            className="ml-auto shrink-0 text-slate-500 dark:text-white/55 hover:text-blue-600 transition-colors"
                         >
                             {copiedIdx === 'seed'
                                 ? <CheckIcon className="w-4 h-4 text-emerald-500" />
@@ -483,14 +483,14 @@ INSTRUCCIONES:
                         <button
                             onClick={() => setSeed(null)}
                             title="Quitar contexto"
-                            className="shrink-0 text-slate-500 hover:text-rose-500 transition-colors"
+                            className="shrink-0 text-slate-500 dark:text-white/55 hover:text-rose-500 transition-colors"
                         >
                             <TrashIcon className="w-4 h-4" />
                         </button>
                     </div>
                     {seedOpen && (
-                        <div className="px-3 pb-3 border-t border-blue-100">
-                            <div className="text-sm text-slate-700 max-h-48 overflow-y-auto pr-1 pt-2">
+                        <div className="px-3 pb-3 border-t border-teal-200 dark:border-teal-300/25">
+                            <div className="text-sm text-slate-700 dark:text-white/75 max-h-48 overflow-y-auto pr-1 pt-2">
                                 <MarkdownText content={seedToText(seed)} />
                             </div>
                         </div>
@@ -500,7 +500,7 @@ INSTRUCCIONES:
 
             {/* Chat Container */}
             <Card
-                className="ring-1 ring-slate-200 shadow-sm bg-white overflow-hidden flex flex-col flex-1 min-h-[45dvh] lg:min-h-0"
+                className="ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03] overflow-hidden flex flex-col flex-1 min-h-[45dvh] lg:min-h-0"
             >
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto">
@@ -509,13 +509,13 @@ INSTRUCCIONES:
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-blue-200 rounded-full blur-md opacity-50 animate-pulse" />
-                                    <div className="relative p-1.5 bg-blue-600 rounded-lg shadow">
+                                    <div className="relative p-1.5 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-lg shadow">
                                         <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
                                 </div>
-                                <h3 className="text-sm sm:text-base font-bold text-slate-800">¿Qué quieres saber?</h3>
+                                <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">¿Qué quieres saber?</h3>
                             </div>
-                            <Text className="text-slate-500 mb-3 text-center max-w-md text-xs sm:text-xs">
+                            <Text className="text-slate-500 dark:text-white/55 mb-3 text-center max-w-md text-xs sm:text-xs">
                                 Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
                             </Text>
 
@@ -525,10 +525,10 @@ INSTRUCCIONES:
                                         key={idx}
                                         onClick={() => sendSuggestion(q.text)}
                                         disabled={loading}
-                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-lg transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-white/[0.03] hover:bg-blue-50/60 border border-slate-200 dark:border-white/10 hover:border-blue-300 rounded-lg transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                     >
                                         <span className="flex-shrink-0 text-sm">{q.icon}</span>
-                                        <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700 leading-snug">{q.text}</span>
+                                        <span className="text-xs font-medium text-slate-700 dark:text-white/75 group-hover:text-blue-700 leading-snug">{q.text}</span>
                                     </button>
                                 ))}
                             </div>
@@ -543,8 +543,8 @@ INSTRUCCIONES:
                                     <div key={idx} className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
                                         {/* Avatar — oculto en móvil para ganar ancho de burbuja */}
                                         <div className={`flex-shrink-0 w-8 h-8 rounded-full hidden sm:flex items-center justify-center shadow-sm ${isUser
-                                                ? 'bg-blue-600 text-white text-xs font-bold'
-                                                : 'bg-blue-600 text-white'
+                                                ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 text-xs font-bold'
+                                                : 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
                                             }`}>
                                             {isUser ? 'Tú' : <SparklesIcon className="w-4 h-4" />}
                                         </div>
@@ -552,8 +552,8 @@ INSTRUCCIONES:
                                         {/* Message Bubble */}
                                         <div className={`flex flex-col max-w-[92%] sm:max-w-[82%] ${isUser ? 'items-end' : 'items-start'}`}>
                                             <div className={`rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 ${isUser
-                                                    ? 'bg-blue-600 text-white rounded-tr-sm'
-                                                    : 'bg-white ring-1 ring-slate-200 shadow-sm rounded-tl-sm'
+                                                    ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-tr-sm'
+                                                    : 'bg-white dark:bg-white/[0.03] ring-1 ring-slate-200 dark:ring-white/10 shadow-sm rounded-tl-sm'
                                                 }`}>
                                                 {isUser ? (
                                                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -566,7 +566,7 @@ INSTRUCCIONES:
                                             </div>
                                             {/* Meta + actions */}
                                             <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                                                <span className="text-xs text-slate-500">
+                                                <span className="text-xs text-slate-500 dark:text-white/55">
                                                     {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 {!isUser && msg.content && !streaming && (
@@ -576,7 +576,7 @@ INSTRUCCIONES:
                                                             type="button"
                                                             onClick={() => copyMessage(msg.content, idx)}
                                                             title="Copiar respuesta"
-                                                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                            className="p-1 text-slate-500 dark:text-white/55 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                                         >
                                                             {copiedIdx === idx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
                                                         </button>
@@ -586,7 +586,7 @@ INSTRUCCIONES:
                                                                 onClick={regenerate}
                                                                 disabled={loading}
                                                                 title="Regenerar respuesta"
-                                                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
+                                                                className="p-1 text-slate-500 dark:text-white/55 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
                                                             >
                                                                 <ArrowPathIcon className="w-3.5 h-3.5" />
                                                             </button>
@@ -602,10 +602,10 @@ INSTRUCCIONES:
                             {/* Loading indicator (only before the assistant bubble appears) */}
                             {loading && (conversation.length === 0 || conversation[conversation.length - 1].role !== 'assistant' || conversation[conversation.length - 1].content === '') && (
                                 <div className="flex gap-2 sm:gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 hidden sm:flex items-center justify-center shadow-sm">
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-950 text-white dark:bg-white dark:text-slate-950 hidden sm:flex items-center justify-center shadow-sm">
                                         <SparklesIcon className="w-4 h-4 text-white" />
                                     </div>
-                                    <div className="bg-white ring-1 ring-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                                    <div className="bg-white dark:bg-white/[0.03] ring-1 ring-slate-200 dark:ring-white/10 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                                         <TypingIndicator />
                                     </div>
                                 </div>
@@ -618,13 +618,13 @@ INSTRUCCIONES:
 
                 {/* Error */}
                 {error && (
-                    <div className="px-4 py-2 bg-rose-50 border-t border-rose-100">
-                        <Text className="text-rose-600 text-sm">{error}</Text>
+                    <div className="px-4 py-2 bg-rose-50 dark:bg-rose-400/10 border-t border-rose-100 dark:border-rose-300/25">
+                        <Text className="text-rose-600 dark:text-rose-300 text-sm">{error}</Text>
                     </div>
                 )}
 
                 {/* Input Area */}
-                <div className="border-t border-slate-100 bg-slate-50 p-2.5 sm:p-4">
+                <div className="border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-2.5 sm:p-4">
                     {/* Quick follow-up chips: en móvil una fila con scroll horizontal */}
                     {conversation.length > 0 && !loading && (
                         <div className="flex sm:flex-wrap gap-1.5 mb-2.5 sm:mb-3 overflow-x-auto sm:overflow-visible [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -633,7 +633,7 @@ INSTRUCCIONES:
                                     key={idx}
                                     type="button"
                                     onClick={() => sendSuggestion(q.text)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 shrink-0 whitespace-nowrap bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 hover:text-blue-700 transition-colors"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 shrink-0 whitespace-nowrap bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 dark:text-white/75 hover:text-teal-800 dark:hover:text-teal-200 transition-colors"
                                 >
                                     <span>{q.icon}</span>
                                     {q.text}
@@ -649,7 +649,7 @@ INSTRUCCIONES:
                                 value={question}
                                 onChange={(e) => setQuestion(e.target.value)}
                                 rows={1}
-                                className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
+                                className="w-full px-4 py-3 pr-12 bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
                                 style={{ minHeight: '48px', maxHeight: '120px' }}
                                 onKeyDown={(e) => {
                                     // En táctil, Enter hace salto de línea; se envía con el botón
@@ -667,7 +667,7 @@ INSTRUCCIONES:
                                 <button
                                     type="button"
                                     onClick={clearConversation}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 dark:text-white/55 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                     title="Limpiar conversación"
                                 >
                                     <TrashIcon className="w-4 h-4" />
@@ -697,7 +697,7 @@ INSTRUCCIONES:
                             </Button>
                         )}
                     </form>
-                    <p className="hidden sm:block text-xs text-slate-500 mt-2 text-center">
+                    <p className="hidden sm:block text-xs text-slate-500 dark:text-white/55 mt-2 text-center">
                         Enter para enviar • Shift+Enter para nueva línea
                     </p>
                 </div>

@@ -7,7 +7,8 @@ import 'leaflet/dist/leaflet.css';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { repeatedRoutes, describeTrend } from '../lib/routeProgression';
 import { formatPaceFromSpeed, formatDuration } from '../lib/timeFormat';
-import { getLightMapTileUrl, getMapAttribution } from '../lib/mapTiles';
+import { getLightMapTileUrl, getDarkMapTileUrl, getMapAttribution } from '../lib/mapTiles';
+import useTheme from '../hooks/useTheme';
 import useHrParams from '../hooks/useHrParams';
 import { COLORS, AXIS_TICK } from '../lib/palette';
 
@@ -17,18 +18,19 @@ import { COLORS, AXIS_TICK } from '../lib/palette';
 const fmtDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' });
 
 function TrendBadge({ pct }) {
-  if (pct == null) return <span className="text-xs text-slate-400">—</span>;
+  if (pct == null) return <span className="text-xs text-slate-400 dark:text-white/40">—</span>;
   const up = pct >= 1, down = pct <= -1;
   const Icon = up ? ArrowTrendingUpIcon : down ? ArrowTrendingDownIcon : MinusIcon;
-  const cls = up ? 'text-emerald-600' : down ? 'text-rose-600' : 'text-slate-500';
+  const cls = up ? 'text-emerald-600 dark:text-emerald-300' : down ? 'text-rose-600 dark:text-rose-300' : 'text-slate-500 dark:text-white/55';
   return <span className={`inline-flex items-center gap-1 text-xs font-bold ${cls}`}><Icon className="w-4 h-4" />{pct > 0 ? '+' : ''}{pct}%/90 d</span>;
 }
 
 function RouteMiniMap({ positions }) {
+  const { isDark } = useTheme();
   return (
-    <div className="isolate h-56 rounded-xl overflow-hidden border border-slate-100">
+    <div className="isolate h-56 rounded-xl overflow-hidden border border-slate-100 dark:border-white/10">
       <MapContainer bounds={positions} scrollWheelZoom={false} className="w-full h-full" style={{ background: COLORS.hairlineSoft }}>
-        <TileLayer url={getLightMapTileUrl()} attribution={getMapAttribution('light')} />
+        <TileLayer key={isDark ? 'dark' : 'light'} url={isDark ? getDarkMapTileUrl() : getLightMapTileUrl()} attribution={getMapAttribution(isDark ? 'dark' : 'light')} />
         <Polyline positions={positions} pathOptions={{ color: COLORS.paper, weight: 6 }} />
         <Polyline positions={positions} pathOptions={{ color: COLORS.signal, weight: 3 }} />
       </MapContainer>
@@ -49,8 +51,8 @@ function RouteDetail({ route, onOpenActivity }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-700 mb-3">{describeTrend(route)}</p>
+        <div className="lg:col-span-2 bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-sm text-slate-700 dark:text-white/75 mb-3">{describeTrend(route)}</p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -72,7 +74,7 @@ function RouteDetail({ route, onOpenActivity }) {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2">
+          <p className="text-[11px] text-slate-500 dark:text-white/55 mt-2">
             Puntos azules: eficiencia (m/latido sobre GAP) en salidas aeróbicas, las que cuentan para la tendencia.
             Grises: otras intensidades. Línea: ritmo GAP (eje derecho).
           </p>
@@ -80,9 +82,9 @@ function RouteDetail({ route, onOpenActivity }) {
         <RouteMiniMap positions={route.positions} />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 overflow-x-auto">
         <table className="w-full text-sm tabular-nums">
-          <thead className="text-xs text-slate-500 text-left">
+          <thead className="text-xs text-slate-500 dark:text-white/55 text-left">
             <tr>
               <th className="px-4 py-2 font-semibold">Fecha</th>
               <th className="px-4 py-2 font-semibold">Tiempo</th>
@@ -94,16 +96,16 @@ function RouteDetail({ route, onOpenActivity }) {
           </thead>
           <tbody>
             {[...route.sessions].reverse().map((s) => (
-              <tr key={s.id} onClick={() => onOpenActivity?.(s.id)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
+              <tr key={s.id} onClick={() => onOpenActivity?.(s.id)} className="border-t border-slate-100 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.05] cursor-pointer">
                 <td className="px-4 py-1.5">
                   {fmtDate(s.date)}
-                  {route.best?.id === s.id && <span className="ml-2 px-1.5 py-px rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">Mejor GAP</span>}
+                  {route.best?.id === s.id && <span className="ml-2 px-1.5 py-px rounded text-[10px] font-bold uppercase bg-amber-100 dark:bg-amber-400/10 text-amber-800 dark:text-amber-200">Mejor GAP</span>}
                 </td>
                 <td className="px-4 py-1.5">{s.moving_s ? formatDuration(s.moving_s) : '—'}</td>
                 <td className="px-4 py-1.5">{s.speed_ms ? `${formatPaceFromSpeed(s.speed_ms)}/km` : '—'}</td>
                 <td className="px-4 py-1.5 font-semibold">{s.gap_ms ? `${formatPaceFromSpeed(s.gap_ms)}/km` : '—'}</td>
                 <td className="px-4 py-1.5">{s.hr ? Math.round(s.hr) : '—'}</td>
-                <td className={`px-4 py-1.5 ${s.aerobic ? 'text-slate-900' : 'text-slate-400'}`}>{s.ef ? s.ef.toFixed(2) : '—'}</td>
+                <td className={`px-4 py-1.5 ${s.aerobic ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-white/40'}`}>{s.ef ? s.ef.toFixed(2) : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -121,7 +123,7 @@ export default function RouteProgression({ activities, onOpenActivity }) {
 
   if (!routes.length) {
     return (
-      <div className="text-center py-16 text-slate-500 text-sm">
+      <div className="text-center py-16 text-slate-500 dark:text-white/55 text-sm">
         Aún no hay recorridos repetidos: hacen falta al menos 3 salidas por el mismo circuito con GPS.
       </div>
     );
@@ -133,12 +135,12 @@ export default function RouteProgression({ activities, onOpenActivity }) {
         {routes.map((r, i) => (
           <button
             key={r.id} type="button" onClick={() => setSelectedId(r.id)}
-            className={`shrink-0 text-left rounded-xl border px-3 py-2 min-w-44 transition-colors ${selected.id === r.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+            className={`shrink-0 text-left rounded-xl border px-3 py-2 min-w-44 transition-colors ${selected.id === r.id ? 'border-blue-500 bg-teal-50 dark:bg-teal-400/10' : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:border-slate-400'}`}
           >
-            <p className="text-sm font-bold text-slate-900 truncate max-w-52">{r.name ?? `Recorrido ${i + 1}`}</p>
-            <p className="text-xs text-slate-500">{r.distance_km} km · {r.sessions.length} veces</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-52">{r.name ?? `Recorrido ${i + 1}`}</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">{r.distance_km} km · {r.sessions.length} veces</p>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <span className="text-xs text-slate-600">GAP med. {r.median_gap_ms ? formatPaceFromSpeed(r.median_gap_ms) : '—'}</span>
+              <span className="text-xs text-slate-600 dark:text-white/75">GAP med. {r.median_gap_ms ? formatPaceFromSpeed(r.median_gap_ms) : '—'}</span>
               <TrendBadge pct={r.ef_trend_pct_per_90d} />
             </div>
           </button>

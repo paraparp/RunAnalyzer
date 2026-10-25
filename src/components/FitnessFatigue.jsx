@@ -111,11 +111,11 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
 
   const metrics = [
     { label: es ? 'Fitness' : 'Fitness', abbr: 'CTL', value: Math.round(shown.Fitness), color: PMC.fitness,
-      sub: <span className={ctlDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-        {fmtSigned(ctlDelta)} <span className="text-slate-500 font-medium">{es ? 'en el periodo' : 'this period'}</span>
+      sub: <span className={ctlDelta >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}>
+        {fmtSigned(ctlDelta)} <span className="text-slate-500 dark:text-white/55 font-medium">{es ? 'en el periodo' : 'this period'}</span>
       </span> },
     { label: es ? 'Fatiga' : 'Fatigue', abbr: 'ATL', value: Math.round(shown.Fatiga), color: PMC.fatigue,
-      sub: <span className="text-slate-500 font-medium">
+      sub: <span className="text-slate-500 dark:text-white/55 font-medium">
         {shown.load > 0 ? `${es ? 'Carga del día' : 'Day load'} ${Math.round(shown.load)}` : (es ? 'Descanso' : 'Rest day')}
       </span> },
     { label: es ? 'Forma' : 'Form', abbr: 'TSB', value: fmtSigned(Math.round(shown.Forma)), color: formColor,
@@ -123,18 +123,18 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
         style={{ background: `${formColor}1a`, color: formColor }}>{t(`fitness.status.${formKey}`)}</span> },
   ];
 
-  const navBtn = 'p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+  const navBtn = 'p-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-700 dark:hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
   const zonesInView = FORM_ZONES
     .map(z => ({ ...z, y1: Math.max(z.y1, tsbDomain[0]), y2: Math.min(z.y2, tsbDomain[1]) }))
     .filter(z => z.y2 > z.y1);
 
   return (
-    <Card className="shadow-lg border-slate-200 overflow-hidden">
+    <Card className="shadow-lg border-slate-200 dark:border-white/10 overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-start gap-3 mb-5">
         <div>
-          <Title className="text-slate-800 font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
-          <Text className="text-slate-500 text-xs">{t('fitness.pmc.desc')}</Text>
+          <Title className="text-slate-800 dark:text-white font-bold mb-0.5">{t('fitness.pmc.title')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-xs">{t('fitness.pmc.desc')}</Text>
         </div>
         {months != null && (
           <div className="flex gap-1 shrink-0">
@@ -156,14 +156,14 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
 
       {/* Lectura en vivo: sigue al cursor, vuelve a hoy al salir */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2 min-h-[20px]">
-        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{dateLabel}</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-white/75">{dateLabel}</span>
         {acts.length > 0 ? (
-          <span className="text-xs text-slate-500 truncate max-w-full">
+          <span className="text-xs text-slate-500 dark:text-white/55 truncate max-w-full">
             · {acts[0].name} · {(acts[0].distance / 1000).toFixed(1)} km
             {acts.length > 1 && ` +${acts.length - 1}`}
           </span>
         ) : (
-          <span className="text-xs text-slate-500">· {es ? 'Sin actividad' : 'No activity'}</span>
+          <span className="text-xs text-slate-500 dark:text-white/55">· {es ? 'Sin actividad' : 'No activity'}</span>
         )}
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
@@ -172,8 +172,8 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
             style={{ background: `linear-gradient(135deg, ${m.color}14, ${m.color}05)`, borderColor: `${m.color}2e` }}>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-              <span className="text-label font-bold uppercase text-slate-500">
-                {m.label} <span className="hidden sm:inline text-slate-500">· {m.abbr}</span>
+              <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">
+                {m.label} <span className="hidden sm:inline text-slate-500 dark:text-white/55">· {m.abbr}</span>
               </span>
             </div>
             <p className="text-2xl sm:text-4xl font-black tabular-nums leading-tight mt-1 transition-colors" style={{ color: m.color }}>
@@ -231,8 +231,8 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
       </div>
 
       {/* Panel 2 — Carga diaria */}
-      <div className="relative h-[56px] w-full border-t border-slate-100">
-        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 pointer-events-none z-10">
+      <div className="relative h-[56px] w-full border-t border-slate-100 dark:border-white/10">
+        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 dark:text-white/55 pointer-events-none z-10">
           {t('fitness.pmc.daily_load')}
         </span>
         <ResponsiveContainer width="100%" height="100%">
@@ -256,8 +256,8 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
       </div>
 
       {/* Panel 3 — Forma (TSB): verde por encima de 0, rojo por debajo */}
-      <div className="relative h-[170px] w-full border-t border-slate-100">
-        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 pointer-events-none z-10">
+      <div className="relative h-[170px] w-full border-t border-slate-100 dark:border-white/10">
+        <span className="absolute left-0 top-1 text-label font-bold uppercase text-slate-500 dark:text-white/55 pointer-events-none z-10">
           {es ? 'Forma · TSB' : 'Form · TSB'}
         </span>
         <ResponsiveContainer width="100%" height="100%">
@@ -297,12 +297,12 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
 
       {/* ── Panel actividades del día seleccionado ── */}
       {selectedDay?.acts?.length > 0 && (
-        <div className="mt-4 border-t border-slate-100 pt-4">
+        <div className="mt-4 border-t border-slate-100 dark:border-white/10 pt-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-500 dark:text-white/55 uppercase tracking-wider">
               {new Date(selectedDay.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
-            <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+            <button onClick={() => setSelectedDay(null)} className="p-1 rounded-md text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors">
               <XMarkIcon className="w-4 h-4" />
             </button>
           </div>
@@ -310,11 +310,11 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
             {selectedDay.acts.map((a, i) => (
               <a key={i} href={`https://www.strava.com/activities/${a.id}`}
                 target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all group"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all group"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-800 text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
+                  <p className="font-semibold text-slate-800 dark:text-white text-xs group-hover:text-orange-600 transition-colors truncate">{a.name}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500 dark:text-white/55">
                     {a.moving_time > 0 && <span>⏱ {timeStr(a.moving_time)}</span>}
                     {isRun(a)
                       ? (a.average_speed > 0 && <span>⚡ {paceStr(a.average_speed)}/km</span>)
@@ -324,8 +324,8 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-3">
-                  <span className="font-bold text-slate-700 text-sm">{(a.distance / 1000).toFixed(1)} km</span>
-                  <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
+                  <span className="font-bold text-slate-700 dark:text-white/75 text-sm">{(a.distance / 1000).toFixed(1)} km</span>
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-300 dark:text-white/40 group-hover:text-orange-400 transition-colors" />
                 </div>
               </a>
             ))}
@@ -333,7 +333,7 @@ function PMCChart({ data, months, offsetMonths, canGoBack, setOffsetMonths, peak
         </div>
       )}
       {!selectedDay && (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-slate-500 dark:text-white/55">
           {es ? 'Pulsa una barra de carga para ver las sesiones de ese día.' : 'Click a load bar to see that day’s sessions.'}
         </p>
       )}
@@ -352,16 +352,16 @@ function ScatterTooltip({ active, payload }) {
   const d = payload[0].payload;
   const paceFmt = formatPaceFromMinPerKm(d.pace);
   return (
-    <div className="bg-white/95 p-4 border border-slate-200 shadow-xl rounded-xl min-w-[200px]">
-      <p className="font-bold text-slate-800 text-sm mb-2">{d.name}</p>
+    <div className="bg-white/95 dark:bg-[#0c0e12]/95 p-4 border border-slate-200 dark:border-white/10 shadow-xl rounded-xl min-w-[200px]">
+      <p className="font-bold text-slate-800 dark:text-white text-sm mb-2">{d.name}</p>
       <div className="space-y-1">
-        <p className="text-xs text-slate-500">{es ? 'Fecha' : 'Date'}: <span className="font-bold text-slate-900">{d.dateStrFmt}</span></p>
-        <p className="text-xs text-slate-500">CTL: <span className="font-bold text-slate-900">{d.Fitness}</span></p>
-        <p className="text-xs text-slate-500">TSB: <span className={`font-bold ${d.Forma > 5 ? 'text-emerald-600' : d.Forma < -10 ? 'text-rose-600' : 'text-slate-900'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
-        <p className="text-xs text-slate-500">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-blue-600">{paceFmt} /km</span></p>
-        <p className="text-xs text-slate-500">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900">{d.distance} km</span></p>
+        <p className="text-xs text-slate-500 dark:text-white/55">{es ? 'Fecha' : 'Date'}: <span className="font-bold text-slate-900 dark:text-white">{d.dateStrFmt}</span></p>
+        <p className="text-xs text-slate-500 dark:text-white/55">CTL: <span className="font-bold text-slate-900 dark:text-white">{d.Fitness}</span></p>
+        <p className="text-xs text-slate-500 dark:text-white/55">TSB: <span className={`font-bold ${d.Forma > 5 ? 'text-emerald-600 dark:text-emerald-300' : d.Forma < -10 ? 'text-rose-600 dark:text-rose-300' : 'text-slate-900 dark:text-white'}`}>{d.Forma > 0 ? '+' : ''}{d.Forma}</span></p>
+        <p className="text-xs text-slate-500 dark:text-white/55">{es ? 'Ritmo' : 'Pace'}: <span className="font-bold text-teal-700 dark:text-teal-300">{paceFmt} /km</span></p>
+        <p className="text-xs text-slate-500 dark:text-white/55">{es ? 'Distancia' : 'Distance'}: <span className="font-bold text-slate-900 dark:text-white">{d.distance} km</span></p>
       </div>
-      <p className="text-xs text-slate-500 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
+      <p className="text-xs text-slate-500 dark:text-white/55 mt-2">{es ? '(Clic para abrir en Strava)' : '(Click to open in Strava)'}</p>
     </div>
   );
 }
@@ -520,9 +520,9 @@ export default function FitnessFatigue({ activities }) {
   // ── No data ──────────────────────────────────────────────────────────────────
   if (!current) {
     return (
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold">{t('fitness.title')}</Title>
-        <Text className="text-slate-500 mt-2">{t('fitness.no_data')}</Text>
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold">{t('fitness.title')}</Title>
+        <Text className="text-slate-500 dark:text-white/55 mt-2">{t('fitness.no_data')}</Text>
       </Card>
     );
   }
@@ -560,19 +560,19 @@ export default function FitnessFatigue({ activities }) {
               <span className="p-1.5 rounded-lg" style={{ background: `${it.color}1f`, color: it.color }}>
                 <it.icon className="w-4 h-4" />
               </span>
-              <span className="text-label font-bold uppercase text-slate-500">{it.title}</span>
+              <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{it.title}</span>
             </div>
             <p className="text-sm font-black tabular-nums" style={{ color: it.color }}>{it.value}</p>
-            <p className="text-xs text-slate-600 leading-relaxed mt-1">{it.desc}</p>
+            <p className="text-xs text-slate-600 dark:text-white/75 leading-relaxed mt-1">{it.desc}</p>
           </div>
         ))}
       </div>
 
       {/* ── Scatter: forma vs rendimiento ────────────────────────────────────── */}
       {topEfforts.length > 0 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('fitness.performance_vs_fitness')}</Title>
-          <Text className="text-slate-500 text-xs mb-4">
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('fitness.performance_vs_fitness')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-xs mb-4">
             {es ? 'Rodajes llanos de 3 km o más: ritmo frente a fitness, coloreados por la forma de ese día.'
                 : 'Flat runs of 3 km or more: pace against fitness, coloured by that day\u2019s form.'}
           </Text>
@@ -605,7 +605,7 @@ export default function FitnessFatigue({ activities }) {
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                <span className="text-xs text-slate-500 font-medium">{l.label}</span>
+                <span className="text-xs text-slate-500 dark:text-white/55 font-medium">{l.label}</span>
               </div>
             ))}
           </div>

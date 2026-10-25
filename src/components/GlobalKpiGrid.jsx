@@ -95,19 +95,19 @@ export default function GlobalKpiGrid({ activities }) {
   return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Card 1: Distancia */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.distance')}</span>
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.distance')}</span>
             <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-950/60 dark:text-blue-400">
               <span className="material-symbols-outlined text-[16px]">straighten</span>
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {fmtInt(globalKpis.distanceKm)}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">km</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">km</span>
             </div>
             {globalKpis.trend30 != null ? (
               <div className={`mt-1 flex items-center gap-1 text-xs font-bold ${
@@ -119,27 +119,27 @@ export default function GlobalKpiGrid({ activities }) {
                 <span>{globalKpis.trend30 >= 0 ? '+' : ''}{globalKpis.trend30}% vs mes ant.</span>
               </div>
             ) : (
-              <div className="mt-1 text-xs font-medium text-slate-500">Sin mes previo comparable</div>
+              <div className="mt-1 text-xs font-medium text-slate-500 dark:text-white/55">Sin mes previo comparable</div>
             )}
           </div>
         </div>
 
         {/* Card 2: Sesiones */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.activities')}</span>
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.activities')}</span>
             <div className="w-7 h-7 rounded-full bg-cyan-50 text-cyan-600 flex items-center justify-center dark:bg-cyan-950/60 dark:text-cyan-400">
               <ClockIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {globalKpis.sessionsCount}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">runs</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">runs</span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-white/55">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
               {/* Cobertura real de pulsómetro, no un "100% sincronizado" fijo. */}
               <span>{globalKpis.hrCoveragePct != null ? `${globalKpis.hrCoveragePct}% con FC` : 'Sin datos de FC'}</span>
@@ -148,40 +148,40 @@ export default function GlobalKpiGrid({ activities }) {
         </div>
 
         {/* Card 3: Tiempo Activo */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.time')}</span>
-            <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center dark:bg-slate-800 dark:text-slate-300">
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.time')}</span>
+            <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center dark:bg-white/[0.06] dark:text-white/75">
               <ClockIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {fmtInt(globalKpis.totalHours)}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">horas</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">horas</span>
             </div>
-            <div className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-xs font-medium text-slate-500 dark:text-white/55">
               Media {fmtNum(globalKpis.weeklyHours)}h / semana
             </div>
           </div>
         </div>
 
         {/* Card 4: Ritmo Medio */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.avg_pace')}</span>
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.avg_pace')}</span>
             <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center dark:bg-emerald-950/60 dark:text-emerald-400">
               <FireIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {globalKpis.avgPace}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">/km</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">/km</span>
             </div>
             <div className="mt-1">
               <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
@@ -192,19 +192,19 @@ export default function GlobalKpiGrid({ activities }) {
         </div>
 
         {/* Card 5: Ritmo Ajustado (GAP) */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.gap')}</span>
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.gap')}</span>
             <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center dark:bg-indigo-950/60 dark:text-indigo-400">
               <SparklesIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {globalKpis.avgGap}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">/km</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">/km</span>
             </div>
             <div className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-400">
               {globalKpis.gapGainSec != null ? `-${globalKpis.gapGainSec}s compensado D+` : 'Sin desnivel registrado'}
@@ -213,21 +213,21 @@ export default function GlobalKpiGrid({ activities }) {
         </div>
 
         {/* Card 6: Elevación Acumulada */}
-        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col justify-between p-4 rounded-xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow dark:border-white/10 dark:bg-white/[0.03]">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-label font-bold uppercase text-slate-500 dark:text-slate-500">{t('dashboard.elevation')}</span>
+            <span className="text-label font-bold uppercase text-slate-500 dark:text-white/45">{t('dashboard.elevation')}</span>
             <div className="w-7 h-7 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center dark:bg-amber-950/60 dark:text-amber-400">
               <FlagIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 dark:text-slate-50 tabular-nums">
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                 {fmtInt(globalKpis.elevationM)}
               </span>
-              <span className="text-xs text-slate-500 font-semibold">m D+</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">m D+</span>
             </div>
-            <div className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-xs font-medium text-slate-500 dark:text-white/55">
               {fmtNum(globalKpis.everestEquiv)}x Everest Equiv.
             </div>
           </div>

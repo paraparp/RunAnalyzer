@@ -11,7 +11,7 @@ vi.mock('garmin-connect', () => ({ default: { GarminConnect: class { async login
 
 const {
   normalizeGarminActivity, normalizeGarminLap, deriveHrSource, deriveDataQuality,
-  enrichGarminActivity, fetchGarminActivities, fetchDayData,
+  enrichGarminActivity, fetchGarminActivities, fetchDayData, sleepAvgHr,
   mergeData, mergeSleepData, threeMonthChunks, toDateStr,
 } = await import('./garmin-helpers.js');
 
@@ -311,6 +311,22 @@ describe('fetchDayData', () => {
     expect(sleepCalls).toBe(0);
   });
 
+  it('withSleep guarda la noche y reutiliza la misma llamada para la VFC', async () => {
+    let sleepCalls = 0;
+    const c = client({
+      sleep: async () => {
+        sleepCalls++;
+        return {
+          avgOvernightHrv: 31,
+          dailySleepDTO: { sleepTimeSeconds: 26220, deepSleepSeconds: 5340, sleepScores: { overall: { value: 58 } } },
+        };
+      },
+    });
+    const row = await fetchDayData(c, '2026-07-15', null, null, { withSleep: true });
+    expect(row).toMatchObject({ hrv: 31, sleepScore: 58, sleepMin: 437, deepSleepMin: 89 });
+    expect(sleepCalls).toBe(1);
+  });
+
   it('sin bulk cae al sueño y, si tampoco, al hrv-service', async () => {
     const porSueno = await fetchDayData(client({ sleep: async () => ({ avgOvernightHrv: 58, restingHeartRate: 44 }) }), '2026-07-15');
     expect(porSueno).toMatchObject({ hrv: 58, restingHR: 44 });
@@ -347,5 +363,13 @@ describe('merges y ventanas', () => {
     expect(dias[dias.length - 1]).toBe(toDateStr(new Date()));
     expect(chunks.length).toBeGreaterThan(1);
     expect(threeMonthChunks(1)).toEqual([[toDateStr(new Date())]]);
+  });
+});
+
+describe('sleepAvgHr', () => {
+  it('usa la media de Garmin y, sin ella, la de la serie nocturna', () => {
+    expect(sleepAvgHr({ dailySleepDTO: { avgHeartRate: 51.24 } })).toBe(51.2);
+    expect(sleepAvgHr({ dailySleepDTO: {}, sleepHeartRate: [{ value: 50 }, { value: 54 }, { value: null }] })).toBe(52);
+    expect(sleepAvgHr({})).toBeNull();
   });
 });

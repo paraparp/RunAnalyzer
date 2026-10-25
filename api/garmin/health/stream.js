@@ -49,7 +49,7 @@ export default async function handler(req, res, { getClient = createClient, onEr
       const chunkData = [];
 
       for (const dateStr of dates) {
-        const row = await fetchDayData(client, dateStr, hrvMap, bbMap);
+        const row = await fetchDayData(client, dateStr, hrvMap, bbMap, { withSleep: true });
         if (row) chunkData.push(row);
         await new Promise(r => setTimeout(r, 120));
       }

@@ -33,7 +33,7 @@ export default async function handler(req, res, { getClient = createClient, onEr
     for (let i = totalDays - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const row = await fetchDayData(client, toDateStr(d), hrvMap, bbMap);
+      const row = await fetchDayData(client, toDateStr(d), hrvMap, bbMap, { withSleep: true });
       if (row) results.push(row);
       await new Promise(r => setTimeout(r, 120));
     }

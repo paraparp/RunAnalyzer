@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from 'react-l
 import 'leaflet/dist/leaflet.css';
 import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
+import useTheme from '../hooks/useTheme';
 import { getLightMapTileUrl, getDarkMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 import { RouteShape } from './TodayVisuals';
 import { COLORS } from '../lib/palette';
@@ -37,9 +38,10 @@ function FitRoute({ bounds, padding }) {
  * ('light' | 'dark'); en modo interactivo manda el selector Mapa/Satélite de
  * siempre.
  */
-export default function RouteMap({ encoded, className = '', interactive = true, theme = 'light' }) {
+export default function RouteMap({ encoded, className = '', interactive = true, theme }) {
   const { t } = useTranslation();
   const [layer, setLayer] = useState('map');
+  const { isDark } = useTheme();
   const points = useMemo(() => {
     try { return encoded ? polyline.decode(encoded) : []; } catch { return []; }
   }, [encoded]);
@@ -48,7 +50,10 @@ export default function RouteMap({ encoded, className = '', interactive = true, 
 
   const start = points[0];
   const end = points[points.length - 1];
-  const effectiveLayer = interactive ? layer : theme;
+  // «Mapa» sigue al tema de la app; las fichas no interactivas usan su `theme`
+  // o, si no lo traen, también el de la app.
+  const appLayer = isDark ? 'dark' : 'light';
+  const effectiveLayer = interactive ? (layer === 'map' ? appLayer : layer) : (theme ?? appLayer);
   const tileUrl = effectiveLayer === 'satellite' ? getSatelliteMapTileUrl()
     : effectiveLayer === 'dark' ? getDarkMapTileUrl()
     : getLightMapTileUrl();
@@ -95,14 +100,14 @@ export default function RouteMap({ encoded, className = '', interactive = true, 
         <FitRoute bounds={points} padding={pad} />
       </MapContainer>
       {interactive && (
-        <div role="group" className="absolute top-2 right-2 z-[1000] flex rounded bg-white shadow-sm ring-1 ring-slate-200 p-0.5 text-xs font-semibold">
+        <div role="group" className="absolute top-2 right-2 z-[1000] flex rounded bg-white dark:bg-[#0c0e12] shadow-sm ring-1 ring-slate-200 dark:ring-white/10 p-0.5 text-xs font-semibold">
           {['map', 'satellite'].map((l) => (
             <button
               key={l}
               type="button"
               aria-pressed={layer === l}
               onClick={(e) => { e.stopPropagation(); setLayer(l); }}
-              className={`px-2 py-0.5 rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 ${layer === l ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+              className={`px-2 py-0.5 rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 ${layer === l ? 'bg-slate-900 text-white' : 'text-slate-500 dark:text-white/55 hover:text-slate-900 dark:hover:text-white'}`}
             >
               {t(`session.layer_${l}`)}
             </button>

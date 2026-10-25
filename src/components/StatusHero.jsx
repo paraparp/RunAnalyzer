@@ -265,31 +265,31 @@ export default function StatusHero({ activities }) {
           de arriba; esto es para cuando quieres saber respecto a qué. */}
       <CollapsibleSection title="Estado actual vs mejor histórico" defaultOpen={false}>
       {/* ── Comparison Table ── */}
-      <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white overflow-x-auto">
+      <Card className="p-5 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03] overflow-x-auto">
         <div className="flex items-center gap-2 mb-4">
-          <HeartIcon className="w-4 h-4 text-slate-400" />
-          <Text className="font-bold text-slate-700 text-sm">Estado actual vs mejor histórico</Text>
+          <HeartIcon className="w-4 h-4 text-slate-400 dark:text-white/40" />
+          <Text className="font-bold text-slate-700 dark:text-white/75 text-sm">Estado actual vs mejor histórico</Text>
         </div>
         <table className="w-full text-sm min-w-[560px]">
           <thead>
-            <tr className="border-b border-slate-100">
-              <th className="text-left py-2 px-2 text-xs font-bold uppercase text-slate-500 w-48">Métrica</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Ahora</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Mejor año</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">Pico histórico</th>
-              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500">% pico</th>
-              <th className="text-center py-2 px-3 text-xs font-bold uppercase text-slate-500">Tendencia 8s</th>
+            <tr className="border-b border-slate-100 dark:border-white/10">
+              <th className="text-left py-2 px-2 text-xs font-bold uppercase text-slate-500 dark:text-white/55 w-48">Métrica</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500 dark:text-white/55">Ahora</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500 dark:text-white/55">Mejor año</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500 dark:text-white/55">Pico histórico</th>
+              <th className="text-right py-2 px-3 text-xs font-bold uppercase text-slate-500 dark:text-white/55">% pico</th>
+              <th className="text-center py-2 px-3 text-xs font-bold uppercase text-slate-500 dark:text-white/55">Tendencia 8s</th>
             </tr>
           </thead>
           <tbody>
             {tableRows.map((row, i) => (
-              <tr key={i} className={`border-b border-slate-50 ${i % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
-                <td className="py-2.5 px-2 font-semibold text-slate-600 text-xs whitespace-nowrap">{row.label}</td>
-                <td className="py-2.5 px-3 text-right font-black text-slate-800 text-sm">{row.now}</td>
-                <td className="py-2.5 px-3 text-right text-slate-500 text-xs">{row.bestYear}</td>
-                <td className="py-2.5 px-3 text-right text-slate-500 text-xs">{row.bestAll}</td>
+              <tr key={i} className={`border-b border-slate-50 dark:border-white/10 ${i % 2 === 0 ? '' : 'bg-slate-50/50 dark:bg-white/[0.04]'}`}>
+                <td className="py-2.5 px-2 font-semibold text-slate-600 dark:text-white/75 text-xs whitespace-nowrap">{row.label}</td>
+                <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-white text-sm">{row.now}</td>
+                <td className="py-2.5 px-3 text-right text-slate-500 dark:text-white/55 text-xs">{row.bestYear}</td>
+                <td className="py-2.5 px-3 text-right text-slate-500 dark:text-white/55 text-xs">{row.bestAll}</td>
                 <td className="py-2.5 px-3 text-right">
-                  {row.noCompare ? <span className="text-slate-300 text-xs">—</span>
+                  {row.noCompare ? <span className="text-slate-300 dark:text-white/40 text-xs">—</span>
                     : <PctPill now={row.nowRaw} best={row.bestAllRaw} lowerIsBetter={row.lowerIsBetter} />}
                 </td>
                 <td className="py-2.5 px-3 flex justify-center items-center">

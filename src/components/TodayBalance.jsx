@@ -36,25 +36,25 @@ const ZONES = [
 
 // La lectura polarizada: Z1+Z2 fácil · Z3 gris · Z4+Z5 duro (lib/zoneMix).
 const GROUPS = [
-  { key: 'low',  label: 'Fácil',  sub: 'Z1–Z2', color: '#4ade80', text: 'text-emerald-600' },
-  { key: 'mod',  label: 'Gris',   sub: 'Z3',    color: COLORS.cautionLight, text: 'text-amber-600'   },
-  { key: 'high', label: 'Duro',   sub: 'Z4–Z5', color: COLORS.riskLight, text: 'text-rose-600'    },
+  { key: 'low',  label: 'Fácil',  sub: 'Z1–Z2', color: '#4ade80', text: 'text-emerald-600 dark:text-emerald-300' },
+  { key: 'mod',  label: 'Gris',   sub: 'Z3',    color: COLORS.cautionLight, text: 'text-amber-600 dark:text-amber-300'   },
+  { key: 'high', label: 'Duro',   sub: 'Z4–Z5', color: COLORS.riskLight, text: 'text-rose-600 dark:text-rose-300'    },
 ];
 
 const VERDICT = {
-  ok:   { label: '80/20 cumplido', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  gray: { label: 'Zona gris',      cls: 'bg-amber-50 text-amber-700 ring-amber-200'       },
-  low:  { label: 'Falta calidad',  cls: 'bg-sky-50 text-sky-700 ring-sky-200'             },
-  mod:  { label: 'Reparto mixto',  cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200'    },
+  ok:   { label: '80/20 cumplido', cls: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300 ring-emerald-200' },
+  gray: { label: 'Zona gris',      cls: 'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-amber-200'       },
+  low:  { label: 'Falta calidad',  cls: 'bg-sky-50 dark:bg-sky-400/10 text-sky-700 dark:text-sky-300 ring-sky-200'             },
+  mod:  { label: 'Reparto mixto',  cls: 'bg-indigo-50 dark:bg-indigo-400/10 text-indigo-700 dark:text-indigo-300 ring-indigo-200'    },
 };
 
 const PHASE_CLS = {
   // Mismos colores que la tarjeta de estado del PMC.
-  transition: 'bg-sky-50 text-sky-700 ring-sky-200',
-  fresh:      'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  optimal:    'bg-blue-50 text-blue-700 ring-blue-200',
-  loaded:     'bg-amber-50 text-amber-700 ring-amber-200',
-  overloaded: 'bg-rose-50 text-rose-700 ring-rose-200',
+  transition: 'bg-sky-50 dark:bg-sky-400/10 text-sky-700 dark:text-sky-300 ring-sky-200',
+  fresh:      'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300 ring-emerald-200',
+  optimal:    'bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 ring-blue-200',
+  loaded:     'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-amber-200',
+  overloaded: 'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300 ring-rose-200',
 };
 
 const hoursStr = (sec) => {
@@ -74,17 +74,17 @@ function PanelHead({ icon: Icon, title, scope, badge, onOpen, openLabel }) {
     <div className="flex items-start justify-between gap-3 mb-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-slate-500 shrink-0" />
-          <h3 className="text-sm font-bold text-slate-800 truncate">{title}</h3>
+          <Icon className="w-4 h-4 text-slate-500 dark:text-white/55 shrink-0" />
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white truncate">{title}</h3>
         </div>
-        <p className="text-xs text-slate-500 mt-0.5">{scope}</p>
+        <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{scope}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {badge}
         {onOpen && (
           <button
             onClick={onOpen}
-            className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
+            className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200"
           >
             {openLabel}
             <ArrowRightIcon className="w-3 h-3" />
@@ -102,13 +102,13 @@ function ScaleBar({ label, value, pct, bar, note }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="text-xs font-semibold text-slate-600">{label}</span>
-        <span className="text-xs text-slate-500">
-          <span className="font-black text-slate-800 text-sm tabular-nums">{value}</span>
+        <span className="text-xs font-semibold text-slate-600 dark:text-white/75">{label}</span>
+        <span className="text-xs text-slate-500 dark:text-white/55">
+          <span className="font-black text-slate-800 dark:text-white text-sm tabular-nums">{value}</span>
           {note && <span className="ml-1.5">{note}</span>}
         </span>
       </div>
-      <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+      <div className="h-2.5 rounded-full bg-slate-100 dark:bg-white/[0.04] overflow-hidden">
         <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.max(2, Math.min(100, pct))}%` }} />
       </div>
     </div>
@@ -146,22 +146,22 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
   const scale = cur ? Math.max(cur.peak, cur.ctl, cur.atl, 1) : 1;
 
   const acwr = cur?.acwr ?? null;
-  const acwrCls = acwr == null ? 'text-slate-500'
-    : acwr > 1.5 ? 'text-rose-600'
-    : acwr > 1.3 ? 'text-amber-600'
-    : acwr < 0.8 ? 'text-sky-600'
-    : 'text-emerald-600';
+  const acwrCls = acwr == null ? 'text-slate-500 dark:text-white/55'
+    : acwr > 1.5 ? 'text-rose-600 dark:text-rose-300'
+    : acwr > 1.3 ? 'text-amber-600 dark:text-amber-300'
+    : acwr < 0.8 ? 'text-sky-600 dark:text-sky-300'
+    : 'text-emerald-600 dark:text-emerald-300';
 
   // Rampa semanal de CTL: por encima de ~7 puntos/semana es el ritmo de subida
   // que se asocia a sobrecarga.
   const ramp = cur?.ramp ?? 0;
-  const rampCls = ramp > 7 ? 'text-amber-600' : ramp >= 0 ? 'text-emerald-600' : 'text-slate-500';
+  const rampCls = ramp > 7 ? 'text-amber-600 dark:text-amber-300' : ramp >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-white/55';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
       {/* ── Reparto por zonas (28 d) ── */}
-      <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white">
+      <Card className="p-5 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
         <PanelHead
           icon={ChartPieIcon}
           title="Distribución de zonas"
@@ -172,19 +172,19 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
         />
 
         {!mix?.hasData ? (
-          <p className="text-xs text-slate-500 py-6 text-center">
+          <p className="text-xs text-slate-500 dark:text-white/55 py-6 text-center">
             Sin sesiones con frecuencia cardíaca en los últimos {WINDOW_DAYS} días.
           </p>
         ) : (
           <>
             <div className="flex items-end justify-between gap-3 mb-3">
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black leading-none text-emerald-600 tabular-nums">
+                <span className="text-4xl font-black leading-none text-emerald-600 dark:text-emerald-300 tabular-nums">
                   {Math.round(groups.low)}%
                 </span>
-                <span className="text-xs font-semibold text-slate-500">fácil (Z1–Z2)</span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-white/55">fácil (Z1–Z2)</span>
               </div>
-              <span className="text-xs text-slate-500 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
+              <span className="text-xs text-slate-500 dark:text-white/55 pb-0.5">objetivo ≥ {POLARIZED_TARGETS.low}%</span>
             </div>
 
             {/* Dos lecturas del mismo reparto: las cinco zonas de Karvonen y,
@@ -192,7 +192,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 objetivo de volumen fácil: el veredicto se VE, no hay que
                 creerse la pastilla. */}
             <div className="relative">
-              <div className="h-4 rounded bg-slate-100 overflow-hidden flex">
+              <div className="h-4 rounded bg-slate-100 dark:bg-white/[0.04] overflow-hidden flex">
                 {ZONES.map((z, i) => (
                   <div
                     key={z.key}
@@ -201,7 +201,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                   />
                 ))}
               </div>
-              <div className="h-1.5 mt-1 rounded-full bg-slate-100 overflow-hidden flex">
+              <div className="h-1.5 mt-1 rounded-full bg-slate-100 dark:bg-white/[0.04] overflow-hidden flex">
                 {GROUPS.map((g) => (
                   <div
                     key={g.key}
@@ -222,21 +222,21 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 <div key={z.key} className="min-w-0">
                   <div className="flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: z.color }} />
-                    <span className="text-xs font-bold text-slate-500 truncate">{z.name}</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-white/55 truncate">{z.name}</span>
                   </div>
-                  <div className="text-sm font-black text-slate-700 tabular-nums leading-tight">{mix.pct[i]}%</div>
-                  <div className="text-xs text-slate-500 tabular-nums">{hoursStr(mix.times[i])}</div>
+                  <div className="text-sm font-black text-slate-700 dark:text-white/75 tabular-nums leading-tight">{mix.pct[i]}%</div>
+                  <div className="text-xs text-slate-500 dark:text-white/55 tabular-nums">{hoursStr(mix.times[i])}</div>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-3 pt-3 border-t border-slate-100 dark:border-white/10">
               {GROUPS.map((g) => (
-                <span key={g.key} className="text-xs text-slate-500">
+                <span key={g.key} className="text-xs text-slate-500 dark:text-white/55">
                   {g.label} <span className={`font-black tabular-nums ${g.text}`}>{groups[g.key]}%</span>
                 </span>
               ))}
-              <span className="text-xs text-slate-500 ml-auto">
+              <span className="text-xs text-slate-500 dark:text-white/55 ml-auto">
                 {mix.sessions} sesiones · {hoursStr(mix.totalSec)} con FC
                 {mix.avgOnlySessions > 0 && ` · ${mix.avgOnlySessions} sin parciales`}
               </span>
@@ -246,7 +246,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
       </Card>
 
       {/* ── Carga contra la propia capacidad ── */}
-      <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white">
+      <Card className="p-5 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
         <PanelHead
           icon={ScaleIcon}
           title="Carga y forma"
@@ -257,7 +257,7 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
         />
 
         {!cur ? (
-          <p className="text-xs text-slate-500 py-6 text-center">Aún no hay carga suficiente para el modelo.</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 py-6 text-center">Aún no hay carga suficiente para el modelo.</p>
         ) : (
           <>
             <div className="space-y-3">
@@ -281,8 +281,8 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 la distancia al cero, no el número suelto. */}
             <div className="mt-4">
               <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className="text-xs font-semibold text-slate-600">Frescura (TSB)</span>
-                <span className="text-sm font-black text-slate-800 tabular-nums">
+                <span className="text-xs font-semibold text-slate-600 dark:text-white/75">Frescura (TSB)</span>
+                <span className="text-sm font-black text-slate-800 dark:text-white tabular-nums">
                   {cur.tsb >= 0 ? '+' : ''}{fmt1(cur.tsb)}
                 </span>
               </div>
@@ -294,36 +294,36 @@ export default function TodayBalance({ activities, runActivities, hrParams, onOp
                 return (
                   <div className="relative h-4">
                     <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full overflow-hidden flex">
-                      <div className="w-[33%] bg-rose-100"    title="Fatiga alta" />
-                      <div className="w-[17%] bg-orange-100"  title="Bloque de carga" />
-                      <div className="w-[25%] bg-emerald-100" title="Rango productivo" />
-                      <div className="w-[25%] bg-sky-100"     title="Fresco / afinado" />
+                      <div className="w-[33%] bg-rose-100 dark:bg-rose-400/10"    title="Fatiga alta" />
+                      <div className="w-[17%] bg-orange-100 dark:bg-orange-400/10"  title="Bloque de carga" />
+                      <div className="w-[25%] bg-emerald-100 dark:bg-emerald-400/10" title="Rango productivo" />
+                      <div className="w-[25%] bg-sky-100 dark:bg-sky-400/10"     title="Fresco / afinado" />
                     </div>
                     <div className="absolute top-0 bottom-0 w-px bg-slate-300" style={{ left: '50%' }} />
                     <div
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white ring-2 ring-slate-700 shadow"
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white dark:bg-[#0c0e12] ring-2 ring-slate-700 shadow"
                       style={{ left: `${left}%` }}
                       title={`TSB ${fmt1(cur.tsb)}`}
                     />
                   </div>
                 );
               })()}
-              <div className="flex justify-between text-xs text-slate-500 mt-1">
+              <div className="flex justify-between text-xs text-slate-500 dark:text-white/55 mt-1">
                 <span>fatiga</span><span>equilibrio</span><span>fresco</span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-100 text-xs">
-              <span className="text-slate-500">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-100 dark:border-white/10 text-xs">
+              <span className="text-slate-500 dark:text-white/55">
                 ACWR <span className={`font-black tabular-nums ${acwrCls}`}>{acwr == null ? '—' : acwr.toFixed(2)}</span>
               </span>
-              <span className="text-slate-500">
+              <span className="text-slate-500 dark:text-white/55">
                 Rampa <span className={`font-black tabular-nums ${rampCls}`}>{ramp >= 0 ? '+' : ''}{fmt1(ramp)}</span> CTL/sem
               </span>
-              <span className="text-slate-500">
-                7 d <span className="font-black tabular-nums text-slate-600">{cur.ctlTrend7 >= 0 ? '+' : ''}{fmt1(cur.ctlTrend7)}</span>
+              <span className="text-slate-500 dark:text-white/55">
+                7 d <span className="font-black tabular-nums text-slate-600 dark:text-white/75">{cur.ctlTrend7 >= 0 ? '+' : ''}{fmt1(cur.ctlTrend7)}</span>
               </span>
-              <span className="text-slate-500 ml-auto hidden xl:inline">{phase?.description}</span>
+              <span className="text-slate-500 dark:text-white/55 ml-auto hidden xl:inline">{phase?.description}</span>
             </div>
           </>
         )}

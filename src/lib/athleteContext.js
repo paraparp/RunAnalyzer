@@ -77,34 +77,104 @@ function analyzeHRV(garmin, now) {
 /**
  * Composite recovery readiness 0–100 (deterministic, NOT LLM-generated).
  * Evidence-weighted blend: HRV-vs-baseline 30% · Body Battery 20% · sleep 20%
- * · resting-HR trend 15% · TSB/form 15%. This is the number the athlete can
- * trust blindly; the LLM is told to align its prescription to it.
+ * · resting-HR trend 15% · TSB/form 15%. Red flags (HRV under its range, BB
+ * peak < 50, sleep < 60, RHR +5 %) cap the score so a good TSB can't mask them.
+ * HRV, Body Battery and RHR blend today's value (70 %) with the 7-day mean
+ * (30 %): today drives the score, but one odd night doesn't swing it alone.
+ * Red flags look at today's value only.
+ * This is the number the athlete can trust blindly; the LLM is told to align
+ * its prescription to it.
  */
+/**
+ * Sueño para el readiness: la última noche de las filas diarias de Garmin
+ * (`sleepScore`, guardado por el sync reciente) con su media de 7 días. Si no hay
+ * noche reciente (≤ 2 días), cae a la media semanal del cache de sueño, que no es
+ * "anoche" y por eso va marcada con `nightly: false`.
+ */
+export function pickSleep(garminRows, weeklySleep, nowMs = Date.now()) {
+  const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const nights = (garminRows || [])
+    .filter(d => d.sleepScore != null)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const last = nights[0];
+  if (last && last.date >= day(nowMs - 2 * 86400000)) {
+    const w7 = day(nowMs - 7 * 86400000);
+    return {
+      nightly: true,
+      date: last.date,
+      score: last.sleepScore,
+      durationMin: last.sleepMin ?? null,
+      deepMin: last.deepSleepMin ?? null,
+      avg7: mean(nights.filter(d => d.date >= w7).map(d => d.sleepScore)),
+      series: nights.slice(0, 8).reverse().map(d => d.sleepScore),
+    };
+  }
+  if (!weeklySleep?.length) return null;
+  const sortedS = [...weeklySleep].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+  const wk = sortedS.find(w => w.score != null) ?? sortedS[0];
+  return {
+    nightly: false,
+    score: wk.score ?? null,
+    quality: wk.quality ?? null,
+    durationMin: wk.durationMin ?? null,
+    needMin: wk.needMin ?? null,
+    deepMin: wk.deepMin ?? null,
+    remMin: wk.remMin ?? null,
+    weekStart: wk.weekStart,
+    avg7: null,
+    series: sortedS.slice(0, 8).reverse().map(w => w.score ?? null),
+  };
+}
+
+const TODAY_WEIGHT = 0.7;
+const blendScore = (score, today, avg7) =>
+  avg7 != null ? TODAY_WEIGHT * score(today) + (1 - TODAY_WEIGHT) * score(avg7) : score(today);
+
 export function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
   const parts = [];
+  // Señales en rojo: una media ponderada las diluye, así que limitan el techo.
+  let redFlags = 0;
   if (hrv) {
-    let s = 70;
     const b = hrv.baseline;
     if (b?.balancedLow && b?.balancedUpper) {
-      if (hrv.latest >= b.balancedUpper) s = 95;
-      else if (hrv.latest >= b.balancedLow) s = 70 + (hrv.latest - b.balancedLow) / (b.balancedUpper - b.balancedLow) * 20;
-      else s = clamp(70 * (hrv.latest / b.balancedLow), 20, 70);
-    } else if (hrv.status) {
+      const hrvScore = (v) => {
+        if (v >= b.balancedUpper) return 95;
+        if (v >= b.balancedLow) return 70 + (v - b.balancedLow) / (b.balancedUpper - b.balancedLow) * 20;
+        // Por debajo del rango propio ya no es "normal": cae rápido desde 55
+        // (−10 % bajo el límite → 35).
+        return clamp(55 - (1 - v / b.balancedLow) * 200, 15, 55);
+      };
+      parts.push([clamp(blendScore(hrvScore, hrv.latest, hrv.hrv7), 10, 100), 0.30]);
+      if (hrv.latest < b.balancedLow) redFlags++;
+    } else {
       const map = { BALANCED: 82, LOW: 38, UNBALANCED: 45, POOR: 30, GOOD: 88 };
-      s = map[hrv.status] ?? 70;
+      const s = map[hrv.status] ?? 70;
+      parts.push([s, 0.30]);
+      if (s < 50) redFlags++;
     }
-    parts.push([clamp(s, 10, 100), 0.30]);
   }
-  if (bb?.high != null) parts.push([clamp(bb.high, 5, 100), 0.20]);
-  if (sleep?.score != null) parts.push([clamp(sleep.score, 20, 100), 0.20]);
-  if (rhr?.r7 && rhr?.r28) {
-    const delta = (rhr.r7 - rhr.r28) / rhr.r28;      // >0 = elevated = worse
-    parts.push([clamp(78 - delta * 100 * 3.5, 15, 100), 0.15]);
+  if (bb?.high != null) {
+    parts.push([blendScore(v => clamp(v, 5, 100), bb.high, bb.avg7), 0.20]);
+    if (bb.high < 50) redFlags++;
+  }
+  if (sleep?.score != null) {
+    parts.push([blendScore(v => clamp(v, 20, 100), sleep.score, sleep.avg7), 0.20]);
+    if (sleep.score < 60) redFlags++;
+  }
+  // FC reposo: hoy (o, sin dato diario, la media 7d) frente a su media de 28 días.
+  const rhrToday = rhr?.latest ?? rhr?.r7;
+  if (rhrToday && rhr?.r28) {
+    const rhrScore = (v) => clamp(78 - (v - rhr.r28) / rhr.r28 * 100 * 3.5, 15, 100); // >media = peor
+    parts.push([blendScore(rhrScore, rhrToday, rhr.latest ? rhr.r7 : null), 0.15]);
+    if ((rhrToday - rhr.r28) / rhr.r28 >= 0.05) redFlags++;
   }
   if (pmc) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
   if (!parts.length) return null;
   const wsum = parts.reduce((s, [, w]) => s + w, 0);
-  const score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
+  let score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
+  // Una señal roja impide "Óptimo"; dos o más impiden "Bueno".
+  if (redFlags >= 2) score = Math.min(score, 58);
+  else if (redFlags === 1) score = Math.min(score, 75);
   let label, band;
   if (score >= 80) { label = 'Óptimo · listo para calidad'; band = 'high'; }
   else if (score >= 62) { label = 'Bueno · entreno normal'; band = 'good'; }
@@ -422,7 +492,11 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     };
     // Body Battery (Firstbeat): peak charge reached today/yesterday = recovery state
     const latestBB = sorted.find(d => d.bbHigh != null);
-    if (latestBB) bb = { high: latestBB.bbHigh, low: latestBB.bbLow ?? null };
+    if (latestBB) bb = {
+      high: latestBB.bbHigh,
+      low: latestBB.bbLow ?? null,
+      avg7: mean(rec7.filter(d => d.bbHigh != null).map(d => d.bbHigh)),
+    };
 
     garminLog = rec7.map(d => {
       const parts = [d.date.slice(5)];
@@ -434,23 +508,8 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     }).join('\n');
   }
 
-  // ── Sleep (weekly, Garmin sleep-service) ──────────────────────────────────
-  let sleep = null;
-  if (sleepData?.length) {
-    const sortedS = [...sleepData].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
-    const last = sortedS.find(w => w.score != null) ?? sortedS[0];
-    if (last) {
-      sleep = {
-        score: last.score ?? null,
-        quality: last.quality ?? null,
-        durationMin: last.durationMin ?? null,
-        needMin: last.needMin ?? null,
-        deepMin: last.deepMin ?? null,
-        remMin: last.remMin ?? null,
-        weekStart: last.weekStart,
-      };
-    }
-  }
+  // ── Sleep: last night (daily rows) or, without it, the weekly mean ────────
+  const sleep = pickSleep(garminData, sleepData, now.getTime());
 
   // ── Composite readiness score (deterministic) ─────────────────────────────
   const readiness = computeReadiness({ hrv, rhr, bb, sleep, pmc });
@@ -606,7 +665,7 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
     hrv?.cv != null ? `Coef. variación VFC 7d=${hrv.cv}% (${hrv.cv > 10 ? 'alto → adaptación pobre/fatiga' : 'estable → buena adaptación'})` : null,
     rhr?.r7 != null && rhr?.r28 != null ? `FC reposo 7d=${rhr.r7.toFixed(0)}ppm vs 28d=${rhr.r28.toFixed(0)}ppm (${rhr.r7 <= rhr.r28 * 1.03 ? 'estable' : '⚠ elevada → fatiga/estrés'})` : null,
     bb?.high != null ? `Body Battery: recarga máx=${bb.high}/100${bb.low != null ? `, mín=${bb.low}` : ''} (${bb.high >= 70 ? 'bien recuperado' : bb.high >= 40 ? 'recuperación parcial' : 'reservas bajas'})` : null,
-    sleep?.score != null ? `Sueño (media semana): score=${sleep.score}/100${sleep.durationMin ? `, ${(sleep.durationMin / 60).toFixed(1)}h` : ''}${sleep.needMin && sleep.durationMin ? ` vs necesidad ${(sleep.needMin / 60).toFixed(1)}h` : ''}${sleep.deepMin ? `, profundo ${sleep.deepMin}min` : ''}` : null,
+    sleep?.score != null ? `Sueño (${sleep.nightly ? `anoche${sleep.avg7 != null ? `, media 7d=${Math.round(sleep.avg7)}` : ''}` : 'media semana'}): score=${sleep.score}/100${sleep.durationMin ? `, ${(sleep.durationMin / 60).toFixed(1)}h` : ''}${sleep.needMin && sleep.durationMin ? ` vs necesidad ${(sleep.needMin / 60).toFixed(1)}h` : ''}${sleep.deepMin ? `, profundo ${sleep.deepMin}min` : ''}` : null,
   ].filter(Boolean).join('\n');
 
   const pmcSection = pmc ? [

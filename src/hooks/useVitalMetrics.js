@@ -78,7 +78,7 @@ export default function useVitalMetrics(activities, { withWeight = false, loadAc
       [nowMs - days * MS_DAY, nowMs],
     ),
     days, gran, setGran, gapAdjust, setGapAdjust, nowMs,
-    xFmt: xFormatter(gran),
+    xFmt: xFormatter(gran, days),
     granLabel: GRAN_LABEL[gran],
     avgLabel: AVG_LABEL[gran],
   };

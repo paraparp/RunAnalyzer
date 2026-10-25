@@ -247,12 +247,12 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
   if (gearStats.length === 0) {
     return (
-      <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-sm">
-        <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <MapPinIcon className="w-10 h-10 text-slate-300" />
+      <div className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-100 dark:border-white/10 p-12 text-center shadow-sm">
+        <div className="bg-slate-50 dark:bg-white/[0.04] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <MapPinIcon className="w-10 h-10 text-slate-300 dark:text-white/40" />
         </div>
-        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('gear.empty_title', 'Garaje Vacío')}</h3>
-        <p className="text-slate-500 max-w-sm mx-auto font-medium">
+        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{t('gear.empty_title', 'Garaje Vacío')}</h3>
+        <p className="text-slate-500 dark:text-white/55 max-w-sm mx-auto font-medium">
           {t('gear.empty_desc', 'Si añades tus zapatillas dentro de tus actividades de Strava, aparecerán aquí agrupadas automáticamente.')}
         </p>
       </div>
@@ -261,29 +261,29 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl">
+      <div className="bg-white dark:bg-[#0c0e12] rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-xl">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="bg-slate-900 text-white p-1 rounded-lg">
                 <SparklesIcon className="w-4 h-4" />
               </div>
-              <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('gear.title')}</h3>
+              <h3 className="text-slate-900 dark:text-white font-black text-xl uppercase tracking-tight">{t('gear.title')}</h3>
             </div>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
+            <p className="text-slate-500 dark:text-white/55 text-sm font-medium leading-relaxed max-w-2xl">
               {t('gear.subtitle')}
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <label htmlFor="gear-sort" className="text-label font-bold text-slate-500 uppercase">
+            <label htmlFor="gear-sort" className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">
               {t('gear.sort.label')}
             </label>
             <select
               id="gear-sort"
               value={sortBy}
               onChange={(e) => changeSort(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold text-slate-900 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 focus:outline-none focus:border-slate-400 transition-colors"
+              className="px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-xl cursor-pointer hover:border-slate-300 focus:outline-none focus:border-slate-400 transition-colors"
             >
               {SORT_OPTIONS.map(opt => (
                 <option key={opt} value={opt}>{t(`gear.sort.${opt}`)}</option>
@@ -296,23 +296,23 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
           {sortedGear.map((gear, idx) => {
             const pct = Math.min((gear.distanceKm / gear.maxLife) * 100, 100);
             let color = "bg-emerald-500";
-            let textColor = "text-emerald-600";
-            let bgColor = "bg-emerald-50";
-            let borderColor = "border-emerald-100";
+            let textColor = "text-emerald-600 dark:text-emerald-300";
+            let bgColor = "bg-emerald-50 dark:bg-emerald-400/10";
+            let borderColor = "border-emerald-100 dark:border-emerald-300/25";
             let statusText = t('gear.status.good');
 
             if (pct > 60) {
               color = "bg-amber-500";
-              textColor = "text-amber-600";
-              bgColor = "bg-amber-50";
-              borderColor = "border-amber-100";
+              textColor = "text-amber-600 dark:text-amber-300";
+              bgColor = "bg-amber-50 dark:bg-amber-400/10";
+              borderColor = "border-amber-100 dark:border-amber-300/25";
               statusText = t('gear.status.medium');
             }
             if (pct > 85) {
               color = "bg-rose-500";
-              textColor = "text-rose-600";
-              bgColor = "bg-rose-50";
-              borderColor = "border-rose-100";
+              textColor = "text-rose-600 dark:text-rose-300";
+              bgColor = "bg-rose-50 dark:bg-rose-400/10";
+              borderColor = "border-rose-100 dark:border-rose-300/25";
               statusText = t('gear.status.replacement');
             }
 
@@ -325,7 +325,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="group bg-white rounded-2xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-lg transition-all"
+                className="group bg-white dark:bg-[#0c0e12] rounded-2xl border border-slate-100 dark:border-white/10 p-5 hover:border-slate-200 hover:shadow-lg transition-all"
               >
                 <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
                   {/* Shoe Thumbnail & Info */}
@@ -334,7 +334,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                       type="button"
                       onClick={() => setPhotoModalGear(gear)}
                       title={photoData ? t('gear.photos.change') : t('gear.photos.add')}
-                      className="group/thumb relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50 overflow-hidden cursor-pointer shadow-xs hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-center text-left"
+                      className="group/thumb relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] overflow-hidden cursor-pointer shadow-xs hover:border-slate-400 hover:shadow-md transition-all flex items-center justify-center text-left"
                     >
                       {photoData ? (
                         <div className="w-full h-full overflow-hidden flex items-center justify-center pointer-events-none">
@@ -354,7 +354,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                           <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${brand.bg} ${brand.text} border ${brand.border}`}>
                             {brand.short}
                           </span>
-                          <span className="text-xs font-bold text-slate-500 mt-1 truncate max-w-[56px]">
+                          <span className="text-xs font-bold text-slate-500 dark:text-white/55 mt-1 truncate max-w-[56px]">
                             {brand.brand}
                           </span>
                         </div>
@@ -372,12 +372,12 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                     {/* Shoe Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
-                        <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{gear.name}</h4>
+                        <h4 className="font-black text-slate-900 dark:text-white truncate uppercase tracking-tight">{gear.name}</h4>
                         <div className={`px-2 py-0.5 rounded-lg text-label font-bold uppercase ${bgColor} ${textColor} border ${borderColor}`}>
                           {statusText}
                         </div>
                       </div>
-                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-label font-bold text-slate-500 uppercase">
+                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-label font-bold text-slate-500 dark:text-white/55 uppercase">
                         <span className="flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> {gear.count} {t('dashboard.activities').toLowerCase()}</span>
                         <span>•</span>
                         <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {gear.lastUsedStr}</span>
@@ -390,17 +390,17 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                   </div>
 
                   {/* Perf Stats */}
-                  <div className="grid grid-cols-2 gap-8 shrink-0 border-l border-slate-50 pl-8 hidden sm:grid">
+                  <div className="grid grid-cols-2 gap-8 shrink-0 border-l border-slate-50 dark:border-white/10 pl-8 hidden sm:grid">
                     <div>
-                      <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('gear.stats.avg_pace')}</p>
-                      <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
-                        {gear.paceFormatted} <span className="text-label text-slate-500 font-bold uppercase tracking-tighter">/km</span>
+                      <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('gear.stats.avg_pace')}</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white tabular-nums leading-none">
+                        {gear.paceFormatted} <span className="text-label text-slate-500 dark:text-white/55 font-bold uppercase tracking-tighter">/km</span>
                       </p>
                     </div>
                     <div>
-                      <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('gear.stats.km_per_run')}</p>
-                      <p className="text-lg font-black text-slate-900 tabular-nums leading-none">
-                        {(gear.distanceKm / gear.count).toFixed(1)} <span className="text-label text-slate-500 font-bold uppercase tracking-tighter">km</span>
+                      <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('gear.stats.km_per_run')}</p>
+                      <p className="text-lg font-black text-slate-900 dark:text-white tabular-nums leading-none">
+                        {(gear.distanceKm / gear.count).toFixed(1)} <span className="text-label text-slate-500 dark:text-white/55 font-bold uppercase tracking-tighter">km</span>
                       </p>
                     </div>
                   </div>
@@ -408,7 +408,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                   {/* Wear Progress */}
                   <div className="w-full lg:w-64 xl:w-80 shrink-0">
                     <div className="flex justify-between items-end mb-2 gap-2">
-                      <p className="text-label font-bold text-slate-500 uppercase">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
+                      <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{t('dashboard.desgaste', 'Desgaste Acumulado')}</p>
                       {editingId === gear.id ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -422,7 +422,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                               if (e.key === 'Enter') saveLife(gear.id);
                               if (e.key === 'Escape') setEditingId(null);
                             }}
-                            className="w-20 px-2 py-0.5 text-xs font-black tabular-nums text-slate-900 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
+                            className="w-20 px-2 py-0.5 text-xs font-black tabular-nums text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:border-slate-400"
                             aria-label={t('gear.life.edit')}
                           />
                           <button
@@ -430,7 +430,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                             onClick={() => saveLife(gear.id)}
                             disabled={!isValidLifeKm(draftLife)}
                             title={t('gear.life.save')}
-                            className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:text-slate-300 disabled:hover:bg-transparent"
+                            className="p-1 rounded-lg text-emerald-600 dark:text-emerald-300 hover:bg-emerald-50 disabled:text-slate-300 disabled:hover:bg-transparent"
                           >
                             <CheckIcon className="w-3.5 h-3.5" />
                           </button>
@@ -438,7 +438,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                             type="button"
                             onClick={() => resetLife(gear.id)}
                             title={t('gear.life.auto')}
-                            className="p-1 rounded-lg text-slate-500 hover:bg-slate-50"
+                            className="p-1 rounded-lg text-slate-500 dark:text-white/55 hover:bg-slate-50 dark:hover:bg-white/[0.05]"
                           >
                             <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
                           </button>
@@ -450,14 +450,14 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                           title={t('gear.life.edit')}
                           className="flex items-center gap-1.5 group/life"
                         >
-                          <span className="text-xs font-black text-slate-900 tabular-nums">
-                            {Math.round(gear.distanceKm)} <span className="text-xs text-slate-500 font-bold">/ {gear.maxLife} km</span>
+                          <span className="text-xs font-black text-slate-900 dark:text-white tabular-nums">
+                            {Math.round(gear.distanceKm)} <span className="text-xs text-slate-500 dark:text-white/55 font-bold">/ {gear.maxLife} km</span>
                           </span>
-                          <PencilSquareIcon className="w-3 h-3 text-slate-300 group-hover/life:text-slate-500 transition-colors" />
+                          <PencilSquareIcon className="w-3 h-3 text-slate-300 dark:text-white/40 group-hover/life:text-slate-500 transition-colors" />
                         </button>
                       )}
                     </div>
-                    <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100 relative">
+                    <div className="h-2.5 bg-slate-50 dark:bg-white/[0.04] rounded-full overflow-hidden border border-slate-100 dark:border-white/10 relative">
                       <motion.div
                         className={`h-full rounded-full ${color} shadow-[0_0_10px_rgba(0,0,0,0.1)]`}
                         initial={{ width: 0 }}
@@ -467,7 +467,7 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
                     </div>
                     {/* De dónde sale el denominador: es una estimación por tipo salvo
                         que el atleta lo haya fijado, y la vista lo dice. */}
-                    <p className="mt-1.5 text-label font-bold text-slate-500 uppercase">
+                    <p className="mt-1.5 text-label font-bold text-slate-500 dark:text-white/55 uppercase">
                       {gear.lifeSource === 'override'
                         ? t('gear.life.source.override')
                         : gear.lifeCategory

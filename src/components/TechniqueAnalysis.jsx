@@ -16,17 +16,17 @@ function CustomTooltip({ active, payload }) {
     const data = payload[0].payload;
     const paceFmt = `${formatPaceFromMinPerKm(data.ritmoVal)} /km`;
     return (
-      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl z-50">
-        <p className="font-bold text-slate-800 text-sm mb-1">{data.name}</p>
+      <div className="bg-white dark:bg-[#0c0e12] p-3 border border-slate-200 dark:border-white/10 shadow-xl rounded-xl z-50">
+        <p className="font-bold text-slate-800 dark:text-white text-sm mb-1">{data.name}</p>
         <div className="flex flex-col gap-1 mt-2">
-           <p className="text-slate-600 text-xs font-medium">Fecha: <span className="text-slate-900 font-bold ml-1">{data.dateStr}</span></p>
-           <p className="text-slate-600 text-xs font-medium">Ritmo: <span className="text-slate-900 font-bold ml-1">{paceFmt}</span></p>
-           <p className="text-slate-600 text-xs font-medium">Cadencia: <span className="text-blue-600 font-bold ml-1">{data.Cadencia} spm</span></p>
-           <p className="text-slate-600 text-xs font-medium">Zancada: <span className="text-emerald-600 font-bold ml-1">{data.Zancada} m</span></p>
-           <p className="text-slate-600 text-xs font-medium">Distancia: <span className="text-slate-900 font-bold ml-1">{data.Distancia} km</span></p>
-           <p className="text-slate-600 text-xs font-medium">Desnivel: <span className="text-amber-600 font-bold ml-1">{data.DesnivelPct}%</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Fecha: <span className="text-slate-900 dark:text-white font-bold ml-1">{data.dateStr}</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Ritmo: <span className="text-slate-900 dark:text-white font-bold ml-1">{paceFmt}</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Cadencia: <span className="text-teal-700 dark:text-teal-300 font-bold ml-1">{data.Cadencia} spm</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Zancada: <span className="text-emerald-600 dark:text-emerald-300 font-bold ml-1">{data.Zancada} m</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Distancia: <span className="text-slate-900 dark:text-white font-bold ml-1">{data.Distancia} km</span></p>
+           <p className="text-slate-600 dark:text-white/75 text-xs font-medium">Desnivel: <span className="text-amber-600 dark:text-amber-300 font-bold ml-1">{data.DesnivelPct}%</span></p>
         </div>
-        <div className="mt-2 text-xs text-slate-500 font-medium">
+        <div className="mt-2 text-xs text-slate-500 dark:text-white/55 font-medium">
           (Clic para abrir en Strava)
         </div>
       </div>
@@ -111,50 +111,50 @@ export default function TechniqueAnalysis({ activities }) {
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: "Cadencia Media", value: stats.cadence, unit: "spm", color: "text-blue-600", icon: SignalIcon },
-            { label: "Zancada Media", value: stats.stride, unit: "m", color: "text-emerald-600", icon: ArrowsPointingOutIcon },
-            { label: "Ritmo Pico", value: stats.bestPace, unit: "/km", color: "text-amber-600", icon: StopIcon }
+            { label: "Cadencia Media", value: stats.cadence, unit: "spm", color: "text-teal-700 dark:text-teal-300", icon: SignalIcon },
+            { label: "Zancada Media", value: stats.stride, unit: "m", color: "text-emerald-600 dark:text-emerald-300", icon: ArrowsPointingOutIcon },
+            { label: "Ritmo Pico", value: stats.bestPace, unit: "/km", color: "text-amber-600 dark:text-amber-300", icon: StopIcon }
           ].map((card, i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
+            <div key={i} className="bg-white dark:bg-white/[0.03] rounded-2xl p-6 border border-slate-100 dark:border-white/10 shadow-sm transition-all hover:shadow-md group">
                <div className="flex justify-between items-start mb-3">
-                  <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
+                  <div className="p-2 bg-slate-50 dark:bg-white/[0.04] rounded-xl text-slate-500 dark:text-white/55 group-hover:text-slate-600 transition-colors">
                      <card.icon className="w-5 h-5" />
                   </div>
-                  <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
+                  <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 text-right">{card.label}</div>
                </div>
                <div className="flex items-baseline gap-1.5">
                   <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                  <p className="text-label font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
+                  <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase tracking-tighter">{card.unit}</p>
                </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl">
+      <div className="bg-white dark:bg-[#0c0e12] rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-xl">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
-               <div className="bg-blue-600 text-white p-1 rounded-lg">
+               <div className="bg-slate-950 text-white dark:bg-white dark:text-slate-950 p-1 rounded-lg">
                   <SparklesIcon className="w-4 h-4" />
                </div>
-               <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">Técnica: Ritmo vs Cadencia</h3>
+               <h3 className="text-slate-900 dark:text-white font-black text-xl uppercase tracking-tight">Técnica: Ritmo vs Cadencia</h3>
             </div>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
+            <p className="text-slate-500 dark:text-white/55 text-sm font-medium leading-relaxed max-w-2xl">
               Analiza la correlación bio-mecánica entre tu frecuencia de paso y la longitud de zancada. El filtrado de terreno llano permite aislar la fatiga de la pendiente.
             </p>
           </div>
           
-          <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100 shrink-0">
+          <div className="flex items-center gap-2 bg-slate-50 dark:bg-white/[0.04] p-1 rounded-2xl border border-slate-100 dark:border-white/10 shrink-0">
              <button 
                 onClick={() => setFlatOnly(false)}
-                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${!flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${!flatOnly ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white'}`}
              >
                 Todo
              </button>
              <button 
                 onClick={() => setFlatOnly(true)}
-                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${flatOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                className={`px-4 py-2 rounded-xl text-label font-bold uppercase transition-all ${flatOnly ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white'}`}
              >
                 Solo Llanas
              </button>
@@ -163,7 +163,7 @@ export default function TechniqueAnalysis({ activities }) {
 
         {uniqueYears.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Años:</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-white/55 uppercase tracking-wider">Años:</span>
             {uniqueYears.map(year => {
               const colorIdx = year % YEAR_COLORS.length;
               const isSelected = !deselectedYears.has(year);
@@ -176,18 +176,18 @@ export default function TechniqueAnalysis({ activities }) {
                     else next.delete(year);
                     setDeselectedYears(next);
                   }}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-colors cursor-pointer ${isSelected ? 'bg-slate-50 border-slate-200 hover:bg-slate-100' : 'bg-transparent border-dashed border-slate-200 opacity-60 hover:opacity-100'}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-colors cursor-pointer ${isSelected ? 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/[0.05]' : 'bg-transparent border-dashed border-slate-200 dark:border-white/10 opacity-60 hover:opacity-100'}`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: isSelected ? YEAR_COLORS[colorIdx] : COLORS.hairlineStrong }}></span>
-                  <span className={`text-xs font-medium ${isSelected ? 'text-slate-600' : 'text-slate-500'}`}>{year}</span>
+                  <span className={`text-xs font-medium ${isSelected ? 'text-slate-600 dark:text-white/75' : 'text-slate-500 dark:text-white/55'}`}>{year}</span>
                 </button>
               );
             })}
           </div>
         )}
 
-        <div className="h-[500px] w-full mt-4 bg-slate-50/20 rounded-2xl p-6 border border-slate-100/50 relative overflow-hidden">
-           <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 to-transparent pointer-events-none" />
+        <div className="h-[500px] w-full mt-4 bg-slate-50/20 dark:bg-white/[0.04] rounded-2xl p-6 border border-slate-100/50 dark:border-white/10 relative overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 dark:from-white/[0.02] to-transparent pointer-events-none" />
            <ResponsiveContainer width="100%" height="100%">
              <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 10 }}>
                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />

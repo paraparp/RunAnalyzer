@@ -36,7 +36,7 @@ const TabbedHub = ({ tabs, initial, storageKey }) => {
     <div className="space-y-4">
       <div
         role="tablist"
-        className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1 bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map(({ id, labelKey, label, icon: Icon }) => {
           const on = tab === id;
@@ -47,10 +47,10 @@ const TabbedHub = ({ tabs, initial, storageKey }) => {
               aria-selected={on}
               onClick={() => select(id)}
               className={`flex-1 min-w-max flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap transition-all ${
-                on ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                on ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm' : 'text-slate-500 dark:text-white/55 hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:text-slate-700 dark:hover:text-white'
               }`}
             >
-              {Icon && <Icon className={`w-4 h-4 shrink-0 ${on ? 'text-white' : 'text-slate-400'}`} />}
+              {Icon && <Icon className={`w-4 h-4 shrink-0 ${on ? 'text-white' : 'text-slate-400 dark:text-white/40'}`} />}
               {t(labelKey, label)}
             </button>
           );

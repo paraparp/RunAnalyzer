@@ -24,7 +24,7 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
       if (m?.index !== undefined) {
         if (m.index > 0) parts.push(<span key={k++}>{rem.slice(0, m.index)}</span>);
         parts.push(
-          <strong key={k++} className={`font-semibold ${isDark ? 'text-white font-extrabold' : 'text-slate-800 dark:text-slate-200'}`}>
+          <strong key={k++} className={`font-semibold ${isDark ? 'text-white font-extrabold' : 'text-slate-800 dark:text-white'}`}>
             {m[1]}
           </strong>
         );
@@ -38,7 +38,7 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
   return (
     <ul className={lg ? 'space-y-2.5' : 'space-y-2'}>
       {text.split('\n').map(l => l.trim()).filter(l => l && !/^\**bloque\s*\d+/i.test(l)).map((l, i) => (
-        <li key={i} className={`flex gap-2.5 ${lg ? 'text-sm' : 'text-xs'} leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600 dark:text-slate-400'}`}>
+        <li key={i} className={`flex gap-2.5 ${lg ? 'text-sm' : 'text-xs'} leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600 dark:text-white/55'}`}>
           <span className={`shrink-0 ${lg ? 'mt-[7px]' : 'mt-[6px]'} w-1.5 h-1.5 rounded-full ${dot}`} />
           <span>{inline(l.replace(/^[-•*]\s+/, ''))}</span>
         </li>
@@ -49,9 +49,9 @@ export const CoachMD = ({ text, accent = 'text-blue-500', isDark = false, lg = f
 
 // ── Disclosure: lo que es referencia o detalle largo no compite con el foco ──
 export const CoachDisclosure = ({ label, children, className = '' }) => (
-  <details className={`group rounded-xl border border-slate-200/65 dark:border-slate-800/65 bg-slate-50/50 dark:bg-slate-800/10 ${className}`}>
-    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-label font-bold uppercase text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-      <span className="transition-transform group-open:rotate-90 text-slate-300 dark:text-slate-600">▸</span>
+  <details className={`group rounded-xl border border-slate-200/65 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.06] ${className}`}>
+    <summary className="flex items-center gap-1.5 px-3.5 py-2 cursor-pointer list-none text-label font-bold uppercase text-slate-500 hover:text-slate-600 dark:hover:text-white transition-colors">
+      <span className="transition-transform group-open:rotate-90 text-slate-300 dark:text-white/40">▸</span>
       {label}
     </summary>
     <div className="px-3.5 pb-3.5">{children}</div>
@@ -61,9 +61,9 @@ export const CoachDisclosure = ({ label, children, className = '' }) => (
 // ── Skeleton mientras el coach responde ─────────────────────────────────────
 export const CoachPulse = () => (
   <div className="space-y-2 animate-pulse mt-2">
-    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-3/4" />
-    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full" />
-    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-5/6" />
+    <div className="h-2.5 bg-slate-100 dark:bg-white/[0.06] rounded-full w-3/4" />
+    <div className="h-2.5 bg-slate-100 dark:bg-white/[0.06] rounded-full w-full" />
+    <div className="h-2.5 bg-slate-100 dark:bg-white/[0.06] rounded-full w-5/6" />
   </div>
 );
 
@@ -130,7 +130,7 @@ export function CoachSettings({ ai }) {
           type="button"
           onClick={copyPrompt}
           title="Copiar el prompt enviado a la IA"
-          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
         >
           {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
         </button>
@@ -142,7 +142,7 @@ export function CoachSettings({ ai }) {
           disabled={loading}
           aria-expanded={open}
           aria-haspopup="dialog"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${open ? 'text-blue-600 bg-blue-50/50 border-blue-200' : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${open ? 'text-blue-600 bg-blue-50/50 border-blue-200' : 'text-slate-500 dark:text-white/55 bg-white dark:bg-white/[0.06] border-slate-200 dark:border-white/10 hover:bg-slate-50'}`}
         >
           <Cog6ToothIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-45' : ''}`} />
           <span>{weeklyTarget}×/sem</span>
@@ -151,7 +151,7 @@ export function CoachSettings({ ai }) {
         </button>
 
         {open && (
-          <div role="dialog" aria-label="Ajustes del análisis IA" className="absolute right-0 top-full mt-2 w-60 z-30 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-md p-4 space-y-3">
+          <div role="dialog" aria-label="Ajustes del análisis IA" className="absolute right-0 top-full mt-2 w-60 z-30 bg-white dark:bg-[#0c0e12] rounded-xl border border-slate-200 dark:border-white/10 shadow-md p-4 space-y-3">
             <div>
               <label htmlFor="ai-weekly-target" className="text-label font-bold uppercase text-slate-500 block mb-1.5">Correr / semana</label>
               <select
@@ -159,7 +159,7 @@ export function CoachSettings({ ai }) {
                 value={weeklyTarget}
                 disabled={loading}
                 onChange={e => changeWeeklyTarget(e.target.value)}
-                className="w-full text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
+                className="w-full text-xs text-slate-600 dark:text-white/75 bg-slate-50 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1.5 pr-8 font-bold hover:border-blue-300 focus:outline-none focus:border-blue-400 transition-colors cursor-pointer appearance-none"
                 style={SELECT_ARROW}
               >
                 {[2, 3, 4, 5, 6].map(n => (
@@ -171,8 +171,8 @@ export function CoachSettings({ ai }) {
               Los cambios se aplican al pulsar «Recalcular».
             </p>
             {goal && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold pt-2 border-t border-slate-100 dark:border-slate-800">
-                🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700 dark:text-slate-300">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold pt-2 border-t border-slate-100 dark:border-white/10">
+                🎯 Objetivo:&nbsp;<span className="font-bold text-slate-700 dark:text-white/75">{goal.distance}{goal.pace ? ` · ${goal.pace}` : ''}</span>
               </div>
             )}
           </div>

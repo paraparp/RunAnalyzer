@@ -63,7 +63,7 @@ const parsePaceToMinutes = (paceStr) => {
 
 const sportBadge = (activity) => {
   const st = activity.sport_type || activity.type;
-  if (activity.workout_type === 1) return <span className="shrink-0 px-1.5 py-px rounded text-label font-bold bg-amber-400 text-amber-950 uppercase">Race</span>;
+  if (activity.workout_type === 1) return <span className="shrink-0 px-1.5 py-px rounded text-label font-bold bg-amber-400 text-amber-950 dark:text-amber-200 uppercase">Race</span>;
   if (st === 'TrailRun') return <span className="shrink-0 px-1.5 py-px rounded text-label font-bold bg-emerald-500 text-white uppercase">Trail</span>;
   // Con varios deportes en la tabla hace falta distinguirlos de un vistazo.
   if (!RUNNING_TYPES.includes(st)) return <span className="shrink-0 px-1.5 py-px rounded text-label font-bold bg-violet-500 text-white uppercase">{activityEmoji(st)} {st}</span>;
@@ -73,16 +73,16 @@ const sportBadge = (activity) => {
 const StravaLink = ({ id, label }) => (
   <a href={`https://www.strava.com/activities/${id}`} target="_blank" rel="noopener noreferrer"
     onClick={(e) => e.stopPropagation()} title={label} aria-label={label}
-    className="shrink-0 p-0.5 rounded text-slate-300 hover:text-[#fc4c02] transition-colors">
+    className="shrink-0 p-0.5 rounded text-slate-300 dark:text-white/40 hover:text-[#fc4c02] transition-colors">
     <StravaMark className="w-3.5 h-3.5" />
   </a>
 );
 
 // FC media coloreada por zona de Karvonen (misma paleta que los parciales).
 const HrValue = ({ hr, bounds, t, className = 'text-sm' }) => {
-  if (!hr) return <span className={`${className} tabular-nums text-slate-500`}>-</span>;
+  if (!hr) return <span className={`${className} tabular-nums text-slate-500 dark:text-white/55`}>-</span>;
   const z = bounds ? ZONES[classifyHR(hr, bounds) + 1] : null;
-  if (!z) return <span className={`${className} tabular-nums text-slate-500`}>{Math.round(hr)}</span>;
+  if (!z) return <span className={`${className} tabular-nums text-slate-500 dark:text-white/55`}>{Math.round(hr)}</span>;
   return (
     <span className={`${className} inline-block px-1.5 py-px rounded font-semibold tabular-nums`}
       style={{ color: z.text, backgroundColor: z.bg }} title={t('activity_log.hr_zone', { zone: z.label })}>
@@ -99,7 +99,7 @@ const RangeInput = ({ value, onChange, placeholder, ring, type = 'number', step 
     onChange={(e) => onChange(e.target.value)}
     step={step}
     min={type === 'number' ? '0' : undefined}
-    className={`w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 ${ring} focus:bg-white transition-all placeholder:text-slate-400 tabular-nums`}
+    className={`w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-md focus:outline-none focus:ring-2 ${ring} focus:bg-white transition-all placeholder:text-slate-400 tabular-nums`}
   />
 );
 
@@ -110,23 +110,23 @@ const RangeFilter = ({ icon: Icon, tone, title, hint, unit, range, onChange, typ
         <Icon className={`w-3.5 h-3.5 ${tone.icon}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-slate-700 leading-none">{title}</p>
-        <p className="text-xs text-slate-500 mt-0.5">{hint}</p>
+        <p className="text-xs font-bold text-slate-700 dark:text-white/75 leading-none">{title}</p>
+        <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{hint}</p>
       </div>
     </div>
     <div className="flex items-center gap-1.5">
       <div className="flex-1"><RangeInput type={type} step={step} ring={tone.ring} placeholder={placeholders[0]} value={range.min} onChange={(v) => onChange({ ...range, min: v })} /></div>
       <div className="w-4 h-px bg-slate-300 shrink-0"></div>
       <div className="flex-1"><RangeInput type={type} step={step} ring={tone.ring} placeholder={placeholders[1]} value={range.max} onChange={(v) => onChange({ ...range, max: v })} /></div>
-      <span className="text-xs font-medium text-slate-500 shrink-0">{unit}</span>
+      <span className="text-xs font-medium text-slate-500 dark:text-white/55 shrink-0">{unit}</span>
     </div>
   </div>
 );
 
 const TONES = {
-  indigo:  { bg: 'bg-indigo-50',  icon: 'text-indigo-600',  ring: 'focus:ring-indigo-500/20 focus:border-indigo-300' },
-  rose:    { bg: 'bg-rose-50',    icon: 'text-rose-600',    ring: 'focus:ring-rose-500/20 focus:border-rose-300' },
-  emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', ring: 'focus:ring-emerald-500/20 focus:border-emerald-300' },
+  indigo:  { bg: 'bg-indigo-50 dark:bg-indigo-400/10',  icon: 'text-indigo-600 dark:text-indigo-300',  ring: 'focus:ring-indigo-500/20 focus:border-indigo-300' },
+  rose:    { bg: 'bg-rose-50 dark:bg-rose-400/10',    icon: 'text-rose-600 dark:text-rose-300',    ring: 'focus:ring-rose-500/20 focus:border-rose-300' },
+  emerald: { bg: 'bg-emerald-50 dark:bg-emerald-400/10', icon: 'text-emerald-600 dark:text-emerald-300', ring: 'focus:ring-emerald-500/20 focus:border-emerald-300' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
     </TableHeaderCell>
   );
 
-  const pillClass = (on) => `px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${on ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`;
+  const pillClass = (on) => `px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${on ? 'bg-white dark:bg-white/[0.03] text-teal-700 dark:text-teal-300 shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white'}`;
 
   return (
     <div className="fade-in space-y-6">
@@ -290,12 +290,12 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
       <div className="space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
-            <p className="text-sm font-semibold text-slate-700">{t('activity_log.activities', { count: sortedActivities.length })}</p>
-            <p className="text-xs text-slate-500 tabular-nums">
+            <p className="text-sm font-semibold text-slate-700 dark:text-white/75">{t('activity_log.activities', { count: sortedActivities.length })}</p>
+            <p className="text-xs text-slate-500 dark:text-white/55 tabular-nums">
               {fmtNum(summary.distance / 1000)} km · {formatDurationHm(summary.time)} · +{fmtNum(summary.elevation)} m
             </p>
             {activeFilterCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-300 text-xs font-bold">
                 {t('activity_log.active_filters', { count: activeFilterCount })}
               </span>
             )}
@@ -311,36 +311,36 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
               className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200
                 ${showFilters || activeFilterCount > 0
                   ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 hover:shadow-sm'
+                  : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-800 dark:hover:text-white hover:border-slate-300 hover:shadow-sm'
                 }`}
             >
               <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
               {t('activity_log.filters')}
             </button>
             <div className="relative flex-1 lg:w-56 lg:flex-none">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-white/40 pointer-events-none" />
               <input
                 type="text"
                 placeholder={t('activity_log.search')}
                 value={searchQuery}
                 onChange={(e) => update({ q: e.target.value })}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder:text-slate-400"
+                className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
         </div>
 
         {showFilters && (
-          <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/50 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
+          <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-gradient-to-b from-white to-slate-50/50 dark:from-white/[0.03] dark:to-white/[0.01] shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/10 bg-white dark:bg-white/[0.03]">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-                <span className="text-label font-bold text-slate-700 uppercase">{t('activity_log.range_filters')}</span>
+                <span className="text-label font-bold text-slate-700 dark:text-white/75 uppercase">{t('activity_log.range_filters')}</span>
               </div>
               {activeFilterCount > 0 && (
                 <button
                   onClick={clearFilters}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10 hover:bg-rose-100 transition-colors"
                 >
                   <XMarkIcon className="w-3 h-3" />
                   {t('activity_log.clear')}
@@ -348,21 +348,21 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
               )}
             </div>
             {availableSports.length > 1 && (
-              <div className="px-5 py-4 border-b border-slate-100 space-y-2.5">
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-white/10 space-y-2.5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-violet-50 dark:bg-violet-400/10 flex items-center justify-center shrink-0">
                     <span className="text-xs">🏅</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-700 leading-none">{t('activity_log.sports')}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs font-bold text-slate-700 dark:text-white/75 leading-none">{t('activity_log.sports')}</p>
+                    <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">
                       {selectedSports === null ? t('activity_log.sports_default') : t('activity_log.activities', { count: dashboardActivities.length })}
                     </p>
                   </div>
                   {selectedSports !== null && (
                     <button
                       onClick={() => update({ sports: null })}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors shrink-0"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-500 dark:text-white/55 bg-slate-100 dark:bg-white/[0.04] hover:bg-slate-200 dark:hover:bg-white/[0.05] transition-colors shrink-0"
                     >
                       {t('activity_log.reset_default')}
                     </button>
@@ -376,15 +376,15 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                         key={type}
                         className={`inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none
                           ${checked
-                            ? 'bg-violet-50 border-violet-300 text-violet-700'
-                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                            ? 'bg-violet-50 dark:bg-violet-400/10 border-violet-300 text-violet-700 dark:text-violet-300'
+                            : 'bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:border-slate-300 hover:text-slate-700 dark:hover:text-white'
                           }`}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleSport(type)}
-                          className="w-3 h-3 rounded border-slate-300 text-violet-600 focus:ring-violet-500/30 cursor-pointer"
+                          className="w-3 h-3 rounded border-slate-300 dark:border-white/10 text-violet-600 dark:text-violet-300 focus:ring-violet-500/30 cursor-pointer"
                         />
                         <span>{activityEmoji(type)}</span>
                         <span>{type}</span>
@@ -395,7 +395,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 dark:divide-white/10">
               <RangeFilter icon={MapPinIcon} tone={TONES.indigo} title={t('activity_log.distance')}
                 hint={`${bounds.dist[0]} – ${bounds.dist[1]} km`} unit="km" step="0.1"
                 placeholders={[t('activity_log.min'), t('activity_log.max')]}
@@ -414,21 +414,21 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
       </div>
 
       {/* Gráfico de volumen */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-5 shadow-sm flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">{t('dashboard.monthly_progress')}</h3>
-            <p className="text-xs text-slate-500">{t('dashboard.annual_distribution')}</p>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white">{t('dashboard.monthly_progress')}</h3>
+            <p className="text-xs text-slate-500 dark:text-white/55">{t('dashboard.annual_distribution')}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] p-0.5 rounded-lg">
               {[t('dashboard.distance'), t('dashboard.time'), t('dashboard.elevation'), t('activity_log.load')].map((label, idx) => (
                 <button key={chartMetrics[idx]} onClick={() => setSelectedChartIndex(idx)} className={pillClass(selectedChartIndex === idx)}>
                   {label}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] p-0.5 rounded-lg">
               <button onClick={() => setChartGroupBy('week')} className={pillClass(chartGroupBy === 'week')}>{t('zones.weekly')}</button>
               <button onClick={() => setChartGroupBy('month')} className={pillClass(chartGroupBy === 'month')}>{t('zones.monthly')}</button>
               <button onClick={() => setChartGroupBy('year')} className={pillClass(chartGroupBy === 'year')}>{t('activity_log.annual')}</button>
@@ -442,7 +442,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
 
       <CollapsibleSection title={t('dashboard.activities')}>
         {sortedActivities.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500">{t('activity_log.empty')}</p>
+          <p className="py-8 text-center text-sm text-slate-500 dark:text-white/55">{t('activity_log.empty')}</p>
         )}
 
         {/* Móvil: una tarjeta por actividad en vez de 10 columnas con scroll lateral. */}
@@ -452,17 +452,17 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
               <button type="button" onClick={() => onOpenActivity?.(a.id)}
                 className="w-full text-left px-2 py-3 rounded-lg active:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-sm font-semibold text-slate-800 truncate">{a.name}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-white truncate">{a.name}</span>
                   {sportBadge(a)}
-                  <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatDate(a.start_date)}</span>
+                  <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-white/55 tabular-nums">{formatDate(a.start_date)}</span>
                   <StravaLink id={a.id} label={t('activity_log.open_strava')} />
                 </div>
-                <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-600 tabular-nums">
-                  <span><span className="font-semibold text-slate-800">{(a.distance / 1000).toFixed(2)}</span> km</span>
+                <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-600 dark:text-white/75 tabular-nums">
+                  <span><span className="font-semibold text-slate-800 dark:text-white">{(a.distance / 1000).toFixed(2)}</span> km</span>
                   <span>{formatDurationHm(movingSecs(a))}</span>
                   <span>{formatPaceFromSpeed(a.distance / movingSecs(a))} /km</span>
                   <HrValue hr={a.average_heartrate} bounds={hrBounds} t={t} className="text-xs" />
-                  <span className="ml-auto text-slate-500">+{Math.round(a.total_elevation_gain || 0)} m</span>
+                  <span className="ml-auto text-slate-500 dark:text-white/55">+{Math.round(a.total_elevation_gain || 0)} m</span>
                 </div>
               </button>
             </li>
@@ -473,7 +473,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
         <div className="hidden sm:block overflow-x-auto -mx-6 px-6">
           <Table>
             <TableHead>
-              <TableRow className="border-b border-slate-100">
+              <TableRow className="border-b border-slate-100 dark:border-white/10">
                 {header('date', t('activity_log.col.date'), { align: 'left' })}
                 <TableHeaderCell className="px-2">{t('activity_log.col.name')}</TableHeaderCell>
                 {header('distance', t('activity_log.col.distance'))}
@@ -499,12 +499,12 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                 return (
                   <TableRow key={activity.id} onClick={() => onOpenActivity?.(activity.id)} className="group cursor-pointer hover:bg-slate-50/80 transition-colors">
                     <TableCell className="px-2">
-                      <span className="text-xs text-slate-500 tabular-nums">{formatDate(activity.start_date)}</span>
+                      <span className="text-xs text-slate-500 dark:text-white/55 tabular-nums">{formatDate(activity.start_date)}</span>
                     </TableCell>
                     <TableCell className="px-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <button type="button" onClick={(e) => { e.stopPropagation(); onOpenActivity?.(activity.id); }}
-                          className="text-left text-sm font-medium text-slate-800 group-hover:text-indigo-600 hover:underline transition-colors truncate max-w-[200px]">
+                          className="text-left text-sm font-medium text-slate-800 dark:text-white group-hover:text-indigo-600 hover:underline transition-colors truncate max-w-[200px]">
                           {activity.name}
                         </button>
                         {sportBadge(activity)}
@@ -512,19 +512,19 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                       </div>
                     </TableCell>
                     <TableCell className="text-right px-2">
-                      <span className="text-sm tabular-nums text-slate-700">{distKm.toFixed(2)}</span>
+                      <span className="text-sm tabular-nums text-slate-700 dark:text-white/75">{distKm.toFixed(2)}</span>
                     </TableCell>
                     <TableCell className="text-right px-2">
-                      <span className="text-sm tabular-nums text-slate-700">{formatDurationHm(movingSecs(activity))}</span>
+                      <span className="text-sm tabular-nums text-slate-700 dark:text-white/75">{formatDurationHm(movingSecs(activity))}</span>
                     </TableCell>
                     <TableCell className="text-right px-2">
-                      <span className="text-sm tabular-nums text-slate-700">{formatPaceFromSpeed(activity.distance / movingSecs(activity))}</span>
+                      <span className="text-sm tabular-nums text-slate-700 dark:text-white/75">{formatPaceFromSpeed(activity.distance / movingSecs(activity))}</span>
                     </TableCell>
                     <TableCell className="text-right px-2">
                       {hasSignificantAdjustment ? (
                         <Badge color="emerald" size="xs">{formatPaceFromMinPerKm(adjustedPace)}</Badge>
                       ) : (
-                        <span className="text-sm tabular-nums text-slate-700">{formatPaceFromMinPerKm(adjustedPace)}</span>
+                        <span className="text-sm tabular-nums text-slate-700 dark:text-white/75">{formatPaceFromMinPerKm(adjustedPace)}</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right px-2">
@@ -540,13 +540,13 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                         }>
                           {activity.suffer_score}
                         </Badge>
-                      ) : <span className="text-sm text-slate-500">-</span>}
+                      ) : <span className="text-sm text-slate-500 dark:text-white/55">-</span>}
                     </TableCell>
                     <TableCell className="text-right px-2">
-                      <span className="text-sm tabular-nums text-slate-500">{Math.round(activity.total_elevation_gain || 0)}</span>
+                      <span className="text-sm tabular-nums text-slate-500 dark:text-white/55">{Math.round(activity.total_elevation_gain || 0)}</span>
                     </TableCell>
                     <TableCell className="text-right px-2">
-                      <span className="text-sm tabular-nums text-slate-500">{activity.distance > 0 ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1) : '0.0'}%</span>
+                      <span className="text-sm tabular-nums text-slate-500 dark:text-white/55">{activity.distance > 0 ? ((activity.total_elevation_gain / activity.distance) * 100).toFixed(1) : '0.0'}%</span>
                     </TableCell>
                   </TableRow>
                 );
@@ -557,15 +557,15 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
 
         {/* Paginación */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-            <span className="text-xs text-slate-500 tabular-nums">
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-white/10">
+            <span className="text-xs text-slate-500 dark:text-white/55 tabular-nums">
               {(page - 1) * ACTIVITIES_PAGE_SIZE + 1}–{Math.min(page * ACTIVITIES_PAGE_SIZE, sortedActivities.length)} / {sortedActivities.length}
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >‹</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
@@ -576,10 +576,10 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
                 }, [])
                 .map((p, i) =>
                   p === '…' ? (
-                    <span key={`e-${i}`} className="px-1 text-xs text-slate-300">…</span>
+                    <span key={`e-${i}`} className="px-1 text-xs text-slate-300 dark:text-white/40">…</span>
                   ) : (
                     <button key={p} onClick={() => setPage(p)}
-                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${p === page ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${p === page ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05]'}`}>
                       {p}
                     </button>
                   )
@@ -588,7 +588,7 @@ export default function ActivityLog({ activities, runningActivities, hrParams, o
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >›</button>
             </div>
           </div>

@@ -343,19 +343,19 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
     return (
         <div className="space-y-4">
             {/* ── Filters card ── */}
-            <Card className="p-6 ring-1 ring-slate-200 shadow-sm bg-white">
+            <Card className="p-6 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
                 <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2 bg-emerald-100 rounded-xl">
-                        <ClipboardDocumentListIcon className="w-6 h-6 text-emerald-600" />
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-400/10 rounded-xl">
+                        <ClipboardDocumentListIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-300" />
                     </div>
                     <div>
-                        <Title className="text-xl font-bold text-slate-900">{t('exporter.title')}</Title>
-                        <Text className="text-slate-500 text-sm">{t('exporter.subtitle')}</Text>
+                        <Title className="text-xl font-bold text-slate-900 dark:text-white">{t('exporter.title')}</Title>
+                        <Text className="text-slate-500 dark:text-white/55 text-sm">{t('exporter.subtitle')}</Text>
                     </div>
                 </div>
 
                 {/* Source selector: Strava activities vs Garmin health */}
-                <div className="flex rounded-xl border border-slate-200 overflow-hidden mb-3 text-sm">
+                <div className="flex rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden mb-3 text-sm">
                     {[
                         { value: 'strava', label: 'Actividades (Strava)' },
                         { value: 'garmin', label: 'VFC y FC reposo (Garmin)' },
@@ -364,7 +364,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                             key={opt.value}
                             onClick={() => setSource(opt.value)}
                             className={`flex-1 px-4 py-2 font-semibold transition-colors ${
-                                source === opt.value ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                                source === opt.value ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'
                             }`}
                         >
                             {opt.label}
@@ -373,7 +373,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 </div>
 
                 {/* Export all toggle */}
-                <div className="flex items-center gap-2 mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="flex items-center gap-2 mb-3 p-3 bg-emerald-50 dark:bg-emerald-400/10 border border-emerald-200 dark:border-emerald-300/25 rounded-xl">
                     <input
                         id="export-all-check"
                         type="checkbox"
@@ -381,11 +381,11 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         onChange={e => setExportAll(e.target.checked)}
                         className="w-4 h-4 accent-emerald-600 cursor-pointer"
                     />
-                    <label htmlFor="export-all-check" className="text-sm font-semibold text-emerald-800 cursor-pointer select-none">
+                    <label htmlFor="export-all-check" className="text-sm font-semibold text-emerald-800 dark:text-emerald-200 cursor-pointer select-none">
                         {isGarmin ? 'Exportar todos los registros (sin filtro de fecha)' : 'Exportar todas las actividades (sin ningún filtro)'}
                     </label>
                     {exportAll && (
-                        <span className="ml-auto text-xs text-emerald-600 font-medium">
+                        <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-300 font-medium">
                             {isGarmin ? `${garminData?.length || 0} días` : `${activities?.length || 0} actividades`}
                         </span>
                     )}
@@ -395,10 +395,10 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 <div className={`space-y-3 transition-opacity ${exportAll ? 'opacity-40 pointer-events-none' : ''}`}>
                     {/* Primary: date range — two simple from/to fields */}
                     <div>
-                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">{t('exporter.date_range')}</Text>
+                        <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500 dark:text-white/55">{t('exporter.date_range')}</Text>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label className="block mb-1 text-xs font-medium text-slate-500">Desde</label>
+                                <label className="block mb-1 text-xs font-medium text-slate-500 dark:text-white/55">Desde</label>
                                 <DatePicker
                                     className="w-full"
                                     value={dateRange?.from}
@@ -410,7 +410,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block mb-1 text-xs font-medium text-slate-500">Hasta</label>
+                                <label className="block mb-1 text-xs font-medium text-slate-500 dark:text-white/55">Hasta</label>
                                 <DatePicker
                                     className="w-full"
                                     value={dateRange?.to}
@@ -427,7 +427,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     {!isGarmin && <>
                     {/* Primary: running toggle + laps filter side by side */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label htmlFor="only-running-check" className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer select-none">
+                        <label htmlFor="only-running-check" className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl cursor-pointer select-none">
                             <input
                                 id="only-running-check"
                                 type="checkbox"
@@ -435,17 +435,17 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                 onChange={e => setOnlyRunning(e.target.checked)}
                                 className="w-4 h-4 accent-blue-600 cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-700">Solo running</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-white/75">Solo running</span>
                         </label>
 
-                        <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-xs font-bold uppercase text-slate-500">Parciales</span>
+                        <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl">
+                            <span className="text-xs font-bold uppercase text-slate-500 dark:text-white/55">Parciales</span>
                             {[
                                 { value: 'all',     label: 'Indiferente' },
                                 { value: 'with',    label: 'Con' },
                                 { value: 'without', label: 'Sin' },
                             ].map(opt => (
-                                <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-slate-700">
+                                <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-slate-700 dark:text-white/75">
                                     <input
                                         type="radio"
                                         name="laps-filter"
@@ -464,27 +464,27 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     <div>
                         <button
                             onClick={() => setShowAdvanced(s => !s)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white transition-colors"
                         >
                             <AdjustmentsHorizontalIcon className="w-4 h-4" />
                             Filtros avanzados
                             {(Number(minDist) > 0 || Number(minElev) > 0 || Number(minHR) > 0 || Number(maxHR) > 0) && (
-                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">activos</span>
+                                <span className="px-1.5 py-0.5 bg-blue-100 text-teal-700 dark:text-teal-300 rounded-full text-xs font-bold">activos</span>
                             )}
                             <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                         </button>
                         {showAdvanced && (
                             <Grid numItems={1} numItemsSm={3} className="gap-4 mt-3">
                                 <div>
-                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Dist. mínima (km)</Text>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500 dark:text-white/55">Dist. mínima (km)</Text>
                                     <NumberInput value={minDist} onValueChange={setMinDist} min={0} placeholder="0" />
                                 </div>
                                 <div>
-                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">Desnivel mínimo (m)</Text>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500 dark:text-white/55">Desnivel mínimo (m)</Text>
                                     <NumberInput value={minElev} onValueChange={setMinElev} min={0} placeholder="0" />
                                 </div>
                                 <div>
-                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500">FC Media (mín – máx)</Text>
+                                    <Text className="mb-1.5 font-bold text-xs uppercase text-slate-500 dark:text-white/55">FC Media (mín – máx)</Text>
                                     <div className="flex gap-2">
                                         <NumberInput value={minHR} onValueChange={setMinHR} min={0} placeholder="Min" />
                                         <NumberInput value={maxHR} onValueChange={setMaxHR} min={0} placeholder="Max" />
@@ -499,16 +499,16 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 {/* Stats summary chips */}
                 <div className="flex flex-wrap gap-2 mt-4">
                     {isGarmin ? (
-                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg font-semibold">
+                        <span className="px-2.5 py-1 bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-white/75 text-xs rounded-lg font-semibold">
                             {garminFiltered.length} / {garminData?.length || 0} días con VFC/FC reposo
                         </span>
                     ) : (
                         <>
-                        <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-lg font-semibold">
+                        <span className="px-2.5 py-1 bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-white/75 text-xs rounded-lg font-semibold">
                             {filteredActivities.length} / {activities?.length || 0} actividades
                         </span>
                         {Object.entries(typeCounts).map(([type, count]) => (
-                            <span key={type} className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium">
+                            <span key={type} className="px-2.5 py-1 bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 text-xs rounded-lg font-medium">
                                 {type}: {count}
                             </span>
                         ))}
@@ -518,10 +518,10 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
             </Card>
 
             {/* ── Fields + Format card ── */}
-            <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white">
+            <Card className="p-5 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
                 <div className="flex flex-col md:flex-row gap-6">
                     <div className="flex-1">
-                        <Text className="mb-2 font-bold text-xs uppercase text-slate-500">Campos a exportar</Text>
+                        <Text className="mb-2 font-bold text-xs uppercase text-slate-500 dark:text-white/55">Campos a exportar</Text>
                         {isGarmin ? (
                             <div className="flex flex-wrap gap-2">
                                 {GARMIN_FIELDS.map(f => (
@@ -539,7 +539,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                         className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                                             selectedFields.has(f.key)
                                                 ? 'bg-emerald-600 text-white border-emerald-600'
-                                                : 'bg-white text-slate-500 border-slate-300 hover:border-emerald-400'
+                                                : 'bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-300 dark:border-white/10 hover:border-emerald-400'
                                         }`}
                                     >
                                         {f.label}
@@ -549,7 +549,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         )}
                     </div>
                     <div className="w-full md:w-44 shrink-0">
-                        <Text className="mb-2 font-bold text-xs uppercase text-slate-500">Formato</Text>
+                        <Text className="mb-2 font-bold text-xs uppercase text-slate-500 dark:text-white/55">Formato</Text>
                         <Select value={format} onValueChange={setFormat} enableClear={false}>
                             <SelectItem value="json">JSON</SelectItem>
                             <SelectItem value="csv">CSV</SelectItem>
@@ -561,21 +561,21 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
             </Card>
 
             {/* ── Preview card ── */}
-            <Card className="p-5 ring-1 ring-slate-200 shadow-sm bg-white">
+            <Card className="p-5 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
                 <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
                     {/* View mode toggle */}
                     <div className="flex items-center gap-3">
-                        <Text className="font-bold text-slate-700">Vista previa</Text>
-                        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+                        <Text className="font-bold text-slate-700 dark:text-white/75">Vista previa</Text>
+                        <div className="flex rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden text-xs">
                             <button
                                 onClick={() => setPreviewMode('raw')}
-                                className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${previewMode === 'raw' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${previewMode === 'raw' ? 'bg-slate-800 text-white' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                             >
                                 <CodeBracketIcon className="w-3.5 h-3.5" /> Raw
                             </button>
                             <button
                                 onClick={() => setPreviewMode('table')}
-                                className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${previewMode === 'table' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${previewMode === 'table' ? 'bg-slate-800 text-white' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                             >
                                 <TableCellsIcon className="w-3.5 h-3.5" /> Tabla
                             </button>
@@ -586,7 +586,7 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                     <div className="flex items-center gap-2 flex-wrap">
                         {!isGarmin && missingLapsCount > 0 && onEnrichActivity && (
                             <>
-                                <Text className="text-xs text-slate-500">{missingLapsCount} sin parciales</Text>
+                                <Text className="text-xs text-slate-500 dark:text-white/55">{missingLapsCount} sin parciales</Text>
                                 <Button size="xs" variant="light" color="blue" icon={ArrowPathIcon} loading={enriching} onClick={handleEnrichAll}>
                                     Enriquecer todas
                                 </Button>
@@ -604,17 +604,17 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 {enriching && (
                     <div className="mb-3">
                         <ProgressBar value={enrichProgress} color="blue" className="mt-1" />
-                        <Text className="text-xs text-center mt-1 text-slate-500">Descargando parciales… {enrichProgress}%</Text>
+                        <Text className="text-xs text-center mt-1 text-slate-500 dark:text-white/55">Descargando parciales… {enrichProgress}%</Text>
                     </div>
                 )}
 
                 {previewMode === 'table' && isGarmin ? (
-                    <div className="overflow-auto max-h-96 border border-slate-200 rounded-xl">
+                    <div className="overflow-auto max-h-96 border border-slate-200 dark:border-white/10 rounded-xl">
                         <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-100 sticky top-0 z-10">
+                            <thead className="bg-slate-100 dark:bg-white/[0.04] sticky top-0 z-10">
                                 <tr>
                                     {GARMIN_FIELDS.map(f => (
-                                        <th key={f.key} className="px-3 py-2 font-semibold text-slate-600 whitespace-nowrap">{f.label}</th>
+                                        <th key={f.key} className="px-3 py-2 font-semibold text-slate-600 dark:text-white/75 whitespace-nowrap">{f.label}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -622,9 +622,9 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                 {garminFiltered.map((r, i) => {
                                     const o = buildGarminObj(r);
                                     return (
-                                        <tr key={r.date} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                        <tr key={r.date} className={i % 2 === 0 ? 'bg-white dark:bg-white/[0.03]' : 'bg-slate-50 dark:bg-white/[0.04]'}>
                                             {GARMIN_FIELDS.map(f => (
-                                                <td key={f.key} className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                                <td key={f.key} className="px-3 py-2 text-slate-700 dark:text-white/75 whitespace-nowrap">
                                                     {f.key === 'date'
                                                         ? new Date(o.date).toLocaleDateString('es-ES')
                                                         : (o[f.key] ?? '—')}
@@ -637,15 +637,15 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                         </table>
                     </div>
                 ) : previewMode === 'table' ? (
-                    <div className="overflow-auto max-h-96 border border-slate-200 rounded-xl">
+                    <div className="overflow-auto max-h-96 border border-slate-200 dark:border-white/10 rounded-xl">
                         <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-100 sticky top-0 z-10">
+                            <thead className="bg-slate-100 dark:bg-white/[0.04] sticky top-0 z-10">
                                 <tr>
                                     {tableFields.map(f => (
-                                        <th key={f.key} className="px-3 py-2 font-semibold text-slate-600 whitespace-nowrap">{f.label}</th>
+                                        <th key={f.key} className="px-3 py-2 font-semibold text-slate-600 dark:text-white/75 whitespace-nowrap">{f.label}</th>
                                     ))}
                                     {selectedFields.has('laps') && (
-                                        <th className="px-3 py-2 font-semibold text-slate-600">Parciales</th>
+                                        <th className="px-3 py-2 font-semibold text-slate-600 dark:text-white/75">Parciales</th>
                                     )}
                                     {onEnrichActivity && <th className="px-3 py-2 w-8" />}
                                 </tr>
@@ -654,16 +654,16 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                 {filteredActivities.map((a, i) => {
                                     const obj = buildActivityObj(a);
                                     return (
-                                        <tr key={a.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                        <tr key={a.id} className={i % 2 === 0 ? 'bg-white dark:bg-white/[0.03]' : 'bg-slate-50 dark:bg-white/[0.04]'}>
                                             {tableFields.map(f => (
-                                                <td key={f.key} className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                                <td key={f.key} className="px-3 py-2 text-slate-700 dark:text-white/75 whitespace-nowrap">
                                                     {f.key === 'date'
                                                         ? new Date(obj.date).toLocaleDateString('es-ES')
                                                         : (obj[f.key] ?? '—')}
                                                 </td>
                                             ))}
                                             {selectedFields.has('laps') && (
-                                                <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
+                                                <td className="px-3 py-2 text-slate-500 dark:text-white/55 whitespace-nowrap">
                                                     {a.laps ? `${a.laps.length} parciales` : '—'}
                                                 </td>
                                             )}
@@ -690,8 +690,8 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 ) : (
                   <>
                     {!isGarmin && onEnrichActivity && missingLapsCount > 0 && (
-                        <div className="mb-3 border border-slate-200 rounded-xl p-3 bg-slate-50">
-                            <Text className="text-xs font-bold uppercase text-slate-500 mb-2">
+                        <div className="mb-3 border border-slate-200 dark:border-white/10 rounded-xl p-3 bg-slate-50 dark:bg-white/[0.04]">
+                            <Text className="text-xs font-bold uppercase text-slate-500 dark:text-white/55 mb-2">
                                 Carreras sin parciales ({missingLapsCount}) — pulsa para obtenerlos
                             </Text>
                             <div className="flex flex-wrap gap-2 max-h-32 overflow-auto">
@@ -701,18 +701,18 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                                         onClick={() => handleEnrichOne(a.id)}
                                         disabled={enrichingId === a.id}
                                         title="Obtener parciales de esta carrera"
-                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40 transition-colors"
+                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-300 dark:border-white/10 bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40 transition-colors"
                                     >
                                         <ArrowPathIcon className={`w-3.5 h-3.5 ${enrichingId === a.id ? 'animate-spin' : ''}`} />
                                         <span className="truncate max-w-[12rem]">{a.name}</span>
-                                        <span className="text-slate-500">{new Date(a.start_date).toLocaleDateString('es-ES')}</span>
+                                        <span className="text-slate-500 dark:text-white/55">{new Date(a.start_date).toLocaleDateString('es-ES')}</span>
                                     </button>
                                 ))}
                             </div>
                         </div>
                     )}
                     <textarea
-                        className="w-full h-96 p-4 font-mono text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
+                        className="w-full h-96 p-4 font-mono text-sm bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
                         value={exportedData}
                         readOnly
                     />
@@ -720,14 +720,14 @@ const DataExporter = ({ activities, onEnrichActivity }) => {
                 )}
 
                 {/* Footer stats */}
-                <div className="mt-3 flex justify-between items-center text-slate-500 text-xs">
+                <div className="mt-3 flex justify-between items-center text-slate-500 dark:text-white/55 text-xs">
                     <div className="flex gap-3">
                         <span>
-                            Caracteres: <span className="font-bold text-slate-600">{exportedData.length.toLocaleString()}</span>
+                            Caracteres: <span className="font-bold text-slate-600 dark:text-white/75">{exportedData.length.toLocaleString()}</span>
                         </span>
                         <span>
                             Tokens aprox.:{' '}
-                            <span className={`font-bold ${estimatedTokens > 100000 ? 'text-red-500' : estimatedTokens > 50000 ? 'text-amber-500' : 'text-slate-600'}`}>
+                            <span className={`font-bold ${estimatedTokens > 100000 ? 'text-red-500' : estimatedTokens > 50000 ? 'text-amber-500' : 'text-slate-600 dark:text-white/75'}`}>
                                 {estimatedTokens.toLocaleString()}
                             </span>
                         </span>

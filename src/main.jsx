@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
 import './i18n';
+import './hooks/useTheme'; // aplica el tema y sigue al sistema desde el arranque
 import { buildInfo } from './lib/buildInfo';
 
 // Útil para soporte: saber qué build está corriendo el usuario desde la consola.

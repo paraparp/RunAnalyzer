@@ -24,7 +24,7 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
         // El acceso al plan es un botón propio, así que la zona "gestionar" no
         // puede ser el contenedor (un botón dentro de otro no es válido): se
         // resuelve con una capa que cubre la tarjeta por debajo del contenido.
-        <div className="relative w-full group bg-blue-700 rounded-2xl p-5 shadow-sm transition-all flex items-center gap-5">
+        <div className="relative w-full group bg-[#07090d] bg-gradient-to-r from-teal-400/[0.15] via-white/[0.03] to-orange-400/[0.12] border border-white/10 rounded-2xl p-5 shadow-sm transition-all flex items-center gap-5">
             {onManage && (
                 <button
                     type="button"
@@ -37,9 +37,9 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
                 <FlagIcon className="w-7 h-7 text-white" />
             </div>
             <div className="relative min-w-0 flex-1 pointer-events-none">
-                <p className="text-label font-bold text-blue-100 uppercase mb-0.5">{t('targets.next_race')}</p>
+                <p className="text-label font-bold text-white/60 uppercase mb-0.5">{t('targets.next_race')}</p>
                 <h3 className="text-lg font-black text-white tracking-tight truncate">{race.name}</h3>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs font-bold text-blue-100">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs font-bold text-white/60">
                     <span>{t(`planner.distances.${race.distance}`)}</span>
                     {race.date && (
                         <span>
@@ -67,11 +67,11 @@ const NextRaceBanner = ({ onManage, onOpenPlan }) => {
                 ) : (
                     <>
                         <p className="text-3xl font-black text-white leading-none tabular-nums">{days}</p>
-                        <p className="text-label font-bold text-blue-100 uppercase mt-1">{t('targets.days_unit')}</p>
+                        <p className="text-label font-bold text-white/60 uppercase mt-1">{t('targets.days_unit')}</p>
                     </>
                 )}
             </div>
-            {onManage && <ArrowRightIcon className="relative w-5 h-5 text-blue-200 shrink-0 group-hover:translate-x-0.5 transition-transform pointer-events-none" />}
+            {onManage && <ArrowRightIcon className="relative w-5 h-5 text-white/50 shrink-0 group-hover:translate-x-0.5 transition-transform pointer-events-none" />}
         </div>
     );
 };

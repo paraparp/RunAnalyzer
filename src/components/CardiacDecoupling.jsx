@@ -31,10 +31,10 @@ function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-bold text-slate-700 mb-1">{d.name}</p>
-      <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>
-      <p className="text-slate-600">{t('decoupling.subtitle').split(' ')[0]}: {d.paceLabel}/km | FC: {d.hr} bpm</p>
+    <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 dark:text-white/75 mb-1">{d.name}</p>
+      <p className="text-slate-500 dark:text-white/55">{d.dateLabel} — {d.km} km — {d.duration} min</p>
+      <p className="text-slate-600 dark:text-white/75">{t('decoupling.subtitle').split(' ')[0]}: {d.paceLabel}/km | FC: {d.hr} bpm</p>
       <p className="font-bold" style={{ color: d.color }}>
         Decoupling: {d.decoupling}% ({d.levelKey ? t(`decoupling.levels.${d.levelKey}`) : 'N/A'})
       </p>
@@ -141,7 +141,7 @@ export default function CardiacDecoupling({ activities }) {
 
   if (!decouplingData.length) {
     return (
-      <div className="text-center py-12 text-slate-500">
+      <div className="text-center py-12 text-slate-500 dark:text-white/55">
         <p className="text-sm">{t('decoupling.no_data')}</p>
         <p className="text-xs mt-2">{t('decoupling.no_data_hint')}</p>
       </div>
@@ -152,35 +152,35 @@ export default function CardiacDecoupling({ activities }) {
     <div className="space-y-6">
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.sessions_analyzed')}</p>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.total}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.with_complete_data')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('decoupling.sessions_analyzed')}</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{stats.total}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('decoupling.with_complete_data')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.last_5_avg')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('decoupling.last_5_avg')}</p>
           <p className="text-2xl font-black tabular-nums" style={{ color: stats.levelLast5Color }}>{stats.avgLast5}%</p>
           <p className="text-xs font-semibold mt-0.5" style={{ color: stats.levelLast5Color }}>
             {stats.levelLast5Key ? t(`decoupling.levels.${stats.levelLast5Key}`) : ''}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.best_session')}</p>
-          <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.bestDc}%</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.min_decoupling')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('decoupling.best_session')}</p>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-300 tabular-nums">{stats.bestDc}%</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('decoupling.min_decoupling')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.global_avg')}</p>
-          <p className="text-2xl font-black text-slate-700 tabular-nums">{stats.avgAll}%</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.all_sessions')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('decoupling.global_avg')}</p>
+          <p className="text-2xl font-black text-slate-700 dark:text-white/75 tabular-nums">{stats.avgAll}%</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('decoupling.all_sessions')}</p>
         </div>
         {stats.improving !== null && (
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('decoupling.trend')}</p>
-            <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600' : 'text-amber-600'}`}>
+          <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+            <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('decoupling.trend')}</p>
+            <p className={`text-2xl font-black tabular-nums ${stats.improving ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
               {stats.improving ? `↗ ${t('decoupling.improving')}` : `↘ ${t('decoupling.worsening')}`}
             </p>
-            <p className="text-xs text-slate-500 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
+            <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('decoupling.aerobic_efficiency')}</p>
           </div>
         )}
       </div>
@@ -196,9 +196,9 @@ export default function CardiacDecoupling({ activities }) {
       </div>
 
       {/* Timeline chart */}
-      <Card className="shadow-sm border-slate-200 rounded-2xl">
-        <Title className="text-slate-800 font-bold mb-1">{t('decoupling.title')}</Title>
-        <Text className="text-slate-500 text-sm mb-4">{t('decoupling.subtitle')}</Text>
+      <Card className="shadow-sm border-slate-200 dark:border-white/10 rounded-2xl">
+        <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('decoupling.title')}</Title>
+        <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">{t('decoupling.subtitle')}</Text>
         <ExpandableChart className="h-[320px] w-full" title={t('decoupling.title')} subtitle={t('decoupling.subtitle')}>
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -230,9 +230,9 @@ export default function CardiacDecoupling({ activities }) {
       </Card>
 
       {/* Duration vs Decoupling scatter */}
-      <Card className="shadow-sm border-slate-200 rounded-2xl">
-        <Title className="text-slate-800 font-bold mb-1">Duración vs Decoupling</Title>
-        <Text className="text-slate-500 text-sm mb-4">Relación entre la duración de la sesión y el desacoplamiento</Text>
+      <Card className="shadow-sm border-slate-200 dark:border-white/10 rounded-2xl">
+        <Title className="text-slate-800 dark:text-white font-bold mb-1">Duración vs Decoupling</Title>
+        <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">Relación entre la duración de la sesión y el desacoplamiento</Text>
         <ExpandableChart className="h-[280px] w-full" title="Duración vs Decoupling" subtitle="Relación entre la duración de la sesión y el desacoplamiento">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -265,9 +265,9 @@ export default function CardiacDecoupling({ activities }) {
 
       {/* Monthly trend */}
       {trendData.length > 1 && (
-        <Card className="shadow-sm border-slate-200 rounded-2xl">
-          <Title className="text-slate-800 font-bold mb-1">Tendencia Mensual</Title>
-          <Text className="text-slate-500 text-sm mb-4">Media de decoupling por mes</Text>
+        <Card className="shadow-sm border-slate-200 dark:border-white/10 rounded-2xl">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">Tendencia Mensual</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">Media de decoupling por mes</Text>
           <ExpandableChart className="h-[240px] w-full" title="Tendencia Mensual" subtitle="Media de decoupling por mes">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
@@ -287,9 +287,9 @@ export default function CardiacDecoupling({ activities }) {
       )}
 
       {/* Interpretation guide */}
-      <Card className="shadow-sm border-slate-200 rounded-2xl">
-        <Title className="text-slate-800 font-bold mb-3">{t('decoupling.how_to_interpret')}</Title>
-        <div className="space-y-2 text-sm text-slate-600">
+      <Card className="shadow-sm border-slate-200 dark:border-white/10 rounded-2xl">
+        <Title className="text-slate-800 dark:text-white font-bold mb-3">{t('decoupling.how_to_interpret')}</Title>
+        <div className="space-y-2 text-sm text-slate-600 dark:text-white/75">
           <p>El <span className="font-semibold">decoupling cardíaco</span> mide cuánto se desacopla tu frecuencia cardíaca del ritmo durante una sesión. Se compara la relación FC/ritmo de la primera mitad con la segunda mitad.</p>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
             {[
@@ -301,11 +301,11 @@ export default function CardiacDecoupling({ activities }) {
             ].map(z => (
               <div key={z.key} className="text-center p-2 rounded-lg" style={{ backgroundColor: z.color + '15' }}>
                 <p className="font-bold text-xs" style={{ color: z.color }}>{z.range}</p>
-                <p className="text-xs text-slate-500">{t(`decoupling.levels.${z.key}`)}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55">{t(`decoupling.levels.${z.key}`)}</p>
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-500 mt-2">Un decoupling bajo indica buena eficiencia aeróbica. Si mejora con el tiempo, tu base aeróbica se está fortaleciendo.</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-2">Un decoupling bajo indica buena eficiencia aeróbica. Si mejora con el tiempo, tu base aeróbica se está fortaleciendo.</p>
         </div>
       </Card>
     </div>

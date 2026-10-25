@@ -35,6 +35,9 @@ export async function aiObject(req, res) {
       schema: zodSchema,
       prompt,
       temperature,
+      // Sin reintentos: un 429/503 del pool gratis no se arregla en 2 s, y el
+      // cliente ya salta al siguiente proveedor de buildProviderChain.
+      maxRetries: 0,
     });
     res.json({ object });
   } catch (e) {

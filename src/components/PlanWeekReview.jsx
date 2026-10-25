@@ -9,12 +9,12 @@ import { replanWeek, applyReplan, readChoice, readAdaptedSession } from '../lib/
 // falta (lib/adaptivePlan). No guarda nada sin que el atleta pulse "Aplicar".
 
 const STATUS = {
-  done: { label: 'Hecho', cls: 'bg-emerald-50 text-emerald-700' },
-  missed: { label: 'Fallado', cls: 'bg-rose-50 text-rose-700' },
-  postponed: { label: 'Aplazado hoy', cls: 'bg-amber-50 text-amber-700' },
-  today: { label: 'Hoy', cls: 'bg-blue-50 text-blue-700' },
-  upcoming: { label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' },
-  rest: { label: 'Descanso', cls: 'bg-slate-50 text-slate-400' },
+  done: { label: 'Hecho', cls: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300' },
+  missed: { label: 'Fallado', cls: 'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300' },
+  postponed: { label: 'Aplazado hoy', cls: 'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300' },
+  today: { label: 'Hoy', cls: 'bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300' },
+  upcoming: { label: 'Pendiente', cls: 'bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-white/75' },
+  rest: { label: 'Descanso', cls: 'bg-slate-50 dark:bg-white/[0.04] text-slate-400 dark:text-white/40' },
 };
 const KIND = { long: 'Tirada larga', hard: 'Calidad', easy: 'Suave', rest: 'Descanso' };
 
@@ -52,36 +52,36 @@ export default function PlanWeekReview({ plan, activities, onApplied }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-6 border border-slate-100 dark:border-white/10 shadow-sm space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-black text-slate-900">Semana real frente al plan</h2>
-        {saved.replanned_at && <span className="text-xs text-slate-500">Replanificada el {fmtDate(saved.replanned_at)}</span>}
+        <h2 className="text-base font-black text-slate-900 dark:text-white">Semana real frente al plan</h2>
+        {saved.replanned_at && <span className="text-xs text-slate-500 dark:text-white/55">Replanificada el {fmtDate(saved.replanned_at)}</span>}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         {review.map((e) => (
-          <div key={`${e.date}-${e.index}`} className="rounded-xl border border-slate-100 p-2.5">
-            <p className="text-xs font-bold text-slate-500 capitalize">{fmtDate(e.date)}</p>
-            <p className="text-sm font-semibold text-slate-800 truncate" title={e.day.type}>{e.day.type}</p>
-            <p className="text-[11px] text-slate-500">{KIND[e.kind]}{e.day.moved_from ? ` · movida del ${e.day.moved_from.toLowerCase()}` : ''}</p>
+          <div key={`${e.date}-${e.index}`} className="rounded-xl border border-slate-100 dark:border-white/10 p-2.5">
+            <p className="text-xs font-bold text-slate-500 dark:text-white/55 capitalize">{fmtDate(e.date)}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate" title={e.day.type}>{e.day.type}</p>
+            <p className="text-[11px] text-slate-500 dark:text-white/55">{KIND[e.kind]}{e.day.moved_from ? ` · movida del ${e.day.moved_from.toLowerCase()}` : ''}</p>
             <span className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-[11px] font-bold ${STATUS[e.status].cls}`}>{STATUS[e.status].label}</span>
           </div>
         ))}
       </div>
 
       {applied && (
-        <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+        <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
           <CheckCircleIcon className="w-5 h-5" /> Semana replanificada. La portada ya usa el plan nuevo; si tenías sesiones en Garmin, vuelve a enviarlas.
         </p>
       )}
 
       {!applied && hasChanges && (
-        <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 space-y-2">
-          <p className="text-sm font-bold text-slate-800">Propuesta para lo que queda de semana</p>
+        <div className="rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 p-4 space-y-2">
+          <p className="text-sm font-bold text-slate-800 dark:text-white">Propuesta para lo que queda de semana</p>
           <ul className="space-y-1.5 text-sm">
             {moves.map(({ from, to }) => (
-              <li key={from.index} className="flex items-start gap-2 text-slate-700">
-                <ArrowPathIcon className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" />
+              <li key={from.index} className="flex items-start gap-2 text-slate-700 dark:text-white/75">
+                <ArrowPathIcon className="w-4 h-4 mt-0.5 text-teal-700 dark:text-teal-300 shrink-0" />
                 <span>
                   <span className="font-semibold">{from.day.type}</span> ({from.status === 'postponed' ? 'aplazada hoy' : `fallada el ${fmtDate(from.date)}`})
                   {' → '}<span className="font-semibold capitalize">{fmtDate(to.date)}</span>
@@ -90,7 +90,7 @@ export default function PlanWeekReview({ plan, activities, onApplied }) {
               </li>
             ))}
             {dropped.map(({ entry, reason }) => (
-              <li key={entry.index} className="flex items-start gap-2 text-slate-500">
+              <li key={entry.index} className="flex items-start gap-2 text-slate-500 dark:text-white/55">
                 <XCircleIcon className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
                   <span className="font-semibold">{entry.day.type}</span> del {fmtDate(entry.date)}:{' '}
@@ -102,7 +102,7 @@ export default function PlanWeekReview({ plan, activities, onApplied }) {
             ))}
           </ul>
           {schedule && (
-            <button type="button" onClick={apply} className="mt-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700">
+            <button type="button" onClick={apply} className="mt-2 px-4 py-2 rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950 text-sm font-bold hover:bg-slate-800 dark:hover:bg-white/90">
               Aplicar a mi plan
             </button>
           )}

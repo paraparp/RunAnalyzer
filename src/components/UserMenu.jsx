@@ -8,10 +8,14 @@ import {
   ChevronUpIcon,
   GlobeAltIcon,
   ArrowPathIcon,
+  SunIcon,
+  MoonIcon,
+  ComputerDesktopIcon,
 } from '@heroicons/react/24/outline';
 import ModelSelector from './ModelSelector';
 import VersionBadge from './VersionBadge';
 import useAIModel from '../hooks/useAIModel';
+import useTheme from '../hooks/useTheme';
 import cloudStorage from '../lib/cloudStorage';
 import { parseModelValue } from '../services/ai';
 
@@ -62,6 +66,7 @@ export default function UserMenu({
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const [selectedModel] = useAIModel();
+  const { theme, setTheme } = useTheme();
   const [isGarminConnected, setIsGarminConnected] = useState(checkGarminConnected);
 
   // Escucha cambios en las credenciales o datos de Garmin
@@ -119,8 +124,8 @@ export default function UserMenu({
           onClick={() => setIsOpen((prev) => !prev)}
           className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left ${
             isOpen
-              ? 'bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/30'
-              : 'hover:bg-slate-100/90 dark:hover:bg-slate-800/60'
+              ? 'bg-teal-50/80 dark:bg-white/[0.06] ring-2 ring-teal-600/30 dark:ring-teal-300/30'
+              : 'hover:bg-slate-100/90 dark:hover:bg-white/[0.04]'
           }`}
           aria-expanded={isOpen}
           aria-label={t('user_menu.title', 'Perfil y configuración de usuario')}
@@ -132,16 +137,16 @@ export default function UserMenu({
               className="w-9 h-9 rounded-full ring-2 ring-blue-400/40 shadow-sm object-cover"
             />
             <span
-              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-slate-900"
+              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10"
               title="Strava Conectado"
             />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
               {user?.name || 'Corredor'}
             </p>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
-              <SparklesIcon className="w-3 h-3 text-blue-500 shrink-0" />
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-white/55 truncate">
+              <SparklesIcon className="w-3 h-3 text-teal-600 dark:text-teal-300 shrink-0" />
               <span className="truncate font-medium capitalize">{cleanModelName}</span>
               {isGarminConnected && (
                 <span
@@ -163,7 +168,7 @@ export default function UserMenu({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`relative group rounded-full p-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+          className={`relative group rounded-full p-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-teal-300 dark:ring-offset-[#07090d] ${
             isOpen ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:scale-105'
           }`}
           aria-expanded={isOpen}
@@ -175,7 +180,7 @@ export default function UserMenu({
             className="w-8 h-8 rounded-full ring-2 ring-blue-100 group-hover:ring-blue-400 object-cover shadow-sm transition-all"
           />
           <span
-            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-slate-900"
+            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10"
             title="Conectado"
           />
         </button>
@@ -191,22 +196,22 @@ export default function UserMenu({
           }`}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
         >
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-2xl p-4 text-slate-800 dark:text-slate-100 space-y-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
+          <div className="bg-white/95 dark:bg-[#0c0f15]/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/10 rounded-2xl shadow-2xl p-4 text-slate-800 dark:text-white space-y-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
             {/* Cabecera del usuario */}
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/10">
               <div className="relative shrink-0">
                 <img
                   src={user?.picture}
                   alt={user?.name || 'Usuario'}
                   className="w-11 h-11 rounded-full ring-2 ring-blue-500/30 object-cover shadow"
                 />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                   {user?.name}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55 truncate">{user?.email}</p>
 
                 {/* Chips de conexiones Strava & Garmin */}
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -241,12 +246,12 @@ export default function UserMenu({
                         setIsOpen(false);
                         navigate('/connections');
                       }}
-                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-500 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.08] text-slate-500 dark:text-white/45 border border-slate-200/60 dark:border-white/10 transition-colors cursor-pointer"
                       title="Garmin no conectado · Haz clic para vincular en Ajustes › Conexiones"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-white/20" />
                       Garmin
-                      <span className="text-xs text-slate-500 dark:text-slate-500 font-normal">off</span>
+                      <span className="text-xs text-slate-500 dark:text-white/45 font-normal">off</span>
                     </button>
                   )}
                 </div>
@@ -257,18 +262,18 @@ export default function UserMenu({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <div className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+                  <div className="p-1 rounded-md bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300">
                     <SparklesIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                    <p className="text-xs font-bold text-slate-800 dark:text-white tracking-tight">
                       {t('user_menu.ai_model', 'Modelo de Inteligencia Artificial')}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+              <p className="text-xs text-slate-500 dark:text-white/55 leading-snug">
                 {t(
                   'user_menu.ai_model_desc',
                   'Controla las respuestas del Coach, Predictor, Chat y Análisis.'
@@ -285,15 +290,15 @@ export default function UserMenu({
                 lo nuevo, así que lo que cambie hacia atrás (actividades borradas,
                 subidas tardías) solo se recoge desde aquí. */}
             {onFullSync && (
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+              <div className="pt-2 border-t border-slate-100 dark:border-white/10 space-y-1.5">
                 <button
                   type="button"
                   onClick={onFullSync}
                   disabled={isSyncing}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
                     isSyncing
-                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed'
-                      : 'bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/40'
+                      ? 'bg-slate-100 dark:bg-white/[0.06] text-slate-500 border-slate-200 dark:border-white/10 cursor-not-allowed'
+                      : 'bg-teal-50/70 hover:bg-teal-100/80 dark:bg-teal-400/10 dark:hover:bg-teal-400/15 text-teal-800 dark:text-teal-200 border-teal-100 dark:border-teal-300/20'
                   }`}
                 >
                   <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -303,7 +308,7 @@ export default function UserMenu({
                       : t('user_menu.full_sync', 'Sincronización completa')}
                   </span>
                 </button>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                <p className="text-xs text-slate-500 dark:text-white/55 leading-snug">
                   {t(
                     'user_menu.full_sync_desc',
                     'Vuelve a bajar todo el histórico de Strava y Garmin. Tarda más; el sync automático solo trae lo nuevo.'
@@ -312,17 +317,48 @@ export default function UserMenu({
               </div>
             )}
 
+            {/* Tema */}
+            <div className="pt-2 border-t border-slate-100 dark:border-white/10 flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-slate-800 dark:text-white tracking-tight">
+                {t('user_menu.theme', 'Tema')}
+              </span>
+              <div role="radiogroup" aria-label={t('user_menu.theme', 'Tema')} className="flex items-center gap-0.5 p-0.5 rounded-xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/10">
+                {[
+                  { id: 'light', Icon: SunIcon, label: t('user_menu.theme_light', 'Claro') },
+                  { id: 'dark', Icon: MoonIcon, label: t('user_menu.theme_dark', 'Oscuro') },
+                  { id: 'system', Icon: ComputerDesktopIcon, label: t('user_menu.theme_system', 'Sistema') },
+                ].map(({ id, Icon, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === id}
+                    onClick={() => setTheme(id)}
+                    title={label}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                      theme === id
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-white/55 dark:hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Idioma y Versión */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+            <div className="pt-2 border-t border-slate-100 dark:border-white/10 flex items-center justify-between gap-2">
               {changeLanguage && (
                 <button
                   type="button"
                   onClick={changeLanguage}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
                   <GlobeAltIcon className="w-3.5 h-3.5 text-slate-400" />
                   <span>{i18n.language?.startsWith('en') ? 'English' : 'Español'}</span>
-                  <span className="text-label uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.5 rounded">
+                  <span className="text-label uppercase font-bold text-teal-700 bg-teal-50 dark:text-teal-300 dark:bg-teal-400/10 px-1.5 py-0.5 rounded">
                     {i18n.language?.startsWith('en') ? 'EN' : 'ES'}
                   </span>
                 </button>
@@ -334,7 +370,7 @@ export default function UserMenu({
             </div>
 
             {/* Cerrar Sesión */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="pt-2 border-t border-slate-100 dark:border-white/10">
               <button
                 type="button"
                 onClick={() => {

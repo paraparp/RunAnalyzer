@@ -61,9 +61,9 @@ export default function LactateThreshold({ activities }) {
 
   if (!hrmax) {
     return (
-      <div className="text-center py-16 text-slate-500">
+      <div className="text-center py-16 text-slate-500 dark:text-white/55">
         <div className="text-5xl mb-4">💓</div>
-        <p className="text-base font-semibold text-slate-600 mb-1">{t('lactate.no_hr')}</p>
+        <p className="text-base font-semibold text-slate-600 dark:text-white/75 mb-1">{t('lactate.no_hr')}</p>
         <p className="text-sm">{t('lactate.no_hr_hint')}</p>
       </div>
     );
@@ -71,9 +71,9 @@ export default function LactateThreshold({ activities }) {
 
   if (!hasData) {
     return (
-      <div className="text-center py-16 text-slate-500">
+      <div className="text-center py-16 text-slate-500 dark:text-white/55">
         <div className="text-5xl mb-4">📊</div>
-        <p className="text-base font-semibold text-slate-600 mb-1">{t('lactate.not_enough')}</p>
+        <p className="text-base font-semibold text-slate-600 dark:text-white/75 mb-1">{t('lactate.not_enough')}</p>
         <p className="text-sm">{t('lactate.not_enough_hint', { bpm: lt2Hr ?? Math.round(hrmax * 0.875), hrmax })}</p>
         <p className="text-xs mt-2">{t('lactate.extend_hint')}</p>
       </div>
@@ -94,9 +94,9 @@ export default function LactateThreshold({ activities }) {
   const trendDelta = hr?.trendDelta ?? null;
   const trendStatus = trendDelta === null ? null : trendDelta > 5 ? 'improving' : trendDelta < -5 ? 'worsening' : 'stable';
   const trendConfig = {
-    improving: { color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', arrow: '↑', msg: t('lactate.trend_improving_msg', { sec: Math.abs(trendDelta) }) },
-    stable:    { color: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200',     arrow: '→', msg: t('lactate.trend_stable_msg') },
-    worsening: { color: 'text-red-600',     bg: 'bg-red-50 border-red-200',         arrow: '↓', msg: t('lactate.trend_worsening_msg', { sec: Math.abs(trendDelta) }) },
+    improving: { color: 'text-emerald-600 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-400/10 border-emerald-200 dark:border-emerald-300/25', arrow: '↑', msg: t('lactate.trend_improving_msg', { sec: Math.abs(trendDelta) }) },
+    stable:    { color: 'text-amber-600 dark:text-amber-300',   bg: 'bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-300/25',     arrow: '→', msg: t('lactate.trend_stable_msg') },
+    worsening: { color: 'text-red-600 dark:text-red-300',     bg: 'bg-red-50 dark:bg-red-400/10 border-red-200 dark:border-red-300/25',         arrow: '↓', msg: t('lactate.trend_worsening_msg', { sec: Math.abs(trendDelta) }) },
   };
 
   // CS chart data: model curve + scatter of best efforts
@@ -109,23 +109,23 @@ export default function LactateThreshold({ activities }) {
   })();
 
   const zoneColors = {
-    recovery: 'border-slate-200 bg-slate-50',
-    easy: 'border-sky-300 bg-sky-50',
-    marathon: 'border-teal-300 bg-teal-50',
-    threshold: 'border-blue-400 bg-blue-50',
-    interval: 'border-orange-300 bg-orange-50',
-    reps: 'border-red-300 bg-red-50',
+    recovery: 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04]',
+    easy: 'border-sky-300 bg-sky-50 dark:bg-sky-400/10',
+    marathon: 'border-teal-300 bg-teal-50 dark:bg-teal-400/10',
+    threshold: 'border-blue-400 bg-teal-50 dark:bg-teal-400/10',
+    interval: 'border-orange-300 bg-orange-50 dark:bg-orange-400/10',
+    reps: 'border-red-300 bg-red-50 dark:bg-red-400/10',
   };
 
   const renderPaceTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs space-y-0.5">
-        <p className="font-bold text-slate-700">{d.label}</p>
-        <p className="text-blue-600 font-semibold">LT2: {formatPace(d.lt2pace)}/km</p>
+      <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded-lg shadow-lg p-3 text-xs space-y-0.5">
+        <p className="font-bold text-slate-700 dark:text-white/75">{d.label}</p>
+        <p className="text-teal-700 dark:text-teal-300 font-semibold">LT2: {formatPace(d.lt2pace)}/km</p>
         {d.lt1pace && <p className="text-sky-500">LT1: {formatPace(d.lt1pace)}/km</p>}
-        <p className="text-slate-500">{t('lactate.runs_count', { n: d.count, c: d.confidence })}</p>
+        <p className="text-slate-500 dark:text-white/55">{t('lactate.runs_count', { n: d.count, c: d.confidence })}</p>
       </div>
     );
   };
@@ -136,23 +136,23 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Stat row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.threshold_label')}</p>
-          <p className="text-2xl font-black text-blue-600 tabular-nums">{formatPace(headlineLT2)}<span className="text-sm font-semibold text-slate-500">/km</span></p>
-          <p className="text-xs text-slate-500 mt-0.5">{csValid ? t('lactate.threshold_hint_cs') : t('lactate.threshold_hint_hr')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('lactate.threshold_label')}</p>
+          <p className="text-2xl font-black text-teal-700 dark:text-teal-300 tabular-nums">{formatPace(headlineLT2)}<span className="text-sm font-semibold text-slate-500 dark:text-white/55">/km</span></p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{csValid ? t('lactate.threshold_hint_cs') : t('lactate.threshold_hint_hr')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.easy_label')}</p>
-          <p className="text-2xl font-black text-sky-500 tabular-nums">{easyPace ? `${formatPace(easyPace.slow)}` : (hr?.lt1 ? formatPace(hr.lt1) : '—')}<span className="text-sm font-semibold text-slate-500">/km</span></p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('lactate.easy_hint')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('lactate.easy_label')}</p>
+          <p className="text-2xl font-black text-sky-500 tabular-nums">{easyPace ? `${formatPace(easyPace.slow)}` : (hr?.lt1 ? formatPace(hr.lt1) : '—')}<span className="text-sm font-semibold text-slate-500 dark:text-white/55">/km</span></p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('lactate.easy_hint')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.hrmax_label')}</p>
-          <p className="text-2xl font-black text-slate-800 tabular-nums">{hrmax} <span className="text-sm font-semibold text-slate-500">bpm</span></p>
-          <p className="text-xs text-slate-500 mt-0.5">{hrInfo?.trimmed ? t('lactate.hrmax_trimmed', { raw: hrInfo.raw }) : t('lactate.hrmax_hint')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('lactate.hrmax_label')}</p>
+          <p className="text-2xl font-black text-slate-800 dark:text-white tabular-nums">{hrmax} <span className="text-sm font-semibold text-slate-500 dark:text-white/55">bpm</span></p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{hrInfo?.trimmed ? t('lactate.hrmax_trimmed', { raw: hrInfo.raw }) : t('lactate.hrmax_hint')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('lactate.trend_label')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('lactate.trend_label')}</p>
           {trendDelta !== null ? (
             <>
               <p className={`text-2xl font-black tabular-nums ${trendConfig[trendStatus].color}`}>
@@ -163,23 +163,23 @@ export default function LactateThreshold({ activities }) {
               </p>
             </>
           ) : (
-            <p className="text-2xl font-black text-slate-500">—</p>
+            <p className="text-2xl font-black text-slate-500 dark:text-white/55">—</p>
           )}
         </div>
       </div>
 
       {/* ── Actionable recommendation ── */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm font-bold text-blue-700 mb-1">🎯 {t('lactate.reco_title')}</p>
+      <div className="rounded-xl border border-teal-200 dark:border-teal-300/25 bg-teal-50 dark:bg-teal-400/10 p-4">
+        <p className="text-sm font-bold text-teal-700 dark:text-teal-300 mb-1">🎯 {t('lactate.reco_title')}</p>
         {csValid && easyPace && tempoPace ? (
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-slate-700 dark:text-white/75">
             {t('lactate.reco_body', { lt2: formatPace(cs.csPace), easy: formatPace(easyPace.slow), tempo: `${formatPace(tempoPace.slow)}–${formatPace(tempoPace.fast)}` })}
           </p>
         ) : (
-          <p className="text-sm text-slate-700">{cs?.nonMaximal ? t('lactate.reco_nonmaximal') : t('lactate.reco_need_efforts')}</p>
+          <p className="text-sm text-slate-700 dark:text-white/75">{cs?.nonMaximal ? t('lactate.reco_nonmaximal') : t('lactate.reco_need_efforts')}</p>
         )}
         {disagreeSec !== null && Math.abs(disagreeSec) > 15 && (
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-2">
             {t('lactate.reco_disagree', { hr: formatPace(hr.lt2), cs: formatPace(cs.csPace), sec: Math.abs(disagreeSec) })}
           </p>
         )}
@@ -187,7 +187,7 @@ export default function LactateThreshold({ activities }) {
           const garminPace = 1000 / garminLt.speed_ms / 60; // min/km, la unidad de formatPace
           const diff = headlineLT2 ? Math.round((garminPace - headlineLT2) * 60) : null;
           return (
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 dark:text-white/55 mt-2">
               {t('lactate.garmin_compare', {
                 pace: formatPace(garminPace),
                 hr: garminLt.hr ?? '—',
@@ -201,7 +201,7 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Time window ── */}
       <div className="flex items-center gap-3">
-        <span className="text-xs text-slate-500">{t('lactate.months_with_data', { n: monthlyData.length })}</span>
+        <span className="text-xs text-slate-500 dark:text-white/55">{t('lactate.months_with_data', { n: monthlyData.length })}</span>
       </div>
 
       {/* La curva y el ajuste de CS/D′ los pinta Motor › Capacidad, que es su
@@ -209,7 +209,7 @@ export default function LactateThreshold({ activities }) {
           abajo y el contraste con la FC. Antes esta vista repetía el gráfico
           entero con los mismos datos. */}
       {csValid && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-white/55">
           {t('lactate.cs_from_capacity', {
             pace: formatPace(cs.csPace),
             n: cs.nEfforts,
@@ -220,18 +220,18 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Training paces (decisions) ── */}
       {csValid && paces && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('lactate.paces_title')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('lactate.paces_subtitle')}</Text>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('lactate.paces_title')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">{t('lactate.paces_subtitle')}</Text>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {paces.map(z => (
               <div key={z.key} className={`rounded-xl border-2 p-3 ${zoneColors[z.key]}`}>
                 <div className="flex items-baseline justify-between mb-1">
-                  <p className="text-xs font-bold text-slate-700">{t(`lactate.zone_${z.key}`)}</p>
-                  <span className="text-xs text-slate-500">≈ {z.hr} FCmax</span>
+                  <p className="text-xs font-bold text-slate-700 dark:text-white/75">{t(`lactate.zone_${z.key}`)}</p>
+                  <span className="text-xs text-slate-500 dark:text-white/55">≈ {z.hr} FCmax</span>
                 </div>
-                <p className="text-lg font-black text-slate-800 tabular-nums">{formatPace(z.slow)}–{formatPace(z.fast)}<span className="text-xs font-semibold text-slate-500">/km</span></p>
-                <p className="text-xs text-slate-600 leading-relaxed mt-0.5">{t(`lactate.zone_${z.key}_desc`)}</p>
+                <p className="text-lg font-black text-slate-800 dark:text-white tabular-nums">{formatPace(z.slow)}–{formatPace(z.fast)}<span className="text-xs font-semibold text-slate-500 dark:text-white/55">/km</span></p>
+                <p className="text-xs text-slate-600 dark:text-white/75 leading-relaxed mt-0.5">{t(`lactate.zone_${z.key}_desc`)}</p>
               </div>
             ))}
           </div>
@@ -240,10 +240,10 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── HR cross-check: monthly LT2 trend ── */}
       {monthlyData.length > 0 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('lactate.chart_title')}</Title>
-          <Text className="text-slate-500 text-sm mb-1">{t('lactate.chart_subtitle')} {t('lactate.chart_ewma')}</Text>
-          <Text className="text-slate-500 text-xs mb-4">{t('lactate.chart_yaxis')}</Text>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('lactate.chart_title')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-1">{t('lactate.chart_subtitle')} {t('lactate.chart_ewma')}</Text>
+          <Text className="text-slate-500 dark:text-white/55 text-xs mb-4">{t('lactate.chart_yaxis')}</Text>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
@@ -263,7 +263,7 @@ export default function LactateThreshold({ activities }) {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-5 mt-3 text-xs text-slate-500 flex-wrap">
+          <div className="flex items-center gap-5 mt-3 text-xs text-slate-500 dark:text-white/55 flex-wrap">
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-300" /> {t('lactate.legend_lt2_raw')}</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5" style={{ borderTop: '2px dashed #2563eb' }} /> {t('lactate.legend_lt2_ewma')}</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-sky-400" /> {t('lactate.legend_lt1')}</span>
@@ -273,9 +273,9 @@ export default function LactateThreshold({ activities }) {
 
       {/* ── Confidence bars ── */}
       {monthlyData.length > 0 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('lactate.confidence_bars_title')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('lactate.confidence_bars_subtitle')}</Text>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('lactate.confidence_bars_title')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">{t('lactate.confidence_bars_subtitle')}</Text>
           <div className="h-[180px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
@@ -287,8 +287,8 @@ export default function LactateThreshold({ activities }) {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-white border border-slate-200 rounded-lg shadow p-2 text-xs">
-                        <p className="font-bold text-slate-700">{d.label}</p>
+                      <div className="bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-lg shadow p-2 text-xs">
+                        <p className="font-bold text-slate-700 dark:text-white/75">{d.label}</p>
                         <p>{t('lactate.runs_count', { n: d.count, c: d.confidence })}</p>
                       </div>
                     );
@@ -302,8 +302,8 @@ export default function LactateThreshold({ activities }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-600" /> {t('lactate.high_conf')}</span>
+          <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 dark:text-white/55">
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-slate-950 text-white dark:bg-white dark:text-slate-950" /> {t('lactate.high_conf')}</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-300" /> {t('lactate.medium_conf')}</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100" /> {t('lactate.low_conf')}</span>
           </div>
@@ -316,27 +316,27 @@ export default function LactateThreshold({ activities }) {
           <p className={`text-sm font-bold mb-1 ${trendConfig[trendStatus].color}`}>
             {trendConfig[trendStatus].arrow} {trendStatus === 'improving' ? t('lactate.lt2_improving') : trendStatus === 'worsening' ? t('lactate.lt2_worsening') : t('lactate.lt2_stable')}
           </p>
-          <p className="text-sm text-slate-700">{trendConfig[trendStatus].msg}</p>
+          <p className="text-sm text-slate-700 dark:text-white/75">{trendConfig[trendStatus].msg}</p>
         </div>
       )}
 
       {/* ── Methodology ── */}
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">{t('lactate.methodology_title')}</Title>
-        <div className="space-y-2 text-sm text-slate-600">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold mb-3">{t('lactate.methodology_title')}</Title>
+        <div className="space-y-2 text-sm text-slate-600 dark:text-white/75">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { labelKey: 'lactate.method_cs', descKey: 'lactate.method_cs_desc' },
               { labelKey: 'lactate.method_robust_hrmax', descKey: 'lactate.method_robust_hrmax_desc' },
               { labelKey: 'lactate.method_hr_crosscheck', descKey: 'lactate.method_hr_crosscheck_desc' },
             ].map(z => (
-              <div key={z.labelKey} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                <p className="text-xs font-semibold text-slate-700 mb-1">{t(z.labelKey)}</p>
-                <p className="text-xs text-slate-500 leading-relaxed">{t(z.descKey)}</p>
+              <div key={z.labelKey} className="bg-slate-50 dark:bg-white/[0.04] rounded-lg p-3 border border-slate-100 dark:border-white/10">
+                <p className="text-xs font-semibold text-slate-700 dark:text-white/75 mb-1">{t(z.labelKey)}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55 leading-relaxed">{t(z.descKey)}</p>
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-2 leading-relaxed">
             <span className="font-semibold">{t('lactate.references')}:</span>{' '}
             Jones et al. (2010) <em>Med Sci Sports Exerc</em> 42(10):1876–1890 ·
             Galán-Rioja et al. (2020) <em>Sports Med</em> 50:1771–1783 ·

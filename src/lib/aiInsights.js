@@ -243,12 +243,12 @@ export const CUR_BADGES = {
   recuperado: { text: 'Recuperado', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
   sobreentrenamiento: { text: 'Sobreentrenamiento', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
   forma: { text: 'En Forma', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50' },
-  adaptativo: { text: 'Adaptativo', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  adaptativo: { text: 'Adaptativo', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-white/[0.06] dark:text-white/75 dark:border-white/10' },
 };
 
 export const TREND_BADGES = {
   riesgo: { text: 'Riesgo Lesión', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/50' },
   estable: { text: 'Estable', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50' },
   progresion: { text: 'Progresión', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50' },
-  estacional: { text: 'Estacional', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  estacional: { text: 'Estacional', color: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-white/[0.06] dark:text-white/75 dark:border-white/10' },
 };

@@ -92,10 +92,11 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
   }, [activities, groupBy, i18n.language]);
 
   const METRIC_COLORS = {
-    distance:  { bar: COLORS.signal, hover: COLORS.signalDeep, bg: COLORS.signalWash, label: 'km' },
-    time:      { bar: COLORS.seriesCyan, hover: '#0e7490', bg: '#f0fdff', label: 'h'  },
-    elevation: { bar: COLORS.goodDeep, hover: '#047857', bg: '#f0fdf4', label: 'm'  },
-    load:      { bar: COLORS.riskDeep, hover: '#be123c', bg: '#fff1f2', label: ''   },
+    // El fondo es un lavado del propio color: vale en claro y en oscuro.
+    distance:  { bar: COLORS.signal, hover: COLORS.signalDeep, bg: `color-mix(in srgb, ${COLORS.signal} 12%, transparent)`, label: 'km' },
+    time:      { bar: COLORS.seriesCyan, hover: '#0e7490', bg: `color-mix(in srgb, ${COLORS.seriesCyan} 12%, transparent)`, label: 'h'  },
+    elevation: { bar: COLORS.goodDeep, hover: '#047857', bg: `color-mix(in srgb, ${COLORS.goodDeep} 12%, transparent)`, label: 'm'  },
+    load:      { bar: COLORS.riskDeep, hover: '#be123c', bg: `color-mix(in srgb, ${COLORS.riskDeep} 12%, transparent)`, label: ''   },
   };
 
   const cfg    = METRIC_COLORS[selectedMetric] || METRIC_COLORS.distance;
@@ -124,16 +125,16 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6" aria-hidden>
           {gridVals.map((gv, gi) => (
             <div key={gi} className="flex items-center gap-2 w-full">
-              <span className="text-xs text-slate-500 font-medium w-7 text-right shrink-0 leading-none">
+              <span className="text-xs text-slate-500 dark:text-white/55 font-medium w-7 text-right shrink-0 leading-none">
                 {gv}
               </span>
-              <div className="flex-1 border-t border-dashed border-slate-100" />
+              <div className="flex-1 border-t border-dashed border-slate-100 dark:border-white/10" />
             </div>
           ))}
           {/* Zero line */}
           <div className="flex items-center gap-2 w-full">
-            <span className="text-xs text-slate-500 font-medium w-7 text-right shrink-0 leading-none">0</span>
-            <div className="flex-1 border-t border-slate-200" />
+            <span className="text-xs text-slate-500 dark:text-white/55 font-medium w-7 text-right shrink-0 leading-none">0</span>
+            <div className="flex-1 border-t border-slate-200 dark:border-white/10" />
           </div>
         </div>
 
@@ -157,7 +158,7 @@ const MonthlyChart = ({ activities, selectedMetric = 'distance', groupBy = 'mont
                     style={{ bottom: `calc(${pct}% + 1.5rem)` }}>
                     <div className="bg-slate-800 text-white text-xs font-semibold px-2 py-1 rounded-lg shadow-lg whitespace-nowrap">
                       {item.name}
-                      <span className="ml-1 text-slate-300">{formatVal(val)}</span>
+                      <span className="ml-1 text-slate-300 dark:text-white/40">{formatVal(val)}</span>
                     </div>
                     {/* Arrow */}
                     <div className="w-2 h-1 mx-auto overflow-hidden">

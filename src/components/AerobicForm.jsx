@@ -40,9 +40,9 @@ function ReasonList({ excluded, t }) {
   return (
     <ul className="space-y-1 text-xs">
       {rows.map(([reason, count]) => (
-        <li key={reason} className="flex justify-between border-b border-slate-100 py-1.5">
-          <span className="text-slate-600">{t(`aerobic_form.reasons.${reason}`)}</span>
-          <span className="text-slate-500 tabular-nums">{count}</span>
+        <li key={reason} className="flex justify-between border-b border-slate-100 dark:border-white/10 py-1.5">
+          <span className="text-slate-600 dark:text-white/75">{t(`aerobic_form.reasons.${reason}`)}</span>
+          <span className="text-slate-500 dark:text-white/55 tabular-nums">{count}</span>
         </li>
       ))}
     </ul>
@@ -53,17 +53,17 @@ function ChartTooltip({ active, payload, axis, t }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-bold text-slate-700 mb-1">{d.label}</p>
-      <p className="text-slate-900 font-semibold tabular-nums">
+    <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 dark:text-white/75 mb-1">{d.label}</p>
+      <p className="text-slate-900 dark:text-white font-semibold tabular-nums">
         {d.hr_at_ref} ± {d.se} bpm
       </p>
-      <p className="text-slate-500 tabular-nums">
+      <p className="text-slate-500 dark:text-white/55 tabular-nums">
         {d.n} {t('aerobic_form.sessions')} · {t('aerobic_form.effort_mean')}:{' '}
         {axis === 'power' ? `${d.effort_mean} W` : `${paceFromSpeed(d.effort_mean)}/km`}
       </p>
       {d.wbgt_mean != null && (
-        <p className="text-slate-500 tabular-nums">WBGT {d.wbgt_mean} °C</p>
+        <p className="text-slate-500 dark:text-white/55 tabular-nums">WBGT {d.wbgt_mean} °C</p>
       )}
     </div>
   );
@@ -115,14 +115,14 @@ export default function AerobicForm({ activities }) {
 
   const controls = (
     <div className="flex flex-wrap gap-3 items-center">
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+      <div className="inline-flex rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] p-0.5">
         {['gap', 'power'].map((id) => (
           <button
             key={id}
             type="button"
             onClick={() => setAxis(id)}
             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${
-              axis === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'
+              axis === id ? 'bg-slate-900 text-white' : 'text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
             {t(`aerobic_form.axis_${id}`)}
@@ -140,18 +140,18 @@ export default function AerobicForm({ activities }) {
     return (
       <div className="space-y-6">
         {controls}
-        <div className="text-center py-10 text-slate-500">
-          <p className="text-sm text-slate-500">{t(`aerobic_form.errors.${result.error_code}`)}</p>
+        <div className="text-center py-10 text-slate-500 dark:text-white/55">
+          <p className="text-sm text-slate-500 dark:text-white/55">{t(`aerobic_form.errors.${result.error_code}`)}</p>
           <p className="text-xs mt-2">
             {axis === 'power' ? t('aerobic_form.no_data_power') : t('aerobic_form.no_data_hint')}
           </p>
           {pending > 0 && (
-            <p className="text-xs mt-2 text-slate-500">{t('aerobic_form.pending', { count: pending })}</p>
+            <p className="text-xs mt-2 text-slate-500 dark:text-white/55">{t('aerobic_form.pending', { count: pending })}</p>
           )}
         </div>
         {result.excluded.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-4 max-w-md mx-auto">
-            <p className="text-label font-bold uppercase text-slate-500 mb-2">
+          <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4 max-w-md mx-auto">
+            <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">
               {t('aerobic_form.excluded', { count: result.excluded.length })}
             </p>
             <ReasonList excluded={result.excluded} t={t} />
@@ -170,47 +170,47 @@ export default function AerobicForm({ activities }) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-bold text-slate-800">{t('aerobic_form.title')}</h3>
-        <p className="text-xs text-slate-500 mt-1">{t('aerobic_form.subtitle', { effort: refLabel })}</p>
+        <h3 className="text-sm font-bold text-slate-800 dark:text-white">{t('aerobic_form.title')}</h3>
+        <p className="text-xs text-slate-500 dark:text-white/55 mt-1">{t('aerobic_form.subtitle', { effort: refLabel })}</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">
             {t('aerobic_form.current')}
           </p>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{last.hr_at_ref}</p>
-          <p className="text-xs text-slate-500 mt-0.5">± {last.se} bpm · n={last.n}</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{last.hr_at_ref}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">± {last.se} bpm · n={last.n}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">
             {t('aerobic_form.change')}
           </p>
           <p className={`text-2xl font-black tabular-nums ${
-            result.change_robust === false ? 'text-slate-500'
-              : improving ? 'text-emerald-600' : 'text-amber-600'
+            result.change_robust === false ? 'text-slate-500 dark:text-white/55'
+              : improving ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'
           }`}>
             {result.change_bpm > 0 ? '+' : ''}{result.change_bpm ?? '—'}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">
             {result.change_robust === false
               ? t('aerobic_form.not_robust')
               : improving ? t('aerobic_form.improving') : t('aerobic_form.worsening')}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">
             {t('aerobic_form.reference')}
           </p>
-          <p className="text-2xl font-black text-slate-700 tabular-nums">{refLabel}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('aerobic_form.reference_hint')}</p>
+          <p className="text-2xl font-black text-slate-700 dark:text-white/75 tabular-nums">{refLabel}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('aerobic_form.reference_hint')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">
             {t('aerobic_form.sessions_used')}
           </p>
-          <p className="text-2xl font-black text-slate-700 tabular-nums">{result.n_sessions}</p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-2xl font-black text-slate-700 dark:text-white/75 tabular-nums">{result.n_sessions}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">
             {t('aerobic_form.residual', { sd: result.residual_sd_bpm })}
           </p>
         </div>
@@ -221,12 +221,12 @@ export default function AerobicForm({ activities }) {
       {/* Avisos: los dos supuestos que, si no se cumplen, invalidan la lectura. */}
       <div className="space-y-2">
         {!result.slope_ok && (
-          <p className="text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2">
+          <p className="text-xs bg-red-50 dark:bg-red-400/10 border border-red-200 dark:border-red-300/25 text-red-700 dark:text-red-300 rounded-lg px-3 py-2">
             {t('aerobic_form.warn_slope')}
           </p>
         )}
         {result.change_robust === false && (
-          <p className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2">
+          <p className="text-xs bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
             {t('aerobic_form.warn_fragile', {
               lo: Math.min(...Object.values(result.change_sensitivity)),
               hi: Math.max(...Object.values(result.change_sensitivity)),
@@ -234,14 +234,14 @@ export default function AerobicForm({ activities }) {
           </p>
         )}
         {!result.wbgt_adjusted && (
-          <p className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2">
+          <p className="text-xs bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
             {t('aerobic_form.warn_heat')}
           </p>
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <ExpandableChart className="h-[320px]" title={t('hubs.aerobic_form', 'Forma aeróbica')} footer={<p className="text-xs text-slate-500">{t('aerobic_form.chart_hint')}</p>}>
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+        <ExpandableChart className="h-[320px]" title={t('hubs.aerobic_form', 'Forma aeróbica')} footer={<p className="text-xs text-slate-500 dark:text-white/55">{t('aerobic_form.chart_hint')}</p>}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
@@ -276,14 +276,14 @@ export default function AerobicForm({ activities }) {
           </ComposedChart>
         </ResponsiveContainer>
         </ExpandableChart>
-        <p className="text-xs text-slate-500 mt-2">{t('aerobic_form.chart_hint')}</p>
+        <p className="text-xs text-slate-500 dark:text-white/55 mt-2">{t('aerobic_form.chart_hint')}</p>
       </div>
 
       <CollapsibleSection title={t('aerobic_form.detail')} defaultOpen={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-500 uppercase text-label">
+              <tr className="text-left text-slate-500 dark:text-white/55 uppercase text-label">
                 <th className="py-2">{t('aerobic_form.period')}</th>
                 <th className="py-2 text-right">{t('aerobic_form.hr_at_ref')}</th>
                 <th className="py-2 text-right">n</th>
@@ -299,24 +299,24 @@ export default function AerobicForm({ activities }) {
             </thead>
             <tbody className="tabular-nums">
               {result.periods.map((p) => (
-                <tr key={p.period} className="border-t border-slate-100">
-                  <td className="py-2 font-semibold text-slate-700">{p.label}</td>
-                  <td className="py-2 text-right text-slate-900 font-bold">{p.hr_at_ref} ± {p.se}</td>
-                  <td className="py-2 text-right text-slate-500">{p.n}</td>
-                  <td className="py-2 text-right text-slate-500">
+                <tr key={p.period} className="border-t border-slate-100 dark:border-white/10">
+                  <td className="py-2 font-semibold text-slate-700 dark:text-white/75">{p.label}</td>
+                  <td className="py-2 text-right text-slate-900 dark:text-white font-bold">{p.hr_at_ref} ± {p.se}</td>
+                  <td className="py-2 text-right text-slate-500 dark:text-white/55">{p.n}</td>
+                  <td className="py-2 text-right text-slate-500 dark:text-white/55">
                     {axis === 'power' ? `${p.effort_mean} W` : `${paceFromSpeed(p.effort_mean)}/km`}
                   </td>
-                  <td className="py-2 text-right text-slate-500">{p.wbgt_mean ?? '—'}</td>
-                  <td className="py-2 text-right text-slate-500">{p.drift_mean ?? '—'}</td>
+                  <td className="py-2 text-right text-slate-500 dark:text-white/55">{p.wbgt_mean ?? '—'}</td>
+                  <td className="py-2 text-right text-slate-500 dark:text-white/55">{p.drift_mean ?? '—'}</td>
                   {Object.entries(p.sensitivity).map(([s, v]) => (
-                    <td key={s} className="py-2 text-right text-slate-500">{v}</td>
+                    <td key={s} className="py-2 text-right text-slate-500 dark:text-white/55">{v}</td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-slate-500 mt-3">
+        <p className="text-xs text-slate-500 dark:text-white/55 mt-3">
           {axis === 'gap'
             ? t('aerobic_form.slope_hint_gap', {
               bpm: result.slope_bpm_per_10s_per_km,
@@ -338,11 +338,11 @@ export default function AerobicForm({ activities }) {
       >
         <ReasonList excluded={result.excluded} t={t} />
         {pending > 0 && (
-          <p className="text-xs text-slate-500 mt-3">{t('aerobic_form.pending', { count: pending })}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-3">{t('aerobic_form.pending', { count: pending })}</p>
         )}
       </CollapsibleSection>
 
-      <p className="text-xs text-slate-500">{t('aerobic_form.caveat')}</p>
+      <p className="text-xs text-slate-500 dark:text-white/55">{t('aerobic_form.caveat')}</p>
     </div>
   );
 }

@@ -219,27 +219,27 @@ export default function ShoePhotoModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-10"
+          className="relative w-full max-w-lg bg-white dark:bg-[#0c0e12] rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 overflow-hidden z-10"
         >
           {/* Header */}
-          <div className="p-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div className="p-6 pb-4 border-b border-slate-100 dark:border-white/10 flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-0.5 rounded-md text-label font-bold uppercase ${brandInfo.bg} ${brandInfo.text} border ${brandInfo.border}`}>
                   {brandInfo.brand}
                 </span>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
                   {t('gear.photos.modal_title')}
                 </h3>
               </div>
-              <p className="text-sm font-semibold text-slate-500 mt-1 line-clamp-1">
+              <p className="text-sm font-semibold text-slate-500 dark:text-white/55 mt-1 line-clamp-1">
                 {gear.name}
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="p-1.5 text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] rounded-xl transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -251,7 +251,7 @@ export default function ShoePhotoModal({
               <div
                 onMouseDown={onPointerDown}
                 onTouchStart={onPointerDown}
-                className={`w-56 h-36 sm:w-64 sm:h-40 rounded-2xl border border-slate-200/80 bg-slate-50/80 relative overflow-hidden flex items-center justify-center select-none shadow-inner group/box ${preview ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+                className={`w-56 h-36 sm:w-64 sm:h-40 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04] relative overflow-hidden flex items-center justify-center select-none shadow-inner group/box ${preview ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
                   }`}
               >
                 {preview ? (
@@ -270,9 +270,9 @@ export default function ShoePhotoModal({
                     />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-300">
+                  <div className="flex flex-col items-center justify-center text-slate-300 dark:text-white/40">
                     <PhotoIcon className="w-12 h-12 stroke-1" />
-                    <span className="text-xs font-bold uppercase tracking-wider mt-1 text-slate-500">
+                    <span className="text-xs font-bold uppercase tracking-wider mt-1 text-slate-500 dark:text-white/55">
                       {brandInfo.brand}
                     </span>
                   </div>
@@ -289,13 +289,13 @@ export default function ShoePhotoModal({
               {/* Controles de Zoom, Encuadre y Flip */}
               {preview && (
                 <div className="w-full max-w-sm mt-3 flex flex-col items-center gap-1">
-                  <div className="w-full flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-xs">
+                  <div className="w-full flex items-center gap-2 bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/10 px-3 py-1.5 rounded-xl shadow-xs">
                     <button
                       type="button"
                       onClick={() => setZoom((z) => Math.max(1, Math.round((z - 0.1) * 100) / 100))}
                       disabled={zoom <= 1}
                       title="Reducir zoom"
-                      className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      className="p-1 rounded-lg text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                     >
                       <MagnifyingGlassMinusIcon className="w-4 h-4" />
                     </button>
@@ -307,7 +307,7 @@ export default function ShoePhotoModal({
                       step="0.05"
                       value={zoom}
                       onChange={(e) => setZoom(parseFloat(e.target.value))}
-                      className="flex-1 accent-slate-900 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+                      className="flex-1 accent-slate-900 cursor-pointer h-1.5 bg-slate-200 dark:bg-white/10 rounded-lg"
                     />
 
                     <button
@@ -315,12 +315,12 @@ export default function ShoePhotoModal({
                       onClick={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.1) * 100) / 100))}
                       disabled={zoom >= 2.5}
                       title="Aumentar zoom"
-                      className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      className="p-1 rounded-lg text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                     >
                       <MagnifyingGlassPlusIcon className="w-4 h-4" />
                     </button>
 
-                    <span className="text-xs font-black tabular-nums text-slate-700 min-w-[32px] text-right">
+                    <span className="text-xs font-black tabular-nums text-slate-700 dark:text-white/75 min-w-[32px] text-right">
                       {zoom.toFixed(2)}×
                     </span>
 
@@ -331,7 +331,7 @@ export default function ShoePhotoModal({
                       title={t('gear.photos.flip')}
                       className={`p-1 px-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${flipH
                           ? 'bg-slate-900 text-white shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
+                          : 'text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.05]'
                         }`}
                     >
                       <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
@@ -344,28 +344,28 @@ export default function ShoePhotoModal({
                         type="button"
                         onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setFlipH(false); }}
                         title={t('gear.photos.reset_frame')}
-                        className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors ml-0.5"
+                        className="p-1 text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.05] rounded-lg transition-colors ml-0.5"
                       >
                         <ArrowPathIcon className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
 
-                  <p className="text-xs font-medium text-slate-500">
+                  <p className="text-xs font-medium text-slate-500 dark:text-white/55">
                     {t('gear.photos.drag_hint')}
                   </p>
                 </div>
               )}
 
               {optimizedKb !== null && (
-                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-300/25">
                   <CheckCircleIcon className="w-3.5 h-3.5" />
                   <span>{t('gear.photos.optimized_badge', { kb: optimizedKb })}</span>
                 </div>
               )}
 
               {errorMsg && (
-                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10 px-2.5 py-1 rounded-full border border-rose-100 dark:border-rose-300/25">
                   <ExclamationCircleIcon className="w-3.5 h-3.5" />
                   <span>{errorMsg}</span>
                 </div>
@@ -373,13 +373,13 @@ export default function ShoePhotoModal({
             </div>
 
             {/* Tabs */}
-            <div className="flex p-1 bg-slate-100 rounded-xl">
+            <div className="flex p-1 bg-slate-100 dark:bg-white/[0.04] rounded-xl">
               <button
                 type="button"
                 onClick={() => { setActiveTab('upload'); setErrorMsg(null); }}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${activeTab === 'upload'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white'
                   }`}
               >
                 <ArrowUpTrayIcon className="w-4 h-4" />
@@ -390,8 +390,8 @@ export default function ShoePhotoModal({
                 type="button"
                 onClick={() => { setActiveTab('url'); setErrorMsg(null); }}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all ${activeTab === 'url'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white'
                   }`}
               >
                 <LinkIcon className="w-4 h-4" />
@@ -407,8 +407,8 @@ export default function ShoePhotoModal({
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${isDragging
-                    ? 'border-indigo-500 bg-indigo-50/50'
-                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 bg-white'
+                    ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-400/10'
+                    : 'border-slate-200 dark:border-white/10 hover:border-slate-300 hover:bg-slate-50/70 dark:hover:bg-white/[0.05] bg-white dark:bg-white/[0.03]'
                   }`}
               >
                 <input
@@ -418,13 +418,13 @@ export default function ShoePhotoModal({
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-2">
+                <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 dark:bg-white/[0.04] flex items-center justify-center text-slate-500 dark:text-white/55 mb-2">
                   <ArrowUpTrayIcon className="w-5 h-5" />
                 </div>
-                <p className="text-xs font-bold text-slate-700">
+                <p className="text-xs font-bold text-slate-700 dark:text-white/75">
                   {t('gear.photos.drop_hint')}
                 </p>
-                <p className="text-xs font-medium text-slate-500 mt-1">
+                <p className="text-xs font-medium text-slate-500 dark:text-white/55 mt-1">
                   {t('gear.photos.drop_subhint')}
                 </p>
               </div>
@@ -440,7 +440,7 @@ export default function ShoePhotoModal({
                     onChange={(e) => { setUrlInput(e.target.value); setErrorMsg(null); }}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleUrlApply(); }}
                     placeholder={t('gear.photos.url_placeholder')}
-                    className="flex-1 px-3.5 py-2 text-xs font-medium text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-400"
+                    className="flex-1 px-3.5 py-2 text-xs font-medium text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-slate-400"
                   />
                   <button
                     type="button"
@@ -450,7 +450,7 @@ export default function ShoePhotoModal({
                     {t('gear.photos.preview')}
                   </button>
                 </div>
-                <p className="text-xs font-medium text-slate-500">
+                <p className="text-xs font-medium text-slate-500 dark:text-white/55">
                   {t('gear.photos.url_hint')}
                 </p>
               </div>
@@ -458,12 +458,12 @@ export default function ShoePhotoModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-6 pt-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="p-6 pt-4 bg-slate-50 dark:bg-white/[0.04] border-t border-slate-100 dark:border-white/10 flex items-center justify-between gap-3">
             {currentPhoto ? (
               <button
                 type="button"
                 onClick={handleRemove}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-600 dark:text-rose-300 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors"
               >
                 <TrashIcon className="w-4 h-4" />
                 <span>{t('gear.photos.remove')}</span>
@@ -476,7 +476,7 @@ export default function ShoePhotoModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors"
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-white/75 hover:bg-slate-200/60 dark:hover:bg-white/[0.05] rounded-xl transition-colors"
               >
                 {t('gear.photos.cancel')}
               </button>

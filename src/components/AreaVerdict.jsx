@@ -21,11 +21,11 @@ function VerdictList({ title, items }) {
   const { t } = useTranslation();
   if (!items.length) return null;
   return (
-    <section className="rounded-xl border border-blue-100 bg-blue-50/60 px-5 py-3">
+    <section className="rounded-xl border border-teal-200 dark:border-teal-300/25 bg-teal-50 dark:bg-teal-400/10 px-5 py-3">
       <h3 className="text-label font-bold uppercase text-blue-700/70 mb-1.5">{title}</h3>
       <ul className="space-y-1">
         {items.map((it) => (
-          <li key={it.id} className="flex items-start gap-2 text-sm text-slate-700">
+          <li key={it.id} className="flex items-start gap-2 text-sm text-slate-700 dark:text-white/75">
             <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TONE_DOT[it.tone] ?? TONE_DOT.neutral}`} />
             <span>{t(it.key, it.params)}</span>
           </li>

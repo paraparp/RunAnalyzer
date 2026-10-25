@@ -35,7 +35,7 @@ export function MiniProfile({ workout, className = 'h-5' }) {
                 return (
                     <div
                         key={i}
-                        className={`rounded-t-[2px] ${r.kind === 'recovery' ? 'bg-slate-200' : INTENSITY_BG[lvl]}`}
+                        className={`rounded-t-[2px] ${r.kind === 'recovery' ? 'bg-slate-200 dark:bg-white/10' : INTENSITY_BG[lvl]}`}
                         style={{ width: `${(r.min / totalMin) * 100}%`, height: INTENSITY_H[lvl], minWidth: '2px' }}
                     />
                 );
@@ -57,13 +57,13 @@ function Profile({ rows, totalMin }) {
                         <div
                             key={i}
                             title={`${r.label || r.phase || 'Pausa'} · ${fmtMin(r.min)}${r.pace ? ` · ${r.pace}` : ''}${r.hr ? ` · ${r.hr} ppm` : ''}`}
-                            className={`rounded-t-sm ${r.kind === 'recovery' ? 'bg-slate-200 dark:bg-slate-700' : INTENSITY_BG[lvl]}`}
+                            className={`rounded-t-sm ${r.kind === 'recovery' ? 'bg-slate-200 dark:bg-white/10' : INTENSITY_BG[lvl]}`}
                             style={{ width: `${(r.min / totalMin) * 100}%`, height: INTENSITY_H[lvl], minWidth: '3px' }}
                         />
                     );
                 })}
             </div>
-            <div className="flex justify-between mt-1 text-[10px] font-mono text-slate-400 tabular-nums">
+            <div className="flex justify-between mt-1 text-[10px] font-mono text-slate-400 dark:text-white/40 tabular-nums">
                 <span>0′</span><span>{fmtMin(totalMin)}</span>
             </div>
         </div>
@@ -81,27 +81,27 @@ function Blocks({ rows, accent }) {
                 const dist = Number(r.distance_km) > 0 ? `${String(r.distance_km).replace('.', ',')} km` : null;
                 return (
                     <li key={i} className={`relative flex justify-between gap-3 pl-6 ${rec ? 'py-1 opacity-70' : 'py-2'}`}>
-                        <span className="absolute left-[7px] top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700" aria-hidden />
+                        <span className="absolute left-[7px] top-0 bottom-0 w-px bg-slate-200 dark:bg-white/10" aria-hidden />
                         <span
-                            className={`absolute top-3 rounded-full border-2 border-white dark:border-slate-900 ${work ? `left-[3px] w-2.5 h-2.5 ${accent.dot}` : 'left-[4px] w-2 h-2 bg-slate-300'}`}
+                            className={`absolute top-3 rounded-full border-2 border-white dark:border-white/10 ${work ? `left-[3px] w-2.5 h-2.5 ${accent.dot}` : 'left-[4px] w-2 h-2 bg-slate-300'}`}
                             aria-hidden
                         />
                         <div className="min-w-0 flex-1">
                             {(r.label || r.phase) && (
-                                <p className={`text-xs font-bold ${work ? accent.text : 'text-slate-800 dark:text-slate-200'}`}>{r.label || r.phase}</p>
+                                <p className={`text-xs font-bold ${work ? accent.text : 'text-slate-800 dark:text-white'}`}>{r.label || r.phase}</p>
                             )}
                             {(r.description || r.pace) && (
-                                <p className={`text-xs ${rec ? 'text-slate-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                                <p className={`text-xs ${rec ? 'text-slate-500 dark:text-white/55' : 'text-slate-600 dark:text-white/75'}`}>
                                     {r.description || (r.pace ? `a ${r.pace}/km` : '')}
-                                    {r.description && r.pace && <span className="font-mono text-slate-500"> · {r.pace}/km</span>}
+                                    {r.description && r.pace && <span className="font-mono text-slate-500 dark:text-white/55"> · {r.pace}/km</span>}
                                 </p>
                             )}
-                            {r.note && !rec && (r.rep ?? 1) === 1 && <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{r.note}</p>}
+                            {r.note && !rec && (r.rep ?? 1) === 1 && <p className="text-[11px] text-slate-400 dark:text-white/40 leading-snug mt-0.5">{r.note}</p>}
                         </div>
                         {!extra && (
                             <div className="shrink-0 text-right font-mono tabular-nums">
-                                <p className={`text-xs ${rec ? 'text-slate-400' : 'text-slate-700 dark:text-slate-200 font-semibold'}`}>{fmtMin(r.min) || dist || '—'}</p>
-                                {r.hr && <p className={`text-[11px] whitespace-nowrap ${work ? accent.text : 'text-slate-400'}`}>{r.hr}</p>}
+                                <p className={`text-xs ${rec ? 'text-slate-400 dark:text-white/40' : 'text-slate-700 dark:text-white font-semibold'}`}>{fmtMin(r.min) || dist || '—'}</p>
+                                {r.hr && <p className={`text-[11px] whitespace-nowrap ${work ? accent.text : 'text-slate-400 dark:text-white/40'}`}>{r.hr}</p>}
                             </div>
                         )}
                     </li>
@@ -123,7 +123,7 @@ export default function WorkoutCard({ workout, kicker, showHeader = true }) {
     const km = Number.isFinite(workout?.distance_km) ? workout.distance_km : null;
 
     return (
-        <div className="relative rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-800 dark:bg-slate-900">
+        <div className="relative rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/[0.03]">
             <span className={`absolute inset-x-0 top-0 h-0.5 ${accent.bar}`} aria-hidden />
             {showHeader && (
                 <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 pt-4 pb-3">
@@ -131,13 +131,13 @@ export default function WorkoutCard({ workout, kicker, showHeader = true }) {
                         <p className={`text-[11px] font-mono font-semibold uppercase tracking-wider ${accent.text}`}>
                             {accent.label}{kicker ? ` · ${kicker}` : ''}
                         </p>
-                        <h4 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight mt-1">{workout?.type}</h4>
-                        {workout?.summary && <p className="text-xs text-slate-500 mt-0.5">{workout.summary}</p>}
+                        <h4 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight mt-1">{workout?.type}</h4>
+                        {workout?.summary && <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{workout.summary}</p>}
                     </div>
                     {(total > 0 || km != null) && (
                         <div className="text-right font-mono tabular-nums">
-                            {total > 0 && <p className="text-base font-bold text-slate-900 dark:text-slate-100">{fmtMin(total)}</p>}
-                            {km != null && <p className="text-xs text-slate-500">{String(km).replace('.', ',')} km</p>}
+                            {total > 0 && <p className="text-base font-bold text-slate-900 dark:text-white">{fmtMin(total)}</p>}
+                            {km != null && <p className="text-xs text-slate-500 dark:text-white/55">{String(km).replace('.', ',')} km</p>}
                         </div>
                     )}
                 </div>
@@ -145,8 +145,8 @@ export default function WorkoutCard({ workout, kicker, showHeader = true }) {
             {rows.length > 0 && <Profile rows={rows} totalMin={totalMin} />}
             {rows.length > 0 && <Blocks rows={rows} accent={accent} />}
             {workout?.key_rule && (
-                <div className="px-4 sm:px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 dark:bg-slate-800/60 dark:border-slate-800 dark:text-slate-300 leading-relaxed">
-                    <span className="font-bold text-slate-800 dark:text-slate-100">Regla clave · </span>{workout.key_rule}
+                <div className="px-4 sm:px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 dark:bg-white/[0.06] dark:border-white/10 dark:text-white/75 leading-relaxed">
+                    <span className="font-bold text-slate-800 dark:text-white">Regla clave · </span>{workout.key_rule}
                 </div>
             )}
         </div>

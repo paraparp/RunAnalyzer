@@ -196,14 +196,14 @@ export default function RaceDetector({ activities }) {
   const pagedRaces = filteredRaces.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const header = (
-    <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-6 sm:p-8 border border-slate-100 dark:border-white/10 shadow-sm">
       <div className="flex items-center gap-4">
-        <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+        <div className="p-3 bg-amber-100 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300 rounded-2xl">
           <TrophyIcon className="w-8 h-8" />
         </div>
         <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('races.title')}</h2>
-          <p className="text-slate-500 text-sm font-medium">{t('races.subtitle')}</p>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1.5 uppercase">{t('races.title')}</h2>
+          <p className="text-slate-500 dark:text-white/55 text-sm font-medium">{t('races.subtitle')}</p>
         </div>
       </div>
     </div>
@@ -212,11 +212,11 @@ export default function RaceDetector({ activities }) {
   // Las marcas personales salen de cualquier sesión, no solo de las carreras
   // detectadas, así que se enseñan también cuando no hay ninguna carrera.
   const personalBests = (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('dashboard.personal_bests')}</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{t('dashboard.personal_bests')}</h3>
+          <p className="text-xs text-slate-500 dark:text-white/55">
             {t('dashboard.records.5k')} · {t('dashboard.records.10k')} · {t('dashboard.records.hm')} · {t('dashboard.records.fm')}
           </p>
         </div>
@@ -231,7 +231,7 @@ export default function RaceDetector({ activities }) {
       <div className="space-y-6 max-w-6xl mx-auto fade-in">
         {header}
         {personalBests}
-        <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center text-slate-500">
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-16 border border-slate-100 dark:border-white/10 shadow-sm text-center text-slate-500 dark:text-white/55">
           <p className="text-sm">{t('races.no_data')}</p>
           <p className="text-xs mt-2">{t('races.no_data_hint')}</p>
         </div>
@@ -245,26 +245,26 @@ export default function RaceDetector({ activities }) {
       {personalBests}
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.total_races')}</p>
-          <p className="text-2xl font-black text-slate-900 tabular-nums">{stats.totalRaces}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{t('races.detected')}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('races.total_races')}</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{stats.totalRaces}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{t('races.detected')}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.this_year')}</p>
-          <p className="text-2xl font-black text-blue-600 tabular-nums">{stats.thisYear}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{new Date().getFullYear()}</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('races.this_year')}</p>
+          <p className="text-2xl font-black text-teal-700 dark:text-teal-300 tabular-nums">{stats.thisYear}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{new Date().getFullYear()}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.distances_with_pr')}</p>
-          <p className="text-2xl font-black text-emerald-600 tabular-nums">{stats.prCount}</p>
-          <p className="text-xs text-slate-500 mt-0.5">categorías</p>
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+          <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('races.distances_with_pr')}</p>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-300 tabular-nums">{stats.prCount}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">categorías</p>
         </div>
         {stats.lastRace && (
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-label font-bold uppercase text-slate-500 mb-1">{t('races.last_race')}</p>
-            <p className="text-lg font-black text-slate-900 tabular-nums truncate">{stats.lastRace.timeLabel}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{stats.lastRace.dateLabel}</p>
+          <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 p-4">
+            <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{t('races.last_race')}</p>
+            <p className="text-lg font-black text-slate-900 dark:text-white tabular-nums truncate">{stats.lastRace.timeLabel}</p>
+            <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{stats.lastRace.dateLabel}</p>
           </div>
         )}
       </div>
@@ -273,9 +273,9 @@ export default function RaceDetector({ activities }) {
       {Object.entries(progressionData).filter(([, data]) => data.length >= 2).map(([catId, data]) => {
         const cat = DISTANCE_CATEGORIES.find(c => c.id === catId);
         return (
-          <Card key={catId} className="shadow-lg border-slate-200">
-            <Title className="text-slate-800 font-bold mb-1">{t('races.progression', { cat: cat?.label })}</Title>
-            <Text className="text-slate-500 text-sm mb-4">{t('races.pace_evolution', { cat: cat?.label })}</Text>
+          <Card key={catId} className="shadow-lg border-slate-200 dark:border-white/10">
+            <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('races.progression', { cat: cat?.label })}</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">{t('races.pace_evolution', { cat: cat?.label })}</Text>
             <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
@@ -301,12 +301,12 @@ export default function RaceDetector({ activities }) {
       })}
 
       {/* Race history table */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <Title className="text-slate-800 font-bold">{t('races.all_races')}</Title>
-            <Text className="text-slate-500 text-sm">{t('races.all_races_subtitle')}</Text>
-            <Text className="text-slate-500 text-xs mt-0.5">{t('races.detection_note')}</Text>
+            <Title className="text-slate-800 dark:text-white font-bold">{t('races.all_races')}</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-sm">{t('races.all_races_subtitle')}</Text>
+            <Text className="text-slate-500 dark:text-white/55 text-xs mt-0.5">{t('races.detection_note')}</Text>
           </div>
           <Select value={filterDist} onValueChange={(v) => { setFilterDist(v); setPage(1); }} className="w-40">
             <SelectItem value="all">{t('races.all')}</SelectItem>
@@ -318,34 +318,34 @@ export default function RaceDetector({ activities }) {
 
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200">
-              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 uppercase">Fecha</th>
-              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 uppercase">Nombre</th>
-              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">Dist.</th>
-              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">Tiempo</th>
-              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">{t('races.pace_label')}</th>
-              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">D+</th>
-              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 uppercase">FC</th>
-              <th className="text-center py-2 px-2 text-label font-bold text-slate-500 uppercase">Cat.</th>
+            <tr className="border-b border-slate-200 dark:border-white/10">
+              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">Fecha</th>
+              <th className="text-left py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">Nombre</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">Dist.</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">Tiempo</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">{t('races.pace_label')}</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">D+</th>
+              <th className="text-right py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">FC</th>
+              <th className="text-center py-2 px-2 text-label font-bold text-slate-500 dark:text-white/55 uppercase">Cat.</th>
             </tr>
           </thead>
           <tbody>
             {pagedRaces.map(r => {
               const isPR = prs[r.categoryId]?.id === r.id;
               return (
-                <tr key={r.id} className={`border-b border-slate-100 ${isPR ? 'bg-amber-50' : 'hover:bg-slate-50'}`}>
-                  <td className="py-2 px-2 text-slate-500 text-xs">{r.dateLabel}</td>
-                  <td className="py-2 px-2 text-slate-700 font-medium truncate max-w-[200px]">
+                <tr key={r.id} className={`border-b border-slate-100 dark:border-white/10 ${isPR ? 'bg-amber-50 dark:bg-amber-400/10' : 'hover:bg-slate-50'}`}>
+                  <td className="py-2 px-2 text-slate-500 dark:text-white/55 text-xs">{r.dateLabel}</td>
+                  <td className="py-2 px-2 text-slate-700 dark:text-white/75 font-medium truncate max-w-[200px]">
                     {isPR && <span className="text-amber-500 mr-1">★</span>}
                     {r.name}
                   </td>
-                  <td className="py-2 px-2 text-right text-slate-600 tabular-nums">{r.km} km</td>
-                  <td className="py-2 px-2 text-right text-slate-600 tabular-nums font-medium">{r.timeLabel}</td>
-                  <td className="py-2 px-2 text-right text-slate-600 tabular-nums">{r.paceLabel}</td>
-                  <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.elevation > 0 ? `${Math.round(r.elevation)}m` : '-'}</td>
-                  <td className="py-2 px-2 text-right text-slate-500 tabular-nums">{r.hr > 0 ? Math.round(r.hr) : '-'}</td>
+                  <td className="py-2 px-2 text-right text-slate-600 dark:text-white/75 tabular-nums">{r.km} km</td>
+                  <td className="py-2 px-2 text-right text-slate-600 dark:text-white/75 tabular-nums font-medium">{r.timeLabel}</td>
+                  <td className="py-2 px-2 text-right text-slate-600 dark:text-white/75 tabular-nums">{r.paceLabel}</td>
+                  <td className="py-2 px-2 text-right text-slate-500 dark:text-white/55 tabular-nums">{r.elevation > 0 ? `${Math.round(r.elevation)}m` : '-'}</td>
+                  <td className="py-2 px-2 text-right text-slate-500 dark:text-white/55 tabular-nums">{r.hr > 0 ? Math.round(r.hr) : '-'}</td>
                   <td className="py-2 px-2 text-center">
-                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-teal-700 dark:text-teal-300">
                       {r.category.label}
                     </span>
                   </td>
@@ -357,15 +357,15 @@ export default function RaceDetector({ activities }) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-            <span className="text-xs text-slate-500">
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-white/10">
+            <span className="text-xs text-slate-500 dark:text-white/55">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRaces.length)} / {filteredRaces.length}
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 ‹
               </button>
@@ -378,15 +378,15 @@ export default function RaceDetector({ activities }) {
                 }, [])
                 .map((p, i) =>
                   p === '…' ? (
-                    <span key={`ellipsis-${i}`} className="px-1 text-xs text-slate-300">…</span>
+                    <span key={`ellipsis-${i}`} className="px-1 text-xs text-slate-300 dark:text-white/40">…</span>
                   ) : (
                     <button
                       key={p}
                       onClick={() => setPage(p)}
                       className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
                         p === page
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-600 hover:bg-slate-100'
+                          ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
+                          : 'text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05]'
                       }`}
                     >
                       {p}
@@ -397,7 +397,7 @@ export default function RaceDetector({ activities }) {
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 ›
               </button>

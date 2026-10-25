@@ -16,14 +16,14 @@ import { COLORS } from '../lib/palette';
 
 const labelOf = (id) => CANON_EFFORTS.find((e) => e.id === id)?.label || id;
 
-const Metric = ({ label, value, unit, hint, tone = 'text-slate-900' }) => (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="text-label font-bold uppercase text-slate-500 mb-1.5">{label}</p>
+const Metric = ({ label, value, unit, hint, tone = 'text-slate-900 dark:text-white' }) => (
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-5">
+        <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1.5">{label}</p>
         <p className={`text-3xl font-black tabular-nums leading-none ${tone}`}>
             {value}
-            {unit && <span className="text-sm font-bold text-slate-500 ml-1">{unit}</span>}
+            {unit && <span className="text-sm font-bold text-slate-500 dark:text-white/55 ml-1">{unit}</span>}
         </p>
-        {hint && <p className="text-xs font-medium text-slate-500 mt-2">{hint}</p>}
+        {hint && <p className="text-xs font-medium text-slate-500 dark:text-white/55 mt-2">{hint}</p>}
     </div>
 );
 
@@ -83,15 +83,15 @@ const CriticalSpeed = ({ activities = [] }) => {
     const vdot = useMemo(() => vdotFromCurve(curve), [curve]);
 
     const header = (
-        <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-6 sm:p-8 border border-slate-100 dark:border-white/10 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-violet-100 text-violet-600 rounded-2xl">
+                    <div className="p-3 bg-violet-100 dark:bg-violet-400/10 text-violet-600 dark:text-violet-300 rounded-2xl">
                         <BoltIcon className="w-8 h-8" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">{t('cs.title')}</h2>
-                        <p className="text-slate-500 text-sm font-medium">{t('cs.subtitle')}</p>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1.5 uppercase">{t('cs.title')}</h2>
+                        <p className="text-slate-500 dark:text-white/55 text-sm font-medium">{t('cs.subtitle')}</p>
                     </div>
                 </div>
             </div>
@@ -102,11 +102,11 @@ const CriticalSpeed = ({ activities = [] }) => {
         return (
             <div className="space-y-6 max-w-6xl mx-auto fade-in">
                 {header}
-                <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center">
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('cs.no_fit_title')}</h3>
-                    <p className="text-slate-500 font-medium max-w-md mx-auto">{t('cs.no_fit_desc')}</p>
+                <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-16 border border-slate-100 dark:border-white/10 shadow-sm text-center">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{t('cs.no_fit_title')}</h3>
+                    <p className="text-slate-500 dark:text-white/55 font-medium max-w-md mx-auto">{t('cs.no_fit_desc')}</p>
                     {curve.length > 0 && (
-                        <p className="text-xs font-bold text-slate-500 mt-4">
+                        <p className="text-xs font-bold text-slate-500 dark:text-white/55 mt-4">
                             {t('cs.no_fit_found', { count: curve.length })}
                         </p>
                     )}
@@ -125,7 +125,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                     value={fmtPace(fit.cs_pace_min_km)}
                     unit="/km"
                     hint={t('cs.cs_hint', { speed: fit.cs_m_s.toFixed(2) })}
-                    tone="text-violet-600"
+                    tone="text-violet-600 dark:text-violet-300"
                 />
                 <Metric
                     label={t('cs.d_prime')}
@@ -137,7 +137,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                     label={t('cs.quality')}
                     value={`${(fit.r2 * 100).toFixed(1)}%`}
                     hint={t('cs.quality_hint', { n: fit.n })}
-                    tone={fit.r2 > 0.99 ? 'text-emerald-600' : fit.r2 > 0.97 ? 'text-slate-900' : 'text-amber-600'}
+                    tone={fit.r2 > 0.99 ? 'text-emerald-600 dark:text-emerald-300' : fit.r2 > 0.97 ? 'text-slate-900 dark:text-white' : 'text-amber-600 dark:text-amber-300'}
                 />
                 {vdot && (
                     <Metric
@@ -147,7 +147,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                             effort: labelOf(vdot.anchor.id),
                             time: fmtTime(vdot.anchor.time_s),
                         })}
-                        tone="text-blue-600"
+                        tone="text-teal-700 dark:text-teal-300"
                     />
                 )}
                 {fit3p && (
@@ -161,10 +161,10 @@ const CriticalSpeed = ({ activities = [] }) => {
             </div>
 
             {/* Curva */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
+            <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-5 sm:p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{t('cs.curve_title')}</h3>
-                    <p className="text-xs font-medium text-slate-500">{t('cs.curve_legend')}</p>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{t('cs.curve_title')}</h3>
+                    <p className="text-xs font-medium text-slate-500 dark:text-white/55">{t('cs.curve_legend')}</p>
                 </div>
                 <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
@@ -189,7 +189,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                                 width={46}
                             />
                             <RechartsTooltip
-                                contentStyle={{ borderRadius: 'var(--radius)', border: '1px solid #e2e8f0', fontSize: 12 }}
+                                contentStyle={{ borderRadius: 'var(--radius)', border: `1px solid ${COLORS.hairline}`, fontSize: 12 }}
                                 labelFormatter={(v) => fmtTime(v)}
                                 formatter={(value, name, item) => [
                                     `${fmtPace(value)}/km`,
@@ -218,15 +218,15 @@ const CriticalSpeed = ({ activities = [] }) => {
                     </ResponsiveContainer>
                 </div>
                 {fit3p && (
-                    <p className="text-xs font-medium text-slate-500 mt-3">
+                    <p className="text-xs font-medium text-slate-500 dark:text-white/55 mt-3">
                         {t('cs.model_3p_note', { n: fit3p.n })}
                     </p>
                 )}
             </div>
 
             {/* Esfuerzos que sostienen el ajuste */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4">{t('cs.efforts_title')}</h3>
+            <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-5 sm:p-6">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{t('cs.efforts_title')}</h3>
                 <div className="flex flex-wrap gap-2">
                     {curve.map((p) => {
                         const used = fit.used_ids.includes(p.id);
@@ -234,7 +234,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                             <span
                                 key={p.id}
                                 title={`${p.activity_name || ''} · ${p.date}`}
-                                className={`inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full ring-1 ${used ? 'bg-violet-50 ring-violet-200 text-violet-700' : 'bg-white ring-slate-200 text-slate-500'}`}
+                                className={`inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full ring-1 ${used ? 'bg-violet-50 dark:bg-violet-400/10 ring-violet-200 text-violet-700 dark:text-violet-300' : 'bg-white dark:bg-white/[0.03] ring-slate-200 dark:ring-white/10 text-slate-500 dark:text-white/55'}`}
                             >
                                 <span className="text-label font-bold uppercase">{labelOf(p.id)}</span>
                                 <span className="text-xs font-bold tabular-nums">{fmtTime(p.time_s)}</span>
@@ -243,7 +243,7 @@ const CriticalSpeed = ({ activities = [] }) => {
                         );
                     })}
                 </div>
-                <p className="text-xs font-medium text-slate-500 mt-4">{t('cs.efforts_hint')}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-white/55 mt-4">{t('cs.efforts_hint')}</p>
             </div>
         </div>
     );

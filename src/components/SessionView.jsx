@@ -32,27 +32,27 @@ import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Semáforo del desacoplamiento. «Normal» es lo esperable, no un aviso: va en tinta.
 const LEVEL_TONE = {
-  excellent: 'text-emerald-700',
-  good: 'text-emerald-700',
-  normal: 'text-slate-900',
-  high: 'text-orange-700',
-  very_high: 'text-rose-700',
+  excellent: 'text-emerald-700 dark:text-emerald-300',
+  good: 'text-emerald-700 dark:text-emerald-300',
+  normal: 'text-slate-900 dark:text-white',
+  high: 'text-orange-700 dark:text-orange-300',
+  very_high: 'text-rose-700 dark:text-rose-300',
 };
 
 // Mismo semáforo, en versión pastilla para el icono del indicador.
 const LEVEL_PILL = {
-  excellent: 'bg-emerald-50 text-emerald-700',
-  good: 'bg-emerald-50 text-emerald-700',
-  normal: 'bg-slate-100 text-slate-600',
-  high: 'bg-orange-50 text-orange-700',
-  very_high: 'bg-rose-50 text-rose-700',
+  excellent: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300',
+  good: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300',
+  normal: 'bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-white/75',
+  high: 'bg-orange-50 dark:bg-orange-400/10 text-orange-700 dark:text-orange-300',
+  very_high: 'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300',
 };
 
-const NEUTRAL_PILL = 'bg-slate-100 text-slate-600';
+const NEUTRAL_PILL = 'bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-white/75';
 // Por debajo de esta diferencia con la mediana del grupo, la eficiencia es ruido.
 const EF_NOISE_PCT = 2;
 
-const SHEET = 'bg-white rounded border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]';
+const SHEET = 'bg-white dark:bg-white/[0.03] rounded border border-slate-200 dark:border-white/10 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]';
 const FOCUS = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500';
 
 const fmt1 = (v) => (v == null ? '—' : v.toFixed(1));
@@ -64,8 +64,8 @@ function Card({ id, title, aside, children, className = '', flush = false }) {
   return (
     <section id={id} className={`scroll-mt-20 ${SHEET} ${className}`}>
       {title && (
-        <header className="flex items-center justify-between gap-3 px-5 h-11 border-b border-slate-100">
-          <h2 className="text-label font-bold uppercase text-slate-500">{title}</h2>
+        <header className="flex items-center justify-between gap-3 px-5 h-11 border-b border-slate-100 dark:border-white/10">
+          <h2 className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{title}</h2>
           {aside}
         </header>
       )}
@@ -75,12 +75,12 @@ function Card({ id, title, aside, children, className = '', flush = false }) {
 }
 
 function Empty({ children }) {
-  return <p className="text-xs italic text-slate-500">{children}</p>;
+  return <p className="text-xs italic text-slate-500 dark:text-white/55">{children}</p>;
 }
 
 function Loading({ children }) {
   return (
-    <div role="status" className="h-32 rounded bg-slate-50 motion-safe:animate-pulse flex items-center justify-center text-xs text-slate-500">
+    <div role="status" className="h-32 rounded bg-slate-50 dark:bg-white/[0.04] motion-safe:animate-pulse flex items-center justify-center text-xs text-slate-500 dark:text-white/55">
       {children}
     </div>
   );
@@ -103,15 +103,15 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
   const bpm = t('session.u_bpm');
   return (
     <figure className="mt-6">
-      <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-xs text-slate-500 tabular-nums">
+      <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-xs text-slate-500 dark:text-white/55 tabular-nums">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-[50%] border-2 border-white shadow" style={{ background: zone.color }} aria-hidden="true" />
-          {t('session.avg_hr')} <b className="font-bold text-slate-800">{Math.round(avg)}</b> {bpm}
+          {t('session.avg_hr')} <b className="font-bold text-slate-800 dark:text-white">{Math.round(avg)}</b> {bpm}
         </span>
         {max && (
           <span className="inline-flex items-center gap-1.5">
             <span className="w-0.5 h-3 bg-slate-500" aria-hidden="true" />
-            {t('session.hr_max')} <b className="font-bold text-slate-800">{Math.round(max)}</b> {bpm}
+            {t('session.hr_max')} <b className="font-bold text-slate-800 dark:text-white">{Math.round(max)}</b> {bpm}
           </span>
         )}
       </figcaption>
@@ -128,7 +128,7 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
       </div>
       <div className="mt-1 flex justify-between text-xs font-semibold" aria-hidden="true">
         {[1, 2, 3, 4, 5].map((z) => (
-          <span key={z} className={z === avgZone ? 'font-black' : 'text-slate-500'} style={z === avgZone ? { color: ZONES[z].text } : undefined}>{ZONES[z].label}</span>
+          <span key={z} className={z === avgZone ? 'font-black' : 'text-slate-500 dark:text-white/55'} style={z === avgZone ? { color: ZONES[z].text } : undefined}>{ZONES[z].label}</span>
         ))}
       </div>
     </figure>
@@ -138,9 +138,9 @@ function HrStrip({ avg, max, hrmax, hrrest, t }) {
 function Kpi({ label, value, hint }) {
   return (
     <div className="min-w-0">
-      <div className="text-label font-bold uppercase text-slate-500">{label}</div>
-      <div className="text-xl leading-tight font-black tabular-nums text-slate-900 truncate">{value}</div>
-      {hint && <div className="text-xs text-slate-500">{hint}</div>}
+      <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{label}</div>
+      <div className="text-xl leading-tight font-black tabular-nums text-slate-900 dark:text-white truncate">{value}</div>
+      {hint && <div className="text-xs text-slate-500 dark:text-white/55">{hint}</div>}
     </div>
   );
 }
@@ -149,13 +149,13 @@ function ZonesBlock({ zones, t }) {
   if (!zones) return <Empty>{t('session.no_hr')}</Empty>;
   const top = Math.max(...zones.pct);
   const groups = [
-    { key: 'low', cls: 'bg-sky-50 text-sky-800' },
-    { key: 'mod', cls: 'bg-amber-50 text-amber-800' },
-    { key: 'high', cls: 'bg-rose-50 text-rose-800' },
+    { key: 'low', cls: 'bg-sky-50 dark:bg-sky-400/10 text-sky-800 dark:text-sky-200' },
+    { key: 'mod', cls: 'bg-amber-50 dark:bg-amber-400/10 text-amber-800 dark:text-amber-200' },
+    { key: 'high', cls: 'bg-rose-50 dark:bg-rose-400/10 text-rose-800 dark:text-rose-200' },
   ];
   return (
     <>
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.04]" aria-hidden="true">
         {zones.pct.map((p, i) => p > 0 && (
           <div key={i} style={{ width: `${p}%`, background: ZONES[i + 1].color }} />
         ))}
@@ -166,16 +166,16 @@ function ZonesBlock({ zones, t }) {
           return (
             <div key={i} className="flex items-center gap-3">
               <span className="w-7 shrink-0 text-xs font-black" style={{ color: ZONES[i + 1].text }}>{ZONES[i + 1].label}</span>
-              <div className="relative h-5 flex-1 rounded bg-slate-50" aria-hidden="true">
+              <div className="relative h-5 flex-1 rounded bg-slate-50 dark:bg-white/[0.04]" aria-hidden="true">
                 <div
                   className="absolute inset-y-0 left-0 rounded motion-safe:transition-[width] motion-safe:duration-500"
                   style={{ width: `${Math.max(p, p > 0 ? 1 : 0)}%`, background: ZONES[i + 1].color, opacity: dominant ? 1 : 0.7 }}
                 />
               </div>
-              <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${dominant ? 'font-black text-slate-900' : 'font-semibold text-slate-600'}`}>
+              <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${dominant ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-600 dark:text-white/75'}`}>
                 {Math.round(p)}%
               </span>
-              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-500">{formatDuration(zones.times[i])}</span>
+              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-500 dark:text-white/55">{formatDuration(zones.times[i])}</span>
             </div>
           );
         })}
@@ -188,7 +188,7 @@ function ZonesBlock({ zones, t }) {
         ))}
       </div>
       {zones.resolution === 'average' && (
-        <p className="mt-2 text-xs text-amber-800">{t('session.zones_average_only')}</p>
+        <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">{t('session.zones_average_only')}</p>
       )}
     </>
   );
@@ -251,11 +251,11 @@ function SimilarTooltip({ active, payload, t, locale }) {
   if (!active || !payload?.length) return null;
   const s = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded shadow-lg p-3 text-xs">
-      <p className="font-bold text-slate-700 truncate max-w-[220px]">{s.current ? t('session.this_session') : s.name}</p>
-      <p className="text-slate-500 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
-      <p className="font-semibold tabular-nums text-slate-900">{s.efficiency.toFixed(2)} {t('session.u_ef')}</p>
-      <p className="tabular-nums text-slate-500">{sessionLine({ ...s, distance_m: null }, t)}</p>
+    <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded shadow-lg p-3 text-xs">
+      <p className="font-bold text-slate-700 dark:text-white/75 truncate max-w-[220px]">{s.current ? t('session.this_session') : s.name}</p>
+      <p className="text-slate-500 dark:text-white/55 mb-1">{new Date(s.date).toLocaleDateString(locale, { dateStyle: 'medium' })}</p>
+      <p className="font-semibold tabular-nums text-slate-900 dark:text-white">{s.efficiency.toFixed(2)} {t('session.u_ef')}</p>
+      <p className="tabular-nums text-slate-500 dark:text-white/55">{sessionLine({ ...s, distance_m: null }, t)}</p>
     </div>
   );
 }
@@ -307,22 +307,22 @@ function SimilarRow({ s, onOpenActivity, t, locale }) {
   return (
     <Tag
       {...(s.current ? { 'aria-current': 'true' } : { type: 'button', onClick: () => onOpenActivity(s.id) })}
-      className={`${base} w-full text-left ${s.current ? 'bg-blue-50 ring-1 ring-blue-200' : `hover:bg-slate-50 ${FOCUS}`}`}
+      className={`${base} w-full text-left ${s.current ? 'bg-teal-50 dark:bg-teal-400/10 ring-1 ring-blue-200' : `hover:bg-slate-50 ${FOCUS}`}`}
     >
-      <span className={`w-14 shrink-0 text-xs tabular-nums ${s.current ? 'font-bold text-blue-700' : 'text-slate-500'}`}>
+      <span className={`w-14 shrink-0 text-xs tabular-nums ${s.current ? 'font-bold text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-white/55'}`}>
         {new Date(s.date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700 group-hover:text-blue-700'}`}>
+        <span className={`block truncate text-xs font-semibold ${s.current ? 'text-blue-800' : 'text-slate-700 dark:text-white/75 group-hover:text-blue-700'}`}>
           {s.current ? t('session.this_session') : s.name}
         </span>
-        <span className="block truncate text-xs tabular-nums text-slate-500">{sessionLine(s, t)}</span>
+        <span className="block truncate text-xs tabular-nums text-slate-500 dark:text-white/55">{sessionLine(s, t)}</span>
       </span>
-      <span className={`shrink-0 text-right text-sm font-black tabular-nums ${s.current ? 'text-blue-700' : 'text-slate-800'}`}>
+      <span className={`shrink-0 text-right text-sm font-black tabular-nums ${s.current ? 'text-teal-700 dark:text-teal-300' : 'text-slate-800 dark:text-white'}`}>
         {s.efficiency != null ? s.efficiency.toFixed(2) : '—'}
-        <span className="block text-label font-bold uppercase text-slate-500">{t('session.u_ef')}</span>
+        <span className="block text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('session.u_ef')}</span>
       </span>
-      {!s.current && <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-blue-500" aria-hidden="true" />}
+      {!s.current && <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-white/40 group-hover:text-blue-500" aria-hidden="true" />}
     </Tag>
   );
 }
@@ -342,7 +342,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
 
   return (
     <>
-      <p className="mb-4 text-xs text-slate-500">
+      <p className="mb-4 text-xs text-slate-500 dark:text-white/55">
         {t('session.similar_summary', {
           n: similar.n,
           dist: similar.criteria.distance_tol_pct,
@@ -354,7 +354,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
         {points.length >= 2 && (
           <div className="lg:col-span-3">
             <SimilarChart points={points} median={similar.median_ef} onOpenActivity={onOpenActivity} t={t} locale={locale} />
-            <p className="mt-2 text-xs text-slate-500">{t('session.similar_chart_hint')}</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-white/55">{t('session.similar_chart_hint')}</p>
           </div>
         )}
         <div className={points.length >= 2 ? 'lg:col-span-2' : 'lg:col-span-5'}>
@@ -362,7 +362,7 @@ function SimilarBlock({ similar, activity, gap, onOpenActivity, t, locale }) {
             {rows.map((s) => <SimilarRow key={s.id} s={s} onOpenActivity={onOpenActivity} t={t} locale={locale} />)}
           </div>
           {similar.n > similar.sessions.length && (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-500 dark:text-white/55">
               {t('session.similar_more', { shown: similar.sessions.length, n: similar.n })}
             </p>
           )}
@@ -377,7 +377,7 @@ const DEFAULT_FILTERS = { distanceTolPct: 10, paceTolPct: 10, elevMode: 'similar
 function FilterGroup({ label, options, value, onChange }) {
   return (
     <div role="group" aria-label={label}>
-      <span className="block text-label font-bold uppercase text-slate-500 mb-1">{label}</span>
+      <span className="block text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1">{label}</span>
       <div className="flex flex-wrap gap-1">
         {options.map((o) => {
           const active = value === o.value;
@@ -389,8 +389,8 @@ function FilterGroup({ label, options, value, onChange }) {
               onClick={() => onChange(o.value)}
               className={`px-2.5 py-1 rounded text-xs font-medium tabular-nums transition-colors cursor-pointer ${FOCUS} ${
                 active
-                  ? 'bg-slate-100 border border-slate-300 text-slate-800'
-                  : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-800'
+                  ? 'bg-slate-100 dark:bg-white/[0.04] border border-slate-300 dark:border-white/10 text-slate-800 dark:text-white'
+                  : 'bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:border-slate-300 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
               {o.label}
@@ -467,15 +467,15 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
         role="dialog"
         aria-modal="true"
         aria-labelledby="similar-modal-title"
-        className="flex flex-col w-full max-w-5xl h-[90vh] bg-white rounded shadow-2xl overflow-hidden border border-slate-200"
+        className="flex flex-col w-full max-w-5xl h-[90vh] bg-white dark:bg-[#0c0e12] rounded shadow-2xl overflow-hidden border border-slate-200 dark:border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-4 px-6 py-3.5 border-b border-slate-100 bg-white shrink-0">
+        <div className="flex items-center justify-between gap-4 px-6 py-3.5 border-b border-slate-100 dark:border-white/10 bg-white dark:bg-white/[0.03] shrink-0">
           <div className="min-w-0">
-            <h2 id="similar-modal-title" className="text-base font-bold text-slate-900 truncate">
+            <h2 id="similar-modal-title" className="text-base font-bold text-slate-900 dark:text-white truncate">
               {t('session.comparison_modal_title')}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5 truncate tabular-nums">
+            <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5 truncate tabular-nums">
               {activity.name} · {sessionLine(own, t)}
             </p>
           </div>
@@ -483,7 +483,7 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className={`p-1.5 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 ${FOCUS}`}
+            className={`p-1.5 rounded text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer shrink-0 ${FOCUS}`}
             aria-label={t('session.close')}
             title={`${t('session.close')} (Esc)`}
           >
@@ -491,7 +491,7 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
           </button>
         </div>
 
-        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0 space-y-2.5">
+        <div className="px-6 py-3 bg-slate-50 dark:bg-white/[0.04] border-b border-slate-200 dark:border-white/10 shrink-0 space-y-2.5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterGroup
               label={t('session.filter_pace')} value={filters.paceTolPct} onChange={set('paceTolPct')}
@@ -519,8 +519,8 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
             />
           </div>
 
-          <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
-            <span className="text-slate-500 font-medium tabular-nums" role="status">
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-white/10 text-xs">
+            <span className="text-slate-500 dark:text-white/55 font-medium tabular-nums" role="status">
               {modalSimilar?.n
                 ? t('session.modal_found', { count: modalSimilar.n, n: modalSimilar.n, median: modalSimilar.median_ef?.toFixed(2) ?? '—' })
                 : t('session.no_similar')}
@@ -528,7 +528,7 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
             <button
               type="button"
               onClick={() => setFilters(DEFAULT_FILTERS)}
-              className={`rounded text-slate-500 hover:text-slate-800 hover:underline cursor-pointer ${FOCUS}`}
+              className={`rounded text-slate-500 dark:text-white/55 hover:text-slate-800 dark:hover:text-white hover:underline cursor-pointer ${FOCUS}`}
             >
               {t('session.reset_filters')}
             </button>
@@ -542,10 +542,10 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
             <div className="grid gap-6 lg:grid-cols-5 h-full">
               <div className="lg:col-span-3 flex flex-col">
                 <SimilarChart points={points} median={modalSimilar.median_ef} onOpenActivity={openAndClose} t={t} locale={locale} />
-                <p className="text-xs text-slate-500 mt-2">{t('session.similar_chart_hint')}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55 mt-2">{t('session.similar_chart_hint')}</p>
               </div>
               <div className="lg:col-span-2 flex flex-col min-h-0">
-                <p className="text-label font-bold uppercase text-slate-500 mb-2">{t('session.modal_all_sessions', { n: rows.length })}</p>
+                <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">{t('session.modal_all_sessions', { n: rows.length })}</p>
                 <div className="space-y-1 overflow-y-auto pr-1 flex-1 max-h-[380px]">
                   {rows.map((s) => (
                     <SimilarRow key={s.id} s={s} onOpenActivity={openAndClose} t={t} locale={locale} />
@@ -568,16 +568,16 @@ function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onCli
     <Tag
       {...(onClick ? { type: 'button', onClick } : {})}
       title={title}
-      className={`flex items-start gap-3 bg-white px-5 py-4 text-left ${onClick ? `hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500 transition-colors` : ''}`}
+      className={`flex items-start gap-3 bg-white dark:bg-white/[0.03] px-5 py-4 text-left ${onClick ? `hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500 transition-colors` : ''}`}
     >
       <span className={`mt-1 inline-flex items-center justify-center w-8 h-8 rounded shrink-0 ${tone}`} aria-hidden="true">
         <Icon className="w-4 h-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-label font-bold uppercase text-slate-500">{label}</span>
+        <span className="block text-label font-bold uppercase text-slate-500 dark:text-white/55">{label}</span>
         <span className={`block text-2xl leading-tight font-black tabular-nums tracking-tight ${valueTone}`}>{value}</span>
-        <span className="block text-xs font-medium text-slate-600 first-letter:uppercase">{sub}</span>
-        {extra && <span className="block text-xs tabular-nums text-slate-500">{extra}</span>}
+        <span className="block text-xs font-medium text-slate-600 dark:text-white/75 first-letter:uppercase">{sub}</span>
+        {extra && <span className="block text-xs tabular-nums text-slate-500 dark:text-white/55">{extra}</span>}
       </span>
     </Tag>
   );
@@ -589,11 +589,11 @@ function Totals({ items, cols }) {
     <dl className={`grid grid-cols-3 sm:grid-cols-5 ${cols} gap-x-4 gap-y-3 px-5 py-4`}>
       {items.map((it) => (
         <div key={it.label} className="min-w-0" title={it.title}>
-          <dt className="text-label font-bold uppercase text-slate-500 truncate">{it.label}</dt>
-          <dd className="text-lg leading-tight font-black tabular-nums text-slate-900 truncate">
-            {it.value}{it.unit && <span className="ml-0.5 text-xs font-semibold text-slate-500">{it.unit}</span>}
+          <dt className="text-label font-bold uppercase text-slate-500 dark:text-white/55 truncate">{it.label}</dt>
+          <dd className="text-lg leading-tight font-black tabular-nums text-slate-900 dark:text-white truncate">
+            {it.value}{it.unit && <span className="ml-0.5 text-xs font-semibold text-slate-500 dark:text-white/55">{it.unit}</span>}
           </dd>
-          {it.hint && <dd className="text-xs text-slate-500 truncate">{it.hint}</dd>}
+          {it.hint && <dd className="text-xs text-slate-500 dark:text-white/55 truncate">{it.hint}</dd>}
         </div>
       ))}
     </dl>
@@ -603,12 +603,12 @@ function Totals({ items, cols }) {
 /** «Cómo leer»: qué significan eficiencia, deriva y durabilidad, sin depender del hover. */
 function HowToRead({ t }) {
   return (
-    <details className="group border-t border-slate-100">
-      <summary className={`flex items-center gap-1.5 px-5 py-2.5 cursor-pointer list-none text-xs font-semibold text-blue-700 hover:bg-blue-50/60 [&::-webkit-details-marker]:hidden ${FOCUS}`}>
+    <details className="group border-t border-slate-100 dark:border-white/10">
+      <summary className={`flex items-center gap-1.5 px-5 py-2.5 cursor-pointer list-none text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-blue-50/60 [&::-webkit-details-marker]:hidden ${FOCUS}`}>
         <ChevronDownIcon className="w-3.5 h-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
         {t('session.how_to_read')}
       </summary>
-      <div className="mx-5 mb-4 rounded border border-blue-100 bg-blue-50 px-4 py-3 space-y-2 text-sm text-blue-900 max-w-[75ch]">
+      <div className="mx-5 mb-4 rounded border border-teal-200 dark:border-teal-300/25 bg-teal-50 dark:bg-teal-400/10 px-4 py-3 space-y-2 text-sm text-blue-900 max-w-[75ch]">
         <p>{t('session.how_ef')}</p>
         <p>{t('session.how_drift')}</p>
         <p>{t('session.how_durability')}</p>
@@ -621,22 +621,22 @@ function HowToRead({ t }) {
 function NextSteps({ actions }) {
   if (!actions.length) return null;
   return (
-    <div className={`grid gap-px bg-slate-100 ${actions.length > 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+    <div className={`grid gap-px bg-slate-100 dark:bg-white/[0.04] ${actions.length > 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
       {actions.map(({ key, Icon, label, hint, onClick, primary }) => (
         <button
           key={key}
           type="button"
           onClick={onClick}
-          className={`group flex items-start gap-3 bg-white px-5 py-4 text-left hover:bg-slate-50 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500`}
+          className={`group flex items-start gap-3 bg-white dark:bg-white/[0.03] px-5 py-4 text-left hover:bg-slate-50 dark:hover:bg-white/[0.05] transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500`}
         >
-          <span className={`mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded shrink-0 ${primary ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'}`} aria-hidden="true">
+          <span className={`mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded shrink-0 ${primary ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300'}`} aria-hidden="true">
             <Icon className="w-4 h-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1 text-sm font-bold text-slate-900 group-hover:text-blue-700">
+            <span className="flex items-center gap-1 text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-700">
               {label} <ChevronRightIcon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             </span>
-            <span className="block text-xs text-slate-500">{hint}</span>
+            <span className="block text-xs text-slate-500 dark:text-white/55">{hint}</span>
           </span>
         </button>
       ))}
@@ -656,7 +656,7 @@ function StepButton({ target, label, dir, onStep, locale }) {
       title={target
         ? `${label} (${key}): ${target.name} · ${new Date(target.start_date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`
         : label}
-      className={`inline-flex items-center gap-1 h-8 px-2.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors ${FOCUS}`}
+      className={`inline-flex items-center gap-1 h-8 px-2.5 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-xs font-semibold text-slate-600 dark:text-white/75 hover:border-blue-300 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors ${FOCUS}`}
     >
       {dir === 'prev' && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
       <span className="hidden md:inline">{label}</span>
@@ -742,8 +742,8 @@ export default function SessionView({
   if (!activity) {
     return (
       <Card>
-        <p className="text-sm text-slate-500 mb-3">{t('session.not_found')}</p>
-        <button onClick={onBack} className={`rounded text-sm font-bold text-blue-600 hover:underline ${FOCUS}`}>{t('session.back')}</button>
+        <p className="text-sm text-slate-500 dark:text-white/55 mb-3">{t('session.not_found')}</p>
+        <button onClick={onBack} className={`rounded text-sm font-bold text-teal-700 dark:text-teal-300 hover:underline ${FOCUS}`}>{t('session.back')}</button>
       </Card>
     );
   }
@@ -786,8 +786,8 @@ export default function SessionView({
     efficiency.whole != null && {
       key: 'ef',
       Icon: efNeutral ? ScaleIcon : efDelta > 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
-      tone: efNeutral ? NEUTRAL_PILL : efDelta > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
-      valueTone: efNeutral ? 'text-slate-900' : efDelta > 0 ? 'text-emerald-700' : 'text-rose-700',
+      tone: efNeutral ? NEUTRAL_PILL : efDelta > 0 ? 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300',
+      valueTone: efNeutral ? 'text-slate-900 dark:text-white' : efDelta > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300',
       label: t('session.efficiency_title'),
       value: efDelta != null ? `${signed(efDelta)}%` : efficiency.whole.toFixed(2),
       sub: efDelta != null ? t('session.insight_vs_similar', { rank: similar.rank, total: similar.n + 1 }) : t('session.u_ef'),
@@ -804,7 +804,7 @@ export default function SessionView({
       key: 'dec',
       Icon: HeartIcon,
       tone: LEVEL_PILL[decH.level] ?? NEUTRAL_PILL,
-      valueTone: LEVEL_TONE[decH.level] ?? 'text-slate-500',
+      valueTone: LEVEL_TONE[decH.level] ?? 'text-slate-500 dark:text-white/55',
       label: t('session.decoupling_title'),
       value: decH.pct != null ? `${signed(decH.pct)}%` : '—',
       sub: decH.pct != null ? t(`decoupling.levels.${decH.level}`) : t(`session.decoupling_reason.${decH.reason}`),
@@ -817,8 +817,8 @@ export default function SessionView({
     showHeat && {
       key: 'heat',
       Icon: SunIcon,
-      tone: 'bg-amber-50 text-amber-800',
-      valueTone: 'text-amber-800',
+      tone: 'bg-amber-50 dark:bg-amber-400/10 text-amber-800 dark:text-amber-200',
+      valueTone: 'text-amber-800 dark:text-amber-200',
       label: t('session.insight_heat'),
       value: `${fmt1(weather.heat_penalty_session_pct)}%`,
       sub: `WBGT ${fmt1(weather.wbgt_c)} °C`,
@@ -882,24 +882,24 @@ export default function SessionView({
   return (
     <div ref={rootRef} className="space-y-6">
       {/* ── Barra fija: volver, secciones y anterior/siguiente ─────────────── */}
-      <nav aria-label={t('session.back')} className="sticky top-0 z-30 -mx-4 lg:-mx-8 -mt-4 lg:-mt-8 px-4 lg:px-8 py-2.5 bg-[var(--bg-main)] border-b border-slate-200">
+      <nav aria-label={t('session.back')} className="sticky top-0 z-30 -mx-4 lg:-mx-8 -mt-4 lg:-mt-8 px-4 lg:px-8 py-2.5 bg-[var(--bg-main)] border-b border-slate-200 dark:border-white/10">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
             aria-label={t('session.back')}
             title={`${t('session.back')} (Esc)`}
-            className={`inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded text-xs font-semibold text-slate-600 hover:bg-white hover:text-blue-600 transition-colors shrink-0 ${FOCUS}`}
+            className={`inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded text-xs font-semibold text-slate-600 dark:text-white/75 hover:bg-white dark:hover:bg-white/[0.05] hover:text-blue-600 transition-colors shrink-0 ${FOCUS}`}
           >
             <ArrowLeftIcon className="w-4 h-4" aria-hidden="true" /> <span className="hidden sm:inline">{t('session.back')}</span>
           </button>
-          <span className="hidden sm:block w-px h-5 bg-slate-200 shrink-0" aria-hidden="true" />
+          <span className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-white/10 shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0 flex gap-1 overflow-x-auto [scrollbar-width:none]">
             {sections.map((s) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => jump(s.id)}
-                className={`shrink-0 px-2.5 py-1 rounded text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-900 transition-colors ${FOCUS}`}
+                className={`shrink-0 px-2.5 py-1 rounded text-xs font-semibold text-slate-500 dark:text-white/55 hover:bg-white dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white transition-colors ${FOCUS}`}
               >
                 {s.label}
               </button>
@@ -917,21 +917,21 @@ export default function SessionView({
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex items-start justify-between gap-4 px-5 pt-5">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-white/55">
                 <span className="first-letter:uppercase">{dateLabel}</span>
-                <span className="text-slate-400" aria-hidden="true">·</span>
+                <span className="text-slate-400 dark:text-white/40" aria-hidden="true">·</span>
                 <span className="tabular-nums">{start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                 {race && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-px rounded text-label font-bold uppercase bg-slate-100 text-slate-800 ring-1 ring-inset ring-slate-300">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-px rounded text-label font-bold uppercase bg-slate-100 dark:bg-white/[0.04] text-slate-800 dark:text-white ring-1 ring-inset ring-slate-300">
                     <FlagIcon className="w-3 h-3" aria-hidden="true" />{t('session.race')}
                   </span>
                 )}
               </div>
-              <h1 className="mt-1 text-2xl font-black tracking-tight leading-tight text-slate-900 text-balance break-words">{activity.name}</h1>
+              <h1 className="mt-1 text-2xl font-black tracking-tight leading-tight text-slate-900 dark:text-white text-balance break-words">{activity.name}</h1>
             </div>
             <a
               href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded border border-slate-200 text-xs font-semibold text-slate-600 hover:border-[var(--strava)] hover:text-[var(--strava)] transition-colors shrink-0 ${FOCUS}`}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-600 dark:text-white/75 hover:border-[var(--strava)] hover:text-[var(--strava)] transition-colors shrink-0 ${FOCUS}`}
               style={{ '--strava': COLORS.strava }}
             >
               {t('session.open_strava')} <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" aria-hidden="true" />
@@ -939,12 +939,12 @@ export default function SessionView({
           </div>
 
           {/* La respuesta, en palabras: lo primero que se lee después del nombre. */}
-          <p className="px-5 pt-2 pb-4 text-sm leading-relaxed text-slate-600 max-w-[75ch]">
+          <p className="px-5 pt-2 pb-4 text-sm leading-relaxed text-slate-600 dark:text-white/75 max-w-[75ch]">
             {verdict.length ? verdict.join(' ') : t('session.verdict_none')}
           </p>
 
           {insights.length > 0 && (
-            <div className={`grid gap-px bg-slate-100 border-y border-slate-100 ${INSIGHT_COLS[insights.length]}`}>
+            <div className={`grid gap-px bg-slate-100 dark:bg-white/[0.04] border-y border-slate-100 dark:border-white/10 ${INSIGHT_COLS[insights.length]}`}>
               {insights.map(({ key, target, ...rest }) => (
                 <Insight key={key} {...rest} onClick={target ? () => jump(target) : undefined} />
               ))}
@@ -952,14 +952,14 @@ export default function SessionView({
           )}
           {insights.length > 0 && <HowToRead t={t} />}
 
-          <div className="border-t border-slate-100 bg-slate-50/60">
+          <div className="border-t border-slate-100 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.04]">
             <Totals items={totals} cols={headerMap ? '' : 'xl:grid-cols-9'} />
           </div>
         </div>
 
         {headerMap && (
-          <div className="lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100">
-            <RouteMap encoded={polyline} className="relative h-64 lg:h-full lg:min-h-[280px] bg-slate-50" />
+          <div className="lg:w-[340px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-white/10">
+            <RouteMap encoded={polyline} className="relative h-64 lg:h-full lg:min-h-[280px] bg-slate-50 dark:bg-white/[0.04]" />
           </div>
         )}
       </section>
@@ -970,7 +970,7 @@ export default function SessionView({
           <SessionStreams
             activityId={activity.id}
             accessToken={accessToken}
-            fallback={polyline ? <RouteMap encoded={polyline} className="relative h-64 rounded overflow-hidden bg-slate-50" /> : null}
+            fallback={polyline ? <RouteMap encoded={polyline} className="relative h-64 rounded overflow-hidden bg-slate-50 dark:bg-white/[0.04]" /> : null}
           />
         </Card>
       )}
@@ -990,7 +990,7 @@ export default function SessionView({
             {splitsBody(<ActivitySplits mode="hr" splits={splits} hrParams={hrParams} splitsMetric={activity.splits_metric} />)}
           </div>
           <div className="min-w-0">
-            <h3 className="text-label font-bold uppercase text-slate-500 mb-3">{t('session.zones_title')}</h3>
+            <h3 className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-3">{t('session.zones_title')}</h3>
             <ZonesBlock zones={zones} t={t} />
             <HrStrip avg={activity.average_heartrate} max={activity.max_heartrate} hrmax={hrmax} hrrest={hrrest} t={t} />
           </div>
@@ -1007,7 +1007,7 @@ export default function SessionView({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 rounded text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer ${FOCUS}`}
+                className={`inline-flex items-center gap-1.5 rounded text-xs font-semibold text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200 hover:underline cursor-pointer ${FOCUS}`}
               >
                 <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>{t('session.open_comparison_modal')}</span>
@@ -1043,7 +1043,7 @@ export default function SessionView({
         />
       )}
 
-      <p className="hidden lg:block text-center text-xs text-slate-500">{t('session.keys_hint')}</p>
+      <p className="hidden lg:block text-center text-xs text-slate-500 dark:text-white/55">{t('session.keys_hint')}</p>
     </div>
   );
 }

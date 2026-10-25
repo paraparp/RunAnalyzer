@@ -293,29 +293,29 @@ function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs max-w-[260px]">
-      <p className="font-bold text-slate-700 mb-1">{d.name || d.week}</p>
-      {d.dateLabel && <p className="text-slate-500">{d.dateLabel} — {d.km} km — {d.duration} min</p>}
-      {d.paceLabel && <p className="text-slate-500">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>}
+    <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded-lg shadow-lg p-3 text-xs max-w-[260px]">
+      <p className="font-bold text-slate-700 dark:text-white/75 mb-1">{d.name || d.week}</p>
+      {d.dateLabel && <p className="text-slate-500 dark:text-white/55">{d.dateLabel} — {d.km} km — {d.duration} min</p>}
+      {d.paceLabel && <p className="text-slate-500 dark:text-white/55">Ritmo: {d.paceLabel}/km | FC: {d.hr} bpm</p>}
       {d.vo2max !== undefined && (
-        <p className="text-blue-600 font-bold">
+        <p className="text-teal-700 dark:text-teal-300 font-bold">
           VO2max: {d.vo2max} ml/kg/min
-          {d.confidence !== undefined && <span className="text-slate-500 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
+          {d.confidence !== undefined && <span className="text-slate-500 dark:text-white/55 font-normal ml-1">({Math.round(d.confidence * 100)}% conf.)</span>}
         </p>
       )}
       {d.vo2avg !== undefined && <p className="text-blue-500">Media ponderada: {d.vo2avg}</p>}
       {d.methods && d.methods.length > 0 && (
-        <div className="mt-1 pt-1 border-t border-slate-100">
+        <div className="mt-1 pt-1 border-t border-slate-100 dark:border-white/10">
           {d.methods.map((m, i) => (
-            <p key={i} className="text-slate-500">
+            <p key={i} className="text-slate-500 dark:text-white/55">
               {m.method}: {Math.round(m.value * 10) / 10} <span className="opacity-60">(w={m.weight.toFixed(1)})</span>
             </p>
           ))}
         </div>
       )}
-      {d.avgVO2 !== undefined && <p className="text-blue-600 font-bold">Media: {d.avgVO2}</p>}
-      {d.bestVO2 !== undefined && <p className="text-emerald-600">Mejor: {d.bestVO2}</p>}
-      {d.sessions !== undefined && <p className="text-slate-500">{d.sessions} sesiones</p>}
+      {d.avgVO2 !== undefined && <p className="text-teal-700 dark:text-teal-300 font-bold">Media: {d.avgVO2}</p>}
+      {d.bestVO2 !== undefined && <p className="text-emerald-600 dark:text-emerald-300">Mejor: {d.bestVO2}</p>}
+      {d.sessions !== undefined && <p className="text-slate-500 dark:text-white/55">{d.sessions} sesiones</p>}
     </div>
   );
 }
@@ -600,7 +600,7 @@ export default function VO2MaxTracker({ activities }) {
 
   if (!stats) {
     return (
-      <div className="text-center py-12 text-slate-500">
+      <div className="text-center py-12 text-slate-500 dark:text-white/55">
         <p className="text-sm">{t('vo2.no_data', 'No hay datos suficientes para estimar tu VO2max.')}</p>
         <p className="text-xs mt-2">{t('vo2.no_data_desc', 'Se necesitan actividades de +10 min con datos de frecuencia cardíaca.')}</p>
       </div>
@@ -657,7 +657,7 @@ export default function VO2MaxTracker({ activities }) {
               label: t('vo2.peak'),
               value: stats.peak ?? '--',
               unit: t('vo2.ml_kg_min'),
-              color: "text-emerald-600",
+              color: "text-emerald-600 dark:text-emerald-300",
               icon: FlagIcon,
               sub: stats.currentSource === 'vdot' ? t('vo2.peak_window') : null,
             },
@@ -665,16 +665,16 @@ export default function VO2MaxTracker({ activities }) {
               label: stats.currentSource === 'vdot' ? t('vo2.submax') : t('vo2.global_avg'),
               value: (stats.currentSource === 'vdot' ? stats.submaxCurrent : stats.avg) ?? '--',
               unit: t('vo2.ml_kg_min'),
-              color: "text-slate-600",
+              color: "text-slate-600 dark:text-white/75",
               icon: ChartBarIcon,
               sub: stats.currentSource === 'vdot' ? t('vo2.submax_sub') : null,
             },
-            { label: t('vo2.last_30'), value: stats.recentAvg || '--', unit: t('vo2.ml_kg_min'), color: "text-blue-600", icon: CalendarIcon },
+            { label: t('vo2.last_30'), value: stats.recentAvg || '--', unit: t('vo2.ml_kg_min'), color: "text-teal-700 dark:text-teal-300", icon: CalendarIcon },
             {
               label: stats.isMaxHREstimated ? t('vo2.garmin_sync.max_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.max_hr') + " (Garmin)",
               value: stats.activeMaxHR,
               unit: "bpm",
-              color: "text-rose-600",
+              color: "text-rose-600 dark:text-rose-300",
               icon: HeartIcon,
               sub: stats.isMaxHREstimated ? t('hr_analysis.diagnosis.noise_filter', 'Filtro de ruido') : t('vo2.garmin_sync.official')
             },
@@ -682,26 +682,26 @@ export default function VO2MaxTracker({ activities }) {
               label: stats.isRestHREstimated ? t('vo2.garmin_sync.resting_hr') + " " + t('vo2.garmin_sync.estimated_suffix') : t('vo2.garmin_sync.resting_hr') + " (Garmin)",
               value: stats.activeRestHR,
               unit: "bpm",
-              color: "text-sky-600",
+              color: "text-sky-600 dark:text-sky-300",
               icon: ClockIcon,
               sub: stats.isRestHREstimated ? t('fitness.how_to_read', 'Regresión lineal') : t('vo2.garmin_sync.connected').split(' ')[0]
             },
-            { label: t('vo2.sessions'), value: stats.totalSessions, unit: t('vo2.analyzed'), color: "text-slate-900", icon: PlayCircleIcon },
+            { label: t('vo2.sessions'), value: stats.totalSessions, unit: t('vo2.analyzed'), color: "text-slate-900 dark:text-white", icon: PlayCircleIcon },
           ].map((card, idx) => (
-            <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm transition-all hover:shadow-md group">
+            <div key={idx} className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 p-6 shadow-sm transition-all hover:shadow-md group">
               <div className="flex justify-between items-start mb-3">
-                <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
+                <div className="p-2 bg-slate-50 dark:bg-white/[0.04] rounded-xl text-slate-500 dark:text-white/55 group-hover:text-slate-600 transition-colors">
                   {card.icon && <card.icon className="w-5 h-5" />}
                 </div>
-                <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
+                <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 text-right">{card.label}</div>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <p className={`text-2xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-                <p className="text-label font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
+                <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase tracking-tighter">{card.unit}</p>
               </div>
               {card.sub && (
-                <div className="mt-2 text-xs font-bold text-slate-500 flex items-center gap-1">
-                  <div className="w-1 h-1 rounded-full bg-slate-200" />
+                <div className="mt-2 text-xs font-bold text-slate-500 dark:text-white/55 flex items-center gap-1">
+                  <div className="w-1 h-1 rounded-full bg-slate-200 dark:bg-white/10" />
                   {card.sub}
                 </div>
               )}
@@ -714,17 +714,17 @@ export default function VO2MaxTracker({ activities }) {
       {trendData.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { key: 'HRR', label: 'Estrategia HRR', desc: 'Basado en Reserva (Swain 1997)', color: 'bg-blue-600' },
+          { key: 'HRR', label: 'Estrategia HRR', desc: 'Basado en Reserva (Swain 1997)', color: 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' },
           { key: 'Firstbeat', label: 'Regresión Lineal', desc: 'Patrón Firstbeat Analytics', color: 'bg-slate-900' },
           { key: '%HRmax', label: 'Swain Fallback', desc: 'Basado en %FCmax 1994', color: 'bg-slate-400' },
         ].map(m => (
-          <div key={m.key} className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
+          <div key={m.key} className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
             <div className={`w-12 h-12 ${m.color} rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg`}>
               <span className="font-black text-lg leading-none">{stats.methodCounts[m.key] || 0}</span>
             </div>
             <div>
-              <p className="text-label font-bold uppercase text-slate-500 mb-0.5">{m.label}</p>
-              <p className="text-xs font-bold text-slate-600">{m.desc}</p>
+              <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-0.5">{m.label}</p>
+              <p className="text-xs font-bold text-slate-600 dark:text-white/75">{m.desc}</p>
             </div>
           </div>
         ))}
@@ -732,17 +732,17 @@ export default function VO2MaxTracker({ activities }) {
       )}
 
       {/* Estado de datos fisiológicos (proviene del sync global de Garmin) */}
-      <div className={`rounded-2xl border-l-[12px] p-8 transition-all bg-white border border-slate-100 ${garminRestHR ? 'border-l-emerald-500 shadow-xl' : 'border-l-slate-300 shadow-sm'}`}>
+      <div className={`rounded-2xl border-l-[12px] p-8 transition-all bg-white dark:bg-white/[0.03] border border-slate-100 dark:border-white/10 ${garminRestHR ? 'border-l-emerald-500 shadow-xl' : 'border-l-slate-300 shadow-sm'}`}>
         <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between">
           <div className="flex-1">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 ${garminRestHR ? 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55'}`}>
               <CpuChipIcon className="w-4 h-4" />
               <span className="text-label font-bold uppercase">{garminRestHR ? 'Bio-Sincronización Activa' : 'Sin datos fisiológicos'}</span>
             </div>
-            <h4 className="font-black text-2xl text-slate-900 tracking-tight mb-2">
+            <h4 className="font-black text-2xl text-slate-900 dark:text-white tracking-tight mb-2">
               {garminRestHR ? 'Usando tus datos reales de Garmin' : 'Sincroniza Garmin para mayor precisión'}
             </h4>
-            <p className="text-sm text-slate-500 max-w-2xl leading-relaxed font-medium">
+            <p className="text-sm text-slate-500 dark:text-white/55 max-w-2xl leading-relaxed font-medium">
               {garminRestHR
                 ? `Frecuencia cardíaca en reposo basal de ${garminRestHR} bpm (última medición) tomada de tu sincronización de Garmin. No hace falta volver a iniciar sesión aquí.`
                 : 'Este apartado reutiliza los datos de tu sincronización global de Garmin. Conéctate desde el botón de sincronización principal y la FC en reposo real se aplicará aquí automáticamente. Mientras tanto se usan estimaciones.'
@@ -751,8 +751,8 @@ export default function VO2MaxTracker({ activities }) {
           </div>
 
           {garminRestHR && (
-            <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <span className="text-3xl font-black text-emerald-600 tabular-nums">{garminRestHR}</span>
+            <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 dark:bg-emerald-400/10 rounded-2xl border border-emerald-100 dark:border-emerald-300/25">
+              <span className="text-3xl font-black text-emerald-600 dark:text-emerald-300 tabular-nums">{garminRestHR}</span>
               <div className="text-label font-bold uppercase text-emerald-500 leading-tight">FC Reposo<br />Garmin</div>
             </div>
           )}
@@ -771,9 +771,9 @@ export default function VO2MaxTracker({ activities }) {
 
       {/* Main evolution chart — serie SUBMÁXIMA, no la cifra de cabecera */}
       {trendData.length > 0 && (
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-1">VO2max submáximo (proxy de eficiencia)</Title>
-        <Text className="text-slate-500 text-sm mb-4">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold mb-1">VO2max submáximo (proxy de eficiencia)</Title>
+        <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">
           Multi-método por FC: HRR (70–88 % HRR) + regresión Firstbeat + %FCmax. Mide el punto de
           trabajo de cada sesión, no la forma: la cifra de cabecera sale del VDOT sobre tus mejores
           esfuerzos.
@@ -823,9 +823,9 @@ export default function VO2MaxTracker({ activities }) {
 
       {/* Weekly breakdown */}
       {weeklyData.length > 2 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">VO2max Semanal</Title>
-          <Text className="text-slate-500 text-sm mb-4">Media ponderada por confianza y mejor estimación por semana</Text>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">VO2max Semanal</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">Media ponderada por confianza y mejor estimación por semana</Text>
           <div className="h-[280px] w-full min-h-[280px]">
             <ResponsiveContainer width="100%" height="100%" minHeight={280}>
               <ComposedChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -860,8 +860,8 @@ export default function VO2MaxTracker({ activities }) {
       )}
 
       {/* VO2max classification */}
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Clasificación VO2max (ACSM)</Title>
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold mb-3">Clasificación VO2max (ACSM)</Title>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {[
             { label: 'Superior', range: '56+', color: COLORS.good },
@@ -882,8 +882,8 @@ export default function VO2MaxTracker({ activities }) {
                 }}
               >
                 <p className="text-xs font-bold" style={{ color: tier.color }}>{tier.label}</p>
-                <p className="text-lg font-black text-slate-800 tabular-nums mt-1">{tier.range}</p>
-                <p className="text-xs text-slate-500">ml/kg/min</p>
+                <p className="text-lg font-black text-slate-800 dark:text-white tabular-nums mt-1">{tier.range}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55">ml/kg/min</p>
                 {isActive && <p className="text-xs font-bold mt-1" style={{ color: tier.color }}>Tu nivel</p>}
               </div>
             );
@@ -892,51 +892,51 @@ export default function VO2MaxTracker({ activities }) {
       </Card>
 
       {/* Methodology */}
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">Motor de Estimación (3 métodos)</Title>
-        <div className="space-y-4 text-sm text-slate-600">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold mb-3">Motor de Estimación (3 métodos)</Title>
+        <div className="space-y-4 text-sm text-slate-600 dark:text-white/75">
           <div>
-            <p className="font-bold text-slate-700 mb-1">A) Método HRR — Swain & Leutholtz (1997)</p>
+            <p className="font-bold text-slate-700 dark:text-white/75 mb-1">A) Método HRR — Swain & Leutholtz (1997)</p>
             <p className="text-xs">El más preciso. Usa la Reserva de FC (no el %FCmax) que tiene relación 1:1 con la Reserva de VO2.</p>
-            <div className="bg-slate-50 rounded-lg p-2 mt-1 text-xs font-mono text-slate-500">
+            <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg p-2 mt-1 text-xs font-mono text-slate-500 dark:text-white/55">
               %HRR = (FC - FC_reposo) / (FC_max - FC_reposo)<br />
               VO2max = 3.5 + (VO2_ritmo - 3.5) / %HRR
             </div>
           </div>
           <div>
-            <p className="font-bold text-slate-700 mb-1">B) Regresión lineal tipo Firstbeat/Garmin</p>
+            <p className="font-bold text-slate-700 dark:text-white/75 mb-1">B) Regresión lineal tipo Firstbeat/Garmin</p>
             <p className="text-xs">Regresiona VO2 teórico vs FC a través de los splits de cada sesión. Extrapola a FC_max para estimar VO2max. Requiere variación de ritmo dentro de la sesión.</p>
-            <div className="bg-slate-50 rounded-lg p-2 mt-1 text-xs font-mono text-slate-500">
+            <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg p-2 mt-1 text-xs font-mono text-slate-500 dark:text-white/55">
               VO2 = slope × FC + intercept (regresión ponderada)<br />
               VO2max = slope × FC_max + intercept
             </div>
           </div>
           <div>
-            <p className="font-bold text-slate-700 mb-1">C) %FCmax — Swain (1994) (fallback)</p>
+            <p className="font-bold text-slate-700 dark:text-white/75 mb-1">C) %FCmax — Swain (1994) (fallback)</p>
             <p className="text-xs">Menos preciso pero siempre disponible. Relación lineal entre %FCmax y %VO2max.</p>
-            <div className="bg-slate-50 rounded-lg p-2 mt-1 text-xs font-mono text-slate-500">
+            <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg p-2 mt-1 text-xs font-mono text-slate-500 dark:text-white/55">
               %VO2max = 1.5286 × %FCmax − 0.5286
             </div>
           </div>
-          <div className="border-t border-slate-100 pt-3">
-            <p className="font-bold text-slate-700 mb-1">Coste de O2 (3 modelos promediados)</p>
-            <div className="bg-slate-50 rounded-lg p-2 text-xs font-mono text-slate-500 space-y-0.5">
+          <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+            <p className="font-bold text-slate-700 dark:text-white/75 mb-1">Coste de O2 (3 modelos promediados)</p>
+            <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg p-2 text-xs font-mono text-slate-500 dark:text-white/55 space-y-0.5">
               <p>Daniels-Gilbert (30%): −4.60 + 0.182v + 0.000104v²</p>
               <p>Léger-Mercier outdoor (50%): 2.209 + 3.163v + 0.000526v³</p>
               <p>ACSM con pendiente (20%): 0.2S + 0.9SG + 3.5</p>
             </div>
           </div>
-          <div className="border-t border-slate-100 pt-3">
-            <p className="font-bold text-slate-700 mb-1">Correcciones aplicadas</p>
-            <ul className="text-xs space-y-0.5 list-disc list-inside text-slate-500">
-              <li><span className="font-semibold text-slate-600">Drift cardíaco:</span> corrección lineal −3%/hora en FC de cada split</li>
-              <li><span className="font-semibold text-slate-600">FC reposo:</span> estimada por regresión VO2-FC multi-sesión (tu estimación: {stats.estimatedRestHR} bpm)</li>
-              <li><span className="font-semibold text-slate-600">Filtro de zona:</span> solo segmentos al 60-95% FCmax</li>
-              <li><span className="font-semibold text-slate-600">Outlier rejection:</span> trimmed mean (descarta 10% extremos)</li>
-              <li><span className="font-semibold text-slate-600">EWMA temporal:</span> sesiones recientes pesan más en la media móvil</li>
+          <div className="border-t border-slate-100 dark:border-white/10 pt-3">
+            <p className="font-bold text-slate-700 dark:text-white/75 mb-1">Correcciones aplicadas</p>
+            <ul className="text-xs space-y-0.5 list-disc list-inside text-slate-500 dark:text-white/55">
+              <li><span className="font-semibold text-slate-600 dark:text-white/75">Drift cardíaco:</span> corrección lineal −3%/hora en FC de cada split</li>
+              <li><span className="font-semibold text-slate-600 dark:text-white/75">FC reposo:</span> estimada por regresión VO2-FC multi-sesión (tu estimación: {stats.estimatedRestHR} bpm)</li>
+              <li><span className="font-semibold text-slate-600 dark:text-white/75">Filtro de zona:</span> solo segmentos al 60-95% FCmax</li>
+              <li><span className="font-semibold text-slate-600 dark:text-white/75">Outlier rejection:</span> trimmed mean (descarta 10% extremos)</li>
+              <li><span className="font-semibold text-slate-600 dark:text-white/75">EWMA temporal:</span> sesiones recientes pesan más en la media móvil</li>
             </ul>
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-2">
             Validación Firstbeat (2017): MAPE ~5% vs lab VO2max en 2690 sesiones de 79 corredores.
             La precisión depende de un sensor de FC fiable y una FCmax bien calibrada.
           </p>

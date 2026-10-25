@@ -169,23 +169,23 @@ export default function RouteGallery({ activities }) {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <Card className="shadow-xl border-slate-200 ring-1 ring-slate-100 rounded-3xl pb-10 overflow-hidden bg-slate-50/50">
+      <Card className="shadow-xl border-slate-200 dark:border-white/10 ring-1 ring-slate-100 dark:ring-white/10 rounded-3xl pb-10 overflow-hidden bg-slate-50/50 dark:bg-white/[0.04]">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 px-2 mt-2">
           <div>
             <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg">
                     <RectangleGroupIcon className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-3xl font-black tracking-tighter text-slate-900">{t('gallery.title', 'Galería de Rutas')}</h2>
+                <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">{t('gallery.title', 'Galería de Rutas')}</h2>
             </div>
-            <Text className="text-slate-500 text-sm max-w-xl">
+            <Text className="text-slate-500 dark:text-white/55 text-sm max-w-xl">
               {t('gallery.subtitle', 'Tus rutas como auténticos pósters de diseño. Cambia el tema para una experiencia inmersiva.')}
             </Text>
           </div>
           
           <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4 shrink-0">
             <div>
-              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest flex items-center gap-1">
+              <Text className="text-[10px] font-bold text-slate-500 dark:text-white/55 mb-1.5 uppercase tracking-widest flex items-center gap-1">
                 <SwatchIcon className="w-3 h-3" /> Tema Original
               </Text>
               <Select value={activeTheme} onValueChange={setActiveTheme} enableClear={false} className="w-full sm:w-40 font-semibold shadow-sm">
@@ -195,7 +195,7 @@ export default function RouteGallery({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">Mostrar</Text>
+              <Text className="text-[10px] font-bold text-slate-500 dark:text-white/55 mb-1.5 uppercase tracking-widest">Mostrar</Text>
               <Select value={filter} onValueChange={setFilter} enableClear={false} className="w-full sm:w-40 font-semibold shadow-sm">
                 <SelectItem value="longest">Distancia Máx</SelectItem>
                 <SelectItem value="fastest">Velocidad Punta</SelectItem>

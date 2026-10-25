@@ -40,7 +40,7 @@ export function Scale({ value, min, max, bands, className = '' }) {
       </div>
       {has && (
         <div
-          className="absolute top-0 bottom-0 w-[3px] -translate-x-1/2 rounded-full bg-slate-900 ring-2 ring-white dark:bg-white dark:ring-slate-900"
+          className="absolute top-0 bottom-0 w-[3px] -translate-x-1/2 rounded-full bg-slate-900 ring-2 ring-white dark:bg-white dark:ring-[#07090d]"
           style={{ left: `${tOf(value) * 100}%` }}
         />
       )}
@@ -76,7 +76,7 @@ export function RouteShape({ encoded, className = '' }) {
   try { pts = encoded ? polyline.decode(encoded) : []; } catch { pts = []; }
   if (pts.length < 2) {
     return (
-      <div className={`flex items-center justify-center rounded bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-500 ${className}`}>
+      <div className={`flex items-center justify-center rounded bg-slate-50 dark:bg-white/[0.06] text-xs text-slate-500 ${className}`}>
         Sin recorrido GPS
       </div>
     );
@@ -92,7 +92,7 @@ export function RouteShape({ encoded, className = '' }) {
   const d = P.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
   const [sx, sy] = P[0], [ex, ey] = P[P.length - 1];
   return (
-    <svg viewBox={`0 0 ${S} ${S}`} className={`rounded bg-slate-50 dark:bg-slate-800/50 ${className}`} role="img" aria-label="Recorrido de la carrera">
+    <svg viewBox={`0 0 ${S} ${S}`} className={`rounded bg-slate-50 dark:bg-white/[0.06] ${className}`} role="img" aria-label="Recorrido de la carrera">
       <path d={d} fill="none" stroke={COLORS.signal} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={sx} cy={sy} r="2.4" fill={COLORS.good} stroke="white" strokeWidth="0.8" />
       <circle cx={ex} cy={ey} r="2.4" fill={COLORS.ink} stroke="white" strokeWidth="0.8" />
@@ -112,9 +112,9 @@ export function WorkoutProfile({ segments }) {
         const z = Math.max(1, Math.min(5, sg.z || 1));
         return (
           <div key={i} className="h-full min-w-0 flex flex-col justify-end" style={{ width: `${(sg.min / total) * 100}%` }} title={`${sg.label} · ${sg.detail}`}>
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate mb-1 px-0.5">{Math.round(sg.min)}′</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-white/55 truncate mb-1 px-0.5">{Math.round(sg.min)}′</span>
             <div className="rounded" style={{ height: `${18 + z * 14}%`, background: ZONE_COLORS[z - 1] }} />
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate mt-1.5 px-0.5 first-letter:uppercase lowercase">{sg.label}</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-white/75 truncate mt-1.5 px-0.5 first-letter:uppercase lowercase">{sg.label}</span>
           </div>
         );
       })}
@@ -168,7 +168,7 @@ export function TrendChart({ values, min, max, color, refLine, className = '' })
       </svg>
       {last && (
         <span
-          className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white dark:ring-slate-900"
+          className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white dark:ring-[#07090d]"
           style={{ left: `${(last[0] / n) * 100}%`, top: `${(y(last[1]) / H) * 100}%`, background: color }}
         />
       )}
@@ -183,10 +183,10 @@ export function TrendChart({ values, min, max, color, refLine, className = '' })
 // jerarquía la pone la pista de arriba, no cada caja.
 export function Panel({ title, sub, link, className = '', children }) {
   return (
-    <section className={`flex flex-col min-w-0 rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${className}`}>
+    <section className={`flex flex-col min-w-0 rounded border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03] ${className}`}>
       <header className="flex items-baseline gap-2 px-4 pt-3 pb-2">
-        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">{title}</h3>
-        {sub && <span className="hidden sm:inline text-xs text-slate-500 truncate">{sub}</span>}
+        <h3 className="text-[15px] font-bold text-slate-900 dark:text-white dark:font-black dark:tracking-tight">{title}</h3>
+        {sub && <span className="hidden sm:inline text-xs text-slate-500 dark:text-white/45 truncate">{sub}</span>}
         {link && <span className="ml-auto">{link}</span>}
       </header>
       <div className="flex-1 flex flex-col px-4 pb-4 min-w-0">{children}</div>

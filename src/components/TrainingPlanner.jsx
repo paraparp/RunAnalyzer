@@ -202,14 +202,14 @@ const TrainingPlanner = ({ activities }) => {
 
     const pushStatus = (res) => {
         if (!res) return null;
-        if (res.skipped) return { tone: 'text-slate-500', text: t('planner.garmin.rest') };
+        if (res.skipped) return { tone: 'text-slate-500 dark:text-white/55', text: t('planner.garmin.rest') };
         if (res.ok) {
             return {
-                tone: 'text-emerald-600',
+                tone: 'text-emerald-600 dark:text-emerald-300',
                 text: res.scheduled ? t('planner.garmin.scheduled', { date: res.date }) : t('planner.garmin.created'),
             };
         }
-        return { tone: 'text-rose-600', text: res.error || t('planner.garmin.rest') };
+        return { tone: 'text-rose-600 dark:text-rose-300', text: res.error || t('planner.garmin.rest') };
     };
 
     // Solo se pueden mandar las sesiones con estructura: un resumen en prosa no es un
@@ -260,18 +260,18 @@ const TrainingPlanner = ({ activities }) => {
             <AIToolHeader title={t('planner.title')} subtitle={t('planner.subtitle')} />
 
             {/* Config Card */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm mb-8">
+            <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-8 border border-slate-100 dark:border-white/10 shadow-sm mb-8">
                 <form onSubmit={generateAIPlan} className="space-y-8">
                     {targetRaces.length === 0 ? (
-                        <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl">
+                        <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
                             <FlagIcon className="w-10 h-10 text-blue-400 mx-auto mb-3" />
-                            <h3 className="text-base font-black text-slate-900 mb-1">{t('planner.no_target_title')}</h3>
-                            <p className="text-slate-500 text-sm font-medium max-w-sm mx-auto">{t('planner.no_target_desc')}</p>
+                            <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">{t('planner.no_target_title')}</h3>
+                            <p className="text-slate-500 dark:text-white/55 text-sm font-medium max-w-sm mx-auto">{t('planner.no_target_desc')}</p>
                         </div>
                     ) : (
                         <>
                             <div>
-                                <label className="block text-label font-bold text-slate-500 uppercase mb-2">{t('planner.target_race')}</label>
+                                <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-2">{t('planner.target_race')}</label>
                                 <Select value={selectedRaceId} onValueChange={setSelectedRaceId} enableClear={false}>
                                     {targetRaces.map(r => (
                                         <SelectItem key={r.id} value={r.id}>
@@ -280,35 +280,35 @@ const TrainingPlanner = ({ activities }) => {
                                     ))}
                                 </Select>
                                 {racePassed && (
-                                    <p className="mt-2 text-xs font-semibold text-amber-600">⚠ {t('planner.race_passed')}</p>
+                                    <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">⚠ {t('planner.race_passed')}</p>
                                 )}
                             </div>
 
                             {/* Objetivo derivado de la carrera seleccionada */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
-                                    <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('planner.goal_dist')}</p>
-                                    <p className="text-sm font-black text-slate-900">{t(`planner.distances.${goalDist}`)}</p>
+                            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                                <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-2 sm:p-3 border border-slate-100 dark:border-white/10 text-center">
+                                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('planner.goal_dist')}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{t(`planner.distances.${goalDist}`)}</p>
                                 </div>
-                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
-                                    <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('targets.goal_time')}</p>
-                                    <p className="text-sm font-black text-slate-900">{selectedRace?.goalTimeMin != null ? formatMinutes(selectedRace.goalTimeMin) : '—'}</p>
+                                <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-3 border border-slate-100 dark:border-white/10 text-center">
+                                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('targets.goal_time')}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{selectedRace?.goalTimeMin != null ? formatMinutes(selectedRace.goalTimeMin) : '—'}</p>
                                 </div>
-                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
-                                    <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('planner.weeks')}</p>
-                                    <p className="text-sm font-black text-slate-900">{weeks} {t('planner.weeks_unit')}</p>
+                                <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-3 border border-slate-100 dark:border-white/10 text-center">
+                                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('planner.weeks')}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{weeks} {t('planner.weeks_unit')}</p>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-label font-bold text-slate-500 uppercase mb-3">{t('planner.days')}</label>
+                                <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-3">{t('planner.days')}</label>
                                 <div className="flex flex-wrap gap-2">
                                     {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(day => (
                                         <button
                                             key={day}
                                             type="button"
                                             onClick={() => setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])}
-                                            className={`px-5 py-2.5 text-xs font-black transition-all rounded-xl border-2 ${selectedDays.includes(day) ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'}`}
+                                            className={`px-5 py-2.5 text-xs font-black transition-all rounded-xl border-2 ${selectedDays.includes(day) ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 border-blue-600 text-white shadow-lg scale-105' : 'bg-slate-50 dark:bg-white/[0.04] border-slate-100 dark:border-white/10 text-slate-500 dark:text-white/55 hover:bg-slate-100 dark:hover:bg-white/[0.05]'}`}
                                         >
                                             {day}
                                         </button>
@@ -321,12 +321,12 @@ const TrainingPlanner = ({ activities }) => {
                     <button
                         disabled={loading || targetRaces.length === 0 || racePassed}
                         type="submit"
-                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl ${loading || racePassed || targetRaces.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'}`}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl ${loading || racePassed || targetRaces.length === 0 ? 'bg-slate-100 dark:bg-white/[0.04] text-slate-400 dark:text-white/40 cursor-not-allowed' : 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-white/90 active:scale-[0.98]'}`}
                     >
                         {loading ? t('planner.analyzing') : t('planner.generate_btn')}
                     </button>
                 </form>
-                {error && <div className="mt-4 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-sm font-medium">{error}</div>}
+                {error && <div className="mt-4 p-4 bg-rose-50 dark:bg-rose-400/10 border border-rose-100 dark:border-rose-300/25 text-rose-600 dark:text-rose-300 rounded-xl text-sm font-medium">{error}</div>}
             </div>
 
             {/* Plan Display */}
@@ -334,34 +334,34 @@ const TrainingPlanner = ({ activities }) => {
 
             {plan && (
                 <div className="space-y-8 fade-in">
-                    <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm">
+                    <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-8 border border-slate-200 dark:border-white/10 shadow-sm">
                         <div className="flex flex-col lg:flex-row gap-8">
                             <div className="flex-1">
-                                <span className="uppercase text-label font-bold text-slate-500 mb-3 block">{t('planner.analysis_title')}</span>
-                                <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight mb-4">{plan.weekly_summary}</h1>
-                                <p className="text-lg text-slate-600 italic border-l border-slate-200 pl-4">{plan.analysis}</p>
+                                <span className="uppercase text-label font-bold text-slate-500 dark:text-white/55 mb-3 block">{t('planner.analysis_title')}</span>
+                                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-4">{plan.weekly_summary}</h1>
+                                <p className="text-lg text-slate-600 dark:text-white/75 italic border-l border-slate-200 dark:border-white/10 pl-4">{plan.analysis}</p>
                             </div>
                             <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 w-full lg:w-64">
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
-                                    <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('planner.vol')}</p>
-                                    <p className="text-2xl font-black text-blue-600">{plan.stats.total_dist_km} km</p>
+                                <div className="bg-slate-50 dark:bg-white/[0.04] p-4 rounded-xl border border-slate-100 dark:border-white/10 text-center">
+                                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('planner.vol')}</p>
+                                    <p className="text-2xl font-black text-teal-700 dark:text-teal-300">{plan.stats.total_dist_km} km</p>
                                 </div>
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
-                                    <p className="text-label font-bold text-slate-500 uppercase mb-1">{t('planner.time')}</p>
-                                    <p className="text-2xl font-black text-blue-600">{Math.floor(plan.stats.total_time_min / 60)}h {plan.stats.total_time_min % 60}m</p>
+                                <div className="bg-slate-50 dark:bg-white/[0.04] p-4 rounded-xl border border-slate-100 dark:border-white/10 text-center">
+                                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1">{t('planner.time')}</p>
+                                    <p className="text-2xl font-black text-teal-700 dark:text-teal-300">{Math.floor(plan.stats.total_time_min / 60)}h {plan.stats.total_time_min % 60}m</p>
                                 </div>
                             </div>
                         </div>
-                        <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="mt-8 pt-8 border-t border-slate-100 dark:border-white/10 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div className="flex flex-wrap gap-4">
                                 {[
                                     { z: 'Z1-2', v: plan.stats.distribution.easy, c: 'bg-emerald-500' },
                                     { z: 'Z3', v: plan.stats.distribution.moderate, c: 'bg-amber-500' },
                                     { z: 'Z4-5', v: plan.stats.distribution.hard, c: 'bg-rose-500' }
                                 ].map(t => (
-                                    <div key={t.z} className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div key={t.z} className="flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-white/[0.04] rounded-lg border border-slate-100 dark:border-white/10">
                                         <div className={`w-2 h-2 rounded-full ${t.c}`} />
-                                        <span className="text-xs font-black text-slate-600">{t.z}: {t.v}%</span>
+                                        <span className="text-xs font-black text-slate-600 dark:text-white/75">{t.z}: {t.v}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -372,7 +372,7 @@ const TrainingPlanner = ({ activities }) => {
                                         onClick={() => sendToGarmin(sendableIndexes, 'week')}
                                         disabled={pushingKey !== null}
                                         title={t('planner.garmin.hint')}
-                                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         <PaperAirplaneIcon className="w-4 h-4" />
                                         {pushingKey === 'week' ? t('planner.garmin.pushing') : t('planner.garmin.push_week')}
@@ -386,35 +386,35 @@ const TrainingPlanner = ({ activities }) => {
                     </div>
 
                     {(pushError || pushedCount > 0) && (
-                        <div className={`rounded-2xl p-4 border text-sm font-semibold ${pushError ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                        <div className={`rounded-2xl p-4 border text-sm font-semibold ${pushError ? 'bg-rose-50 dark:bg-rose-400/10 border-rose-100 dark:border-rose-300/25 text-rose-600 dark:text-rose-300' : 'bg-emerald-50 dark:bg-emerald-400/10 border-emerald-100 dark:border-emerald-300/25 text-emerald-700 dark:text-emerald-300'}`}>
                             {pushError || t('planner.garmin.done', { n: pushedCount })}
                         </div>
                     )}
 
                     {plan.hrv_guidance && (
-                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-3">
+                        <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-100 dark:border-amber-300/25 rounded-2xl p-5 flex items-start gap-3">
                             <HandRaisedIcon className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                             <div>
                                 <p className="text-label font-bold text-amber-500 uppercase mb-1">VFC / Readiness</p>
-                                <p className="text-sm font-semibold text-amber-800 leading-relaxed">{plan.hrv_guidance}</p>
+                                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 leading-relaxed">{plan.hrv_guidance}</p>
                             </div>
                         </div>
                     )}
 
                     <div className="space-y-4">
-                        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-3">
                             Calendario Semanal
-                            <div className="flex-1 h-px bg-slate-100" />
+                            <div className="flex-1 h-px bg-slate-100 dark:bg-white/[0.04]" />
                         </h2>
                         {plan.schedule.map((day, idx) => {
                             const type = day.type.toLowerCase();
-                            let color = "text-blue-600 bg-blue-50";
-                            if (type.includes('series') || type.includes('velocidad')) color = "text-rose-600 bg-rose-50";
-                            else if (type.includes('recup') || type.includes('suave')) color = "text-emerald-600 bg-emerald-50";
-                            else if (type.includes('descanso')) color = "text-slate-500 bg-slate-100";
+                            let color = "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-400/10";
+                            if (type.includes('series') || type.includes('velocidad')) color = "text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10";
+                            else if (type.includes('recup') || type.includes('suave')) color = "text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-400/10";
+                            else if (type.includes('descanso')) color = "text-slate-500 dark:text-white/55 bg-slate-100 dark:bg-white/[0.04]";
 
                             return (
-                                <div key={idx} className={`bg-white rounded-2xl border border-slate-100 p-6 shadow-sm transition-all hover:shadow-md ${type.includes('descanso') ? 'opacity-60' : ''}`}>
+                                <div key={idx} className={`bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 p-6 shadow-sm transition-all hover:shadow-md ${type.includes('descanso') ? 'opacity-60' : ''}`}>
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="flex items-center gap-4">
                                             <div className="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs font-black">{day.day}</div>
@@ -422,20 +422,20 @@ const TrainingPlanner = ({ activities }) => {
                                         </div>
                                         {day.daily_stats && (
                                             <div className="text-right">
-                                                <p className="text-sm font-black text-slate-900">{day.daily_stats.dist} · {day.daily_stats.time}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white">{day.daily_stats.dist} · {day.daily_stats.time}</p>
                                             </div>
                                         )}
                                     </div>
-                                    <p className="text-slate-600 text-sm font-medium mb-4 leading-relaxed">{day.summary}</p>
+                                    <p className="text-slate-600 dark:text-white/75 text-sm font-medium mb-4 leading-relaxed">{day.summary}</p>
                                     
                                     {day.structured_workout && day.structured_workout.length > 0 && (
-                                        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 overflow-hidden relative">
-                                            <div className="flex items-center gap-2 mb-6 text-label font-bold text-slate-500 uppercase">
+                                        <div className="bg-slate-50 dark:bg-white/[0.04] rounded-2xl p-6 border border-slate-100 dark:border-white/10 overflow-hidden relative">
+                                            <div className="flex items-center gap-2 mb-6 text-label font-bold text-slate-500 dark:text-white/55 uppercase">
                                                 <CpuChipIcon className="w-4 h-4" />
                                                 {t('planner.structure')}
                                             </div>
                                             <div className="space-y-0 relative">
-                                                <div className="absolute left-4 top-2 bottom-4 w-0.5 bg-slate-200" />
+                                                <div className="absolute left-4 top-2 bottom-4 w-0.5 bg-slate-200 dark:bg-white/10" />
                                                 {day.structured_workout.map((step, sIdx) => {
                                                     let dotColor = "bg-emerald-500";
                                                     if (step.intensity >= 4) dotColor = "bg-rose-500";
@@ -443,26 +443,26 @@ const TrainingPlanner = ({ activities }) => {
                                                     
                                                     return (
                                                         <div key={sIdx} className="relative pl-10 pb-6 last:pb-0">
-                                                            <div className={`absolute left-[13px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ring-2 ring-slate-100 z-10 ${dotColor}`} />
-                                                            <div className="bg-white rounded-xl p-4 border border-slate-100">
+                                                            <div className={`absolute left-[13px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ring-2 ring-slate-100 dark:ring-white/10 z-10 ${dotColor}`} />
+                                                            <div className="bg-white dark:bg-white/[0.03] rounded-xl p-4 border border-slate-100 dark:border-white/10">
                                                                 <div className="flex justify-between items-start mb-1">
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="font-black text-slate-900 text-sm tracking-tight">{step.phase}</span>
+                                                                        <span className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{step.phase}</span>
                                                                         <span className={`text-xs font-black px-1.5 py-0.5 rounded ${dotColor} bg-opacity-10 ${dotColor.replace('bg-', 'text-')}`}>Z{step.intensity}</span>
                                                                     </div>
-                                                                    <div className="flex items-center gap-1 text-slate-500 font-black text-xs tabular-nums">
+                                                                    <div className="flex items-center gap-1 text-slate-500 dark:text-white/55 font-black text-xs tabular-nums">
                                                                         <ClockIcon className="w-3.5 h-3.5 opacity-50" />
                                                                         {step.reps > 1 ? `${step.reps} × ${step.duration_min}′` : `${step.duration_min}m`}
                                                                     </div>
                                                                 </div>
                                                                 {(step.pace || step.hr || (step.reps > 1 && step.recovery)) && (
                                                                     <div className="flex flex-wrap gap-1.5 mb-2 mt-1.5">
-                                                                        {step.pace && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 tabular-nums">{step.pace}</span>}
-                                                                        {step.hr && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 tabular-nums">{step.hr} ppm</span>}
-                                                                        {step.reps > 1 && step.recovery && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600">rec. {step.recovery}</span>}
+                                                                        {step.pace && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-white/75 tabular-nums">{step.pace}</span>}
+                                                                        {step.hr && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-400/10 text-rose-600 dark:text-rose-300 tabular-nums">{step.hr} ppm</span>}
+                                                                        {step.reps > 1 && step.recovery && <span className="text-xs font-black px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300">rec. {step.recovery}</span>}
                                                                     </div>
                                                                 )}
-                                                                <p className="text-xs text-slate-500 font-medium leading-relaxed">{step.description}</p>
+                                                                <p className="text-xs text-slate-500 dark:text-white/55 font-medium leading-relaxed">{step.description}</p>
                                                             </div>
                                                         </div>
                                                     );
@@ -482,7 +482,7 @@ const TrainingPlanner = ({ activities }) => {
                                                 onClick={() => sendToGarmin([idx], idx)}
                                                 disabled={pushingKey !== null}
                                                 title={t('planner.garmin.hint')}
-                                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-label font-bold uppercase border-2 border-slate-100 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-label font-bold uppercase border-2 border-slate-100 dark:border-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                             >
                                                 <PaperAirplaneIcon className="w-3.5 h-3.5" />
                                                 {pushingKey === idx ? t('planner.garmin.pushing') : t('planner.garmin.push_day')}
@@ -497,12 +497,12 @@ const TrainingPlanner = ({ activities }) => {
             )}
 
             {!plan && !loading && (
-                <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center">
-                    <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-16 border border-slate-100 dark:border-white/10 shadow-sm text-center">
+                    <div className="w-20 h-20 bg-teal-50 dark:bg-teal-400/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
                         <SparklesIcon className="w-10 h-10" />
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('planner.empty_state_title')}</h3>
-                    <p className="text-slate-500 font-medium max-w-sm mx-auto">{t('planner.empty_state_desc')}</p>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{t('planner.empty_state_title')}</h3>
+                    <p className="text-slate-500 dark:text-white/55 font-medium max-w-sm mx-auto">{t('planner.empty_state_desc')}</p>
                 </div>
             )}
         </div>

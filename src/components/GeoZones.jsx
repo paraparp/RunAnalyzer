@@ -9,6 +9,7 @@ import polyline from '@mapbox/polyline';
 import {
   getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution,
 } from '../lib/mapTiles';
+import useTheme from '../hooks/useTheme';
 import { Card, Badge, Callout } from '@tremor/react';
 import {
   MapPinIcon, ArrowsPointingInIcon, ArrowUturnLeftIcon,
@@ -25,7 +26,7 @@ import {
 import { groupRoutes, routineIndex } from '../lib/routeSimilarity';
 import { reverseGeocodeBatch, uniqueLabels } from '../lib/reverseGeocode';
 import { formatDurationHm } from '../lib/timeFormat';
-import { COLORS } from '../lib/palette';
+import { COLORS, FIXED } from '../lib/palette';
 
 // ── Zonas geográficas: cuántos km en cada sitio ──────────────────────────────
 // El cálculo entero vive en lib/geoZones.js y lib/routeSimilarity.js (puros y
@@ -106,7 +107,7 @@ const basemapUrl = (id) => (id === 'light' ? getLightMapTileUrl()
 // verde de imagen aérea.
 const BASEMAP_DOT = {
   dark: 'bg-slate-800',
-  light: 'bg-slate-200 border border-slate-400',
+  light: 'bg-slate-200 dark:bg-white/10 border border-slate-400',
   satellite: 'bg-emerald-600',
 };
 
@@ -143,15 +144,15 @@ function boundsOf(routes) {
 const FOCUS = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ' +
   'focus-visible:ring-offset-1 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900';
 
-const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm ' +
-  'font-medium text-slate-700 transition enabled:hover:bg-slate-100 disabled:opacity-40 ' +
-  'motion-reduce:transition-none dark:border-slate-600 dark:text-slate-200 ' +
+const BTN = 'inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-sm ' +
+  'font-medium text-slate-700 dark:text-white/75 transition enabled:hover:bg-slate-100 disabled:opacity-40 ' +
+  'motion-reduce:transition-none dark:border-white/20 dark:text-white ' +
   `dark:enabled:hover:bg-slate-800 ${FOCUS}`;
 
-const ICON_BTN = 'rounded p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 ' +
-  `motion-reduce:transition-none dark:hover:bg-slate-800 dark:hover:text-slate-200 ${FOCUS}`;
+const ICON_BTN = 'rounded p-1.5 text-slate-500 dark:text-white/55 transition hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:text-slate-700 dark:hover:text-white ' +
+  `motion-reduce:transition-none dark:hover:bg-white/[0.08] dark:hover:text-white ${FOCUS}`;
 
-const LABEL = 'text-label font-medium uppercase text-slate-500 dark:text-slate-500';
+const LABEL = 'text-label font-medium uppercase text-slate-500 dark:text-white/45';
 
 // Una sola rejilla para la cabecera y para cada fila: es lo que alinea las
 // columnas entre filas. Por debajo de lg la fila se deshace en un flex que
@@ -164,19 +165,19 @@ function Cell({ label, align = 'left', children }) {
   return (
     <div className={`flex items-baseline gap-1.5 whitespace-nowrap lg:block ${align === 'right' ? 'lg:text-right' : ''}`}>
       <span className={`${LABEL} lg:hidden`}>{label}</span>
-      <span className="tabular-nums text-slate-600 dark:text-slate-300">{children}</span>
+      <span className="tabular-nums text-slate-600 dark:text-white/75">{children}</span>
     </div>
   );
 }
 
 function Kpi({ label, value, hint }) {
   return (
-    <div className="bg-white p-4 dark:bg-slate-900">
+    <div className="bg-white p-4 dark:bg-white/[0.03]">
       <div className={LABEL}>{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
+      <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-white">
         {value}
       </div>
-      {hint && <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">{hint}</div>}
+      {hint && <div className="mt-0.5 text-xs text-slate-500 dark:text-white/45">{hint}</div>}
     </div>
   );
 }
@@ -202,7 +203,7 @@ function RadiusPicker({ value, onChange, label }) {
       role="radiogroup"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60"
+      className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-white/10 dark:bg-white/[0.06]"
     >
       {RADIUS_OPTIONS.map((r) => {
         const on = r === value;
@@ -217,8 +218,8 @@ function RadiusPicker({ value, onChange, label }) {
             className={`min-w-[2.5rem] rounded-md px-2 py-1 text-xs font-medium tabular-nums transition
                         motion-reduce:transition-none ${FOCUS}
                         ${on
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white'
+                : 'text-slate-500 hover:text-slate-800 dark:text-white/55 dark:hover:text-white'}`}
           >
             {r}
           </button>
@@ -252,17 +253,17 @@ function Menu({ label, children }) {
         aria-expanded={open}
         aria-label={label}
         title={label}
-        className={`rounded-lg border border-slate-300 p-1.5 text-slate-500 transition hover:bg-slate-100
-                    motion-reduce:transition-none dark:border-slate-600 dark:text-slate-400
-                    dark:hover:bg-slate-800 ${FOCUS}`}
+        className={`rounded-lg border border-slate-300 dark:border-white/10 p-1.5 text-slate-500 dark:text-white/55 transition hover:bg-slate-100 dark:hover:bg-white/[0.05]
+                    motion-reduce:transition-none dark:border-white/20 dark:text-white/55
+                    dark:hover:bg-white/[0.08] ${FOCUS}`}
       >
         <EllipsisHorizontalIcon className="h-5 w-5" />
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-xl border border-slate-200
-                     bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10
+                     bg-white p-1 shadow-lg dark:border-white/10 dark:bg-[#0c0e12]"
         >
           {children}
         </div>
@@ -271,9 +272,9 @@ function Menu({ label, children }) {
   );
 }
 
-const MENU_ITEM = 'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 ' +
+const MENU_ITEM = 'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 dark:text-white/75 ' +
   'transition enabled:hover:bg-slate-100 disabled:opacity-40 motion-reduce:transition-none ' +
-  `dark:text-slate-200 dark:enabled:hover:bg-slate-800 ${FOCUS}`;
+  `dark:text-white dark:enabled:hover:bg-slate-800 ${FOCUS}`;
 
 /** Interruptor de capa del mapa: pulsado = capa visible. */
 function LayerToggle({ on, onClick, children }) {
@@ -284,8 +285,8 @@ function LayerToggle({ on, onClick, children }) {
       aria-pressed={on}
       className={`rounded-full border px-2.5 py-1 text-xs font-medium transition motion-reduce:transition-none ${FOCUS}
                   ${on
-          ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
-          : 'border-slate-200 text-slate-500 hover:text-slate-600 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}
+          ? 'border-slate-300 bg-slate-100 text-slate-700 dark:border-white/20 dark:bg-white/[0.06] dark:text-white'
+          : 'border-slate-200 text-slate-500 hover:text-slate-600 dark:border-white/10 dark:text-white/45 dark:hover:text-white'}`}
     >
       {children}
     </button>
@@ -295,7 +296,7 @@ function LayerToggle({ on, onClick, children }) {
 /** Texto secundario de una entrada de menú: qué hace, en una línea. */
 function MenuHint({ children }) {
   return (
-    <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-slate-500">
+    <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-white/45">
       {children}
     </span>
   );
@@ -570,9 +571,10 @@ export default function GeoZones({ activities }) {
 
   // La capa base es una preferencia, no un estado de sesión: se guarda con el
   // resto para no reelegirla cada vez que se abre un sitio.
-  const basemap = BASEMAPS.includes(store.basemap) ? store.basemap : DEFAULT_BASEMAP;
+  const { isDark } = useTheme();
+  const basemap = BASEMAPS.includes(store.basemap) ? store.basemap : (isDark ? DEFAULT_BASEMAP : 'light');
   // Sobre teselas oscuras o una foto aérea, un borde casi negro desaparece.
-  const markerStroke = basemap === 'light' ? COLORS.ink : COLORS.sunken;
+  const markerStroke = basemap === 'light' ? FIXED.ink : FIXED.sunken;
 
   // Cerrar con Escape, bloquear el scroll de detrás (que si no la rueda del
   // ratón mueve la página en vez de hacer zoom) y devolver el foco a la fila
@@ -633,7 +635,7 @@ export default function GeoZones({ activities }) {
   if (!zones.length) {
     return (
       <Card>
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
           {t('geozones.title')}
         </h2>
         <Callout title={t('geozones.empty_title')} icon={InformationCircleIcon} color="amber" className="mt-4">
@@ -649,11 +651,11 @@ export default function GeoZones({ activities }) {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
           <div className="max-w-xl">
-            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-              <MapPinIcon className="h-5 w-5 text-slate-400" />
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+              <MapPinIcon className="h-5 w-5 text-slate-400 dark:text-white/40" />
               {t('geozones.title')}
             </h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-white/55">
               {t('geozones.subtitle')}
             </p>
           </div>
@@ -661,20 +663,20 @@ export default function GeoZones({ activities }) {
           <div>
             <div className="mb-1 flex items-baseline gap-1.5">
               <span className={LABEL}>{t('geozones.radius')}</span>
-              <span className="text-xs text-slate-500 dark:text-slate-500">km</span>
+              <span className="text-xs text-slate-500 dark:text-white/45">km</span>
             </div>
             <RadiusPicker
               value={radiusKm}
               onChange={(v) => patchStore({ radiusKm: v })}
               label={t('geozones.radius')}
             />
-            <p className="mt-1.5 max-w-[17rem] text-xs leading-relaxed text-slate-500 dark:text-slate-500">
+            <p className="mt-1.5 max-w-[17rem] text-xs leading-relaxed text-slate-500 dark:text-white/45">
               {t('geozones.radius_hint', { km: fmtKm(radiusKm, lang) })}
             </p>
           </div>
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-slate-200 sm:grid-cols-4 dark:bg-slate-800">
+        <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-slate-200 sm:grid-cols-4 dark:bg-white/[0.06]">
           <Kpi label={t('geozones.kpi_zones')} value={zones.length} />
           <Kpi label={t('geozones.kpi_km')} value={`${fmtKm(totalKm, lang)} km`} />
           <Kpi label={t('geozones.kpi_runs')} value={zones.reduce((s, z) => s + z.count, 0)} />
@@ -689,14 +691,14 @@ export default function GeoZones({ activities }) {
         <details className="group mt-3">
           <summary
             className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded text-xs font-medium
-                        text-slate-500 transition hover:text-slate-800 motion-reduce:transition-none
-                        dark:text-slate-400 dark:hover:text-slate-100 ${FOCUS}`}
+                        text-slate-500 dark:text-white/55 transition hover:text-slate-800 dark:hover:text-white motion-reduce:transition-none
+                        dark:text-white/55 dark:hover:text-white ${FOCUS}`}
           >
             <InformationCircleIcon className="h-4 w-4" />
             {t('geozones.caveat_title')}
             <ChevronDownIcon className="h-3.5 w-3.5 transition group-open:rotate-180 motion-reduce:transition-none" />
           </summary>
-          <p className="mt-2 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          <p className="mt-2 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500 dark:border-white/10 dark:text-white/55">
             {t('geozones.caveat')}
           </p>
         </details>
@@ -706,26 +708,26 @@ export default function GeoZones({ activities }) {
       <Card className="overflow-visible p-0">
         <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
               {t('geozones.table_title')}
             </h3>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-white/55">
               {t('geozones.table_sub')}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-white/40" />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('geozones.search_placeholder')}
                 aria-label={t('geozones.search_placeholder')}
-                className={`w-44 rounded-lg border border-slate-300 bg-transparent py-1.5 pl-8 pr-2 text-sm
-                            text-slate-700 placeholder:text-slate-400 dark:border-slate-600
-                            dark:text-slate-200 ${FOCUS}`}
+                className={`w-44 rounded-lg border border-slate-300 dark:border-white/10 bg-transparent py-1.5 pl-8 pr-2 text-sm
+                            text-slate-700 dark:text-white/75 placeholder:text-slate-400 dark:border-white/20
+                            dark:text-white ${FOCUS}`}
               />
             </div>
 
@@ -734,9 +736,9 @@ export default function GeoZones({ activities }) {
               id="geozones-sort"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
-              className={`rounded-lg border border-slate-300 bg-transparent py-1.5 pl-2.5 pr-7 text-sm
-                          font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-900
-                          dark:text-slate-200 ${FOCUS}`}
+              className={`rounded-lg border border-slate-300 dark:border-white/10 bg-transparent py-1.5 pl-2.5 pr-7 text-sm
+                          font-medium text-slate-700 dark:text-white/75 dark:border-white/20 dark:bg-white/[0.03]
+                          dark:text-white ${FOCUS}`}
             >
               <option value="km">{t('geozones.sort_km')}</option>
               <option value="runs">{t('geozones.sort_runs')}</option>
@@ -760,7 +762,7 @@ export default function GeoZones({ activities }) {
                 disabled={!!geo || !unnamed.length}
                 className={MENU_ITEM}
               >
-                <SparklesIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <SparklesIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-white/40" />
                 <span>
                   {t('geozones.detect', { count: unnamed.length })}
                   <MenuHint>{t('geozones.detect_hint')}</MenuHint>
@@ -772,7 +774,7 @@ export default function GeoZones({ activities }) {
                 disabled={!Object.keys(labels).length && !Object.keys(contexts).length}
                 className={confirmReset ? `${MENU_ITEM} !text-rose-600 dark:!text-rose-400` : MENU_ITEM}
               >
-                <ArrowPathIcon className={`mt-0.5 h-4 w-4 shrink-0 ${confirmReset ? 'text-rose-500' : 'text-slate-400'}`} />
+                <ArrowPathIcon className={`mt-0.5 h-4 w-4 shrink-0 ${confirmReset ? 'text-rose-500' : 'text-slate-400 dark:text-white/40'}`} />
                 <span>
                   {confirmReset ? t('geozones.reset_confirm') : t('geozones.reset')}
                   <MenuHint>{t('geozones.reset_hint')}</MenuHint>
@@ -785,23 +787,23 @@ export default function GeoZones({ activities }) {
         {/* Estado de la geocodificación: un aviso que informa y deja parar, en vez
             de un botón que cambia de significado a mitad de faena. */}
         {geo && (
-          <div className="mx-5 mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-            <SparklesIcon className="h-4 w-4 shrink-0 animate-pulse text-slate-400 motion-reduce:animate-none" />
-            <span className="text-xs text-slate-600 dark:text-slate-300">
+          <div className="mx-5 mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]">
+            <SparklesIcon className="h-4 w-4 shrink-0 animate-pulse text-slate-400 dark:text-white/40 motion-reduce:animate-none" />
+            <span className="text-xs text-slate-600 dark:text-white/75">
               {t('geozones.detect_progress', { done: geo.done, total: geo.total })}
             </span>
-            <span className="h-1 min-w-[3rem] flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            <span className="h-1 min-w-[3rem] flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
               <span
-                className="block h-full rounded-full bg-slate-400 transition-[width] motion-reduce:transition-none dark:bg-slate-500"
+                className="block h-full rounded-full bg-slate-400 transition-[width] motion-reduce:transition-none dark:bg-white/20"
                 style={{ width: `${geo.total ? (geo.done / geo.total) * 100 : 0}%` }}
               />
             </span>
             <button
               type="button"
               onClick={stopDetect}
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium text-slate-500 transition
-                          hover:text-slate-900 motion-reduce:transition-none dark:text-slate-400
-                          dark:hover:text-slate-100 ${FOCUS}`}
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium text-slate-500 dark:text-white/55 transition
+                          hover:text-slate-900 motion-reduce:transition-none dark:text-white/55
+                          dark:hover:text-white ${FOCUS}`}
             >
               {t('geozones.detect_stop')}
             </button>
@@ -819,7 +821,7 @@ export default function GeoZones({ activities }) {
             <button
               type="button"
               onClick={() => { setMergeMode(false); setSelected(new Set()); }}
-              className={`rounded-lg px-2.5 py-1 text-sm font-medium text-sky-800 transition hover:bg-sky-100
+              className={`rounded-lg px-2.5 py-1 text-sm font-medium text-sky-800 dark:text-sky-200 transition hover:bg-sky-100
                           motion-reduce:transition-none dark:text-sky-200 dark:hover:bg-sky-900/60 ${FOCUS}`}
             >
               {t('geozones.cancel')}
@@ -841,7 +843,7 @@ export default function GeoZones({ activities }) {
         <div className="px-5 pb-5">
           {/* Cabecera de columnas: las etiquetas se dicen UNA vez y no una por
               celda y fila, que era lo que llenaba la lista de letra pequeña. */}
-          <div className={`mt-4 hidden border-b border-slate-200 px-4 pb-2 dark:border-slate-800 ${ROW_GRID}`}>
+          <div className={`mt-4 hidden border-b border-slate-200 px-4 pb-2 dark:border-white/10 ${ROW_GRID}`}>
             <span className={LABEL}>{t('geozones.col_zone')}</span>
             <span className={`${LABEL} lg:text-right`}>{t('geozones.col_km')}</span>
             <span className={`${LABEL} lg:text-right`}>{t('geozones.col_runs')}</span>
@@ -865,7 +867,7 @@ export default function GeoZones({ activities }) {
                   className={`group relative overflow-hidden rounded-xl border transition motion-reduce:transition-none
                               ${picked
                       ? 'border-sky-400 bg-sky-50/60 dark:border-sky-600 dark:bg-sky-950/20'
-                      : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'}`}
+                      : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60 dark:hover:border-white/10 dark:hover:bg-white/[0.08]'}`}
                 >
                   {/* La barra de km ES la fila: proporción sobre el sitio con más
                       kilómetros. Absorbe el gráfico de barras que antes vivía en su
@@ -886,13 +888,13 @@ export default function GeoZones({ activities }) {
                           checked={picked}
                           onChange={() => toggle(z.key)}
                           aria-label={t('geozones.select_zone')}
-                          className={`h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 dark:border-slate-600 ${FOCUS}`}
+                          className={`h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 dark:text-sky-300 dark:border-white/20 ${FOCUS}`}
                         />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           {pending ? (
-                            <span className="h-5 w-32 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-slate-700" />
+                            <span className="h-5 w-32 animate-pulse rounded bg-slate-200 motion-reduce:animate-none dark:bg-white/10" />
                           ) : (
                             <>
                               <input
@@ -901,11 +903,11 @@ export default function GeoZones({ activities }) {
                                 placeholder={t('geozones.name_placeholder')}
                                 aria-label={t('geozones.name_label')}
                                 className={`w-full max-w-[16rem] rounded border border-transparent bg-transparent px-1 py-0.5
-                                            text-sm font-semibold text-slate-900 placeholder:font-normal
+                                            text-sm font-semibold text-slate-900 dark:text-white placeholder:font-normal
                                             placeholder:text-slate-400 hover:border-slate-300 hover:bg-white
-                                            dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-900 ${FOCUS}`}
+                                            dark:text-white dark:hover:border-white/20 dark:hover:bg-white/[0.08] ${FOCUS}`}
                               />
-                              <PencilIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover:opacity-100 motion-reduce:transition-none dark:text-slate-600" />
+                              <PencilIcon className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover:opacity-100 motion-reduce:transition-none dark:text-white/40" />
                             </>
                           )}
                           {z.mergedFrom && (
@@ -915,7 +917,7 @@ export default function GeoZones({ activities }) {
                             <Badge size="xs" color="amber">{t('geozones.dormant_badge')}</Badge>
                           )}
                         </div>
-                        <div className="mt-0.5 truncate pl-1 text-xs text-slate-500 dark:text-slate-500">
+                        <div className="mt-0.5 truncate pl-1 text-xs text-slate-500 dark:text-white/45">
                           {contexts[z.key] || `${z.centroid[0].toFixed(3)}, ${z.centroid[1].toFixed(3)}`}
                         </div>
                       </div>
@@ -923,11 +925,11 @@ export default function GeoZones({ activities }) {
 
                     {/* Km: el dato principal, con su cuota al lado. */}
                     <div className="whitespace-nowrap lg:text-right">
-                      <span className="text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-50">
+                      <span className="text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-white">
                         {fmtKm(z.distanceKm, lang)}
                       </span>
-                      <span className="ml-1 text-xs text-slate-500 dark:text-slate-500">km</span>
-                      <span className="ml-2 text-xs tabular-nums text-slate-500 dark:text-slate-500">
+                      <span className="ml-1 text-xs text-slate-500 dark:text-white/45">km</span>
+                      <span className="ml-2 text-xs tabular-nums text-slate-500 dark:text-white/45">
                         {z.pct.toFixed(1)} %
                       </span>
                     </div>
@@ -971,7 +973,7 @@ export default function GeoZones({ activities }) {
           </ul>
 
           {!visible.length && (
-            <p className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            <p className="py-10 text-center text-sm text-slate-500 dark:text-white/55">
               {t('geozones.no_matches', { query: query.trim() })}
             </p>
           )}
@@ -981,7 +983,7 @@ export default function GeoZones({ activities }) {
       {/* ── Lecturas secundarias: un panel, tres pestañas ───────────────── */}
       {activeTab && (
         <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-200 px-5 pt-4 dark:border-slate-800">
+          <div className="border-b border-slate-200 px-5 pt-4 dark:border-white/10">
             <div role="tablist" aria-label={t('geozones.patterns_title')} className="-mb-px flex flex-wrap gap-1">
               {tabs.map((x) => {
                 const on = x.id === activeTab.id;
@@ -995,12 +997,12 @@ export default function GeoZones({ activities }) {
                     className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition
                                 motion-reduce:transition-none ${FOCUS}
                                 ${on
-                        ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-50'
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}`}
+                        ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-white'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-white/55 dark:hover:text-white'}`}
                   >
                     {x.label}
                     {x.count != null && (
-                      <span className="rounded-full bg-slate-100 px-1.5 text-xs tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      <span className="rounded-full bg-slate-100 px-1.5 text-xs tabular-nums text-slate-500 dark:bg-white/[0.06] dark:text-white/55">
                         {x.count}
                       </span>
                     )}
@@ -1011,7 +1013,7 @@ export default function GeoZones({ activities }) {
           </div>
 
           <div className="px-5 py-4">
-            <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{activeTab.sub}</p>
+            <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-white/55">{activeTab.sub}</p>
 
             {activeTab.id === 'season' && (
               <>
@@ -1034,7 +1036,7 @@ export default function GeoZones({ activities }) {
                             <th scope="row" className="w-44 max-w-[11rem] truncate pr-3 text-left text-xs font-medium">
                               <span className="flex items-center gap-2">
                                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-                                <span className="truncate text-slate-700 dark:text-slate-200">{zoneLabel(z)}</span>
+                                <span className="truncate text-slate-700 dark:text-white">{zoneLabel(z)}</span>
                               </span>
                             </th>
                             {z.months.map((km, m) => (
@@ -1065,7 +1067,7 @@ export default function GeoZones({ activities }) {
                   <span>{t('geozones.season_more', { km: fmtKm(seasonMax, lang) })}</span>
                 </div>
 
-                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-white/55">
                   {t('geozones.season_note')}
                 </p>
               </>
@@ -1076,7 +1078,7 @@ export default function GeoZones({ activities }) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className={`border-b border-slate-200 text-left dark:border-slate-700 ${LABEL}`}>
+                      <tr className={`border-b border-slate-200 text-left dark:border-white/10 ${LABEL}`}>
                         <th scope="col" className="py-2 pr-3">{t('geozones.col_year')}</th>
                         <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_radius')}</th>
                         <th scope="col" className="py-2 pr-3 text-right">{t('geozones.col_places')}</th>
@@ -1087,21 +1089,21 @@ export default function GeoZones({ activities }) {
                     </thead>
                     <tbody>
                       {exploration.map(y => (
-                        <tr key={y.year} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                        <tr key={y.year} className="border-b border-slate-100 last:border-0 dark:border-white/10">
                           <td className="py-2 pr-3 font-medium tabular-nums">{y.year}</td>
                           <td className="py-2 pr-3 text-right font-semibold tabular-nums">{fmtKm(y.radiusKm, lang)} km</td>
                           <td className="py-2 pr-3 text-right tabular-nums">{y.places}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500 dark:text-white/55">
                             {y.areaKm2 >= 1 ? `${Math.round(y.areaKm2).toLocaleString(lang)} km²` : '—'}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500">{y.runs}</td>
-                          <td className="py-2 text-right tabular-nums text-slate-500">{fmtKm(y.distanceKm, lang)}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums text-slate-500 dark:text-white/55">{y.runs}</td>
+                          <td className="py-2 text-right tabular-nums text-slate-500 dark:text-white/55">{fmtKm(y.distanceKm, lang)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-white/55">
                   {t('geozones.explore_note')}
                 </p>
               </>
@@ -1114,16 +1116,16 @@ export default function GeoZones({ activities }) {
                     key={z.key}
                     type="button"
                     onClick={() => setMapKey(z.key)}
-                    className={`flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition
-                                hover:bg-slate-50 motion-reduce:transition-none dark:border-slate-700
-                                dark:hover:bg-slate-800 ${FOCUS}`}
+                    className={`flex items-center gap-3 rounded-lg border border-slate-200 dark:border-white/10 p-3 text-left transition
+                                hover:bg-slate-50 motion-reduce:transition-none dark:border-white/10
+                                dark:hover:bg-white/[0.08] ${FOCUS}`}
                   >
                     <span className="h-8 w-1 shrink-0 rounded" style={{ background: colorForKey(z.key) }} />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-white">
                         {zoneLabel(z)}
                       </span>
-                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                      <span className="block text-xs text-slate-500 dark:text-white/55">
                         {t('geozones.dormant_since', {
                           months: z.monthsSince,
                           km: fmtKm(z.distanceKm, lang),
@@ -1152,15 +1154,15 @@ export default function GeoZones({ activities }) {
               arrastrar el mapa hasta soltar fuera cerraría el modal. */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#0c0e12]"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-700">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4 dark:border-white/10">
               <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight text-slate-900 dark:text-white">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colorForKey(mapZone.key) }} />
                   <span className="truncate">{zoneLabel(mapZone)}</span>
                 </h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs text-slate-500 dark:text-white/55">
                   {t('geozones.map_sub', { routes: routes.length, count: mapZone.count })}
                   {contexts[mapZone.key] ? ` · ${contexts[mapZone.key]}` : ''}
                   {routine.total > 1
@@ -1175,9 +1177,9 @@ export default function GeoZones({ activities }) {
                   id="geozones-basemap"
                   value={basemap}
                   onChange={(e) => patchStore({ basemap: e.target.value })}
-                  className={`mr-1 rounded-lg border border-slate-300 bg-transparent py-1 pl-1.5 pr-6 text-xs
-                              font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-900
-                              dark:text-slate-300 ${FOCUS}`}
+                  className={`mr-1 rounded-lg border border-slate-300 dark:border-white/10 bg-transparent py-1 pl-1.5 pr-6 text-xs
+                              font-medium text-slate-600 dark:text-white/75 dark:border-white/20 dark:bg-white/[0.03]
+                              dark:text-white/75 ${FOCUS}`}
                 >
                   <option value="dark">{t('maps.dark')}</option>
                   <option value="light">{t('maps.light')}</option>
@@ -1234,7 +1236,7 @@ export default function GeoZones({ activities }) {
                       center={mapZone.seed}
                       radius={radiusKm * 1000}
                       interactive={false}
-                      pathOptions={{ color: COLORS.inkFaint, weight: 1, dashArray: '4 4', fill: false }}
+                      pathOptions={{ color: FIXED.inkFaint, weight: 1, dashArray: '4 4', fill: false }}
                     />
                   )}
                   {showStarts && mapStarts.map(s => (
@@ -1243,7 +1245,7 @@ export default function GeoZones({ activities }) {
                       center={s.point}
                       radius={4}
                       pathOptions={{
-                        color: markerStroke, weight: 1, fillColor: COLORS.paper, fillOpacity: 0.9,
+                        color: markerStroke, weight: 1, fillColor: FIXED.paper, fillOpacity: 0.9,
                         className: 'cursor-pointer',
                       }}
                       eventHandlers={stravaHandlers(s.id)}
@@ -1273,7 +1275,7 @@ export default function GeoZones({ activities }) {
 
             {/* Leyenda: sin ella hay que adivinar qué es el círculo de puntos y
                 por qué las trazas cambian de color. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2 text-xs text-slate-500 dark:border-white/10 dark:text-white/55">
               <span className="flex items-center gap-1.5">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-slate-900 dark:border-slate-200"
@@ -1283,7 +1285,7 @@ export default function GeoZones({ activities }) {
               </span>
               {showStarts && (
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 shrink-0 rounded-full border border-slate-900 bg-white dark:border-slate-200" />
+                  <span className="h-2 w-2 shrink-0 rounded-full border border-slate-900 bg-white dark:bg-white/[0.03] dark:border-slate-200" />
                   {t('geozones.legend_start')}
                 </span>
               )}

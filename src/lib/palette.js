@@ -3,16 +3,18 @@
 // Los nombres siguen los tokens de DESIGN.md; las zonas viven en zoneColors.js.
 
 export const COLORS = {
-  // Tinta y superficies
-  ink: '#0f172a',
-  inkSecondary: '#475569',
-  inkMuted: '#64748b',      // gris más claro permitido para texto sobre blanco
-  inkFaint: '#94a3b8',      // solo iconos, series neutras y áreas de referencia
-  hairlineStrong: '#cbd5e1',
-  hairline: '#e2e8f0',
-  hairlineSoft: '#f1f5f9',
-  sunken: '#f8fafc',
-  paper: '#ffffff',
+  // Tinta y superficies: variables CSS que cambian con el tema (src/index.css).
+  // Valen en atributos SVG, estilos en línea y color-mix(); no en canvas ni
+  // en código que parsee el hex.
+  ink: 'var(--c-ink)',
+  inkSecondary: 'var(--c-ink-secondary)',
+  inkMuted: 'var(--c-ink-muted)',      // gris más claro permitido para texto sobre el fondo
+  inkFaint: 'var(--c-ink-faint)',      // solo iconos, series neutras y áreas de referencia
+  hairlineStrong: 'var(--c-hairline-strong)',
+  hairline: 'var(--c-hairline)',
+  hairlineSoft: 'var(--c-hairline-soft)',
+  sunken: 'var(--c-sunken)',
+  paper: 'var(--c-paper)',
 
   // Azul señal: acción, selección, serie principal
   signal: '#2563eb',
@@ -44,6 +46,15 @@ export const COLORS = {
 
   // Marca externa
   strava: '#fc4c02',
+};
+
+// Neutros con valor fijo, sin seguir al tema: para lo que se pinta sobre una
+// tesela de mapa elegida por el usuario (su contraste depende de la tesela).
+export const FIXED = {
+  ink: '#0f172a',
+  inkFaint: '#94a3b8',
+  sunken: '#f8fafc',
+  paper: '#ffffff',
 };
 
 // Estilos compartidos de Recharts.

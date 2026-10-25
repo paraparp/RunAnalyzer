@@ -2,10 +2,10 @@ import { Accordion, AccordionHeader, AccordionBody } from "@tremor/react";
 
 const CollapsibleSection = ({ title, children, defaultOpen = true, className = '' }) => {
     return (
-        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${className}`}>
+        <div className={`bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden ${className}`}>
             <Accordion defaultOpen={defaultOpen} className="border-0 shadow-none bg-transparent ring-0">
-                <AccordionHeader className="px-6 py-4 hover:bg-slate-50 transition-colors">
-                    <span className="text-sm font-bold text-slate-800">
+                <AccordionHeader className="px-6 py-4 hover:bg-slate-50 dark:hover:bg-white/[0.05] transition-colors">
+                    <span className="text-sm font-bold text-slate-800 dark:text-white">
                         {title}
                     </span>
                 </AccordionHeader>

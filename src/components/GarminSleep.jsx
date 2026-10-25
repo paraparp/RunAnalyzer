@@ -17,29 +17,29 @@ const StatCard = ({ label, value, unit, sub, accent = "slate", delay = 0 }) => {
     red:    "text-rose-500 bg-rose-500/10",
     blue:   "text-blue-500 bg-blue-500/10",
     green:  "text-emerald-500 bg-emerald-500/10",
-    slate:  "text-slate-800 bg-slate-800/10",
+    slate:  "text-slate-800 dark:text-white bg-slate-800/10",
   };
   const colorMap = {
-    orange: "text-orange-600",
-    red:    "text-rose-600",
-    blue:   "text-blue-600",
-    green:  "text-emerald-600",
-    slate:  "text-slate-800",
+    orange: "text-orange-600 dark:text-orange-300",
+    red:    "text-rose-600 dark:text-rose-300",
+    blue:   "text-teal-700 dark:text-teal-300",
+    green:  "text-emerald-600 dark:text-emerald-300",
+    slate:  "text-slate-800 dark:text-white",
   };
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
-      className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2 relative overflow-hidden"
+      className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm p-5 flex flex-col gap-2 relative overflow-hidden"
     >
-      <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-2xl ${accentMap[accent] || "bg-slate-100"}`} />
-      <span className="text-xs text-slate-500 font-semibold tracking-wider uppercase relative z-10">{label}</span>
-      <div className={`text-3xl font-extrabold leading-tight tracking-tight relative z-10 ${colorMap[accent] || "text-slate-800"}`}>
+      <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-2xl ${accentMap[accent] || "bg-slate-100 dark:bg-white/[0.04]"}`} />
+      <span className="text-xs text-slate-500 dark:text-white/55 font-semibold tracking-wider uppercase relative z-10">{label}</span>
+      <div className={`text-3xl font-extrabold leading-tight tracking-tight relative z-10 ${colorMap[accent] || "text-slate-800 dark:text-white"}`}>
         {value}
-        {unit && <span className="text-sm font-semibold text-slate-500 ml-1">{unit}</span>}
+        {unit && <span className="text-sm font-semibold text-slate-500 dark:text-white/55 ml-1">{unit}</span>}
       </div>
-      {sub && <span className="text-xs font-medium text-slate-500 relative z-10">{sub}</span>}
+      {sub && <span className="text-xs font-medium text-slate-500 dark:text-white/55 relative z-10">{sub}</span>}
     </motion.div>
   );
 };
@@ -62,7 +62,7 @@ export default function GarminSleep() {
 
   if (!sleepData?.length) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+      <div className="flex items-center justify-center h-64 text-slate-500 dark:text-white/55 text-sm">
         Todavía no hay datos de sueño de Garmin. Sincroniza en Ajustes › Conexiones.
       </div>
     );
@@ -107,13 +107,13 @@ function SleepSection({ sleepData }) {
   }));
 
   const viewPills = (
-    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+    <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5">
       {[['score','Puntuación'],['stages','Fases']].map(([v, label]) => (
         <button
           key={v}
           onClick={() => setView(v)}
           className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-            view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            view === v ? 'bg-white dark:bg-white/[0.03] text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white'
           }`}
         >
           {label}
@@ -126,12 +126,12 @@ function SleepSection({ sleepData }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center">
+        <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-400/10 rounded-xl flex items-center justify-center">
           <MoonIcon className="w-4 h-4 text-indigo-500" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-slate-900 leading-tight">Sueño · Garmin</h2>
-          <p className="text-xs text-slate-500">Estadísticas semanales</p>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Sueño · Garmin</h2>
+          <p className="text-xs text-slate-500 dark:text-white/55">Estadísticas semanales</p>
         </div>
       </div>
 
@@ -155,10 +155,10 @@ function SleepSection({ sleepData }) {
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl shadow-sm border border-slate-200 dark:border-white/10 p-5">
         <div className="flex items-center gap-3 mb-5 flex-wrap">
           {viewPills}
-          <span className="ml-auto text-xs text-slate-500">últimas {recentWeeks.length} semanas</span>
+          <span className="ml-auto text-xs text-slate-500 dark:text-white/55">últimas {recentWeeks.length} semanas</span>
         </div>
 
         <ExpandableChart
@@ -182,10 +182,10 @@ function SleepSection({ sleepData }) {
               <Tooltip
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
-                    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="bg-white/90 backdrop-blur-xl border border-white/40 rounded-2xl p-4 text-xs shadow-xl">
-                      <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">Sem {label}</p>
-                      <p className="text-indigo-600 font-extrabold text-lg">{payload[0]?.value} <span className="text-sm font-semibold text-slate-500">/ 100</span></p>
-                      {payload[0]?.payload?.dur && <p className="text-slate-500 font-medium mt-1">{fmtDur(payload[0].payload.dur)}</p>}
+                    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="bg-white/90 dark:bg-[#0c0e12]/95 backdrop-blur-xl border border-white/40 rounded-2xl p-4 text-xs shadow-xl">
+                      <p className="font-bold text-slate-800 dark:text-white mb-2 border-b border-slate-100 dark:border-white/10 pb-1">Sem {label}</p>
+                      <p className="text-indigo-600 dark:text-indigo-300 font-extrabold text-lg">{payload[0]?.value} <span className="text-sm font-semibold text-slate-500 dark:text-white/55">/ 100</span></p>
+                      {payload[0]?.payload?.dur && <p className="text-slate-500 dark:text-white/55 font-medium mt-1">{fmtDur(payload[0].payload.dur)}</p>}
                     </motion.div>
                   ) : null
                 }
@@ -205,13 +205,13 @@ function SleepSection({ sleepData }) {
               <Tooltip
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
-                    <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs shadow-lg space-y-0.5">
-                      <p className="font-semibold text-slate-700 mb-1">Sem {label}</p>
+                    <div className="bg-white dark:bg-[#0c0e12] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-xs shadow-lg space-y-0.5">
+                      <p className="font-semibold text-slate-700 dark:text-white/75 mb-1">Sem {label}</p>
                       {payload.map(p => (
                         <div key={p.dataKey} className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full" style={{ background: p.fill }} />
-                          <span className="text-slate-500">{p.name}:</span>
-                          <span className="font-bold text-slate-700">{fmtDur(p.value)}</span>
+                          <span className="text-slate-500 dark:text-white/55">{p.name}:</span>
+                          <span className="font-bold text-slate-700 dark:text-white/75">{fmtDur(p.value)}</span>
                         </div>
                       ))}
                     </div>

@@ -42,3 +42,29 @@ describe('buildVitalMetrics · carga', () => {
     expect(metric(empty, 'ctl').history).toBeNull();
   });
 });
+
+describe('sueño y huecos', () => {
+  it('prefiere las noches a la media semanal y no duplica esa semana', () => {
+    const garmin = [{ date: iso(2), sleepScore: 55, sleepMin: 400, sleepAvgHR: 52 }];
+    const sleep = [{ weekStart: iso(4), score: 80, durationMin: 450 }]; // misma semana o la anterior
+    const r = buildVitalMetrics({ garmin, sleep, days: 30, gran: 'day', nowMs: NOW });
+    const raws = metric(r, 'sleep').data.filter((d) => d.raw != null).map((d) => d.raw);
+    expect(raws).toContain(55);
+    expect(metric(r, 'sleepHR').data.find((d) => d.raw != null).raw).toBe(52);
+  });
+
+  it('no dibuja línea a través de un hueco de meses', () => {
+    const garmin = [{ date: iso(200), hrv: 40 }, { date: iso(1), hrv: 50 }];
+    const r = buildVitalMetrics({ garmin, days: 365, gran: 'day', nowMs: NOW });
+    const mid = metric(r, 'hrv').data.find((d) => d.ms === new Date(iso(100) + 'T00:00:00').getTime());
+    expect(mid.line).toBeNull();
+  });
+
+  it('une dos datos cercanos aunque la media tenga hueco', () => {
+    const sleep = [{ weekStart: iso(20), score: 70 }, { weekStart: iso(13), score: 80 }];
+    const r = buildVitalMetrics({ sleep, days: 30, gran: 'day', nowMs: NOW });
+    const between = metric(r, 'sleep').data.filter((d) => d.smooth == null && d.line != null);
+    expect(between.length).toBeGreaterThan(0);
+    between.forEach((d) => { expect(d.line).toBeGreaterThan(70); expect(d.line).toBeLessThan(80); });
+  });
+});

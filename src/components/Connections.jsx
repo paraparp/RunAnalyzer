@@ -22,6 +22,10 @@ const PERIOD_PRESETS = [
   { label: '3 meses', days: 90 },
   { label: '6 meses', days: 180 },
   { label: '1 año', days: 365 },
+  // Recarga de histórico ya conectado (p. ej. para traer el sueño noche a noche).
+  { label: '2 años', days: 730 },
+  { label: '3 años', days: 1095 },
+  { label: '5 años', days: 1825 },
 ];
 
 const IMPORT_PRESETS = [
@@ -53,18 +57,18 @@ const PeriodSelector = ({ value, onChange, label }) => {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
-        <span className="text-xs text-slate-500 flex items-center gap-1.5">
-          <span className="font-semibold text-slate-700">{value} días</span>
+        <label className="text-xs font-semibold text-slate-600 dark:text-white/75 uppercase tracking-wide">{label}</label>
+        <span className="text-xs text-slate-500 dark:text-white/55 flex items-center gap-1.5">
+          <span className="font-semibold text-slate-700 dark:text-white/75">{value} días</span>
           {value > 30 && (
-            <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md font-medium">
+            <span className="bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 rounded-md font-medium">
               ~{estMinutes(value)} min
             </span>
           )}
         </span>
       </div>
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
+        <div className="flex bg-slate-100 dark:bg-white/[0.04] p-1 rounded-xl overflow-x-auto no-scrollbar">
           {IMPORT_PRESETS.map(p => (
             <button
               key={p.days}
@@ -72,8 +76,8 @@ const PeriodSelector = ({ value, onChange, label }) => {
               onClick={() => { setCustomDays(''); onChange(p.days); }}
               className={`flex-1 min-w-[40px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
                 value === p.days
-                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200/50'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                  ? 'bg-white dark:bg-white/[0.03] text-teal-700 dark:text-teal-300 shadow-sm ring-1 ring-slate-200/50 dark:ring-white/10'
+                  : 'text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/[0.05]'
               }`}
             >
               {p.label}
@@ -86,7 +90,7 @@ const PeriodSelector = ({ value, onChange, label }) => {
           value={customDays}
           onChange={handleCustom}
           placeholder="días"
-          className="w-full sm:w-24 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 tabular-nums text-center placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="w-full sm:w-24 bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-white/75 tabular-nums text-center placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
         />
       </div>
     </div>
@@ -94,15 +98,15 @@ const PeriodSelector = ({ value, onChange, label }) => {
 };
 
 const SectionCard = ({ icon: Icon, tint, title, subtitle, children, right = null }) => (
-  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+  <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm p-5 space-y-5">
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div className="flex items-center gap-2.5">
         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${tint}`}>
           <Icon className="w-4 h-4" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-slate-900 leading-tight">{title}</h2>
-          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+          <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">{title}</h2>
+          {subtitle && <p className="text-xs text-slate-500 dark:text-white/55">{subtitle}</p>}
         </div>
       </div>
       {right}
@@ -112,13 +116,13 @@ const SectionCard = ({ icon: Icon, tint, title, subtitle, children, right = null
 );
 
 const ErrorNote = ({ message }) => (
-  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-start gap-2">
+  <div className="bg-red-50 dark:bg-red-400/10 border border-red-200 dark:border-red-300/25 rounded-xl p-3 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
     <ExclamationTriangleIcon className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
     <span>
       {message}
       {message.includes('3001') && (
         <span className="block mt-1 text-red-500 text-xs">
-          ¿Arrancaste el servidor? <code className="bg-red-100 rounded px-1">npm run server</code>
+          ¿Arrancaste el servidor? <code className="bg-red-100 dark:bg-red-400/10 rounded px-1">npm run server</code>
         </span>
       )}
     </span>
@@ -126,8 +130,8 @@ const ErrorNote = ({ message }) => (
 );
 
 const Progress = ({ progress }) => (
-  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
-    <div className="flex items-center justify-between text-sm text-blue-700">
+  <div className="bg-teal-50 dark:bg-teal-400/10 border border-teal-200 dark:border-teal-300/25 rounded-xl p-3 space-y-2">
+    <div className="flex items-center justify-between text-sm text-teal-700 dark:text-teal-300">
       <span className="flex items-center gap-2 font-medium">
         <ArrowPathIcon className="w-4 h-4 animate-spin shrink-0" />
         {progress.period}
@@ -143,7 +147,7 @@ const Progress = ({ progress }) => (
     {progress.chunks.length > 0 && (
       <div className="flex flex-wrap gap-1">
         {progress.chunks.map((c, i) => (
-          <span key={i} className="text-xs bg-white text-blue-600 border border-blue-100 rounded-md px-1.5 py-0.5">
+          <span key={i} className="text-xs bg-white dark:bg-white/[0.03] text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-300/25 rounded-md px-1.5 py-0.5">
             {c.period} <span className="text-blue-400">({c.count}d)</span>
           </span>
         ))}
@@ -179,12 +183,12 @@ export default function Connections({ stravaData, onConnectStrava }) {
       {/* ── Strava ─────────────────────────────────────────────────────────── */}
       <SectionCard
         icon={ArrowPathIcon}
-        tint="bg-orange-50 text-orange-500"
+        tint="bg-orange-50 dark:bg-orange-400/10 text-orange-500"
         title="Strava"
         subtitle="Actividades, parciales y mejores esfuerzos"
         right={
           stravaConnected ? (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
               <CheckCircleIcon className="w-4 h-4" /> Conectado
             </span>
           ) : (
@@ -199,17 +203,17 @@ export default function Connections({ stravaData, onConnectStrava }) {
       >
         {stravaConnected ? (
           <div className="flex flex-wrap gap-2.5 text-xs">
-            <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-              <span className="text-slate-500">Actividades guardadas </span>
-              <span className="font-bold text-slate-700 tabular-nums">{stravaCount}</span>
+            <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+              <span className="text-slate-500 dark:text-white/55">Actividades guardadas </span>
+              <span className="font-bold text-slate-700 dark:text-white/75 tabular-nums">{stravaCount}</span>
             </span>
-            <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-              <span className="text-slate-500">Último listado </span>
-              <span className="font-bold text-slate-700">{stravaData?.lastFetchDate ?? '—'}</span>
+            <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+              <span className="text-slate-500 dark:text-white/55">Último listado </span>
+              <span className="font-bold text-slate-700 dark:text-white/75">{stravaData?.lastFetchDate ?? '—'}</span>
             </span>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-white/55">
             Sin Strava no hay actividades: es la fuente de los entrenamientos, los parciales y los
             mejores esfuerzos sobre los que se calcula todo lo demás.
           </p>
@@ -219,12 +223,12 @@ export default function Connections({ stravaData, onConnectStrava }) {
       {/* ── Garmin ─────────────────────────────────────────────────────────── */}
       <SectionCard
         icon={HeartIcon}
-        tint="bg-rose-50 text-rose-500"
+        tint="bg-rose-50 dark:bg-rose-400/10 text-rose-500"
         title="Garmin Connect"
         subtitle="FC reposo, VFC nocturna, sueño y running dynamics"
         right={
           data ? (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
               <CheckCircleIcon className="w-4 h-4" /> Conectado
             </span>
           ) : null
@@ -232,12 +236,12 @@ export default function Connections({ stravaData, onConnectStrava }) {
       >
         {!data ? (
           <>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-1">
-              <p className="flex items-center gap-1.5 font-semibold text-amber-900">
+            <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-200 space-y-1">
+              <p className="flex items-center gap-1.5 font-semibold text-amber-900 dark:text-amber-200">
                 <LockClosedIcon className="w-4 h-4 shrink-0" />
                 Tus credenciales no salen del servidor local
               </p>
-              <p className="text-amber-700 text-xs leading-relaxed">
+              <p className="text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
                 Se usan únicamente para autenticarte en Garmin Connect y descargar FC reposo, VFC y
                 sueño — nada más va a internet.
               </p>
@@ -246,44 +250,44 @@ export default function Connections({ stravaData, onConnectStrava }) {
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-white/75 uppercase tracking-wide block mb-1.5">
                     Email de Garmin Connect
                   </label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <UserIcon className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                      <UserIcon className="h-5 w-5 text-slate-400 dark:text-white/40 group-focus-within:text-blue-500 transition-colors" />
                     </div>
                     <input
                       type="email"
                       value={username}
                       onChange={e => setUsername(e.target.value)}
                       placeholder="tu@email.com"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className="w-full bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                       required
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-white/75 uppercase tracking-wide block mb-1.5">
                     Contraseña
                   </label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <KeyIcon className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                      <KeyIcon className="h-5 w-5 text-slate-400 dark:text-white/40 group-focus-within:text-blue-500 transition-colors" />
                     </div>
                     <input
                       type="password"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className="w-full bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                       required
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-slate-100 pt-5">
+              <div className="border-t border-slate-100 dark:border-white/10 pt-5">
                 <PeriodSelector value={daysToFetch} onChange={setDaysToFetch} label="Período a importar" />
               </div>
 
@@ -293,7 +297,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+                className="w-full bg-slate-950 text-white dark:bg-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-white/90 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
               >
                 {loading ? (
                   <><ArrowPathIcon className="w-4 h-4 animate-spin" /> Descargando…</>
@@ -303,29 +307,29 @@ export default function Connections({ stravaData, onConnectStrava }) {
               </button>
             </form>
 
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-slate-500 dark:text-white/55 text-center">
               Servidor proxy requerido:{' '}
-              <code className="bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">npm run server</code>
+              <code className="bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-white/75 rounded px-1.5 py-0.5">npm run server</code>
             </p>
           </>
         ) : (
           <>
             <div className="flex flex-wrap gap-2.5 text-xs">
-              <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-500">Cuenta </span>
-                <span className="font-bold text-slate-700">{creds?.username ?? '—'}</span>
+              <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+                <span className="text-slate-500 dark:text-white/55">Cuenta </span>
+                <span className="font-bold text-slate-700 dark:text-white/75">{creds?.username ?? '—'}</span>
               </span>
-              <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-500">Días de salud </span>
-                <span className="font-bold text-slate-700 tabular-nums">{data.length}</span>
+              <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+                <span className="text-slate-500 dark:text-white/55">Días de salud </span>
+                <span className="font-bold text-slate-700 dark:text-white/75 tabular-nums">{data.length}</span>
               </span>
-              <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-500">Noches de sueño </span>
-                <span className="font-bold text-slate-700 tabular-nums">{sleepData?.length ?? 0}</span>
+              <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+                <span className="text-slate-500 dark:text-white/55">Noches de sueño </span>
+                <span className="font-bold text-slate-700 dark:text-white/75 tabular-nums">{sleepData?.length ?? 0}</span>
               </span>
-              <span className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span className="text-slate-500">Último sync </span>
-                <span className="font-bold text-slate-700">{lastSync ?? '—'}</span>
+              <span className="bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-lg px-3 py-1.5">
+                <span className="text-slate-500 dark:text-white/55">Último sync </span>
+                <span className="font-bold text-slate-700 dark:text-white/75">{lastSync ?? '—'}</span>
               </span>
             </div>
 
@@ -335,16 +339,16 @@ export default function Connections({ stravaData, onConnectStrava }) {
                   value={syncDays}
                   onChange={e => setSyncDays(+e.target.value)}
                   disabled={loading}
-                  className="bg-white border border-slate-200 border-r-0 text-slate-600 text-xs rounded-l-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 disabled:opacity-50 h-8"
+                  className="bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 border-r-0 text-slate-600 dark:text-white/75 text-xs rounded-l-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 disabled:opacity-50 h-8"
                 >
                   {PERIOD_PRESETS.map(p => (
-                    <option key={p.days} value={p.days}>{p.label}</option>
+                    <option key={p.days} value={p.days}>{p.label}{p.days > 365 ? ` (~${estMinutes(p.days)} min)` : ''}</option>
                   ))}
                 </select>
                 <button
                   onClick={() => sync(syncDays)}
                   disabled={loading}
-                  className="h-8 px-2.5 rounded-r-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                  className="h-8 px-2.5 rounded-r-lg bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-blue-600 flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
                   {loading ? 'Sync…' : 'Sincronizar'}
@@ -354,7 +358,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
               <button
                 onClick={exportJson}
                 title="Exportar la salud de Garmin como JSON"
-                className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 flex items-center gap-1.5 text-xs font-medium transition-colors"
+                className="h-8 px-2.5 rounded-lg bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-700 dark:hover:text-white flex items-center gap-1.5 text-xs font-medium transition-colors"
               >
                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                 Exportar JSON
@@ -362,7 +366,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
 
               <label
                 title="Importar un JSON de salud de Garmin"
-                className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
+                className="h-8 px-2.5 rounded-lg bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-700 dark:hover:text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
               >
                 <ArrowUpTrayIcon className="w-3.5 h-3.5" />
                 Importar JSON
@@ -376,7 +380,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
 
               <button
                 onClick={disconnect}
-                className="h-8 px-2.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 flex items-center gap-1.5 text-xs font-medium transition-colors"
+                className="h-8 px-2.5 rounded-lg bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/55 hover:bg-red-50 hover:text-red-600 hover:border-red-200 flex items-center gap-1.5 text-xs font-medium transition-colors"
               >
                 <TrashIcon className="w-3.5 h-3.5" />
                 Desconectar
@@ -389,7 +393,7 @@ export default function Connections({ stravaData, onConnectStrava }) {
         )}
       </SectionCard>
 
-      <p className="text-xs text-slate-500 leading-relaxed">
+      <p className="text-xs text-slate-500 dark:text-white/55 leading-relaxed">
         El botón de sincronizar de la barra superior refresca los dos carriles a la vez (Strava y
         después Garmin). El sync de aquí es el específico de la salud de Garmin, con el período que
         elijas.

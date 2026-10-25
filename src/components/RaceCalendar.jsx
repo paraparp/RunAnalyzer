@@ -60,33 +60,33 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
     }, [races, today]);
 
     const toneOf = (race) => {
-        if (race.id === primaryId) return { dot: 'bg-amber-400 ring-amber-100', text: 'text-amber-700' };
+        if (race.id === primaryId) return { dot: 'bg-amber-400 ring-amber-100', text: 'text-amber-700 dark:text-amber-300' };
         const left = daysUntil(race.date);
-        if (left != null && left < 0) return { dot: 'bg-slate-300 ring-slate-100', text: 'text-slate-500' };
-        return { dot: 'bg-blue-500 ring-blue-100', text: 'text-blue-700' };
+        if (left != null && left < 0) return { dot: 'bg-slate-300 ring-slate-100 dark:ring-white/10', text: 'text-slate-500 dark:text-white/55' };
+        return { dot: 'bg-blue-500 ring-blue-100', text: 'text-teal-700 dark:text-teal-300' };
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-5 sm:p-6 space-y-5">
             {years.map(({ year, races: yearRaces }) => {
                 const isCurrentYear = year === today.getFullYear();
                 return (
                     <div key={year}>
                         <div className="flex items-baseline gap-3 mb-1.5">
-                            <span className="text-xs font-black text-slate-900 tabular-nums">{year}</span>
+                            <span className="text-xs font-black text-slate-900 dark:text-white tabular-nums">{year}</span>
                             {yearRaces.length > 0 && (
-                                <span className="text-label font-bold uppercase text-slate-500">
+                                <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">
                                     {yearRaces.length}
                                 </span>
                             )}
                         </div>
 
                         {/* Barra del año: 12 meses + chinchetas por carrera */}
-                        <div className="relative h-9 rounded-lg bg-slate-50 ring-1 ring-slate-100">
+                        <div className="relative h-9 rounded-lg bg-slate-50 dark:bg-white/[0.04] ring-1 ring-slate-100 dark:ring-white/10">
                             <div className="absolute inset-0 grid grid-cols-12">
                                 {months.map((m, i) => (
-                                    <div key={i} className={`flex items-end justify-center pb-0.5 ${i ? 'border-l border-slate-200/70' : ''}`}>
-                                        <span className="text-label font-bold uppercase text-slate-500">{m}</span>
+                                    <div key={i} className={`flex items-end justify-center pb-0.5 ${i ? 'border-l border-slate-200/70 dark:border-white/10' : ''}`}>
+                                        <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{m}</span>
                                     </div>
                                 ))}
                             </div>
@@ -126,16 +126,16 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
                                         <button
                                             key={r.id}
                                             onClick={() => onSelect(r.id)}
-                                            className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full ring-1 transition-colors ${r.id === selectedId ? 'bg-slate-100 ring-slate-300' : 'bg-white ring-slate-200 hover:bg-slate-50'}`}
+                                            className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full ring-1 transition-colors ${r.id === selectedId ? 'bg-slate-100 dark:bg-white/[0.04] ring-slate-300' : 'bg-white dark:bg-white/[0.03] ring-slate-200 dark:ring-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                                         >
                                             <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
                                             {r.id === primaryId && <StarSolidIcon className="w-3 h-3 text-amber-500" />}
-                                            <span className="text-xs font-black tabular-nums text-slate-500">
+                                            <span className="text-xs font-black tabular-nums text-slate-500 dark:text-white/55">
                                                 {r._d.toLocaleDateString(locale, { day: '2-digit', month: 'short' })}
                                             </span>
                                             <span className={`text-xs font-bold truncate max-w-[11rem] ${tone.text}`}>{r.name}</span>
                                             {left != null && left >= 0 && (
-                                                <span className="text-label font-bold uppercase text-slate-500">
+                                                <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">
                                                     {left === 0 ? t('targets.today') : `${left}d`}
                                                 </span>
                                             )}
@@ -149,13 +149,13 @@ const RaceCalendar = ({ races, primaryId, selectedId, onSelect, t }) => {
             })}
 
             {undated.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-100">
-                    <span className="text-label font-bold uppercase text-slate-500 mr-1">{t('targets.no_date')}</span>
+                <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-100 dark:border-white/10">
+                    <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mr-1">{t('targets.no_date')}</span>
                     {undated.map((r) => (
                         <button
                             key={r.id}
                             onClick={() => onSelect(r.id)}
-                            className={`px-2.5 py-1 rounded-full ring-1 ring-slate-200 text-xs font-bold text-slate-500 transition-colors ${r.id === selectedId ? 'bg-slate-100' : 'bg-white hover:bg-slate-50'}`}
+                            className={`px-2.5 py-1 rounded-full ring-1 ring-slate-200 dark:ring-white/10 text-xs font-bold text-slate-500 dark:text-white/55 transition-colors ${r.id === selectedId ? 'bg-slate-100 dark:bg-white/[0.04]' : 'bg-white dark:bg-white/[0.03] hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
                         >
                             {r.name}
                         </button>

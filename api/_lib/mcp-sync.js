@@ -443,7 +443,7 @@ async function syncGarminHealth(userId) {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const row = await fetchDayData(client, toDateStr(d), hrvMap, bbMap);
+    const row = await fetchDayData(client, toDateStr(d), hrvMap, bbMap, { withSleep: true });
     if (row) fresh.push(row);
     await new Promise((r) => setTimeout(r, 120));
   }

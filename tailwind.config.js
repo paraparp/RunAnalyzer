@@ -14,6 +14,13 @@ export default {
         current: "currentColor",
         extend: {
             colors: {
+                // Tokens semánticos del tema (ver src/index.css)
+                bg: 'rgb(var(--bg) / <alpha-value>)',
+                surface: 'rgb(var(--surface) / <alpha-value>)',
+                line: 'rgb(var(--line) / <alpha-value>)',
+                ink: 'rgb(var(--ink) / <alpha-value>)',
+                accent: 'rgb(var(--accent) / <alpha-value>)',
+                accent2: 'rgb(var(--accent-2) / <alpha-value>)',
                 tremor: {
                     brand: {
                         faint: "#e8e6ff", // surface-container
@@ -45,31 +52,31 @@ export default {
                 },
                 "dark-tremor": {
                     brand: {
-                        faint: "#0B1229",
-                        muted: "#172554",
-                        subtle: "#1e40af",
-                        DEFAULT: "#3b82f6",
-                        emphasis: "#60a5fa",
-                        inverted: "#030712",
+                        faint: "rgba(94,234,212,0.06)",
+                        muted: "rgba(94,234,212,0.15)",
+                        subtle: "#2dd4bf",
+                        DEFAULT: "#5eead4",
+                        emphasis: "#99f6e4",
+                        inverted: "#07090d",
                     },
                     background: {
-                        muted: "#131A2B",
-                        subtle: "#1f2937",
-                        DEFAULT: "#111827",
-                        emphasis: "#d1d5db",
+                        muted: "#07090d",
+                        subtle: "rgba(255,255,255,0.06)",
+                        DEFAULT: "#0c0e12",
+                        emphasis: "rgba(255,255,255,0.75)",
                     },
                     border: {
-                        DEFAULT: "#374151",
+                        DEFAULT: "rgba(255,255,255,0.1)",
                     },
                     ring: {
-                        DEFAULT: "#1f2937",
+                        DEFAULT: "rgba(255,255,255,0.1)",
                     },
                     content: {
-                        subtle: "#4b5563",
-                        DEFAULT: "#6b7280",
-                        emphasis: "#e5e7eb",
-                        strong: "#f9fafb",
-                        inverted: "#000000",
+                        subtle: "rgba(255,255,255,0.4)",
+                        DEFAULT: "rgba(255,255,255,0.55)",
+                        emphasis: "#ffffff",
+                        strong: "#ffffff",
+                        inverted: "#07090d",
                     },
                 },
             },

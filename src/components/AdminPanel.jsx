@@ -48,15 +48,15 @@ const fmtDate = (d) => {
 };
 
 const STATUS_STYLE = {
-  open:     'bg-amber-50 text-amber-700 ring-amber-200',
-  ack:      'bg-blue-50 text-blue-700 ring-blue-200',
-  resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  wontfix:  'bg-slate-100 text-slate-500 ring-slate-200',
+  open:     'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-amber-200',
+  ack:      'bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 ring-blue-200',
+  resolved: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300 ring-emerald-200',
+  wontfix:  'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55 ring-slate-200 dark:ring-white/10',
 };
 const SEVERITY_STYLE = {
-  high:   'bg-rose-50 text-rose-700 ring-rose-200',
-  medium: 'bg-amber-50 text-amber-700 ring-amber-200',
-  low:    'bg-slate-100 text-slate-500 ring-slate-200',
+  high:   'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300 ring-rose-200',
+  medium: 'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-amber-200',
+  low:    'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55 ring-slate-200 dark:ring-white/10',
 };
 const NEXT_STATUS_LABEL = { ack: 'Marcar vista', resolved: 'Resolver', wontfix: 'Descartar' };
 
@@ -65,14 +65,14 @@ const Pill = ({ children, className = '' }) => (
 );
 
 const Stat = ({ label, value }) => (
-  <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-3">
-    <div className="text-label font-bold uppercase text-slate-500">{label}</div>
-    <div className="text-xl font-bold text-slate-900 mt-0.5">{value}</div>
+  <div className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 px-4 py-3">
+    <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{label}</div>
+    <div className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{value}</div>
   </div>
 );
 
 const ErrorBanner = ({ message }) => (
-  <div className="flex items-center gap-2 text-sm text-rose-700 bg-rose-50 ring-1 ring-rose-200 rounded-xl px-3 py-2.5">
+  <div className="flex items-center gap-2 text-sm text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10 ring-1 ring-rose-200 rounded-xl px-3 py-2.5">
     <ExclamationTriangleIcon className="w-4 h-4 shrink-0" /> {message}
   </div>
 );
@@ -103,10 +103,10 @@ const UsersTab = ({ data, reload }) => {
 
       {error && <ErrorBanner message={error} />}
 
-      <div className="bg-white rounded-2xl ring-1 ring-slate-200 overflow-x-auto">
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
           <thead>
-            <tr className="text-label uppercase text-slate-500 border-b border-slate-100">
+            <tr className="text-label uppercase text-slate-500 dark:text-white/55 border-b border-slate-100 dark:border-white/10">
               <th className="text-left font-semibold px-4 py-3">Usuario</th>
               <th className="text-left font-semibold px-4 py-3">Último acceso</th>
               <th className="text-left font-semibold px-4 py-3">Alta</th>
@@ -116,33 +116,33 @@ const UsersTab = ({ data, reload }) => {
           </thead>
           <tbody>
             {data.users.map(u => (
-              <tr key={u.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+              <tr key={u.id} className="border-b border-slate-50 dark:border-white/10 last:border-0 hover:bg-slate-50/60 dark:hover:bg-white/[0.05]">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     {u.picture
                       ? <img src={u.picture} alt="" className="w-7 h-7 rounded-full shrink-0" />
-                      : <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />}
+                      : <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-white/10 shrink-0" />}
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                      <div className="font-semibold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
                         {u.name || u.email}
-                        {u.is_admin && <Pill className="bg-blue-50 text-blue-700 ring-blue-200">admin</Pill>}
+                        {u.is_admin && <Pill className="bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 ring-blue-200">admin</Pill>}
                       </div>
-                      <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                      <div className="text-xs text-slate-500 dark:text-white/55 truncate">{u.email}</div>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{fmtDate(u.last_sign_in_at)}</td>
-                <td className="px-4 py-3 text-slate-600">{fmtDate(u.created_at)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">
+                <td className="px-4 py-3 text-slate-600 dark:text-white/75">{fmtDate(u.last_sign_in_at)}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-white/75">{fmtDate(u.created_at)}</td>
+                <td className="px-4 py-3 text-right text-slate-600 dark:text-white/75">
                   {fmtBytes(u.bytes)}
-                  <span className="text-xs text-slate-500"> · {u.keys} claves</span>
+                  <span className="text-xs text-slate-500 dark:text-white/55"> · {u.keys} claves</span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">
                     <button
                       disabled={busy === u.id}
                       onClick={() => act(u.id, () => post('sync_user', { user_id: u.id }))}
-                      className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-slate-200 dark:ring-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-50"
                     >
                       {busy === u.id ? 'Sincronizando…' : 'Sync'}
                     </button>
@@ -150,8 +150,8 @@ const UsersTab = ({ data, reload }) => {
                       disabled={busy === u.id}
                       onClick={() => act(u.id, () => post('set_admin', { user_id: u.id, admin: !u.is_admin }))}
                       className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 disabled:opacity-50 ${u.is_admin
-                        ? 'ring-rose-200 text-rose-600 hover:bg-rose-50'
-                        : 'ring-blue-200 text-blue-600 hover:bg-blue-50'}`}
+                        ? 'ring-rose-200 text-rose-600 dark:text-rose-300 hover:bg-rose-50'
+                        : 'ring-blue-200 text-teal-700 dark:text-teal-300 hover:bg-blue-50'}`}
                     >
                       {u.is_admin ? 'Revocar' : 'Hacer admin'}
                     </button>
@@ -201,8 +201,8 @@ const IssuesTab = ({ data, reload, usersById }) => {
             key={id}
             onClick={() => setFilter(id)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg ring-1 transition ${filter === id
-              ? 'bg-blue-600 text-white ring-blue-600'
-              : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
+              ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 ring-blue-600'
+              : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 ring-slate-200 dark:ring-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
           >
             {label} <span className="opacity-70">{n}</span>
           </button>
@@ -212,33 +212,33 @@ const IssuesTab = ({ data, reload, usersById }) => {
       {error && <ErrorBanner message={error} />}
 
       {shown.length === 0 && (
-        <div className="bg-white rounded-2xl ring-1 ring-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 px-4 py-10 text-center text-sm text-slate-500 dark:text-white/55">
           Nada por aquí. El agente escribe en este buzón cuando encuentra algo raro en los datos o en las tools.
         </div>
       )}
 
       <div className="space-y-2.5">
         {shown.map(e => (
-          <div key={`${e.user_id}:${e.id}`} className="bg-white rounded-2xl ring-1 ring-slate-200 p-4">
+          <div key={`${e.user_id}:${e.id}`} className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="font-semibold text-slate-900">{e.title}</div>
+                <div className="font-semibold text-slate-900 dark:text-white">{e.title}</div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   <Pill className={STATUS_STYLE[e.status] ?? STATUS_STYLE.wontfix}>{e.status}</Pill>
                   <Pill className={SEVERITY_STYLE[e.severity] ?? SEVERITY_STYLE.low}>{e.severity}</Pill>
-                  <Pill className="bg-slate-100 text-slate-500 ring-slate-200">{e.category}</Pill>
-                  {e.tool && <Pill className="bg-violet-50 text-violet-700 ring-violet-200">{e.tool}</Pill>}
-                  {e.occurrences > 1 && <Pill className="bg-rose-50 text-rose-700 ring-rose-200">×{e.occurrences}</Pill>}
+                  <Pill className="bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55 ring-slate-200 dark:ring-white/10">{e.category}</Pill>
+                  {e.tool && <Pill className="bg-violet-50 dark:bg-violet-400/10 text-violet-700 dark:text-violet-300 ring-violet-200">{e.tool}</Pill>}
+                  {e.occurrences > 1 && <Pill className="bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300 ring-rose-200">×{e.occurrences}</Pill>}
                 </div>
               </div>
-              <div className="text-right text-xs text-slate-500 shrink-0">
+              <div className="text-right text-xs text-slate-500 dark:text-white/55 shrink-0">
                 <div>{fmtDate(e.last_seen_at ?? e.created_at)}</div>
                 <div className="truncate max-w-[160px]">{usersById.get(e.user_id)?.email ?? String(e.user_id).slice(0, 8)}</div>
               </div>
             </div>
 
-            {e.detail && <p className="text-sm text-slate-600 mt-3 whitespace-pre-wrap leading-relaxed">{e.detail}</p>}
-            {e.note && <p className="text-xs text-slate-500 mt-2 italic">Nota: {e.note}</p>}
+            {e.detail && <p className="text-sm text-slate-600 dark:text-white/75 mt-3 whitespace-pre-wrap leading-relaxed">{e.detail}</p>}
+            {e.note && <p className="text-xs text-slate-500 dark:text-white/55 mt-2 italic">Nota: {e.note}</p>}
 
             <div className="flex flex-wrap gap-2 mt-3">
               {['ack', 'resolved', 'wontfix'].filter(s => s !== e.status).map(s => (
@@ -246,7 +246,7 @@ const IssuesTab = ({ data, reload, usersById }) => {
                   key={s}
                   disabled={busy === e.id}
                   onClick={() => act(e.id, () => post('update_issue', { user_id: e.user_id, issue_id: e.id, status: s }))}
-                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-slate-200 dark:ring-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] disabled:opacity-50"
                 >
                   {NEXT_STATUS_LABEL[s]}
                 </button>
@@ -254,7 +254,7 @@ const IssuesTab = ({ data, reload, usersById }) => {
               <button
                 disabled={busy === e.id}
                 onClick={() => act(e.id, () => post('delete_issue', { user_id: e.user_id, issue_id: e.id }))}
-                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50 inline-flex items-center gap-1"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg ring-1 ring-rose-200 text-rose-600 dark:text-rose-300 hover:bg-rose-50 disabled:opacity-50 inline-flex items-center gap-1"
               >
                 <TrashIcon className="w-3.5 h-3.5" /> Borrar
               </button>
@@ -271,8 +271,8 @@ const Flag = ({ label, on }) => (
   <div className="flex items-center gap-2 text-sm">
     {on
       ? <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-      : <XCircleIcon className="w-4 h-4 text-slate-300 shrink-0" />}
-    <span className={on ? 'text-slate-700' : 'text-slate-500'}>{label}</span>
+      : <XCircleIcon className="w-4 h-4 text-slate-300 dark:text-white/40 shrink-0" />}
+    <span className={on ? 'text-slate-700 dark:text-white/75' : 'text-slate-500 dark:text-white/55'}>{label}</span>
   </div>
 );
 
@@ -288,18 +288,18 @@ const SystemTab = ({ data }) => {
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {groups.map(([title, flags]) => (
-          <div key={title} className="bg-white rounded-2xl ring-1 ring-slate-200 p-4 space-y-2">
-            <div className="text-label font-bold uppercase text-slate-500">{title}</div>
+          <div key={title} className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 p-4 space-y-2">
+            <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{title}</div>
             {flags.map(([label, on]) => <Flag key={label} label={label} on={on} />)}
           </div>
         ))}
       </div>
-      <div className="bg-white rounded-2xl ring-1 ring-slate-200 p-4 text-sm text-slate-600">
-        <span className="font-semibold text-slate-900">Runtime</span>
-        <span className="text-slate-500"> · </span>
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl ring-1 ring-slate-200 dark:ring-white/10 p-4 text-sm text-slate-600 dark:text-white/75">
+        <span className="font-semibold text-slate-900 dark:text-white">Runtime</span>
+        <span className="text-slate-500 dark:text-white/55"> · </span>
         Node {data.runtime.node} · {data.runtime.env}{data.runtime.region ? ` · ${data.runtime.region}` : ''}
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-white/55">
         Solo se indica si cada variable está definida; sus valores no salen nunca del servidor.
       </p>
     </div>
@@ -348,18 +348,18 @@ export default function AdminPanel() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 ring-1 ring-blue-100 flex items-center justify-center">
-            <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-400/10 ring-1 ring-blue-100 flex items-center justify-center">
+            <ShieldCheckIcon className="w-5 h-5 text-teal-700 dark:text-teal-300" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Administración</h2>
-            <p className="text-sm text-slate-500">Usuarios, buzón del agente y estado del servidor.</p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Administración</h2>
+            <p className="text-sm text-slate-500 dark:text-white/55">Usuarios, buzón del agente y estado del servidor.</p>
           </div>
         </div>
         <button
           onClick={() => { setLoading(true); load(); }}
           disabled={loading}
-          className="text-xs font-semibold px-3 py-2 rounded-xl ring-1 ring-slate-200 text-slate-600 hover:bg-slate-100 inline-flex items-center gap-1.5 disabled:opacity-50"
+          className="text-xs font-semibold px-3 py-2 rounded-xl ring-1 ring-slate-200 dark:ring-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05] inline-flex items-center gap-1.5 disabled:opacity-50"
         >
           <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
         </button>
@@ -372,11 +372,11 @@ export default function AdminPanel() {
             onClick={() => setTab(id)}
             className={`text-sm font-semibold px-3.5 py-2 rounded-xl inline-flex items-center gap-2 transition ${tab === id
               ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
+              : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 ring-1 ring-slate-200 dark:ring-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
           >
             <Icon className="w-4 h-4" /> {label}
             {id === 'issues' && issuesData?.totals.open > 0 && (
-              <span className={`text-xs px-1.5 rounded-md ${tab === id ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
+              <span className={`text-xs px-1.5 rounded-md ${tab === id ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300'}`}>
                 {issuesData.totals.open}
               </span>
             )}
@@ -387,7 +387,7 @@ export default function AdminPanel() {
       {error && <ErrorBanner message={error} />}
 
       {loading && !overview ? (
-        <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-white/55 py-10 justify-center">
           <ArrowPathIcon className="w-5 h-5 animate-spin" /> Cargando…
         </div>
       ) : (

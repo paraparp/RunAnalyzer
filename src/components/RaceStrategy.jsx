@@ -32,9 +32,9 @@ const pace = (s) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.ro
 
 function Section({ icon: Icon, title, children, aside }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 space-y-3">
+    <div className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-white/[0.03] p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><Icon className="w-4 h-4 text-slate-500" />{title}</p>
+        <p className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white"><Icon className="w-4 h-4 text-slate-500 dark:text-white/55" />{title}</p>
         {aside}
       </div>
       {children}
@@ -102,9 +102,9 @@ export default function RaceStrategy({ race, activities }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-white/55">
           {goalSec
-            ? <>Plan para <span className="font-bold text-slate-800">{formatDuration(goalSec)}</span> ({goalSource}) · ritmo medio {pace(goalSec / (raceM / 1000))}/km</>
+            ? <>Plan para <span className="font-bold text-slate-800 dark:text-white">{formatDuration(goalSec)}</span> ({goalSource}) · ritmo medio {pace(goalSec / (raceM / 1000))}/km</>
             : 'Pon un tiempo objetivo a la carrera (o registra marcas para tener predicción) para calcular el plan de ritmo.'}
         </p>
         <div className="flex items-center gap-2">
@@ -114,17 +114,17 @@ export default function RaceStrategy({ race, activities }) {
             <ArrowUpTrayIcon className="w-3.5 h-3.5" />{course ? 'Cambiar GPX' : 'Subir GPX del recorrido'}
           </button>
           {course && (
-            <button type="button" onClick={removeCourse} title="Quitar recorrido" className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50">
+            <button type="button" onClick={removeCourse} title="Quitar recorrido" className="p-1.5 rounded-lg text-slate-500 dark:text-white/55 hover:text-rose-600 hover:bg-rose-50">
               <TrashIcon className="w-4 h-4" />
             </button>
           )}
         </div>
       </div>
-      {fileError && <p className="text-xs font-semibold text-rose-600">{fileError}</p>}
+      {fileError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-300">{fileError}</p>}
 
       {course && (
         <Section icon={BoltIcon} title="Ritmo km a km (esfuerzo constante)"
-          aside={<span className="text-xs text-slate-500">GPX {(course.distance_m / 1000).toFixed(2)} km · +{course.gain_m} / −{course.loss_m} m{!course.has_elevation ? ' · sin altitud' : ''}</span>}>
+          aside={<span className="text-xs text-slate-500 dark:text-white/55">GPX {(course.distance_m / 1000).toFixed(2)} km · +{course.gain_m} / −{course.loss_m} m{!course.has_elevation ? ' · sin altitud' : ''}</span>}>
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
@@ -140,23 +140,23 @@ export default function RaceStrategy({ race, activities }) {
           </div>
           {plan && (
             <>
-              <p className="text-xs text-slate-500">
-                Ritmo equivalente en llano: <span className="font-semibold text-slate-700">{pace(plan.flat_pace_s)}/km</span>. Sube con el esfuerzo, no con el reloj:
+              <p className="text-xs text-slate-500 dark:text-white/55">
+                Ritmo equivalente en llano: <span className="font-semibold text-slate-700 dark:text-white/75">{pace(plan.flat_pace_s)}/km</span>. Sube con el esfuerzo, no con el reloj:
                 en las cuestas el ritmo cae y en las bajadas se recupera solo.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs tabular-nums">
-                  <thead className="text-slate-500 text-left">
+                  <thead className="text-slate-500 dark:text-white/55 text-left">
                     <tr><th className="py-1 pr-3">Km</th><th className="py-1 pr-3">Pendiente</th><th className="py-1 pr-3">D+/D−</th><th className="py-1 pr-3">Ritmo</th><th className="py-1">Paso</th></tr>
                   </thead>
                   <tbody>
                     {plan.kms.map((k) => (
-                      <tr key={k.km} className="border-t border-slate-100">
+                      <tr key={k.km} className="border-t border-slate-100 dark:border-white/10">
                         <td className="py-1 pr-3 font-semibold">{k.km}{k.length_m < 990 ? ` (${k.length_m} m)` : ''}</td>
-                        <td className={`py-1 pr-3 ${k.grade_pct > 1.5 ? 'text-rose-600' : k.grade_pct < -1.5 ? 'text-emerald-600' : 'text-slate-500'}`}>{k.grade_pct > 0 ? '+' : ''}{k.grade_pct}%</td>
-                        <td className="py-1 pr-3 text-slate-500">+{k.gain_m}/−{k.loss_m}</td>
-                        <td className="py-1 pr-3 font-bold text-slate-900">{pace(k.pace_s)}</td>
-                        <td className="py-1 text-slate-600">{formatDuration(k.cum_s)}</td>
+                        <td className={`py-1 pr-3 ${k.grade_pct > 1.5 ? 'text-rose-600 dark:text-rose-300' : k.grade_pct < -1.5 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-white/55'}`}>{k.grade_pct > 0 ? '+' : ''}{k.grade_pct}%</td>
+                        <td className="py-1 pr-3 text-slate-500 dark:text-white/55">+{k.gain_m}/−{k.loss_m}</td>
+                        <td className="py-1 pr-3 font-bold text-slate-900 dark:text-white">{pace(k.pace_s)}</td>
+                        <td className="py-1 text-slate-600 dark:text-white/75">{formatDuration(k.cum_s)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -170,26 +170,26 @@ export default function RaceStrategy({ race, activities }) {
       <div className="grid gap-3 md:grid-cols-2">
         <Section icon={SunIcon} title="Calor el día de la carrera">
           {!course ? (
-            <p className="text-xs text-slate-500">Sube el GPX: la previsión se pide en el punto de salida.</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">Sube el GPX: la previsión se pide en el punto de salida.</p>
           ) : !race.date ? (
-            <p className="text-xs text-slate-500">La carrera no tiene fecha.</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">La carrera no tiene fecha.</p>
           ) : weather.key !== weatherKey ? (
-            <p className="text-xs text-slate-500">Consultando Open-Meteo…</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">Consultando Open-Meteo…</p>
           ) : !heat ? (
-            <p className="text-xs text-slate-500">Sin datos meteorológicos{weather.error ? `: ${weather.error}` : ''}.</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">Sin datos meteorológicos{weather.error ? `: ${weather.error}` : ''}.</p>
           ) : (
             <div className="space-y-1.5 text-sm">
               <p>
                 <span className="font-bold">{heat.temp_c} °C</span> · {heat.humidity_pct}% humedad · WBGT <span className="font-bold">{heat.wbgt_c} °C</span>
-                <span className="text-xs text-slate-500"> ({heat.source === 'forecast' ? 'previsión' : 'lo normal esa fecha, últimos 3 años'}, {race.startTime || '09:00'} en adelante)</span>
+                <span className="text-xs text-slate-500 dark:text-white/55"> ({heat.source === 'forecast' ? 'previsión' : 'lo normal esa fecha, últimos 3 años'}, {race.startTime || '09:00'} en adelante)</span>
               </p>
               {heat.penalty_pct > 0 ? (
-                <p className="text-xs text-slate-700">
-                  Coste esperado del calor: <span className="font-bold text-amber-600">+{heat.penalty_pct}%</span>
+                <p className="text-xs text-slate-700 dark:text-white/75">
+                  Coste esperado del calor: <span className="font-bold text-amber-600 dark:text-amber-300">+{heat.penalty_pct}%</span>
                   {heat.adjusted_goal_s && <> → objetivo realista <span className="font-bold">{formatDuration(heat.adjusted_goal_s)}</span>. Sal a ese ritmo, no al de tu objetivo en fresco.</>}
                 </p>
               ) : (
-                <p className="text-xs text-emerald-700">Condiciones sin penalización por calor.</p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">Condiciones sin penalización por calor.</p>
               )}
             </div>
           )}
@@ -197,15 +197,15 @@ export default function RaceStrategy({ race, activities }) {
 
         <Section icon={BoltIcon} title="Bajada de ritmo esperada">
           {!fade ? (
-            <p className="text-xs text-slate-500">Hacen falta al menos 2 tiradas largas (≥ {Math.round(Math.min(30, Math.max(12, raceM * 0.75 / 1000)))} km) con parciales en el último año.</p>
+            <p className="text-xs text-slate-500 dark:text-white/55">Hacen falta al menos 2 tiradas largas (≥ {Math.round(Math.min(30, Math.max(12, raceM * 0.75 / 1000)))} km) con parciales en el último año.</p>
           ) : (
             <div className="space-y-1.5 text-sm">
               <p>
                 En tus {fade.runs} tiradas largas sueles terminar el último tercio
-                <span className={`font-bold ${fade.fade_pct > 3 ? 'text-rose-600' : fade.fade_pct > 0 ? 'text-amber-600' : 'text-emerald-600'}`}> {fade.fade_pct > 0 ? `${fade.fade_pct}% más lento` : `${Math.abs(fade.fade_pct)}% más rápido`}</span> que el primero (ritmo ajustado por desnivel).
+                <span className={`font-bold ${fade.fade_pct > 3 ? 'text-rose-600 dark:text-rose-300' : fade.fade_pct > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`}> {fade.fade_pct > 0 ? `${fade.fade_pct}% más lento` : `${Math.abs(fade.fade_pct)}% más rápido`}</span> que el primero (ritmo ajustado por desnivel).
               </p>
               {plan && fade.fade_pct > 1 && (
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 dark:text-white/75">
                   Si se repite el patrón, el plan de {formatDuration(plan.kms[plan.kms.length - 1].cum_s)} acabaría en <span className="font-bold">{formatDuration(timeWithFade(plan, fade.fade_pct))}</span>.
                   Sal 2-3 s/km por encima del plan los primeros km y guarda el esfuerzo para el último tercio.
                 </p>
@@ -218,23 +218,23 @@ export default function RaceStrategy({ race, activities }) {
       {fuel && (
         <Section icon={BeakerIcon} title="Avituallamiento">
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Carbohidratos</p><p className="text-sm font-bold">{fuel.carbs_g_h.lo}–{fuel.carbs_g_h.hi} g/h</p></div>
-            <div className="rounded-lg bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Líquido</p><p className="text-sm font-bold">{fuel.fluid_ml_h.lo}–{fuel.fluid_ml_h.hi} ml/h</p></div>
-            <div className="rounded-lg bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Sodio</p><p className="text-sm font-bold">{fuel.sodium_mg_h.lo}–{fuel.sodium_mg_h.hi} mg/h</p></div>
+            <div className="rounded-lg bg-slate-50 dark:bg-white/[0.04] p-2"><p className="text-[11px] text-slate-500 dark:text-white/55">Carbohidratos</p><p className="text-sm font-bold">{fuel.carbs_g_h.lo}–{fuel.carbs_g_h.hi} g/h</p></div>
+            <div className="rounded-lg bg-slate-50 dark:bg-white/[0.04] p-2"><p className="text-[11px] text-slate-500 dark:text-white/55">Líquido</p><p className="text-sm font-bold">{fuel.fluid_ml_h.lo}–{fuel.fluid_ml_h.hi} ml/h</p></div>
+            <div className="rounded-lg bg-slate-50 dark:bg-white/[0.04] p-2"><p className="text-[11px] text-slate-500 dark:text-white/55">Sodio</p><p className="text-sm font-bold">{fuel.sodium_mg_h.lo}–{fuel.sodium_mg_h.hi} mg/h</p></div>
           </div>
           {fuel.gels.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-slate-700 mb-1">Geles de {fuel.gel_carbs_g} g:</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-white/75 mb-1">Geles de {fuel.gel_carbs_g} g:</p>
               <div className="flex flex-wrap gap-1.5">
                 {fuel.gels.map((g, i) => (
-                  <span key={i} className="px-2 py-1 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold tabular-nums">
+                  <span key={i} className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-400/10 text-amber-800 dark:text-amber-200 text-xs font-semibold tabular-nums">
                     min {g.at_min}{g.km ? ` · km ${g.km}` : ''}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          <ul className="list-disc pl-5 text-xs text-slate-600 space-y-0.5">
+          <ul className="list-disc pl-5 text-xs text-slate-600 dark:text-white/75 space-y-0.5">
             {fuel.notes.map((n) => <li key={n}>{n}</li>)}
           </ul>
         </Section>

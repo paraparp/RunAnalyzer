@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPlainActivityLog, buildPrompt } from './athleteContext';
+import { buildPlainActivityLog, buildPrompt, computeReadiness, pickSleep } from './athleteContext';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 // Todo es relativo a "hoy": buildPrompt corta por ventanas móviles (1 año, 8 sem,
@@ -342,5 +342,34 @@ describe('buildPrompt · coherencia del modelo de carga', () => {
     // Un ritmo negativo (con el guion NO actuando de separador de rango) sería
     // dato corrupto; el propio prompt le prohíbe al modelo usarlo.
     expect(ctx).not.toMatch(/(?<![\d:])-\d+:\d{2}\/km/);
+  });
+});
+
+describe('pickSleep', () => {
+  const now = Date.parse('2026-10-25T09:00:00Z');
+  const weekly = [{ weekStart: '2026-10-13', score: 73, durationMin: 437 }];
+
+  it('usa la última noche y su media de 7 días cuando es reciente', () => {
+    const rows = [
+      { date: '2026-10-25', sleepScore: 52, sleepMin: 380 },
+      { date: '2026-10-24', sleepScore: 70 },
+      { date: '2026-10-22', sleepScore: 82 },
+      { date: '2026-10-10', sleepScore: 10 }, // fuera de la ventana de 7 días
+    ];
+    const s = pickSleep(rows, weekly, now);
+    expect(s).toMatchObject({ nightly: true, score: 52, durationMin: 380 });
+    expect(s.avg7).toBeCloseTo((52 + 70 + 82) / 3);
+  });
+
+  it('sin noche reciente cae a la media semanal, marcada como tal', () => {
+    const s = pickSleep([{ date: '2026-10-20', sleepScore: 60 }], weekly, now);
+    expect(s).toMatchObject({ nightly: false, score: 73, avg7: null });
+  });
+
+  it('una mala noche baja el readiness aunque la media semanal sea buena', () => {
+    const base = { pmc: { tsb: 0 } };
+    const good = computeReadiness({ ...base, sleep: { score: 80, avg7: 80 } });
+    const bad = computeReadiness({ ...base, sleep: { score: 50, avg7: 80 } });
+    expect(bad.score).toBeLessThan(good.score);
   });
 });

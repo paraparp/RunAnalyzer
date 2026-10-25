@@ -70,10 +70,10 @@ const CustomTooltipScatter = ({ active, payload }) => {
         return (
             <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm shadow-xl">
                 <div className="font-bold text-white mb-1">{d.name}</div>
-                <div className="text-slate-400">{d.dateFormatted} · {d.km.toFixed(1)}km</div>
+                <div className="text-slate-400 dark:text-white/40">{d.dateFormatted} · {d.km.toFixed(1)}km</div>
                 <div className="text-rose-400">FC media: {Math.round(d.hr)} bpm</div>
                 <div className="text-emerald-400">GAP: {d.gap}/km</div>
-                {d.rawPace && <div className="text-slate-500">Ritmo real: {d.rawPace}/km · {Math.round(d.elev)}m D+</div>}
+                {d.rawPace && <div className="text-slate-500 dark:text-white/55">Ritmo real: {d.rawPace}/km · {Math.round(d.elev)}m D+</div>}
                 <div className="text-blue-400 text-xs mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
             </div>
         );
@@ -87,7 +87,7 @@ const CustomTooltipTimeline = ({ active, payload }) => {
         return (
             <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm shadow-xl">
                 <div className="font-bold text-white">{d.name} · {d.dateFormatted}</div>
-                <div className="text-slate-400">{d.km.toFixed(1)}km · GAP {d.gap}/km · {Math.round(d.elev)}m D+</div>
+                <div className="text-slate-400 dark:text-white/40">{d.km.toFixed(1)}km · GAP {d.gap}/km · {Math.round(d.elev)}m D+</div>
                 <div className="text-rose-400 font-semibold">FC: {Math.round(d.avgHr)} bpm (max {Math.round(d.maxHr)})</div>
                 <div className="text-blue-400 text-xs mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
             </div>
@@ -330,8 +330,8 @@ export default function HRAnalysis({ activities }) {
 
     if (!processedData) {
         return (
-            <div className="text-center py-12 text-slate-500">
-                <HeartIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <div className="text-center py-12 text-slate-500 dark:text-white/55">
+                <HeartIcon className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-white/40" />
                 <p className="text-sm">{t('hr_analysis.no_data')}</p>
                 <p className="text-xs mt-1">{t('hr_analysis.check_hr')}</p>
             </div>
@@ -351,13 +351,13 @@ export default function HRAnalysis({ activities }) {
         <div className="space-y-5">
             {/* Banner Diagnóstico Automático */}
             {diagnosis.hrDeviation > 5 && (
-                <div className="bg-white border border-rose-200 rounded-2xl p-6 flex gap-5 items-start shadow-sm">
-                    <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl shrink-0">
+                <div className="bg-white dark:bg-white/[0.03] border border-rose-200 dark:border-rose-300/25 rounded-2xl p-6 flex gap-5 items-start shadow-sm">
+                    <div className="bg-rose-100 dark:bg-rose-400/10 text-rose-600 dark:text-rose-300 p-3 rounded-2xl shrink-0">
                         <ExclamationTriangleIcon className="w-6 h-6" />
                     </div>
                     <div>
-                        <h4 className="text-slate-900 font-black text-sm uppercase tracking-tight mb-1">{t('hr_analysis.diagnosis.critical_pattern')}</h4>
-                        <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                        <h4 className="text-slate-900 dark:text-white font-black text-sm uppercase tracking-tight mb-1">{t('hr_analysis.diagnosis.critical_pattern')}</h4>
+                        <p className="text-slate-500 dark:text-white/55 text-sm leading-relaxed font-medium">
                             {t('hr_analysis.diagnosis.deviation_msg', { bpm: Math.round(diagnosis.hrDeviation) })}
                         </p>
                     </div>
@@ -366,7 +366,7 @@ export default function HRAnalysis({ activities }) {
 
             {/* Filter + Tabs header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="flex-1 flex gap-1 bg-slate-50 rounded-2xl p-1.5 border border-slate-100 shrink-0 shadow-sm">
+                <div className="flex-1 flex gap-1 bg-slate-50 dark:bg-white/[0.04] rounded-2xl p-1.5 border border-slate-100 dark:border-white/10 shrink-0 shadow-sm">
                     {tabs.map(t => (
                         <button
                             key={t.id}
@@ -374,7 +374,7 @@ export default function HRAnalysis({ activities }) {
                             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300
                                 ${activeTab === t.id
                                     ? "bg-slate-900 text-white shadow-lg scale-105"
-                                    : "text-slate-500 hover:text-slate-600 hover:bg-white"
+                                    : "text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.05]"
                                 }`}
                         >
                             {t.label}
@@ -384,16 +384,16 @@ export default function HRAnalysis({ activities }) {
 
                 {/* Tope de sesiones. El PERÍODO es el compartido (barra superior); esto
                     solo limita cuántas se dibujan, porque los gráficos van sesión a sesión. */}
-                <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-2xl px-4 h-[48px] shadow-sm">
-                    <ClockIcon className="w-4 h-4 text-slate-400" />
-                    <span className="text-label font-bold uppercase text-slate-500">{t('hr_analysis.filters.last')}</span>
+                <div className="flex items-center gap-2 bg-white dark:bg-white/[0.03] border border-slate-100 dark:border-white/10 rounded-2xl px-4 h-[48px] shadow-sm">
+                    <ClockIcon className="w-4 h-4 text-slate-400 dark:text-white/40" />
+                    <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('hr_analysis.filters.last')}</span>
                     <input
                         type="number"
                         value={lastNRuns}
                         onChange={(e) => setLastNRuns(Math.max(1, parseInt(e.target.value) || 0))}
-                        className="w-10 text-sm font-black text-slate-900 bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
+                        className="w-10 text-sm font-black text-slate-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0 text-center tabular-nums"
                     />
-                    <span className="text-label text-slate-500 font-bold uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
+                    <span className="text-label text-slate-500 dark:text-white/55 font-bold uppercase tracking-tighter">{t('hr_analysis.filters.runs')}</span>
                 </div>
             </div>
 
@@ -409,9 +409,9 @@ export default function HRAnalysis({ activities }) {
                                 unit: "bpm",
                                 sub: t('hr_analysis.stats.sessions', { count: timeline.length }),
                                 icon: HeartIcon,
-                                color: "text-blue-600",
-                                bg: "bg-blue-50",
-                                border: "border-blue-100"
+                                color: "text-teal-700 dark:text-teal-300",
+                                bg: "bg-teal-50 dark:bg-teal-400/10",
+                                border: "border-teal-200 dark:border-teal-300/25"
                             },
                             {
                                 label: t('hr_analysis.stats.max_hr'),
@@ -419,9 +419,9 @@ export default function HRAnalysis({ activities }) {
                                 unit: "bpm",
                                 sub: t('hr_analysis.stats.limit'),
                                 icon: FireIcon,
-                                color: "text-rose-600",
-                                bg: "bg-rose-50",
-                                border: "border-rose-100"
+                                color: "text-rose-600 dark:text-rose-300",
+                                bg: "bg-rose-50 dark:bg-rose-400/10",
+                                border: "border-rose-100 dark:border-rose-300/25"
                             },
                             {
                                 label: t('hr_analysis.stats.min_effort'),
@@ -429,9 +429,9 @@ export default function HRAnalysis({ activities }) {
                                 unit: "bpm",
                                 sub: `${stats.lowestAvgHr.dateFormatted}`,
                                 icon: SparklesIcon,
-                                color: "text-emerald-600",
-                                bg: "bg-emerald-50",
-                                border: "border-emerald-100"
+                                color: "text-emerald-600 dark:text-emerald-300",
+                                bg: "bg-emerald-50 dark:bg-emerald-400/10",
+                                border: "border-emerald-100 dark:border-emerald-300/25"
                             },
                             {
                                 label: t('hr_analysis.stats.max_effort'),
@@ -439,26 +439,26 @@ export default function HRAnalysis({ activities }) {
                                 unit: "bpm",
                                 sub: `${stats.highestAvgHr.dateFormatted}`,
                                 icon: ExclamationTriangleIcon,
-                                color: "text-amber-600",
-                                bg: "bg-amber-50",
-                                border: "border-amber-100"
+                                color: "text-amber-600 dark:text-amber-300",
+                                bg: "bg-amber-50 dark:bg-amber-400/10",
+                                border: "border-amber-100 dark:border-amber-300/25"
                             },
                         ].map((card, i) => (
-                            <div key={i} className={`bg-white rounded-2xl p-6 border ${card.border} shadow-sm transition-all hover:shadow-md group`}>
+                            <div key={i} className={`bg-white dark:bg-white/[0.03] rounded-2xl p-6 border ${card.border} shadow-sm transition-all hover:shadow-md group`}>
                                 <div className="flex justify-between items-start mb-4">
                                   <div className={`p-2 rounded-xl ${card.bg} ${card.color} transition-transform group-hover:scale-110`}>
                                       <card.icon className="w-5 h-5" />
                                   </div>
-                                  <div className="text-label font-bold uppercase text-slate-500">{card.label}</div>
+                                  <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{card.label}</div>
                                 </div>
                                 <div className="flex items-baseline gap-1.5">
-                                    <span className={`text-3xl font-black text-slate-900 tabular-nums leading-none`}>
+                                    <span className={`text-3xl font-black text-slate-900 dark:text-white tabular-nums leading-none`}>
                                         {card.value}
                                     </span>
-                                    <span className="text-xs font-bold text-slate-500 capitalize">{card.unit}</span>
+                                    <span className="text-xs font-bold text-slate-500 dark:text-white/55 capitalize">{card.unit}</span>
                                 </div>
-                                <div className="text-xs font-bold text-slate-500 mt-3 flex items-center gap-1.5">
-                                  <div className="w-1 h-1 rounded-full bg-slate-200" />
+                                <div className="text-xs font-bold text-slate-500 dark:text-white/55 mt-3 flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-slate-200 dark:bg-white/10" />
                                   {card.sub}
                                 </div>
                             </div>
@@ -468,26 +468,26 @@ export default function HRAnalysis({ activities }) {
                     {/* Comparative Cards (Anomalies) */}
                     {diagnosis.recentCount >= 2 && Math.abs(diagnosis.hrDeviation) > 2 && (
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-sm">
-                                <div className="text-label font-bold uppercase text-slate-500 mb-2">FC Rodaje Base</div>
-                                <div className="text-2xl font-extrabold text-slate-700 tabular-nums">
-                                    {Math.round(stats.avgHrAll - diagnosis.hrDeviation)} <span className="text-xs font-normal text-slate-500">bpm</span>
+                            <div className="bg-white dark:bg-white/[0.03] rounded-xl p-4 border border-slate-200/80 dark:border-white/10 shadow-sm">
+                                <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">FC Rodaje Base</div>
+                                <div className="text-2xl font-extrabold text-slate-700 dark:text-white/75 tabular-nums">
+                                    {Math.round(stats.avgHrAll - diagnosis.hrDeviation)} <span className="text-xs font-normal text-slate-500 dark:text-white/55">bpm</span>
                                 </div>
-                                <div className="text-xs text-slate-500 mt-1">Nivel histórico de referencia</div>
+                                <div className="text-xs text-slate-500 dark:text-white/55 mt-1">Nivel histórico de referencia</div>
                             </div>
-                            <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-sm">
-                                <div className="text-label font-bold uppercase text-slate-500 mb-2">FC Rodaje Reciente</div>
-                                <div className="text-2xl font-extrabold text-rose-600 tabular-nums">
-                                    {Math.round(stats.avgHrAll)} <span className="text-xs font-normal text-slate-500">bpm</span>
+                            <div className="bg-white dark:bg-white/[0.03] rounded-xl p-4 border border-slate-200/80 dark:border-white/10 shadow-sm">
+                                <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">FC Rodaje Reciente</div>
+                                <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-300 tabular-nums">
+                                    {Math.round(stats.avgHrAll)} <span className="text-xs font-normal text-slate-500 dark:text-white/55">bpm</span>
                                 </div>
-                                <div className="text-xs text-slate-500 mt-1">Últimas {diagnosis.recentCount} sesiones (GAP similar)</div>
+                                <div className="text-xs text-slate-500 dark:text-white/55 mt-1">Últimas {diagnosis.recentCount} sesiones (GAP similar)</div>
                             </div>
-                            <div className={`rounded-xl p-4 border ${diagnosis.hrDeviation > 5 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} col-span-2 lg:col-span-1 shadow-sm`}>
-                                <div className="text-label font-bold uppercase text-slate-500 mb-2">Desviación detectada</div>
-                                <div className={`text-2xl font-extrabold tabular-nums ${diagnosis.hrDeviation > 5 ? 'text-rose-600' : 'text-slate-700'}`}>
+                            <div className={`rounded-xl p-4 border ${diagnosis.hrDeviation > 5 ? 'bg-rose-50 dark:bg-rose-400/10 border-rose-200 dark:border-rose-300/25' : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10'} col-span-2 lg:col-span-1 shadow-sm`}>
+                                <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">Desviación detectada</div>
+                                <div className={`text-2xl font-extrabold tabular-nums ${diagnosis.hrDeviation > 5 ? 'text-rose-600 dark:text-rose-300' : 'text-slate-700 dark:text-white/75'}`}>
                                     {diagnosis.hrDeviation > 0 ? '+' : ''}{Math.round(diagnosis.hrDeviation)} <span className="text-xs font-normal opacity-70">bpm</span>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-slate-500 dark:text-white/55 mt-1">
                                     {diagnosis.hrDeviation > 5 ? '⚠️ Variación significativa' : 'Desviación moderada'}
                                 </p>
                             </div>
@@ -495,9 +495,9 @@ export default function HRAnalysis({ activities }) {
                     )}
 
                     {/* Timeline Chart */}
-                    <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                        <h3 className="text-sm font-bold text-slate-800 mb-0.5">FC Media por Sesión</h3>
-                        <p className="text-xs text-slate-500 mb-4">Color = mes · Tamaño proporcional a distancia</p>
+                    <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10 p-5">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-0.5">FC Media por Sesión</h3>
+                        <p className="text-xs text-slate-500 dark:text-white/55 mb-4">Color = mes · Tamaño proporcional a distancia</p>
                         <ResponsiveContainer width="100%" height={280}>
                             <ComposedChart data={timeline.map((r, i) => ({ ...r, idx: i }))}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} strokeOpacity={0.5} />
@@ -552,7 +552,7 @@ export default function HRAnalysis({ activities }) {
                                     className={`flex items-center gap-1.5 transition-opacity ${hiddenMonths.has(m.monthIndex) ? 'opacity-30 line-through' : 'opacity-100'}`}
                                 >
                                     <div className="w-2.5 h-2.5 rounded-full" style={{ background: MONTH_COLORS[m.monthIndex] }} />
-                                    <span className="text-slate-500">{m.label}</span>
+                                    <span className="text-slate-500 dark:text-white/55">{m.label}</span>
                                 </button>
                             ))}
                             <span className="text-blue-400 text-xs">--- mediana: {Math.round(stats.medianHr)} bpm</span>
@@ -565,9 +565,9 @@ export default function HRAnalysis({ activities }) {
             {/* ===================== SCATTER TAB ===================== */}
             {activeTab === "scatter" && (
                 <div className="space-y-5">
-                    <div className="bg-white rounded-xl border border-slate-200/80 p-5">
-                        <h3 className="text-sm font-bold text-slate-800 mb-0.5">FC Media vs GAP (Ritmo Ajustado)</h3>
-                        <p className="text-xs text-slate-500 mb-4">Todas las carreras &gt;3km · Velocidad ajustada por desnivel (GAP) · Mismo GAP → ¿FC más alta en ciertos meses?</p>
+                    <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10 p-5">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-0.5">FC Media vs GAP (Ritmo Ajustado)</h3>
+                        <p className="text-xs text-slate-500 dark:text-white/55 mb-4">Todas las carreras &gt;3km · Velocidad ajustada por desnivel (GAP) · Mismo GAP → ¿FC más alta en ciertos meses?</p>
                         {scatterData.length > 0 ? (
                             <>
                                 <ResponsiveContainer width="100%" height={320}>
@@ -604,7 +604,7 @@ export default function HRAnalysis({ activities }) {
                                                     fill={entry.color}
                                                     fillOpacity={0.8}
                                                     r={5}
-                                                    stroke="white"
+                                                    stroke={COLORS.paper}
                                                     strokeWidth={1}
                                                 />
                                             ))}
@@ -620,18 +620,18 @@ export default function HRAnalysis({ activities }) {
                                             className={`flex items-center gap-1.5 transition-opacity ${hiddenMonths.has(m.monthIndex) ? 'opacity-30 line-through' : 'opacity-100'}`}
                                         >
                                             <div className="w-2.5 h-2.5 rounded-full" style={{ background: MONTH_COLORS[m.monthIndex] }} />
-                                            <span className="text-slate-500">{m.label}</span>
+                                            <span className="text-slate-500 dark:text-white/55">{m.label}</span>
                                         </button>
                                     ))}
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes carreras llanas con FC para mostrar.</p>
+                            <p className="text-sm text-slate-500 dark:text-white/55 text-center py-8">No hay suficientes carreras llanas con FC para mostrar.</p>
                         )}
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm leading-relaxed text-blue-950/80">
-                        <strong className="text-blue-600">💡 Cómo leer:</strong> Si para la misma velocidad tu FC sube con el tiempo, puede indicar fatiga acumulada, deshidratación o cambio de condiciones. Los puntos del mismo color (mes) deberían agruparse.
+                    <div className="bg-teal-50 dark:bg-teal-400/10 border border-teal-200 dark:border-teal-300/25 rounded-xl p-4 text-sm leading-relaxed text-blue-950/80">
+                        <strong className="text-teal-700 dark:text-teal-300">💡 Cómo leer:</strong> Si para la misma velocidad tu FC sube con el tiempo, puede indicar fatiga acumulada, deshidratación o cambio de condiciones. Los puntos del mismo color (mes) deberían agruparse.
                     </div>
                 </div>
             )}
@@ -640,22 +640,22 @@ export default function HRAnalysis({ activities }) {
             {/* ===================== EFFICIENCY TAB ===================== */}
             {activeTab === "efficiency" && (
                 <div className="space-y-5">
-                    <div className="bg-white rounded-xl border border-slate-200/80 p-5">
+                    <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10 p-5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
-                                <h3 className="text-sm font-bold text-slate-800 mb-0.5">Eficiencia Cardíaca</h3>
-                                <p className="text-xs text-slate-500">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-0.5">Eficiencia Cardíaca</h3>
+                                <p className="text-xs text-slate-500 dark:text-white/55">
                                     Carreras llanas (&lt;2.5% pendiente, &gt;3.5km, GAP &lt;7:00/km).
                                     {effMetric === "hre" ? " Menos latidos/km = más eficiente." : " Más metros por latido = más eficiente."}
                                 </p>
                             </div>
-                            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80 shrink-0">
+                            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100/80 dark:bg-white/[0.04] shrink-0">
                                 <button
                                     onClick={() => setEffMetric("hre")}
                                     className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-150
                                         ${effMetric === "hre"
-                                            ? "bg-white text-slate-900 shadow-sm"
-                                            : "text-slate-500 hover:text-slate-700"
+                                            ? "bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm"
+                                            : "text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white"
                                         }`}
                                 >
                                     HRE (lat/km)
@@ -664,8 +664,8 @@ export default function HRAnalysis({ activities }) {
                                     onClick={() => setEffMetric("ef")}
                                     className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-150
                                         ${effMetric === "ef"
-                                            ? "bg-white text-slate-900 shadow-sm"
-                                            : "text-slate-500 hover:text-slate-700"
+                                            ? "bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm"
+                                            : "text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white"
                                         }`}
                                 >
                                     EF (m/latido)
@@ -693,7 +693,7 @@ export default function HRAnalysis({ activities }) {
                                                 return (
                                                     <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm shadow-xl">
                                                         <div className="font-bold text-white">{d.name}</div>
-                                                        <div className="text-slate-400">{d.dateFormatted} · {d.km.toFixed(1)}km</div>
+                                                        <div className="text-slate-400 dark:text-white/40">{d.dateFormatted} · {d.km.toFixed(1)}km</div>
                                                         <div className="text-rose-400">FC: {Math.round(d.avgHr)} bpm</div>
                                                         <div className="text-emerald-400">GAP: {d.gap}/km (real: {d.rawPace}/km)</div>
                                                         <div className="text-cyan-400">HRE: {Math.round(d.hre)} lat/km</div>
@@ -728,7 +728,7 @@ export default function HRAnalysis({ activities }) {
                                                         cy={cy}
                                                         r={4}
                                                         fill={payload.color}
-                                                        stroke="white"
+                                                        stroke={COLORS.paper}
                                                         strokeWidth={1.5}
                                                         style={{ cursor: 'pointer' }}
                                                         onClick={() => openStrava(payload.id)}
@@ -750,38 +750,38 @@ export default function HRAnalysis({ activities }) {
                                         const unit = key === "hre" ? "lat/km" : "bpm/(m/s)";
                                         const fmt = (v) => key === "hre" ? Math.round(v) : v.toFixed(1);
                                         return [
-                                            { label: "Mejor Eficiencia", value: fmt(bestRun[key]), sub: bestRun.dateFormatted, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
-                                            { label: "Media", value: fmt(avg), sub: unit, color: key === "hre" ? "text-cyan-600" : "text-blue-600", bg: key === "hre" ? "bg-cyan-50" : "bg-blue-50", border: key === "hre" ? "border-cyan-200" : "border-blue-200" },
-                                            { label: "Peor Eficiencia", value: fmt(worstRun[key]), sub: worstRun.dateFormatted, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" },
+                                            { label: "Mejor Eficiencia", value: fmt(bestRun[key]), sub: bestRun.dateFormatted, color: "text-emerald-600 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-400/10", border: "border-emerald-200 dark:border-emerald-300/25" },
+                                            { label: "Media", value: fmt(avg), sub: unit, color: key === "hre" ? "text-cyan-600 dark:text-cyan-300" : "text-teal-700 dark:text-teal-300", bg: key === "hre" ? "bg-cyan-50 dark:bg-cyan-400/10" : "bg-teal-50 dark:bg-teal-400/10", border: key === "hre" ? "border-cyan-200 dark:border-cyan-300/25" : "border-teal-200 dark:border-teal-300/25" },
+                                            { label: "Peor Eficiencia", value: fmt(worstRun[key]), sub: worstRun.dateFormatted, color: "text-rose-600 dark:text-rose-300", bg: "bg-rose-50 dark:bg-rose-400/10", border: "border-rose-200 dark:border-rose-300/25" },
                                         ];
                                     })().map((card, i) => (
                                         <div key={i} className={`${card.bg} rounded-xl p-3.5 border ${card.border}`}>
-                                            <div className="text-label uppercase font-bold text-slate-500 mb-1.5">{card.label}</div>
+                                            <div className="text-label uppercase font-bold text-slate-500 dark:text-white/55 mb-1.5">{card.label}</div>
                                             <div className={`text-xl font-extrabold tabular-nums ${card.color}`}>{card.value}</div>
-                                            <div className="text-xs text-slate-500 mt-1">{card.sub}</div>
+                                            <div className="text-xs text-slate-500 dark:text-white/55 mt-1">{card.sub}</div>
                                         </div>
                                     ))}
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes carreras llanas con FC para calcular eficiencia.</p>
+                            <p className="text-sm text-slate-500 dark:text-white/55 text-center py-8">No hay suficientes carreras llanas con FC para calcular eficiencia.</p>
                         )}
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm leading-relaxed text-blue-950/80">
+                    <div className="bg-teal-50 dark:bg-teal-400/10 border border-teal-200 dark:border-teal-300/25 rounded-xl p-4 text-sm leading-relaxed text-blue-950/80">
                         {effMetric === "hre" ? (
-                            <><strong className="text-cyan-600">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-xs bg-white/60 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
+                            <><strong className="text-cyan-600 dark:text-cyan-300">🧠 HRE (Heart Rate Efficiency):</strong> Mide cuántos latidos necesita tu corazón para recorrer 1 km (<code className="text-xs bg-white/60 dark:bg-[#0c0e12]/95 px-1 rounded">FC × ritmo GAP</code>). Respaldado por estudios en <em>ResearchGate</em> y <em>arXiv</em>. Un valor <strong>decreciente</strong> indica mejora cardiovascular. Valores típicos: 600-900 lat/km (élite ~550-650).</>
                         ) : (
-                            <><strong className="text-blue-600">🧠 EF (Efficiency Factor):</strong> Los metros que recorres por cada latido (<code className="text-xs bg-white/60 px-1 rounded">velocidad GAP × 60 / FC</code>), la convención de TrainingPeaks y la misma cifra que verás en el resumen vital. Un EF <strong>creciente</strong> indica que tu corazón es más eficiente. Si baja, puede indicar fatiga, calor, deshidratación o pérdida de forma. Es el recíproco exacto del HRE: 1.000 / EF = latidos por km.</>
+                            <><strong className="text-teal-700 dark:text-teal-300">🧠 EF (Efficiency Factor):</strong> Los metros que recorres por cada latido (<code className="text-xs bg-white/60 dark:bg-[#0c0e12]/95 px-1 rounded">velocidad GAP × 60 / FC</code>), la convención de TrainingPeaks y la misma cifra que verás en el resumen vital. Un EF <strong>creciente</strong> indica que tu corazón es más eficiente. Si baja, puede indicar fatiga, calor, deshidratación o pérdida de forma. Es el recíproco exacto del HRE: 1.000 / EF = latidos por km.</>
                         )}
                     </div>
 
                     {/* Pace at 150 BPM Chart */}
-                    <div className="bg-white rounded-xl border border-slate-200/80 p-5 mt-5">
+                    <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10 p-5 mt-5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
-                                <h3 className="text-sm font-bold text-slate-800 mb-0.5">Ritmo a 150 BPM (Fase Base)</h3>
-                                <p className="text-xs text-slate-500">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-0.5">Ritmo a 150 BPM (Fase Base)</h3>
+                                <p className="text-xs text-slate-500 dark:text-white/55">
                                     En tiradas llanas (&gt;6km). Muestra el rendimiento aeróbico sin deriva cardíaca (km 1-6). Menor tiempo = mejor forma.
                                 </p>
                             </div>
@@ -809,7 +809,7 @@ export default function HRAnalysis({ activities }) {
                                                 return (
                                                     <div className="bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-slate-200 text-sm shadow-xl">
                                                         <div className="font-bold text-white">{d.name}</div>
-                                                        <div className="text-slate-400">{d.dateFormatted} · {d.km.toFixed(1)}km total</div>
+                                                        <div className="text-slate-400 dark:text-white/40">{d.dateFormatted} · {d.km.toFixed(1)}km total</div>
                                                         <div className="text-emerald-400 font-bold mt-1">Ritmo @ 150 bpm: {d.pace150Str}/km</div>
                                                         <div className="text-rose-400">Datos reales (km 1-6): {Math.round(d.avgEarlyHr)} bpm @ {formatPaceFromSpeed(d.avgEarlySpeed)}/km</div>
                                                         <div className="text-blue-400 text-xs mt-1.5 opacity-70">🔗 Click para ver en Strava</div>
@@ -833,7 +833,7 @@ export default function HRAnalysis({ activities }) {
                                                         cy={cy}
                                                         r={4}
                                                         fill={payload.color || COLORS.good}
-                                                        stroke="white"
+                                                        stroke={COLORS.paper}
                                                         strokeWidth={1.5}
                                                         style={{ cursor: 'pointer' }}
                                                         onClick={() => openStrava(payload.id)}
@@ -843,12 +843,12 @@ export default function HRAnalysis({ activities }) {
                                         />
                                     </ComposedChart>
                                 </ResponsiveContainer>
-                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-4 text-sm leading-relaxed text-emerald-950/80">
-                                    <strong className="text-emerald-700">📈 Ritmo a 150 BPM:</strong> Calcula a qué ritmo correrías a 150 pulsaciones exactamente, aislando la deriva cardíaca (fatiga) al medir solo los primeros 6 km. Una línea descendente significa que puedes correr más rápido con el mismo pulso.
+                                <div className="bg-emerald-50 dark:bg-emerald-400/10 border border-emerald-100 dark:border-emerald-300/25 rounded-xl p-4 mt-4 text-sm leading-relaxed text-emerald-950/80">
+                                    <strong className="text-emerald-700 dark:text-emerald-300">📈 Ritmo a 150 BPM:</strong> Calcula a qué ritmo correrías a 150 pulsaciones exactamente, aislando la deriva cardíaca (fatiga) al medir solo los primeros 6 km. Una línea descendente significa que puedes correr más rápido con el mismo pulso.
                                 </div>
                             </>
                         ) : (
-                            <p className="text-sm text-slate-500 text-center py-8">No hay suficientes tiradas llanas con datos por parciales para calcular el ritmo a 150 BPM.</p>
+                            <p className="text-sm text-slate-500 dark:text-white/55 text-center py-8">No hay suficientes tiradas llanas con datos por parciales para calcular el ritmo a 150 BPM.</p>
                         )}
                     </div>
                 </div>
@@ -856,21 +856,21 @@ export default function HRAnalysis({ activities }) {
             {/* ===================== DIAGNOSIS TAB ===================== */}
             {activeTab === "diagnosis" && (
                 <div className="space-y-5">
-                    <div className="bg-white rounded-2xl border border-slate-200/80 p-6">
-                        <h3 className="text-base font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200/80 dark:border-white/10 p-6">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                             <FunnelIcon className="w-5 h-5 text-blue-500" />
                             Hallazgos detectados en tus datos
                         </h3>
 
                         <div className="space-y-6">
                             {/* Insight 1: HR Shift */}
-                            <div className="flex gap-4 items-start pb-6 border-bottom border-slate-100 last:border-0">
-                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.hrDeviation > 8 ? "bg-rose-100" : diagnosis.hrDeviation > 3 ? "bg-amber-100" : "bg-emerald-100"}`}>
+                            <div className="flex gap-4 items-start pb-6 border-bottom border-slate-100 dark:border-white/10 last:border-0">
+                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.hrDeviation > 8 ? "bg-rose-100 dark:bg-rose-400/10" : diagnosis.hrDeviation > 3 ? "bg-amber-100 dark:bg-amber-400/10" : "bg-emerald-100 dark:bg-emerald-400/10"}`}>
                                     {diagnosis.hrDeviation > 5 ? "🔴" : "🟢"}
                                 </span>
                                 <div>
-                                    <h4 className="font-bold text-slate-900 text-[15px] mb-1">Frecuencia Cardíaca de Ejercicio</h4>
-                                    <p className="text-slate-500 text-sm leading-relaxed">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-[15px] mb-1">Frecuencia Cardíaca de Ejercicio</h4>
+                                    <p className="text-slate-500 dark:text-white/55 text-sm leading-relaxed">
                                         {diagnosis.hrDeviation > 5
                                             ? `Tus rodajes llanos muestran una subida de ${Math.round(diagnosis.hrDeviation)} bpm para el mismo esfuerzo. Este desplazamiento es una señal clara de que tu cuerpo está trabajando más duro por la misma velocidad.`
                                             : "Mantienes una FC estable en relación a tu velocidad histórica. No se detectan anomalías en el pulso de ejercicio."
@@ -880,13 +880,13 @@ export default function HRAnalysis({ activities }) {
                             </div>
 
                             {/* Insight 2: Drift */}
-                            <div className="flex gap-4 items-start pb-6 border-bottom border-slate-100">
-                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.highDrift ? "bg-orange-100" : "bg-emerald-100"}`}>
+                            <div className="flex gap-4 items-start pb-6 border-bottom border-slate-100 dark:border-white/10">
+                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.highDrift ? "bg-orange-100 dark:bg-orange-400/10" : "bg-emerald-100 dark:bg-emerald-400/10"}`}>
                                     {diagnosis.highDrift ? "🟡" : "🟢"}
                                 </span>
                                 <div>
-                                    <h4 className="font-bold text-slate-900 text-[15px] mb-1">Deriva Cardíaca (Intrasalida)</h4>
-                                    <p className="text-slate-500 text-sm leading-relaxed">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-[15px] mb-1">Deriva Cardíaca (Intrasalida)</h4>
+                                    <p className="text-slate-500 dark:text-white/55 text-sm leading-relaxed">
                                         {diagnosis.avgDrift == null
                                             ? "Aún no hay carreras con parciales en el período para medir la deriva."
                                             : diagnosis.highDrift
@@ -899,12 +899,12 @@ export default function HRAnalysis({ activities }) {
 
                             {/* Insight 3: Efficiency */}
                             <div className="flex gap-4 items-start">
-                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.effTrend === "worsening" ? "bg-rose-100" : diagnosis.effTrend === "improving" ? "bg-emerald-100" : "bg-slate-100"}`}>
+                                <span className={`text-xl p-2 rounded-xl shrink-0 ${diagnosis.effTrend === "worsening" ? "bg-rose-100 dark:bg-rose-400/10" : diagnosis.effTrend === "improving" ? "bg-emerald-100 dark:bg-emerald-400/10" : "bg-slate-100 dark:bg-white/[0.04]"}`}>
                                     {diagnosis.effTrend === "worsening" ? "📉" : diagnosis.effTrend === "improving" ? "📈" : "⚖️"}
                                 </span>
                                 <div>
-                                    <h4 className="font-bold text-slate-900 text-[15px] mb-1">Tendencia de Eficiencia (m/latido)</h4>
-                                    <p className="text-slate-500 text-sm leading-relaxed">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-[15px] mb-1">Tendencia de Eficiencia (m/latido)</h4>
+                                    <p className="text-slate-500 dark:text-white/55 text-sm leading-relaxed">
                                         {diagnosis.effTrend === "worsening"
                                             ? "Tu eficiencia está empeorando: recorres menos metros por latido que hace un mes."
                                             : diagnosis.effTrend === "improving"
@@ -937,7 +937,7 @@ export default function HRAnalysis({ activities }) {
                         </div>
                     </div>
 
-                    <p className="text-xs text-slate-500 italic text-center px-4">
+                    <p className="text-xs text-slate-500 dark:text-white/55 italic text-center px-4">
                         * Este diagnóstico es orientativo basado en algoritmos de datos Strava y no sustituye el criterio de un profesional médico o de cardiología deportiva.
                     </p>
                 </div>

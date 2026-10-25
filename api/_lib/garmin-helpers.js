@@ -429,16 +429,31 @@ export async function fetchGarminActivities(
   return normalized;
 }
 
-export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null) {
+// FC media durante el sueño: la que da Garmin en el resumen de la noche o, si no
+// viene, la media de la serie `sleepHeartRate` (muestras de toda la noche).
+export function sleepAvgHr(sleep) {
+  const dtoAvg = sleep?.dailySleepDTO?.avgHeartRate;
+  if (dtoAvg > 20) return Math.round(dtoAvg * 10) / 10;
+  const vals = (sleep?.sleepHeartRate || []).map((p) => p?.value).filter((v) => v > 20);
+  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
+}
+
+// `withSleep`: guarda también la noche (score, duración, profundo, FC media). El
+// readiness y el explorador la necesitan noche a noche; el cache semanal de sueño
+// solo da medias.
+export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null, { withSleep = false } = {}) {
   const row = { date: dateStr };
   const date = new Date(dateStr);
 
-  try {
-    const hr = await client.getHeartRate(date);
-    if (hr?.restingHeartRate && hr.restingHeartRate > 20) {
-      row.restingHR = hr.restingHeartRate;
-    }
-  } catch { /* day unavailable */ }
+  // Con sueño, las dos requests del día van en paralelo: así el histórico largo
+  // (stream, hasta 5 años) no dobla su duración.
+  const [hr, sleepRes] = await Promise.all([
+    client.getHeartRate(date).catch(() => null), // day unavailable
+    withSleep ? client.getSleepData(date).catch(() => null) : undefined,
+  ]);
+  if (hr?.restingHeartRate && hr.restingHeartRate > 20) {
+    row.restingHR = hr.restingHeartRate;
+  }
 
   const bulkHrv = hrvMap?.get(dateStr);
   if (bulkHrv) {
@@ -447,9 +462,20 @@ export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null)
     if (bulkHrv.baseline)  row.baseline  = bulkHrv.baseline;
   }
 
+  let sleep = sleepRes;
+  const dto = sleep?.dailySleepDTO;
+  if (dto?.sleepTimeSeconds) {
+    const score = dto.sleepScores?.overall?.value;
+    if (score != null) row.sleepScore = score;
+    row.sleepMin = Math.round(dto.sleepTimeSeconds / 60);
+    if (dto.deepSleepSeconds != null) row.deepSleepMin = Math.round(dto.deepSleepSeconds / 60);
+    const avgHr = sleepAvgHr(sleep);
+    if (avgHr != null) row.sleepAvgHR = avgHr;
+  }
+
   if (!row.hrv) {
     try {
-      const sleep = await client.getSleepData(date);
+      if (sleep === undefined) sleep = await client.getSleepData(date);
       if (sleep?.avgOvernightHrv > 0) {
         row.hrv = sleep.avgOvernightHrv;
         if (sleep.hrvStatus) row.hrvStatus = sleep.hrvStatus;
@@ -480,5 +506,5 @@ export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null)
     if (bb.bbHigh != null) row.bbHigh = bb.bbHigh;
   }
 
-  return (row.restingHR || row.hrv || row.bbHigh) ? row : null;
+  return (row.restingHR || row.hrv || row.bbHigh || row.sleepMin) ? row : null;
 }

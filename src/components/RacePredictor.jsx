@@ -177,13 +177,13 @@ Devuelve las mismas ${model.items.length} distancias con:
             <NextRaceBanner />
 
             {predictions.length === 0 && (
-                <Card className="p-8 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
-                    <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                <Card className="p-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl">
                         <span className="text-4xl block mb-3">🎯</span>
-                        <Text className="text-slate-500 dark:text-slate-400 mb-2">
+                        <Text className="text-slate-500 dark:text-white/55 mb-2">
                             Aún no se puede predecir: {model.reason || 'faltan esfuerzos máximos en el histórico'}.
                         </Text>
-                        <Text className="text-xs text-slate-500 dark:text-slate-500">
+                        <Text className="text-xs text-slate-500 dark:text-white/45">
                             La predicción se ancla en tu mejor esfuerzo sostenido (de 3,5 min a 3,8 h) del último año.
                         </Text>
                     </div>
@@ -209,21 +209,21 @@ Devuelve las mismas ${model.items.length} distancias con:
                                     key={pred.key}
                                     decoration="top"
                                     decorationColor={CONFIDENCE_COLOR[pred.confidence]}
-                                    className="p-4 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900"
+                                    className="p-4 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]"
                                 >
                                     <Flex justifyContent="between" alignItems="start">
-                                        <Text className="font-semibold text-slate-700 dark:text-slate-200">{pred.label}</Text>
+                                        <Text className="font-semibold text-slate-700 dark:text-white">{pred.label}</Text>
                                         <Badge color={CONFIDENCE_COLOR[pred.confidence]} size="xs">{pred.confidence}</Badge>
                                     </Flex>
-                                    <Metric className="mt-2 text-slate-900 dark:text-slate-50">{formatDuration(pred.timeSeconds)}</Metric>
-                                    <Text className="font-mono mt-1 text-slate-500 dark:text-slate-400">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
-                                    <Text className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+                                    <Metric className="mt-2 text-slate-900 dark:text-white">{formatDuration(pred.timeSeconds)}</Metric>
+                                    <Text className="font-mono mt-1 text-slate-500 dark:text-white/55">{formatPaceFromSecPerKm(pred.paceSec)} /km</Text>
+                                    <Text className="text-xs text-slate-500 dark:text-white/45 mt-2">
                                         {Object.keys(pred.models).map(k => MODEL_LABEL[k]).join(' · ')}
                                         {pred.baseTimeSeconds != null && pred.baseTimeSeconds !== pred.timeSeconds &&
                                             ` · ajustado desde ${formatDuration(pred.baseTimeSeconds)}`}
                                     </Text>
                                     {pred.rationale && (
-                                        <Text className="text-xs text-slate-500 dark:text-slate-500 mt-2 leading-snug">{pred.rationale}</Text>
+                                        <Text className="text-xs text-slate-500 dark:text-white/45 mt-2 leading-snug">{pred.rationale}</Text>
                                     )}
                                     {goal && (
                                         <div className={`mt-3 flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2 py-1.5 ${goal.delta <= 0
@@ -240,28 +240,28 @@ Devuelve las mismas ${model.items.length} distancias con:
                         })}
                     </Grid>
 
-                    <Card className="p-6 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
-                        <Title className="text-lg font-semibold text-slate-900 dark:text-slate-100">Comparativa de Ritmos (min/km)</Title>
+                    <Card className="p-6 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
+                        <Title className="text-lg font-semibold text-slate-900 dark:text-white">Comparativa de Ritmos (min/km)</Title>
                         <div className="mt-4 space-y-3">
                             {predictions.map((p) => (
                                 <div key={p.key} className="flex items-center gap-3">
-                                    <span className="w-28 shrink-0 text-sm font-medium text-slate-600 dark:text-slate-300">{p.label}</span>
-                                    <div className="flex-1 h-6 rounded-md bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                    <span className="w-28 shrink-0 text-sm font-medium text-slate-600 dark:text-white/75">{p.label}</span>
+                                    <div className="flex-1 h-6 rounded-md bg-slate-100 dark:bg-white/[0.06] overflow-hidden">
                                         <div
-                                            className="h-full rounded-md bg-blue-600 transition-all duration-500"
+                                            className="h-full rounded-md bg-teal-600 dark:bg-teal-300 transition-all duration-500"
                                             style={{ width: `${(p.paceSec / maxPace) * 100}%` }}
                                         />
                                     </div>
-                                    <span className="w-16 shrink-0 text-right font-mono text-sm text-slate-700 dark:text-slate-200">{formatPaceFromSecPerKm(p.paceSec)}</span>
+                                    <span className="w-16 shrink-0 text-right font-mono text-sm text-slate-700 dark:text-white">{formatPaceFromSecPerKm(p.paceSec)}</span>
                                 </div>
                             ))}
                         </div>
                     </Card>
 
                     {/* Procedencia: de dónde sale cada número, para que sea auditable. */}
-                    <Card className="p-4 ring-1 ring-slate-200 dark:ring-slate-800 shadow-sm bg-white dark:bg-slate-900">
-                        <Text className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Cómo se ha calculado</Text>
-                        <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-1 leading-relaxed">
+                    <Card className="p-4 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03]">
+                        <Text className="text-xs font-semibold text-slate-600 dark:text-white/75 mb-2">Cómo se ha calculado</Text>
+                        <ul className="text-xs text-slate-500 dark:text-white/55 space-y-1 leading-relaxed">
                             {anchor && (
                                 <li>
                                     <span className="font-medium">Anclaje</span>: {(anchor.distance_m / 1000).toFixed(1)} km en {formatDuration(anchor.time_s)} ({anchor.date}) → VDOT {model.vdot}
@@ -281,7 +281,7 @@ Devuelve las mismas ${model.items.length} distancias con:
                     </Card>
 
                     <Flex justifyContent="between" alignItems="center" className="flex-wrap gap-2">
-                        <Text className="text-xs text-slate-500 dark:text-slate-500">
+                        <Text className="text-xs text-slate-500 dark:text-white/45">
                             {generatedAt && `Análisis de las ${generatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · `}
                             Estimación en llano; no sustituye un test de campo.
                         </Text>

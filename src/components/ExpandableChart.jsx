@@ -67,19 +67,19 @@ export default function ExpandableChart({
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="flex flex-col w-full h-full bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden"
+            className="flex flex-col w-full h-full bg-white dark:bg-[#0c0e12] rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-slate-800 flex-wrap">
+            <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-white/10 flex-wrap">
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">{title}</h2>
-                {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
+                <h2 className="text-base font-bold text-slate-800 dark:text-white truncate">{title}</h2>
+                {subtitle && <p className="text-xs text-slate-500 dark:text-white/55 truncate">{subtitle}</p>}
               </div>
               {toolbar}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-lg text-slate-500 dark:text-white/55 hover:bg-slate-100 hover:text-slate-800 dark:hover:text-white dark:hover:bg-white/[0.08] transition-colors"
                 aria-label="Cerrar"
                 title="Cerrar (Esc)"
               >
@@ -102,7 +102,7 @@ export function ExpandButton({ onClick, className = '' }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={`p-1.5 rounded-lg bg-white/80 dark:bg-slate-800/80 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 border border-slate-200/70 dark:border-slate-700 transition-all ${className}`}
+      className={`p-1.5 rounded-lg bg-white/80 dark:bg-white/[0.06] text-slate-400 dark:text-white/40 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-white/[0.05] dark:hover:text-white border border-slate-200/70 dark:border-white/10 transition-all ${className}`}
       aria-label="Ampliar gráfico"
       title="Ampliar gráfico (doble clic)"
     >

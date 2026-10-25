@@ -20,19 +20,20 @@ export const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago"
 
 /** Color de cada acento de serie (trazo, relleno y clases de chip/icono). */
 export const ACCENTS = {
-  rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 text-rose-600", icon: "bg-rose-50 text-rose-500" },
-  emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 text-emerald-600", icon: "bg-emerald-50 text-emerald-500" },
-  violet: { stroke: COLORS.seriesViolet, fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 text-violet-600", icon: "bg-violet-50 text-violet-500" },
-  amber: { stroke: COLORS.caution, fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 text-amber-600", icon: "bg-amber-50 text-amber-500" },
-  sky: { stroke: COLORS.seriesSky, fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 text-sky-600", icon: "bg-sky-50 text-sky-500" },
-  indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 text-indigo-600", icon: "bg-indigo-50 text-indigo-500" },
-  orange: { stroke: COLORS.elevated, fill: "rgba(249,115,22,0.10)", chip: "bg-orange-50 text-orange-600", icon: "bg-orange-50 text-orange-500" },
-  cyan: { stroke: COLORS.seriesCyan, fill: "rgba(8,145,178,0.10)", chip: "bg-cyan-50 text-cyan-600", icon: "bg-cyan-50 text-cyan-500" },
-  blue: { stroke: COLORS.signal, fill: "rgba(37,99,235,0.10)", chip: "bg-blue-50 text-blue-600", icon: "bg-blue-50 text-blue-500" },
-  fuchsia: { stroke: "#d946ef", fill: "rgba(217,70,239,0.10)", chip: "bg-fuchsia-50 text-fuchsia-600", icon: "bg-fuchsia-50 text-fuchsia-500" },
-  lime: { stroke: "#65a30d", fill: "rgba(101,163,13,0.10)", chip: "bg-lime-50 text-lime-700", icon: "bg-lime-50 text-lime-600" },
-  teal: { stroke: "#14b8a6", fill: "rgba(20,184,166,0.10)", chip: "bg-teal-50 text-teal-600", icon: "bg-teal-50 text-teal-500" },
-  slate: { stroke: COLORS.inkSecondary, fill: "rgba(71,85,105,0.10)", chip: "bg-slate-100 text-slate-600", icon: "bg-slate-100 text-slate-500" },
+  rose: { stroke: COLORS.risk, fill: "rgba(244,63,94,0.10)", chip: "bg-rose-50 dark:bg-rose-400/10 text-rose-600 dark:text-rose-300", icon: "bg-rose-50 dark:bg-rose-400/10 text-rose-500" },
+  emerald: { stroke: COLORS.good, fill: "rgba(16,185,129,0.10)", chip: "bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300", icon: "bg-emerald-50 dark:bg-emerald-400/10 text-emerald-500" },
+  violet: { stroke: COLORS.seriesViolet, fill: "rgba(139,92,246,0.10)", chip: "bg-violet-50 dark:bg-violet-400/10 text-violet-600 dark:text-violet-300", icon: "bg-violet-50 dark:bg-violet-400/10 text-violet-500" },
+  amber: { stroke: COLORS.caution, fill: "rgba(245,158,11,0.10)", chip: "bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300", icon: "bg-amber-50 dark:bg-amber-400/10 text-amber-500" },
+  sky: { stroke: COLORS.seriesSky, fill: "rgba(14,165,233,0.10)", chip: "bg-sky-50 dark:bg-sky-400/10 text-sky-600 dark:text-sky-300", icon: "bg-sky-50 dark:bg-sky-400/10 text-sky-500" },
+  indigo: { stroke: COLORS.seriesIndigo, fill: "rgba(99,102,241,0.10)", chip: "bg-indigo-50 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-300", icon: "bg-indigo-50 dark:bg-indigo-400/10 text-indigo-500" },
+  orange: { stroke: COLORS.elevated, fill: "rgba(249,115,22,0.10)", chip: "bg-orange-50 dark:bg-orange-400/10 text-orange-600 dark:text-orange-300", icon: "bg-orange-50 dark:bg-orange-400/10 text-orange-500" },
+  cyan: { stroke: COLORS.seriesCyan, fill: "rgba(8,145,178,0.10)", chip: "bg-cyan-50 dark:bg-cyan-400/10 text-cyan-600 dark:text-cyan-300", icon: "bg-cyan-50 dark:bg-cyan-400/10 text-cyan-500" },
+  blue: { stroke: COLORS.signal, fill: "rgba(37,99,235,0.10)", chip: "bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300", icon: "bg-teal-50 dark:bg-teal-400/10 text-blue-500" },
+  fuchsia: { stroke: "#d946ef", fill: "rgba(217,70,239,0.10)", chip: "bg-fuchsia-50 dark:bg-fuchsia-400/10 text-fuchsia-600 dark:text-fuchsia-300", icon: "bg-fuchsia-50 dark:bg-fuchsia-400/10 text-fuchsia-500" },
+  lime: { stroke: "#65a30d", fill: "rgba(101,163,13,0.10)", chip: "bg-lime-50 dark:bg-lime-400/10 text-lime-700 dark:text-lime-300", icon: "bg-lime-50 dark:bg-lime-400/10 text-lime-600 dark:text-lime-300" },
+  pink: { stroke: "#ec4899", fill: "rgba(236,72,153,0.10)", chip: "bg-pink-50 dark:bg-pink-400/10 text-pink-600 dark:text-pink-300", icon: "bg-pink-50 dark:bg-pink-400/10 text-pink-500" },
+  teal: { stroke: "#14b8a6", fill: "rgba(20,184,166,0.10)", chip: "bg-teal-50 dark:bg-teal-400/10 text-teal-600 dark:text-teal-300", icon: "bg-teal-50 dark:bg-teal-400/10 text-teal-500" },
+  slate: { stroke: COLORS.inkSecondary, fill: "rgba(71,85,105,0.10)", chip: "bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-white/75", icon: "bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55" },
 };
 
 export const fmtDate = (ms) => {
@@ -156,13 +157,35 @@ export const GRAN_MIN_DAYS = { day: 0, week: 14, month: 90, year: 730 };
 export const GRAN_LABEL = { day: "media móvil diaria", week: "media semanal", month: "media mensual", year: "media anual" };
 export const AVG_LABEL = { day: "Media móvil", week: "Media sem.", month: "Media mes", year: "Media año" };
 
-/** Formato del eje X según la granularidad. */
-export function xFormatter(gran) {
+/** Formato del eje X según la granularidad. Con más de un año visible, el día
+ *  sin año se repite ("25 Oct" dos veces): se pasa a mes + año. */
+export function xFormatter(gran, days = 0) {
   if (gran === "year") return (ms) => String(new Date(ms).getFullYear());
-  if (gran === "month") {
+  if (gran === "month" || days > 400) {
     return (ms) => { const d = new Date(ms); return `${MONTHS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`; };
   }
   return fmtDate;
+}
+
+// Hueco máximo (días) que la línea cruza en diario. Más allá se corta: unir dos
+// datos separados por meses dibujaba una curva inventada en medio.
+const MAX_LINE_GAP_DAYS = 14;
+
+// `line` = lo que se pinta: la media donde la hay y, entre dos datos cercanos,
+// su interpolación lineal (series semanales o noches sueltas). `smooth` queda
+// intacto para estadísticas y tooltip.
+function withLine(data, maxGapMs) {
+  const idx = [];
+  data.forEach((d, i) => { if (d.smooth != null) idx.push(i); });
+  const out = data.map((d) => ({ ...d, line: d.smooth }));
+  for (let k = 0; k < idx.length - 1; k++) {
+    const a = data[idx[k]], b = data[idx[k + 1]];
+    if (idx[k + 1] - idx[k] < 2 || b.ms - a.ms > maxGapMs) continue;
+    for (let i = idx[k] + 1; i < idx[k + 1]; i++) {
+      out[i].line = a.smooth + (b.smooth - a.smooth) * (data[i].ms - a.ms) / (b.ms - a.ms);
+    }
+  }
+  return out;
 }
 
 /** Último valor suavizado no nulo (las series densificadas pueden acabar en hueco). */
@@ -193,7 +216,8 @@ const tsOf = (iso) => new Date(iso).getTime();
  * Todas las métricas vitales con su serie del período y sus extremos históricos.
  *
  * @param {object} p
- * @param {Array}  p.garmin      filas diarias de Garmin `{ date, hrv, restingHR, bbHigh, bbLow }`
+ * @param {Array}  p.garmin      filas diarias de Garmin `{ date, hrv, restingHR, bbHigh, bbLow,
+ *                               sleepScore, sleepMin, sleepAvgHR }` (sueño solo en el sync reciente)
  * @param {Array}  [p.sleep]     semanas de sueño `{ weekStart, score, durationMin }`
  * @param {Array}  [p.weights]   pesadas `{ date, weight_kg }`
  * @param {Array}  [p.pmc]       serie diaria del PMC calibrado `{ date, load, ctl, atl, tsb }`
@@ -219,9 +243,10 @@ export function buildVitalMetrics({
   const build = (allPts, smoothWindow, dec, { sparse = false, noRaw = false } = {}) => {
     const sorted = [...allPts].sort((a, b) => a.ms - b.ms);
     const make = (pts) => {
-      const out = series(pts, smoothWindow, dec);
-      if (noRaw) return out.map((d) => ({ ...d, raw: null }));
-      return sparse && isDay ? out.map((d) => (d.raw == null ? { ...d, smooth: null } : d)) : out;
+      let out = series(pts, smoothWindow, dec);
+      if (noRaw) out = out.map((d) => ({ ...d, raw: null }));
+      else if (sparse && isDay) out = out.map((d) => (d.raw == null ? { ...d, smooth: null } : d));
+      return isDay ? withLine(out, MAX_LINE_GAP_DAYS * MS_DAY) : out.map((d) => ({ ...d, line: d.smooth }));
     };
     return {
       data: make(sorted.filter((p) => p.ms >= cutoff)),
@@ -238,13 +263,24 @@ export function buildVitalMetrics({
   const bbHigh = build(garminPts("bbHigh"), 7, 0);
   const bbLow = build(garminPts("bbLow"), 7, 0);
 
-  // ── Sueño (Garmin lo da agregado por semanas: un punto por semana) ──
+  // ── Sueño: noche a noche (filas diarias, sync reciente) y, para las semanas
+  // sin noches, la media semanal del cache, situada a mitad de su semana ──
+  const nightlyWeeks = new Set(
+    garmin.filter((d) => d.sleepScore != null || d.sleepMin).map((d) => bucketStartMs(tsOf(d.date), "week")),
+  );
+  const weeklyPts = (field, toV) => sleep
+    .filter((w) => w[field] != null && w[field] !== 0)
+    .map((w) => ({ ms: tsOf(w.weekStart) + 3 * MS_DAY, v: toV(w[field]) }))
+    .filter((p) => !nightlyWeeks.has(bucketStartMs(p.ms, "week")));
   const sleepScore = build(
-    sleep.filter((w) => w.score != null).map((w) => ({ ms: tsOf(w.weekStart), v: w.score })), 21, 0, { sparse: true },
+    [...garminPts("sleepScore"), ...weeklyPts("score", (v) => v)], 7, 0, { sparse: true },
   );
   const sleepHours = build(
-    sleep.filter((w) => w.durationMin).map((w) => ({ ms: tsOf(w.weekStart), v: w.durationMin / 60 })), 21, 1, { sparse: true },
+    [...garmin.filter((d) => d.sleepMin).map((d) => ({ ms: tsOf(d.date), v: d.sleepMin / 60 })),
+      ...weeklyPts("durationMin", (v) => v / 60)], 7, 1, { sparse: true },
   );
+  // FC media durante el sueño (Garmin, noche a noche).
+  const sleepHR = build(garminPts("sleepAvgHR"), 7, 1);
 
   // ── Peso (báscula Garmin) ──
   const weight = build(
@@ -300,6 +336,7 @@ export function buildVitalMetrics({
     { key: "bbLow", title: "Body Battery mín.", accent: "orange", unit: "/100", decimals: 0, invertY: false, ...bbLow },
     { key: "sleep", title: "Sueño", accent: "indigo", unit: "/100", decimals: 0, invertY: false, ...sleepScore },
     { key: "sleepHours", title: "Horas de sueño", accent: "cyan", unit: "h", decimals: 1, invertY: false, ...sleepHours },
+    { key: "sleepHR", title: "FC nocturna", accent: "pink", unit: "ppm", decimals: 0, invertY: true, ...sleepHR },
     { key: "weight", title: "Peso", accent: "slate", unit: "kg", decimals: 1, invertY: false, ...weight },
     { key: "load", title: "Carga diaria", accent: "teal", unit: "TSS", decimals: 0, invertY: false, ...load },
     { key: "ctl", title: "Forma (CTL)", accent: "blue", unit: "", decimals: 1, invertY: false, ...ctl },

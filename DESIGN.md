@@ -2,6 +2,12 @@
 name: RunAnalyzer
 description: Análisis de entrenamiento de running con rigor fisiológico, de Strava y Garmin al reloj.
 colors:
+  accent-light: "#0f766e"
+  accent-dark: "#5eead4"
+  accent-2-light: "#c2410c"
+  accent-2-dark: "#fdba74"
+  bg-dark: "#07090d"
+  surface-dark-raised: "#0c0e12"
   signal-blue: "#2563eb"
   signal-blue-deep: "#1d4ed8"
   signal-blue-bright: "#3b82f6"
@@ -133,25 +139,44 @@ components:
 
 RunAnalyzer se presenta como el cuaderno de un fisiólogo: hojas blancas sobre una mesa gris azulada, cifras escritas con decisión y anotaciones pequeñas y precisas al margen. La interfaz no compite con el dato; lo enmarca. Cada pantalla es una página de registro: una cabecera con la pregunta, el número que la responde y el contexto mínimo para fiarse de él.
 
-La densidad es alta, como corresponde a una herramienta de análisis que el atleta consulta a diario, pero ordenada: superficies planas con borde fino, esquinas casi rectas (2px) y una sola tinta de acento, el azul señal. El color se gana: aparece cuando significa algo (zona de FC, estado bueno/precaución/riesgo, acción principal) y no como decoración.
+La densidad es alta, como corresponde a una herramienta de análisis que el atleta consulta a diario, pero ordenada: superficies planas con borde fino, esquinas casi rectas (2px) y el acento de la landing: teal para acción y selección, naranja como segundo acento. El color se gana: aparece cuando significa algo (zona de FC, estado bueno/precaución/riesgo, acción principal) y no como decoración.
 
-El sistema rechaza el brillo de producto genérico: degradados en el texto, resplandores de color, tarjetas de cristal translúcido y adornos que no dicen nada sobre el entrenamiento.
+El sistema rechaza el brillo de producto genérico: degradados en el texto y adornos que no dicen nada sobre el entrenamiento. En modo oscuro, y solo ahí, se permiten las superficies translúcidas (`white/[0.03]`) y los halos de fondo de la landing (`.shell-glow`).
 
 **Key Characteristics:**
 - Hojas planas blancas con borde fino sobre lienzo gris azulado.
 - Esquinas de 2px en todo: afilado, técnico, de instrumento.
 - Cifras protagonistas en peso máximo con números tabulares; etiquetas pequeñas en versales.
-- Un acento (azul señal) para acción y selección; tres colores de estado y cinco de zona con significado fijo.
-- Bandas oscuras puntuales (tinta) para el veredicto del día, nunca como tema general.
+- Acento teal (y naranja secundario) para acción y selección; tres colores de estado y cinco de zona con significado fijo.
+- Dos temas, claro y oscuro (`#07090d`, el de la landing). El marco (barra lateral y cabecera) es siempre oscuro.
 
 ## Colors
 
-Paleta de laboratorio: neutros fríos de pizarra, un azul de señal para actuar y colores semánticos que nunca cambian de significado.
+Paleta de laboratorio: neutros fríos de pizarra, el teal y naranja de la landing para actuar y colores semánticos que nunca cambian de significado.
+
+### Temas
+Dos temas, claro y oscuro, elegidos en el menú de usuario (`Claro`, `Oscuro`, `Sistema`; `src/hooks/useTheme.js`, guardado en `localStorage.app_theme`). La clase `dark` va en `<html>` y la aplica un script de `index.html` antes del bundle. El marco (barra lateral, cabecera, pantalla «Conecta Strava») es siempre oscuro.
+
+Tokens semánticos en `src/index.css`, expuestos en Tailwind como `bg-bg`, `bg-surface`, `border-line/10`, `text-ink`, `text-accent`, `text-accent2`:
+
+| Token | Claro | Oscuro |
+|---|---|---|
+| `--bg` | `#f6f7f9` | `#07090d` |
+| `--surface` | blanco opaco | blanco al 3–6 % |
+| `--line` | pizarra-900 al 10 % | blanco al 10 % |
+| `--ink` | `#0a0c10` | blanco |
+| `--accent` | teal-700 | teal-300 |
+| `--accent-2` | orange-700 | orange-300 |
+
+Clases de componente: `.card`, `.card-hi` (superficies) y `.h-display` (titular `font-black tracking-tighter`).
+
+**Dos contrastes del acento.** `teal-300` y `orange-300` solo se leen sobre fondo oscuro. En claro, el texto de acento es `teal-700` / `orange-700` (≥ 4,5:1). Patrón: `text-teal-700 dark:text-teal-300`.
 
 ### Primary
-- **Azul señal** (signal-blue): botón principal, enlace, elemento seleccionado, serie principal de una gráfica. Es la única tinta de acción.
-- **Azul señal profundo** (signal-blue-deep): hover del botón principal y texto del elemento activo de navegación; también el `theme-color` del navegador.
-- **Lavado azul** (signal-blue-wash): fondo del elemento seleccionado y de los recuadros explicativos («Cómo leer»).
+- **Teal** (accent): botón secundario, enlace, elemento seleccionado, serie principal de una gráfica. `teal-700` en claro, `teal-300` en oscuro.
+- **Naranja** (accent-2): segundo acento, puntual. `orange-700` en claro, `orange-300` en oscuro.
+- **Botón principal**: tinta invertida — `bg-slate-950 text-white` en claro, `bg-white text-slate-950` en oscuro.
+- **Lavado teal**: fondo del elemento seleccionado y de los recuadros explicativos («Cómo leer»): `bg-teal-50 dark:bg-teal-400/10`.
 - **Azul cinético** (kinetic-blue → kinetic-blue-soft): solo en la banda de 3px que corona las cabeceras de las herramientas de IA (`kinetic-gradient`) y como color de marca de Tremor. Marca «aquí habla la IA».
 
 ### Secondary
@@ -169,6 +194,8 @@ Cada estado tiene un tono base (relleno de gráfica, punto, barra), uno claro (e
 ### En código
 Todo color que no puede ser una clase de Tailwind (Recharts, Leaflet, SVG, estilos en línea) sale de `src/lib/palette.js` (`COLORS`, con los mismos nombres en camelCase) o de `src/lib/zoneColors.js` (`ZONES`). Los ejes de Recharts usan `AXIS_TICK`. No se escriben hexadecimales nuevos en los componentes.
 
+Los neutros de `COLORS` (tinta, líneas, papel, hundido) son variables CSS (`var(--c-ink)`…) que cambian con el tema: valen en atributos SVG, estilos en línea y `color-mix()`, no en canvas. Lo que se pinta sobre una tesela de mapa elegida por el usuario usa `FIXED` (hex fijo), porque su contraste depende de la tesela, no del tema.
+
 ### Neutral
 - **Tinta** (ink): cifras, titulares y fondo de las bandas oscuras de veredicto.
 - **Tinta secundaria** (ink-secondary): texto de cuerpo y párrafos explicativos.
@@ -180,7 +207,7 @@ Todo color que no puede ser una clase de Tailwind (Recharts, Leaflet, SVG, estil
 - **Hundido** (sunken): campos de formulario, filas alternas, pistas de barras vacías.
 
 ### Named Rules
-**The Earned Color Rule.** El color significa algo o no aparece. Azul es acción o selección; verde, ámbar y rosa son estado; las zonas son zonas. Un color no se usa «para dar vida».
+**The Earned Color Rule.** El color significa algo o no aparece. Teal es acción o selección; verde, ámbar y rosa son estado; las zonas son zonas. Un color no se usa «para dar vida».
 
 **The Ink Floor Rule.** Ningún texto sobre blanco por debajo de la tinta tenue (4.8:1). Los grises más claros son para iconos decorativos, bordes y estados desactivados.
 
@@ -226,9 +253,9 @@ Sistema plano con borde. La profundidad la da el contraste entre el lienzo gris 
 - **Superpuesto** (`box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25)`): ventanas y panel lateral del chat.
 
 ### Named Rules
-**The Flat Sheet Rule.** Las tarjetas son hojas planas: blanco, línea de 1px y como mucho la sombra de reposo. Ni cristal translúcido ni sombras grandes en una tarjeta que no flota.
+**The Flat Sheet Rule.** Las tarjetas son hojas planas: blanco (claro) o blanco al 3 % (oscuro), línea de 1px y como mucho la sombra de reposo. Sin sombras grandes en una tarjeta que no flota.
 
-**The No Glow Rule.** Sin halos de color (sombras sin desplazamiento teñidas de azul, verde o rosa). La profundidad no se colorea.
+**The No Glow Rule.** Sin halos de color en tarjetas ni botones. La única excepción son los halos de fondo de la landing (`.shell-glow`, teal arriba y naranja abajo) en el marco y en el contenido en modo oscuro.
 
 ## Shapes
 

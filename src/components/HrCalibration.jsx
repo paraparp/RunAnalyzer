@@ -15,26 +15,26 @@ import { estimateLTHR, HR_LIMITS } from '../lib/hrZones';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Field = ({ label, badge, badgeColor, value, caption, inputValue, placeholder, onChange, invalid, invalidText, help }) => (
-  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+  <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-4 border border-slate-100 dark:border-white/10">
     <div className="flex items-center justify-between mb-2">
-      <p className="text-label font-bold text-slate-500 uppercase">{label}</p>
+      <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{label}</p>
       <Badge color={badgeColor} size="xs">{badge}</Badge>
     </div>
-    <p className="text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
-    <p className="text-xs text-slate-500 mt-0.5">{caption}</p>
+    <p className="text-2xl font-bold text-slate-800 dark:text-white tabular-nums">{value}</p>
+    <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{caption}</p>
     <input
       type="number"
       placeholder={placeholder}
       value={inputValue}
       onChange={e => onChange(e.target.value)}
-      className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
+      className={`mt-3 w-full px-2.5 py-1.5 text-xs bg-white dark:bg-white/[0.03] border rounded-lg focus:outline-none focus:ring-2 tabular-nums text-center font-semibold ${
         invalid
           ? 'border-rose-300 focus:ring-rose-500/20 focus:border-rose-400'
-          : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-300'
+          : 'border-slate-200 dark:border-white/10 focus:ring-indigo-500/20 focus:border-indigo-300'
       }`}
     />
     {invalid && <p className="text-xs text-rose-500 mt-1">{invalidText}</p>}
-    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{help}</p>
+    <p className="text-xs text-slate-500 dark:text-white/55 mt-1.5 leading-relaxed">{help}</p>
   </div>
 );
 
@@ -60,10 +60,10 @@ export default function HrCalibration({ hrParams }) {
   const activitiesWithHR = recentActivities?.filter(a => a.average_heartrate)?.length ?? 0;
 
   return (
-    <Card className="shadow-lg border-slate-200">
+    <Card className="shadow-lg border-slate-200 dark:border-white/10">
       <div className="mb-5">
-        <Title className="text-slate-800 font-bold">{t('zones.title')}</Title>
-        <Text className="text-slate-500 text-sm mt-0.5">
+        <Title className="text-slate-800 dark:text-white font-bold">{t('zones.title')}</Title>
+        <Text className="text-slate-500 dark:text-white/55 text-sm mt-0.5">
           {t('zones.subtitle', { count: activitiesWithHR })}
         </Text>
       </div>
@@ -114,24 +114,24 @@ export default function HrCalibration({ hrParams }) {
 
       {/* Derivados: lo que se calcula a partir de los tres de arriba */}
       <div className="mt-4 flex gap-2.5 flex-wrap">
-        <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-400/10 border border-indigo-100 dark:border-indigo-300/25 rounded-lg px-3 py-1.5">
           <span className="text-label font-bold text-indigo-400 uppercase">HRR</span>
-          <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} {t('zones.bpm')}</span>
+          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">{hrr} {t('zones.bpm')}</span>
           <span className="text-xs text-indigo-400">({hrmax} − {hrrest})</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 bg-violet-50 dark:bg-violet-400/10 border border-violet-100 dark:border-violet-300/25 rounded-lg px-3 py-1.5">
           <span className="text-label font-bold text-violet-400 uppercase">LTHR / FCmax</span>
-          <span className="text-sm font-bold text-violet-700 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
+          <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-400/10 border border-emerald-100 dark:border-emerald-300/25 rounded-lg px-3 py-1.5">
           <span className="text-label font-bold text-emerald-400 uppercase">LTHR / HRR</span>
-          <span className="text-sm font-bold text-emerald-700 tabular-nums">
+          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
             {hrr > 0 ? (((lthr - hrrest) / hrr) * 100).toFixed(1) : '–'}%
           </span>
         </div>
       </div>
 
-      <p className="text-xs text-slate-500 mt-4 leading-relaxed">
+      <p className="text-xs text-slate-500 dark:text-white/55 mt-4 leading-relaxed">
         {t('calibration.scope')}
       </p>
     </Card>

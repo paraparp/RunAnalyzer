@@ -147,18 +147,18 @@ export async function compressImageFile(file, { maxWidth = 400, maxHeight = 400,
  * para placeholders atractivos cuando el usuario aún no ha puesto foto.
  */
 const BRAND_RULES = [
-  { match: /\bnike\b/i, name: 'Nike', short: 'NK', bg: 'bg-orange-500/10', text: 'text-orange-600', border: 'border-orange-200' },
-  { match: /\badidas\b|\badizero\b/i, name: 'Adidas', short: 'ADI', bg: 'bg-slate-900/10', text: 'text-slate-800', border: 'border-slate-300' },
-  { match: /\basics\b/i, name: 'Asics', short: 'ASC', bg: 'bg-blue-600/10', text: 'text-blue-600', border: 'border-blue-200' },
-  { match: /\bhoka\b/i, name: 'Hoka', short: 'HOK', bg: 'bg-cyan-600/10', text: 'text-cyan-600', border: 'border-cyan-200' },
-  { match: /\bsaucony\b/i, name: 'Saucony', short: 'SCY', bg: 'bg-rose-600/10', text: 'text-rose-600', border: 'border-rose-200' },
-  { match: /\bbrooks\b/i, name: 'Brooks', short: 'BRK', bg: 'bg-indigo-600/10', text: 'text-indigo-600', border: 'border-indigo-200' },
-  { match: /\bnew\s*balance\b|\b\s*nb\s*\b/i, name: 'New Balance', short: 'NB', bg: 'bg-red-600/10', text: 'text-red-600', border: 'border-red-200' },
-  { match: /\bpuma\b/i, name: 'Puma', short: 'PUM', bg: 'bg-emerald-600/10', text: 'text-emerald-600', border: 'border-emerald-200' },
+  { match: /\bnike\b/i, name: 'Nike', short: 'NK', bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-300/25' },
+  { match: /\badidas\b|\badizero\b/i, name: 'Adidas', short: 'ADI', bg: 'bg-slate-900/10', text: 'text-slate-800 dark:text-white', border: 'border-slate-300 dark:border-white/10' },
+  { match: /\basics\b/i, name: 'Asics', short: 'ASC', bg: 'bg-blue-600/10', text: 'text-blue-600 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-300/25' },
+  { match: /\bhoka\b/i, name: 'Hoka', short: 'HOK', bg: 'bg-cyan-600/10', text: 'text-cyan-600 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-300/25' },
+  { match: /\bsaucony\b/i, name: 'Saucony', short: 'SCY', bg: 'bg-rose-600/10', text: 'text-rose-600 dark:text-rose-300', border: 'border-rose-200 dark:border-rose-300/25' },
+  { match: /\bbrooks\b/i, name: 'Brooks', short: 'BRK', bg: 'bg-indigo-600/10', text: 'text-indigo-600 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-300/25' },
+  { match: /\bnew\s*balance\b|\b\s*nb\s*\b/i, name: 'New Balance', short: 'NB', bg: 'bg-red-600/10', text: 'text-red-600 dark:text-red-300', border: 'border-red-200 dark:border-red-300/25' },
+  { match: /\bpuma\b/i, name: 'Puma', short: 'PUM', bg: 'bg-emerald-600/10', text: 'text-emerald-600 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-300/25' },
   { match: /\bon\b|\bcloud\b/i, name: 'On Running', short: 'ON', bg: 'bg-zinc-800/10', text: 'text-zinc-800', border: 'border-zinc-300' },
-  { match: /\baltra\b/i, name: 'Altra', short: 'ALT', bg: 'bg-amber-600/10', text: 'text-amber-600', border: 'border-amber-200' },
+  { match: /\baltra\b/i, name: 'Altra', short: 'ALT', bg: 'bg-amber-600/10', text: 'text-amber-600 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-300/25' },
   { match: /\bsalomon\b/i, name: 'Salomon', short: 'SAL', bg: 'bg-stone-800/10', text: 'text-stone-800', border: 'border-stone-300' },
-  { match: /\bmizuno\b/i, name: 'Mizuno', short: 'MIZ', bg: 'bg-sky-700/10', text: 'text-sky-700', border: 'border-sky-200' },
+  { match: /\bmizuno\b/i, name: 'Mizuno', short: 'MIZ', bg: 'bg-sky-700/10', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-200 dark:border-sky-300/25' },
 ];
 
 /**
@@ -187,8 +187,8 @@ export function getBrandInfo(shoeName = '') {
   return {
     brand: words[0] || 'Zapatilla',
     short: initials,
-    bg: 'bg-slate-100',
-    text: 'text-slate-600',
-    border: 'border-slate-200'
+    bg: 'bg-slate-100 dark:bg-white/[0.04]',
+    text: 'text-slate-600 dark:text-white/75',
+    border: 'border-slate-200 dark:border-white/10'
   };
 }

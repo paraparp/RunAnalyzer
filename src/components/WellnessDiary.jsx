@@ -15,7 +15,7 @@ const STRESS = ['Nada', 'Poco', 'Normal', 'Alto', 'Muy alto'];
 
 // Color de una molestia según intensidad (0-10).
 const painColor = (lvl) => (lvl >= 6 ? COLORS.risk : lvl >= 3 ? COLORS.caution : lvl > 0 ? COLORS.cautionLight : COLORS.hairlineStrong);
-const heatCls = (lvl) => (lvl >= 6 ? 'bg-rose-500 text-white' : lvl >= 3 ? 'bg-amber-400 text-white' : lvl > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-50 text-slate-300');
+const heatCls = (lvl) => (lvl >= 6 ? 'bg-rose-500 text-white' : lvl >= 3 ? 'bg-amber-400 text-white' : lvl > 0 ? 'bg-amber-100 dark:bg-amber-400/10 text-amber-800 dark:text-amber-200' : 'bg-slate-50 dark:bg-white/[0.04] text-slate-300 dark:text-white/40');
 
 const addDays = (iso, n) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -64,7 +64,7 @@ function Silhouette({ view, pains, selected, onPick }) {
 function Scale({ label, value, options, onChange }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-600 mb-1">{label}</p>
+      <p className="text-xs font-semibold text-slate-600 dark:text-white/75 mb-1">{label}</p>
       <div className="flex flex-wrap gap-1">
         {options.map((o, i) => {
           const v = typeof o === 'number' ? o : i + 1;
@@ -72,7 +72,7 @@ function Scale({ label, value, options, onChange }) {
           return (
             <button
               key={v} type="button" onClick={() => onChange(value === v ? null : v)}
-              className={`min-w-8 px-2 py-1 rounded-md text-xs font-semibold border ${value === v ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}
+              className={`min-w-8 px-2 py-1 rounded-md text-xs font-semibold border ${value === v ? 'bg-slate-900 text-white border-slate-900' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 border-slate-200 dark:border-white/10 hover:border-slate-400'}`}
             >{text}</button>
           );
         })}
@@ -123,33 +123,33 @@ export default function WellnessDiary({ activities }) {
   const levelAt = (p, d) => recentEntries.find((e) => e.date === d)?.pains.find((x) => x.zone === p.zone && x.side === p.side)?.level ?? 0;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm p-5 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <PencilSquareIcon className="w-5 h-5 text-slate-500" />
-          <h3 className="text-base font-bold text-slate-900">Diario de molestias y bienestar</h3>
+          <PencilSquareIcon className="w-5 h-5 text-slate-500 dark:text-white/55" />
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">Diario de molestias y bienestar</h3>
         </div>
         <input
           type="date" value={date} max={todayISO}
           onChange={(e) => { setDate(e.target.value || todayISO); setSelected(null); setSaved(false); }}
-          className="text-sm border border-slate-200 rounded-lg px-2 py-1"
+          className="text-sm border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1"
         />
       </div>
 
       <div className="grid gap-6 md:grid-cols-[auto_1fr]">
         <div>
           <div className="flex gap-3 justify-center">
-            <div className="text-center"><Silhouette view="front" pains={draft.pains} selected={selected} onPick={setSelected} /><p className="text-[11px] text-slate-500">Delante</p></div>
-            <div className="text-center"><Silhouette view="back" pains={draft.pains} selected={selected} onPick={setSelected} /><p className="text-[11px] text-slate-500">Detrás</p></div>
+            <div className="text-center"><Silhouette view="front" pains={draft.pains} selected={selected} onPick={setSelected} /><p className="text-[11px] text-slate-500 dark:text-white/55">Delante</p></div>
+            <div className="text-center"><Silhouette view="back" pains={draft.pains} selected={selected} onPick={setSelected} /><p className="text-[11px] text-slate-500 dark:text-white/55">Detrás</p></div>
           </div>
           {selected ? (
             <div className="mt-3">
-              <p className="text-xs font-semibold text-slate-700 mb-1">{painLabel(selected)}: <span className="tabular-nums">{selLevel}/10</span></p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-white/75 mb-1">{painLabel(selected)}: <span className="tabular-nums">{selLevel}/10</span></p>
               <input type="range" min="0" max="10" value={selLevel} onChange={(e) => setLevel(Number(e.target.value))} className="w-full accent-rose-500" />
-              <p className="text-[11px] text-slate-500">0 nada · 3 molesta · 6 cambia la zancada · 10 no puedo correr</p>
+              <p className="text-[11px] text-slate-500 dark:text-white/55">0 nada · 3 molesta · 6 cambia la zancada · 10 no puedo correr</p>
             </div>
           ) : (
-            <p className="mt-3 text-xs text-slate-500 text-center">Toca una zona para anotar dolor.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-white/55 text-center">Toca una zona para anotar dolor.</p>
           )}
         </div>
 
@@ -163,15 +163,15 @@ export default function WellnessDiary({ activities }) {
           <textarea
             value={draft.note ?? ''} onChange={(e) => setField('note')(e.target.value)} rows={2}
             placeholder="Notas (opcional): cuándo aparece, qué lo empeora…"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2"
+            className="w-full text-sm border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2"
           />
           <div className="flex items-center gap-3">
-            <button type="button" onClick={save} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700">
+            <button type="button" onClick={save} className="px-4 py-2 rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950 text-sm font-bold hover:bg-slate-800 dark:hover:bg-white/90">
               Guardar {date === todayISO ? 'hoy' : date}
             </button>
-            {saved && <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600"><CheckIcon className="w-4 h-4" /> Guardado</span>}
+            {saved && <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600 dark:text-emerald-300"><CheckIcon className="w-4 h-4" /> Guardado</span>}
             {rpeLoads[date] && (
-              <span className="text-xs text-slate-500">Carga sRPE: {rpeLoads[date].rpe} × {rpeLoads[date].minutes} min = <span className="font-semibold">{rpeLoads[date].load}</span> UA</span>
+              <span className="text-xs text-slate-500 dark:text-white/55">Carga sRPE: {rpeLoads[date].rpe} × {rpeLoads[date].minutes} min = <span className="font-semibold">{rpeLoads[date].load}</span> UA</span>
             )}
           </div>
         </div>
@@ -179,20 +179,20 @@ export default function WellnessDiary({ activities }) {
 
       {painRows.length > 0 && (
         <div className="overflow-x-auto">
-          <p className="text-xs font-bold uppercase text-slate-500 mb-2">Últimas 2 semanas</p>
+          <p className="text-xs font-bold uppercase text-slate-500 dark:text-white/55 mb-2">Últimas 2 semanas</p>
           <table className="text-xs">
             <thead>
               <tr>
                 <th />
                 {days14.map((d) => (
-                  <th key={d} className="px-0.5 font-medium text-slate-400 tabular-nums">{Number(d.slice(8))}</th>
+                  <th key={d} className="px-0.5 font-medium text-slate-400 dark:text-white/40 tabular-nums">{Number(d.slice(8))}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {painRows.map((p) => (
                 <tr key={`${p.zone}:${p.side}`}>
-                  <td className="pr-2 py-0.5 font-semibold text-slate-700 whitespace-nowrap">{painLabel(p)}</td>
+                  <td className="pr-2 py-0.5 font-semibold text-slate-700 dark:text-white/75 whitespace-nowrap">{painLabel(p)}</td>
                   {days14.map((d) => {
                     const lvl = levelAt(p, d);
                     return <td key={d} className="px-0.5"><div className={`w-6 h-6 rounded flex items-center justify-center font-bold tabular-nums ${heatCls(lvl)}`}>{lvl || ''}</div></td>;

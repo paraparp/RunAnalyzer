@@ -59,14 +59,14 @@ const DISTANCE_RANGES = RACE_DISTANCES.map(({ key, m, label }) => ({
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-xl min-w-[140px]">
-        <p className="text-xs text-slate-500 mb-2 font-medium">{label}</p>
+      <div className="bg-white dark:bg-[#0c0e12] p-3 border border-slate-200 dark:border-white/10 shadow-xl rounded-xl min-w-[140px]">
+        <p className="text-xs text-slate-500 dark:text-white/55 mb-2 font-medium">{label}</p>
         <div className="space-y-1.5">
           {payload.map(p => (
             <div key={p.dataKey} className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: p.stroke }} />
-                <p className="text-xs font-medium text-slate-600">{p.name || p.dataKey}</p>
+                <p className="text-xs font-medium text-slate-600 dark:text-white/75">{p.name || p.dataKey}</p>
               </div>
               <p className="text-sm font-black tabular-nums" style={{ color: p.stroke }}>{p.value}</p>
             </div>
@@ -186,9 +186,9 @@ export default function VDOTEstimator({ activities }) {
 
   if (!activities || activities.length === 0) {
     return (
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold">Estimador VDOT</Title>
-        <Text className="text-slate-500 mt-2">No hay actividades disponibles para analizar.</Text>
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold">Estimador VDOT</Title>
+        <Text className="text-slate-500 dark:text-white/55 mt-2">No hay actividades disponibles para analizar.</Text>
       </Card>
     );
   }
@@ -196,11 +196,11 @@ export default function VDOTEstimator({ activities }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <Title className="text-slate-800 font-bold mb-1">Estimador VDOT (Daniels)</Title>
-            <Text className="text-slate-500 text-sm">
+            <Title className="text-slate-800 dark:text-white font-bold mb-1">Estimador VDOT (Daniels)</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-sm">
               Tu índice de forma aeróbica estimado a partir de tus carreras en 5K, 10K, Media y Maratón.
               Un VDOT más alto = mejor forma. Los ritmos de entrenamiento están en la pestaña Umbrales (LT1/LT2); las predicciones, en Competición.
             </Text>
@@ -210,13 +210,13 @@ export default function VDOTEstimator({ activities }) {
         {bestVDOT ? (
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Big VDOT number */}
-            <div className="bg-blue-600 rounded-2xl p-8 text-center min-w-[160px] shadow-lg flex flex-col justify-center">
-              <p className="text-blue-100 text-label font-bold uppercase mb-1">Tu VDOT</p>
+            <div className="bg-slate-950 text-white dark:bg-white/[0.06] dark:ring-1 dark:ring-white/10 rounded-2xl p-8 text-center min-w-[160px] shadow-lg flex flex-col justify-center">
+              <p className="text-white/60 text-label font-bold uppercase mb-1">Tu VDOT</p>
               <p className="text-5xl font-black text-white tabular-nums">{bestVDOT.vdot}</p>
               <div className="mt-3 space-y-1.5 flex flex-col items-center">
-                <p className="text-blue-200 text-xs leading-tight">Basado en {bestVDOT.distance}</p>
+                <p className="text-white/70 text-xs leading-tight">Basado en {bestVDOT.distance}</p>
                 <div className="bg-white/10 px-2 py-1 rounded w-fit border border-white/10 mt-1">
-                  <p className="text-xs text-blue-50 leading-tight">
+                  <p className="text-xs text-white/80 leading-tight">
                     <span className="opacity-80">Rendimiento (VO₂): </span>
                     <span className="font-bold">{bestVDOT.vdot} ml/kg/min</span>
                   </p>
@@ -229,16 +229,16 @@ export default function VDOTEstimator({ activities }) {
               {DISTANCE_RANGES.map(range => {
                 const est = vdotEstimates.find(e => e.distance === range.name);
                 return (
-                  <div key={range.name} className={`rounded-xl border p-3 ${est ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <p className="text-label font-bold text-slate-500 uppercase">{range.name}</p>
+                  <div key={range.name} className={`rounded-xl border p-3 ${est ? 'bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10' : 'bg-slate-50 dark:bg-white/[0.04] border-slate-100 dark:border-white/10'}`}>
+                    <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{range.name}</p>
                     {est ? (
                       <>
-                        <p className="text-lg font-black text-slate-900 tabular-nums mt-1">{est.vdot}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{formatDuration(est.normalizedTime)}</p>
-                        <p className="text-xs text-slate-500">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                        <p className="text-lg font-black text-slate-900 dark:text-white tabular-nums mt-1">{est.vdot}</p>
+                        <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5">{formatDuration(est.normalizedTime)}</p>
+                        <p className="text-xs text-slate-500 dark:text-white/55">{new Date(est.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                       </>
                     ) : (
-                      <p className="text-xs text-slate-500 mt-1">Sin datos</p>
+                      <p className="text-xs text-slate-500 dark:text-white/55 mt-1">Sin datos</p>
                     )}
                   </div>
                 );
@@ -254,9 +254,9 @@ export default function VDOTEstimator({ activities }) {
 
       {/* VDOT Evolution Timeline */}
       {vdotTimeline.length > 1 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">Evolución del VDOT</Title>
-          <Text className="text-slate-500 text-sm mb-4">
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">Evolución del VDOT</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">
             Tu progresión de VDOT a lo largo del tiempo. 
             <span className="font-semibold text-blue-500 ml-1">Haz clic en la leyenda</span> para filtrar distancias o <span className="font-semibold text-blue-500">clic en un punto</span> para ir a la actividad en Strava.
           </Text>
@@ -337,8 +337,8 @@ export default function VDOTEstimator({ activities }) {
       {/* Ni ritmos ni predicciones viven aquí: los ritmos son de Umbrales (LT1/LT2)
           y las predicciones de Competición › Predicciones (`predictRaces`). */}
       {bestVDOT && (
-        <Card className="shadow-lg border-slate-200">
-          <Text className="text-slate-600 text-sm">
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Text className="text-slate-600 dark:text-white/75 text-sm">
             ¿Buscas tus ritmos de entrenamiento? Están en la pestaña <span className="font-semibold">Umbrales</span>:
             se prescriben desde tus umbrales LT1/LT2 y tu velocidad crítica, que es el modelo con más respaldo actual.
           </Text>
@@ -346,24 +346,24 @@ export default function VDOTEstimator({ activities }) {
       )}
 
       {/* Formula info */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="space-y-2">
-          <Text className="text-slate-500 text-xs font-semibold">¿Qué muestra esta página?</Text>
-          <Text className="text-slate-500 text-xs leading-relaxed">
-            <span className="font-medium text-slate-500">① VDOT actual</span> — Tu índice de forma aeróbica (tu <span className="font-semibold text-slate-500">VO₂max funcional</span> en ml/kg/min).
+          <Text className="text-slate-500 dark:text-white/55 text-xs font-semibold">¿Qué muestra esta página?</Text>
+          <Text className="text-slate-500 dark:text-white/55 text-xs leading-relaxed">
+            <span className="font-medium text-slate-500 dark:text-white/55">① VDOT actual</span> — Tu índice de forma aeróbica (tu <span className="font-semibold text-slate-500 dark:text-white/55">VO₂max funcional</span> en ml/kg/min).
             Se calcula desde tu mejor marca en cada distancia estándar. Cuanto más alto, mejor forma.
           </Text>
-          <Text className="text-slate-500 text-xs leading-relaxed">
-            <span className="font-medium text-slate-500">② Evolución</span> — Cómo ha cambiado tu VDOT a lo largo del tiempo, útil para ver si estás progresando.
+          <Text className="text-slate-500 dark:text-white/55 text-xs leading-relaxed">
+            <span className="font-medium text-slate-500 dark:text-white/55">② Evolución</span> — Cómo ha cambiado tu VDOT a lo largo del tiempo, útil para ver si estás progresando.
           </Text>
-          <Text className="text-slate-500 text-xs leading-relaxed">
-            <span className="font-medium text-slate-500">③ Ritmos de entrenamiento</span> — Los ritmos por km recomendados para cada tipo de sesión (fácil, maratón, umbral, intervalos, series) según tu nivel actual.
+          <Text className="text-slate-500 dark:text-white/55 text-xs leading-relaxed">
+            <span className="font-medium text-slate-500 dark:text-white/55">③ Ritmos de entrenamiento</span> — Los ritmos por km recomendados para cada tipo de sesión (fácil, maratón, umbral, intervalos, series) según tu nivel actual.
           </Text>
-          <Text className="text-slate-500 text-xs leading-relaxed">
-            <span className="font-medium text-slate-500">④ Predicciones</span> — Los tiempos que deberías poder hacer en cada distancia con tu forma actual, según el modelo.
+          <Text className="text-slate-500 dark:text-white/55 text-xs leading-relaxed">
+            <span className="font-medium text-slate-500 dark:text-white/55">④ Predicciones</span> — Los tiempos que deberías poder hacer en cada distancia con tu forma actual, según el modelo.
           </Text>
-          <Text className="text-slate-500 text-xs leading-relaxed mt-2 border-t border-slate-100 pt-2">
-            <span className="font-semibold text-slate-500">Metodología:</span> Fórmula Daniels-Gilbert (1979) · <span className="italic">Daniels' Running Formula</span>.
+          <Text className="text-slate-500 dark:text-white/55 text-xs leading-relaxed mt-2 border-t border-slate-100 dark:border-white/10 pt-2">
+            <span className="font-semibold text-slate-500 dark:text-white/55">Metodología:</span> Fórmula Daniels-Gilbert (1979) · <span className="italic">Daniels' Running Formula</span>.
             Válido para esfuerzos de carrera entre ~3.5 y ~230 minutos.
           </Text>
         </div>

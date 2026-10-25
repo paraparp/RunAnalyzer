@@ -291,7 +291,11 @@ const en = {
       active: "Active",
       strava_connected: "Strava Connected",
       change_model: "Change",
-      close: "Close"
+      close: "Close",
+      theme: "Theme",
+      theme_light: "Light",
+      theme_dark: "Dark",
+      theme_system: "System"
     },
     auth: {
       connect_title: "Connect Strava",
@@ -1750,7 +1754,11 @@ const es = {
       active: "Activo",
       strava_connected: "Strava Conectado",
       change_model: "Cambiar",
-      close: "Cerrar"
+      close: "Cerrar",
+      theme: "Tema",
+      theme_light: "Claro",
+      theme_dark: "Oscuro",
+      theme_system: "Sistema"
     },
     auth: {
       connect_title: "Conecta Strava",

@@ -9,7 +9,8 @@ import 'leaflet/dist/leaflet.css';
 import { getSessionStreams } from '../services/strava';
 import { buildChartSeries, segmentStats, SESSION_STREAM_KEYS } from '../lib/streamChart';
 import { formatDuration, formatPaceFromSpeed } from '../lib/timeFormat';
-import { getLightMapTileUrl, getMapAttribution } from '../lib/mapTiles';
+import { getLightMapTileUrl, getDarkMapTileUrl, getMapAttribution } from '../lib/mapTiles';
+import useTheme from '../hooks/useTheme';
 import { COLORS, AXIS_TICK } from '../lib/palette';
 
 // Gráfico de streams de la vista de sesión: una fila por métrica, sincronizadas
@@ -44,16 +45,17 @@ function FitTo({ bounds }) {
 }
 
 function StreamsMap({ track, selection, hover }) {
+  const { isDark } = useTheme();
   if (track.length < 2) return null;
   return (
-    <div className="isolate h-64 lg:h-full min-h-[240px] rounded overflow-hidden border border-slate-100">
+    <div className="isolate h-64 lg:h-full min-h-[240px] rounded overflow-hidden border border-slate-100 dark:border-white/10">
       <MapContainer bounds={track} scrollWheelZoom={false} className="w-full h-full" style={{ background: COLORS.hairlineSoft }}>
-        <TileLayer url={getLightMapTileUrl()} attribution={getMapAttribution('light')} />
+        <TileLayer key={isDark ? 'dark' : 'light'} url={isDark ? getDarkMapTileUrl() : getLightMapTileUrl()} attribution={getMapAttribution(isDark ? 'dark' : 'light')} />
         <Polyline positions={track} pathOptions={{ color: COLORS.paper, weight: 6, opacity: 0.9 }} />
         <Polyline positions={track} pathOptions={{ color: COLORS.signalPale, weight: 3 }} />
         {selection?.length > 1 && (
           <>
-            <Polyline positions={selection} pathOptions={{ color: COLORS.signalDeep, weight: 5 }} />
+            <Polyline positions={selection} pathOptions={{ color: isDark ? COLORS.signalLight : COLORS.signalDeep, weight: 5 }} />
             <FitTo bounds={selection} />
           </>
         )}
@@ -78,12 +80,12 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
     [t('session.streams_drift'), stats.drift_pct != null ? `${stats.drift_pct > 0 ? '+' : ''}${stats.drift_pct}%` : '—', t('session.streams_drift_hint')],
   ];
   return (
-    <div className="rounded bg-blue-50 border border-blue-100 p-3" role="region" aria-label={t('session.streams_segment')}>
+    <div className="rounded bg-teal-50 dark:bg-teal-400/10 border border-teal-200 dark:border-teal-300/25 p-3" role="region" aria-label={t('session.streams_segment')}>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-label font-bold uppercase text-blue-700">{t('session.streams_segment')}</p>
+        <p className="text-label font-bold uppercase text-teal-700 dark:text-teal-300">{t('session.streams_segment')}</p>
         <div className="flex gap-1">
           {!zoomed && (
-            <button type="button" onClick={onZoom} className="px-2 py-0.5 rounded text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+            <button type="button" onClick={onZoom} className="px-2 py-0.5 rounded text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
               {t('session.streams_zoom')}
             </button>
           )}
@@ -96,7 +98,7 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
         {items.map(([label, value, title]) => (
           <div key={label} title={title}>
             <dt className="text-xs text-blue-800">{label}</dt>
-            <dd className="text-sm font-bold text-slate-900 tabular-nums">{value}</dd>
+            <dd className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">{value}</dd>
           </div>
         ))}
       </dl>
@@ -151,14 +153,14 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
 
   if (!accessToken) return null;
   if (state.id !== activityId) {
-    return <div role="status" className="h-48 rounded bg-slate-50 motion-safe:animate-pulse flex items-center justify-center text-xs text-slate-500">{t('session.streams_loading')}</div>;
+    return <div role="status" className="h-48 rounded bg-slate-50 dark:bg-white/[0.04] motion-safe:animate-pulse flex items-center justify-center text-xs text-slate-500 dark:text-white/55">{t('session.streams_loading')}</div>;
   }
   if (state.error) {
     return (
       <div className="space-y-4">
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm text-amber-900" title={state.error}>{t('session.streams_error')}</p>
-          <button type="button" onClick={retry} className="px-3 py-1.5 rounded bg-white border border-amber-300 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 dark:border-amber-300/25 bg-amber-50 dark:bg-amber-400/10 px-4 py-3">
+          <p className="text-sm text-amber-900 dark:text-amber-200" title={state.error}>{t('session.streams_error')}</p>
+          <button type="button" onClick={retry} className="px-3 py-1.5 rounded bg-white dark:bg-white/[0.03] border border-amber-300 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
             {t('session.streams_retry')}
           </button>
         </div>
@@ -169,7 +171,7 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
   if (series.length < 2 || !available.length) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-slate-500">{t('session.streams_none')}</p>
+        <p className="text-sm text-slate-500 dark:text-white/55">{t('session.streams_none')}</p>
         {fallback}
       </div>
     );
@@ -214,7 +216,7 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
               type="button"
               aria-pressed={!!enabled[m.key]}
               onClick={() => setEnabled((e) => ({ ...e, [m.key]: !e[m.key] }))}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${enabled[m.key] ? 'border-slate-300 bg-white text-slate-800' : 'border-transparent bg-slate-50 text-slate-500 hover:text-slate-700'}`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${enabled[m.key] ? 'border-slate-300 dark:border-white/10 bg-white dark:bg-white/[0.03] text-slate-800 dark:text-white' : 'border-transparent bg-slate-50 dark:bg-white/[0.04] text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white'}`}
             >
               <span className="w-2 h-2 rounded-[50%]" style={{ background: enabled[m.key] ? m.color : COLORS.hairlineStrong }} aria-hidden="true" />
               {t(`session.streams_metric_${m.key}`)}
@@ -222,8 +224,8 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
           ))}
         </div>
         {zoom
-          ? <button type="button" onClick={() => setZoom(null)} className="rounded text-xs font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">{t('session.streams_reset')}</button>
-          : <span className="text-xs text-slate-500">{t('session.streams_hint')}</span>}
+          ? <button type="button" onClick={() => setZoom(null)} className="rounded text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">{t('session.streams_reset')}</button>
+          : <span className="text-xs text-slate-500 dark:text-white/55">{t('session.streams_hint')}</span>}
       </div>
 
       {stats && (

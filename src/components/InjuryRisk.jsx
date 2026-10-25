@@ -22,10 +22,10 @@ import { DIARY_EVENT, readDiary, subjectiveRisk, diaryRecommendations } from '..
 import WellnessDiary from './WellnessDiary';
 
 function getRiskLevel(score, t) {
-  if (score < 35) return { label: t('injury.risk_levels.low'), color: COLORS.good, bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
-  if (score < 55) return { label: t('injury.risk_levels.moderate'), color: COLORS.caution, bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' };
-  if (score < 75) return { label: t('injury.risk_levels.high'), color: COLORS.elevated, bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' };
-  return { label: t('injury.risk_levels.very_high'), color: COLORS.risk, bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' };
+  if (score < 35) return { label: t('injury.risk_levels.low'), color: COLORS.good, bg: 'bg-emerald-50 dark:bg-emerald-400/10', border: 'border-emerald-200 dark:border-emerald-300/25', text: 'text-emerald-700 dark:text-emerald-300' };
+  if (score < 55) return { label: t('injury.risk_levels.moderate'), color: COLORS.caution, bg: 'bg-amber-50 dark:bg-amber-400/10', border: 'border-amber-200 dark:border-amber-300/25', text: 'text-amber-700 dark:text-amber-300' };
+  if (score < 75) return { label: t('injury.risk_levels.high'), color: COLORS.elevated, bg: 'bg-orange-50 dark:bg-orange-400/10', border: 'border-orange-200 dark:border-orange-300/25', text: 'text-orange-700 dark:text-orange-300' };
+  return { label: t('injury.risk_levels.very_high'), color: COLORS.risk, bg: 'bg-rose-50 dark:bg-rose-400/10', border: 'border-rose-200 dark:border-rose-300/25', text: 'text-rose-700 dark:text-rose-300' };
 }
 
 export default function InjuryRisk({ activities }) {
@@ -234,7 +234,7 @@ export default function InjuryRisk({ activities }) {
 
   if (!activities || activities.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-500">
+      <div className="text-center py-12 text-slate-500 dark:text-white/55">
         <p className="text-sm">No hay datos suficientes para evaluar el riesgo de lesión.</p>
       </div>
     );
@@ -244,9 +244,9 @@ export default function InjuryRisk({ activities }) {
     <div className="space-y-6">
       {/* Main risk gauge */}
       {/* Main risk gauge */}
-      <div className={`bg-white rounded-3xl border border-slate-100 p-8 shadow-xl relative overflow-hidden group`}>
+      <div className={`bg-white dark:bg-[#0c0e12] rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-xl relative overflow-hidden group`}>
         <div className="absolute top-0 right-0 p-8 opacity-5 transition-transform group-hover:scale-110">
-           <ShieldExclamationIcon className="w-32 h-32 text-slate-900" />
+           <ShieldExclamationIcon className="w-32 h-32 text-slate-900 dark:text-white" />
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
@@ -265,17 +265,17 @@ export default function InjuryRisk({ activities }) {
             </svg>
             <div className="absolute bottom-2 text-center">
               <p className="text-6xl font-black tabular-nums tracking-tighter" style={{ color: level.color }}>{riskScore}</p>
-              <p className="text-label font-bold uppercase text-slate-500 -mt-1">Puntos Riesgo</p>
+              <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 -mt-1">Puntos Riesgo</p>
             </div>
           </div>
           
-          <div className="text-center md:text-left flex-1 border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-10">
+          <div className="text-center md:text-left flex-1 border-t md:border-t-0 md:border-l border-slate-100 dark:border-white/10 pt-6 md:pt-0 md:pl-10">
             <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-2xl mb-3 ${level.bg} ${level.text} border ${level.border} shadow-sm`}>
                <div className={`w-2 h-2 rounded-full animate-pulse`} style={{ backgroundColor: level.color }} />
                <span className="text-xs font-black uppercase tracking-widest">{t('vo2.category')} {level.label}</span>
             </div>
-            <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-2">{t('injury.stability_eval')}</h3>
-            <p className="text-slate-500 font-medium leading-relaxed max-w-md">
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-2">{t('injury.stability_eval')}</h3>
+            <p className="text-slate-500 dark:text-white/55 font-medium leading-relaxed max-w-md">
               {t('injury.evaluation_desc')}
             </p>
           </div>
@@ -284,8 +284,8 @@ export default function InjuryRisk({ activities }) {
 
       {/* Traffic light bar */}
       {/* Traffic light bar */}
-      <div className="bg-white rounded-2xl p-2 border border-slate-100 shadow-sm">
-        <div className="relative h-10 rounded-xl overflow-hidden bg-slate-100/50">
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-2 border border-slate-100 dark:border-white/10 shadow-sm">
+        <div className="relative h-10 rounded-xl overflow-hidden bg-slate-100/50 dark:bg-white/[0.04]">
           <div className="absolute inset-0 flex">
             <div className="flex-1 bg-emerald-400/20 border-r border-white/40" />
             <div className="flex-1 bg-amber-400/20 border-r border-white/40" />
@@ -296,7 +296,7 @@ export default function InjuryRisk({ activities }) {
             className="absolute top-0 bottom-0 w-2 bg-slate-900 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 delay-300"
             style={{ left: `${riskScore}%`, transform: 'translateX(-50%)' }}
           />
-          <div className="absolute inset-0 flex items-center justify-between px-6 text-label font-bold uppercase text-slate-500 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-between px-6 text-label font-bold uppercase text-slate-500 dark:text-white/55 pointer-events-none">
             <span>{t('injury.risk_levels.safe')}</span>
             <span>{t('injury.risk_levels.alert')}</span>
             <span>{t('injury.risk_levels.loaded')}</span>
@@ -307,8 +307,8 @@ export default function InjuryRisk({ activities }) {
 
       {/* Factor breakdown */}
       {/* Factor breakdown */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-        <h3 className="text-slate-900 font-black text-sm uppercase tracking-widest mb-8 flex items-center gap-2">
+      <div className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-sm">
+        <h3 className="text-slate-900 dark:text-white font-black text-sm uppercase tracking-widest mb-8 flex items-center gap-2">
            <ArrowPathIcon className="w-4 h-4 text-blue-500" />
            {t('injury.factors.title')}
         </h3>
@@ -319,21 +319,21 @@ export default function InjuryRisk({ activities }) {
               <div key={f.name} className="group">
                 <div className="flex justify-between items-end mb-2">
                   <div>
-                    <p className="text-label font-bold uppercase text-slate-500 mb-0.5">{f.name}</p>
-                    <p className="text-xs font-bold text-slate-700">{f.value}</p>
+                    <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-0.5">{f.name}</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-white/75">{f.value}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-black text-slate-500">{t('injury.factors.impact')} {f.weight}</p>
+                    <p className="text-xs font-black text-slate-500 dark:text-white/55">{t('injury.factors.impact')} {f.weight}</p>
                     <p className="text-sm font-black" style={{ color: fLevel.color }}>{t('injury.factors.score')} {f.risk}</p>
                   </div>
                 </div>
-                <div className="h-2 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
+                <div className="h-2 bg-slate-50 dark:bg-white/[0.04] rounded-full overflow-hidden border border-slate-100/50 dark:border-white/10">
                   <div
                     className="h-full rounded-full transition-all duration-700 group-hover:brightness-110"
                     style={{ width: `${f.risk}%`, backgroundColor: fLevel.color }}
                   />
                 </div>
-                <p className="mt-2 text-xs font-medium text-slate-500 group-hover:text-slate-600 transition-colors">
+                <p className="mt-2 text-xs font-medium text-slate-500 dark:text-white/55 group-hover:text-slate-600 transition-colors">
                   {f.detail}
                 </p>
               </div>
@@ -344,20 +344,20 @@ export default function InjuryRisk({ activities }) {
 
       {/* Señales de contexto — se muestran, no puntúan */}
       {context.length > 0 && (
-        <div className="bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 p-6">
-          <h3 className="text-slate-500 font-bold text-label uppercase mb-4 flex items-center gap-2">
-            <ExclamationTriangleIcon className="w-4 h-4 text-slate-400" />
+        <div className="bg-slate-50/60 dark:bg-white/[0.04] rounded-3xl border border-dashed border-slate-200 dark:border-white/10 p-6">
+          <h3 className="text-slate-500 dark:text-white/55 font-bold text-label uppercase mb-4 flex items-center gap-2">
+            <ExclamationTriangleIcon className="w-4 h-4 text-slate-400 dark:text-white/40" />
             {t('injury.context.title')}
           </h3>
-          <p className="text-xs text-slate-500 font-medium mb-4">{t('injury.context.desc')}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 font-medium mb-4">{t('injury.context.desc')}</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-4">
             {context.map(c => (
               <div key={c.name}>
                 <div className="flex justify-between items-baseline">
-                  <p className="text-label font-bold uppercase text-slate-500">{c.name}</p>
-                  <p className="text-sm font-black text-slate-500 tabular-nums">{c.value}</p>
+                  <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{c.name}</p>
+                  <p className="text-sm font-black text-slate-500 dark:text-white/55 tabular-nums">{c.value}</p>
                 </div>
-                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">{c.detail}</p>
+                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-white/55 leading-relaxed">{c.detail}</p>
               </div>
             ))}
           </div>
@@ -366,9 +366,9 @@ export default function InjuryRisk({ activities }) {
 
       {/* Risk history */}
       {historyData.length > 2 && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-1">{t('injury.history')}</Title>
-          <Text className="text-slate-500 text-sm mb-4">{t('injury.history_desc')}</Text>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-1">{t('injury.history')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm mb-4">{t('injury.history_desc')}</Text>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={historyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -396,18 +396,18 @@ export default function InjuryRisk({ activities }) {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <div className={`rounded-3xl border border-slate-100 p-8 shadow-xl ${riskScore < 35 ? 'bg-white border-l-[12px] border-l-emerald-500' : 'bg-white border-l-[12px] border-l-amber-500'}`}>
+        <div className={`rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-xl ${riskScore < 35 ? 'bg-white dark:bg-white/[0.03] border-l-[12px] border-l-emerald-500' : 'bg-white dark:bg-white/[0.03] border-l-[12px] border-l-amber-500'}`}>
            <div className="flex gap-6 items-start">
-             <div className={`p-4 rounded-2xl shrink-0 ${riskScore < 35 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+             <div className={`p-4 rounded-2xl shrink-0 ${riskScore < 35 ? 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300' : 'bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300'}`}>
                 {riskScore < 35 ? <ShieldCheckIcon className="w-8 h-8" /> : <ExclamationCircleIcon className="w-8 h-8" />}
              </div>
              <div>
-                <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight mb-4">{t('injury.roadmap')}</h3>
+                <h3 className="text-slate-900 dark:text-white font-black text-xl uppercase tracking-tight mb-4">{t('injury.roadmap')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {recommendations.map((rec, i) => (
-                    <div key={i} className="flex items-start gap-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
-                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${riskScore < 35 ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{i + 1}</span>
-                       <p className="text-sm font-bold text-slate-600 leading-snug">{rec}</p>
+                    <div key={i} className="flex items-start gap-3 bg-slate-50/50 dark:bg-white/[0.04] p-4 rounded-2xl border border-slate-100/50 dark:border-white/10">
+                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${riskScore < 35 ? 'bg-emerald-100 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300'}`}>{i + 1}</span>
+                       <p className="text-sm font-bold text-slate-600 dark:text-white/75 leading-snug">{rec}</p>
                     </div>
                   ))}
                 </div>
@@ -417,9 +417,9 @@ export default function InjuryRisk({ activities }) {
       )}
 
       {/* Guide */}
-      <Card className="shadow-lg border-slate-200">
-        <Title className="text-slate-800 font-bold mb-3">{t('injury.methodology')}</Title>
-        <div className="text-sm text-slate-600 space-y-2">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
+        <Title className="text-slate-800 dark:text-white font-bold mb-3">{t('injury.methodology')}</Title>
+        <div className="text-sm text-slate-600 dark:text-white/75 space-y-2">
           <p>{t('injury.methodology_desc')}</p>
           <ul className="list-disc list-inside space-y-1 text-xs">
             <li><span className="font-semibold">Rampa de CTL (30%)</span> — Puntos de fitness que gana el CTL por semana. Hasta +5/sem se asimila; por encima de +8, rara vez.</li>
@@ -428,13 +428,13 @@ export default function InjuryRisk({ activities }) {
             <li><span className="font-semibold">Monotonía (10%)</span> — Variabilidad de la carga diaria. Más variación = menos riesgo.</li>
             <li><span className="font-semibold">Strain (15%)</span> — Carga total × monotonía. Valores altos indican sobreentrenamiento.</li>
           </ul>
-          <p className="text-xs text-slate-500 mt-3">
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-3">
             El <span className="font-semibold">ACWR</span> se muestra como contexto pero <span className="font-semibold">no puntúa</span>:
             desde Impellizzeri et al. (2020) su validez como predictor de lesión está seriamente cuestionada
             (acoplamiento matemático entre carga aguda y crónica, y sensibilidad extrema a la ventana elegida).
             Ese peso lo asume la rampa de CTL, que mide la misma progresión sin dividir una media por otra que la contiene.
           </p>
-          <p className="text-xs text-slate-500 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
+          <p className="text-xs text-slate-500 dark:text-white/55 mt-2">Este modelo es orientativo y no sustituye el consejo médico profesional.</p>
         </div>
       </Card>
       <WellnessDiary activities={activities} />

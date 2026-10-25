@@ -17,12 +17,15 @@ export const ZAI_MODEL = 'glm-4.5-flash';
 // Modelos gratis de OpenRouter usados como fallback. El servidor solo acepta ids
 // que terminan en ":free" (coste $0), así que ampliar esta lista nunca puede
 // facturar. El catálogo gratis ROTA a menudo: para el selector manda
-// listOpenRouterModels() (lista viva); estos son solo el fallback. gpt-oss-20b es
-// el más fiable (sirve para texto Y salida estructurada); nemotron es el backup
-// estructurado (correcto pero lento).
+// listOpenRouterModels() (lista viva); estos son solo el fallback. Nemotron Ultra
+// es el universal (texto Y salida estructurada); Lightning es el backup rápido y
+// Gemma 4 el último (su pool gratis compartido da 429 a menudo). Ojo: el catálogo
+// lista modelos muertos (nemotron-3-super da 404) o vetados a apps normales
+// (inkling:free solo funciona en "agentic harnesses").
 export const OPENROUTER_FALLBACK_MODELS = [
-  'openai/gpt-oss-20b:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'google/gemma-4-31b-it:free',
 ];
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
@@ -106,8 +109,8 @@ export function buildModelGroups({ gemini, openrouter } = {}) {
 // Si el primario es Gemini se intercalan ANTES las versiones anteriores de
 // Gemini (3.8 → 3.7 → 3.6 → 3.1 Flash Lite, ver GEMINI_FALLBACK_CHAIN): bajar
 // de versión conserva la calidad del prompt mejor que saltar a un modelo
-// gratuito de otra casa. Agotado Gemini se sigue con gpt-oss-20b (único gratis
-// que hace texto Y estructurado), luego Z.ai/Groq (solo chat, pero rápidos) y
+// gratuito de otra casa. Agotado Gemini se sigue con Nemotron Ultra (gratis, hace
+// texto Y estructurado), luego Z.ai/Groq (solo chat, pero rápidos) y
 // por último el backup estructurado de OpenRouter.
 export function buildProviderChain({ provider = 'gemini', model } = {}) {
   const orName = (m) => `OpenRouter ${m.split('/').pop().replace(':free', '')}`;

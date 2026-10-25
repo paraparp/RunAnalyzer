@@ -36,11 +36,11 @@ function WeekStrip({ week, todayISO }) {
         const isToday = d.date === todayISO;
         const rest = !w || w.status === 'skipped' || isRestWorkout(w);
         const tone = !w
-          ? 'bg-slate-50 text-slate-400 dark:bg-slate-800/40 dark:text-slate-500'
+          ? 'bg-slate-50 text-slate-400 dark:bg-white/[0.06] dark:text-white/45'
           : w.status === 'done'
             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
             : rest
-              ? 'bg-slate-50 text-slate-500 dark:bg-slate-800/40 dark:text-slate-400'
+              ? 'bg-slate-50 text-slate-500 dark:bg-white/[0.06] dark:text-white/55'
               : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
         return (
           <div
@@ -70,7 +70,7 @@ function CoachNote({ note }) {
 
 function Card({ children }) {
   return (
-    <div className="lg:col-span-7 flex flex-col gap-4 p-5 sm:p-6 rounded border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="lg:col-span-7 flex flex-col gap-4 p-5 sm:p-6 rounded border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
       {children}
     </div>
   );
@@ -83,13 +83,13 @@ function Header({ session, day, action }) {
       : session.isRace ? 'Hoy compites'
         : session.done ? 'Sesión de hoy hecha' : 'Sesión planificada para hoy';
   return (
-    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center">
           <span className="material-symbols-outlined text-[20px]">{session.rest ? 'bedtime' : session.isRace ? 'flag' : session.done ? 'task_alt' : 'event_available'}</span>
         </div>
         <div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
           <span className="block text-xs text-slate-500">{day} • {sourceLabel(session)}</span>
         </div>
       </div>
@@ -113,7 +113,7 @@ function PlanBody({ session }) {
   return (
     <>
       {session.rest ? (
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-slate-600 dark:text-white/75">
           {session.skipped
             ? 'La sesión de hoy está marcada como saltada en tu plan.'
             : session.summary || 'Tu plan no tiene sesión para hoy. Descansar también es entrenar: es cuando se asimila la carga.'}
@@ -121,19 +121,19 @@ function PlanBody({ session }) {
       ) : (
         <>
           <div>
-            <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.type}</p>
-            {session.summary && <p className="text-xs text-slate-500 dark:text-slate-400">{session.summary}</p>}
+            <p className="text-lg font-black text-slate-900 dark:text-white">{session.type}</p>
+            {session.summary && <p className="text-xs text-slate-500 dark:text-white/55">{session.summary}</p>}
           </div>
 
           {(session.dist || session.time || session.totalMin > 0) && (
-            <div className="grid grid-cols-2 gap-2 p-3 rounded bg-slate-50 dark:bg-slate-800/60 text-center border border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-2 gap-2 p-3 rounded bg-slate-50 dark:bg-white/[0.06] text-center border border-slate-100 dark:border-white/10">
               <div className="flex flex-col">
                 <span className="text-label font-bold uppercase text-slate-500">Distancia</span>
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">{session.dist ?? '—'}</span>
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white">{session.dist ?? '—'}</span>
               </div>
-              <div className="flex flex-col border-l border-slate-200 dark:border-slate-700">
+              <div className="flex flex-col border-l border-slate-200 dark:border-white/10">
                 <span className="text-label font-bold uppercase text-slate-500">Duración</span>
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
                   {session.time ?? (session.totalMin > 0 ? `${session.totalMin} min` : '—')}
                 </span>
               </div>
@@ -143,7 +143,7 @@ function PlanBody({ session }) {
           {session.blocks.length > 0 && session.totalMin > 0 && (
             <div className="flex flex-col gap-2">
               {/* Anchos = proporción REAL de cada bloque (repeticiones incluidas) */}
-              <div className="h-10 w-full rounded overflow-hidden flex shadow-inner border border-slate-200/60 dark:border-slate-700">
+              <div className="h-10 w-full rounded overflow-hidden flex shadow-inner border border-slate-200/60 dark:border-white/10">
                 {session.blocks.map((b, i) => b.totalMin > 0 && (
                   <div
                     key={i}
@@ -158,11 +158,11 @@ function PlanBody({ session }) {
               <ul className="space-y-1.5">
                 {session.blocks.map((b, i) => (
                   <li key={i} className="flex items-baseline justify-between gap-3 text-xs">
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="font-semibold text-slate-700 dark:text-white">
                       {b.reps ? `${b.reps} × ${b.duration_min}′ ` : `${b.duration_min}′ `}{b.phase}
                       {b.recovery && <span className="font-normal text-slate-500"> · rec. {b.recovery}</span>}
                     </span>
-                    <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
+                    <span className="shrink-0 tabular-nums text-slate-500 dark:text-white/55">
                       {[b.pace, b.hr && `${b.hr} ppm`].filter(Boolean).join(' · ')}
                     </span>
                   </li>
@@ -172,7 +172,7 @@ function PlanBody({ session }) {
           )}
 
           {session.hrvGuidance && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 italic">{session.hrvGuidance}</p>
+            <p className="text-xs text-slate-500 dark:text-white/55 italic">{session.hrvGuidance}</p>
           )}
         </>
       )}
@@ -220,8 +220,8 @@ export function UpcomingSession({ upcoming, className = '' }) {
   return (
     <div className={`p-3 rounded bg-blue-50 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900 ${className}`}>
       <p className="text-label font-bold uppercase text-blue-700 dark:text-blue-300">Siguiente sesión planificada · {when}</p>
-      <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{upcoming.isRace ? `🏁 ${upcoming.type}` : upcoming.type}</p>
-      {upcoming.summary && <p className="text-xs text-slate-500 dark:text-slate-400">{upcoming.summary}</p>}
+      <p className="text-sm font-bold text-slate-900 dark:text-white">{upcoming.isRace ? `🏁 ${upcoming.type}` : upcoming.type}</p>
+      {upcoming.summary && <p className="text-xs text-slate-500 dark:text-white/55">{upcoming.summary}</p>}
       {(upcoming.dist || upcoming.time) && (
         <p className="text-xs font-mono text-slate-500 mt-0.5">{[upcoming.dist, upcoming.time].filter(Boolean).join(' · ')}</p>
       )}
@@ -259,8 +259,8 @@ export default function TodayPlannedSession({ session, day, todayISO, action, ad
       <Card>
         <Header session={session} day={day} action={action} />
         <div>
-          <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.title}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-lg font-black text-slate-900 dark:text-white">{session.title}</p>
+          <p className="text-xs text-slate-500 dark:text-white/55">
             Agendado en tu calendario de Garmin
             {session.extra > 0 ? ` (y ${session.extra} más para hoy)` : ''}. La estructura y los objetivos los tienes en el reloj.
           </p>
@@ -278,8 +278,8 @@ export default function TodayPlannedSession({ session, day, todayISO, action, ad
       {session.source === 'training_plan' && session.workout ? (
         <>
           <div>
-            <p className="text-lg font-black text-slate-900 dark:text-slate-100">{session.type}</p>
-            {session.summary && <p className="text-xs text-slate-500 dark:text-slate-400">{session.summary}</p>}
+            <p className="text-lg font-black text-slate-900 dark:text-white">{session.type}</p>
+            {session.summary && <p className="text-xs text-slate-500 dark:text-white/55">{session.summary}</p>}
             {(session.dist || session.time) && (
               <p className="text-xs font-mono text-slate-500 mt-0.5">{[session.dist, session.time].filter(Boolean).join(' · ')}</p>
             )}

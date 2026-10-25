@@ -16,6 +16,84 @@
   --font-main: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --sidebar-width: 260px;
   --radius: 2px;
+
+  /* Tokens semánticos del tema (canales RGB, se usan con alfa en Tailwind). */
+  --bg:            246 247 249;  /* fondo de página */
+  --surface:       255 255 255;  /* tarjeta */
+  --surface-2:     241 243 246;  /* hundido / hover */
+  --line:          15 23 42;     /* bordes: se usa con alfa, p. ej. /10 */
+  --ink:           10 12 16;
+  --ink-muted:     71 85 105;
+  --accent:        15 118 110;   /* teal-700: legible sobre blanco */
+  --accent-2:      194 65 12;    /* orange-700 */
+
+  /* Colores neutros de gráficos (Recharts, Leaflet, SVG): los lee lib/palette.js. */
+  --c-ink: #0f172a;
+  --c-ink-secondary: #475569;
+  --c-ink-muted: #64748b;
+  --c-ink-faint: #94a3b8;
+  --c-hairline-strong: #cbd5e1;
+  --c-hairline: #e2e8f0;
+  --c-hairline-soft: #f1f5f9;
+  --c-sunken: #f8fafc;
+  --c-paper: #ffffff;
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg-main: #07090d;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.75);
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --accent-primary: #5eead4;
+  --border-light: 1px solid rgba(255, 255, 255, 0.1);
+
+  --bg:            7 9 13;       /* #07090d, el de la landing */
+  --surface:       255 255 255;  /* se usa con alfa 0.03–0.06 */
+  --surface-2:     255 255 255;
+  --line:          255 255 255;
+  --ink:           255 255 255;
+  --ink-muted:     255 255 255;  /* con alfa /55 */
+  --accent:        94 234 212;   /* teal-300 */
+  --accent-2:      253 186 116;  /* orange-300 */
+
+  --c-ink: #f8fafc;
+  --c-ink-secondary: rgba(255, 255, 255, 0.75);
+  --c-ink-muted: rgba(255, 255, 255, 0.55);
+  --c-ink-faint: rgba(255, 255, 255, 0.35);
+  --c-hairline-strong: rgba(255, 255, 255, 0.2);
+  --c-hairline: rgba(255, 255, 255, 0.1);
+  --c-hairline-soft: rgba(255, 255, 255, 0.06);
+  --c-sunken: #0c0e12;
+  --c-paper: #0c0e12;
+
+  color-scheme: dark;
+}
+
+/* Campos de formulario (@tailwindcss/forms los pinta blancos) en modo oscuro.
+   En la capa base para que las utilidades (bg-transparent, border-0…) manden. */
+@layer base {
+  .dark :where(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+  }
+
+  .dark :where(input, textarea)::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .dark :where(select) option {
+    background-color: #0c0e12;
+  }
+}
+
+@layer components {
+  .card    { @apply bg-white border border-slate-900/10 dark:bg-white/[0.03] dark:border-white/10; }
+  .card-hi { @apply bg-white border border-slate-900/10 dark:bg-white/[0.06] dark:border-white/15; }
+  .h-display { @apply font-black tracking-tighter text-ink; }
 }
 
 body {
@@ -29,13 +107,18 @@ body {
 }
 
 ::selection {
-  background-color: #dbeafe;
+  background-color: #ccfbf1;
   color: #0f172a;
+}
+
+.dark ::selection {
+  background-color: rgba(94, 234, 212, 0.3);
+  color: #ffffff;
 }
 
 input,
 textarea {
-  caret-color: #2563eb;
+  caret-color: rgb(var(--accent));
 }
 
 #root {
@@ -46,8 +129,9 @@ textarea {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
 }
+/* Banda de las herramientas de IA: teal a naranja, como la landing. */
 .kinetic-gradient {
-  background: linear-gradient(135deg, #004be2 0%, #809bff 100%);
+  background: linear-gradient(90deg, #14b8a6 0%, #fb923c 100%);
 }
 
 /* Animations */
@@ -145,7 +229,11 @@ textarea {
 
 /* Tremor overrides — Kinetic style */
 .tremor-TableRow-row:hover {
-  background-color: #f0f4ff !important;
+  background-color: #f0fdfa !important;
+}
+
+.dark .tremor-TableRow-row:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
 .tremor-TableHeaderCell-tableHeaderCell {
@@ -156,12 +244,22 @@ textarea {
   color: #64748b !important;
 }
 
+.dark .tremor-TableHeaderCell-tableHeaderCell {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
 /* Cards */
 .tremor-Card-root {
   border-radius: var(--radius) !important;
   border: 1px solid rgba(226,232,240,0.7) !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
   background: #ffffff !important;
+}
+
+.dark .tremor-Card-root {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.03) !important;
 }
 
 /* Title inside cards */
@@ -172,15 +270,54 @@ textarea {
   letter-spacing: -0.01em !important;
 }
 
+.dark .tremor-Title-root {
+  color: #ffffff !important;
+}
+
 /* Text inside cards */
 .tremor-Text-root {
   color: #64748b !important;
   font-size: 14px !important;
 }
 
+.dark .tremor-Text-root {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Tooltip por defecto de Recharts: lleva fondo blanco en línea. */
+.dark .recharts-default-tooltip {
+  background-color: #0c0e12 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff;
+}
+
+.dark .recharts-tooltip-cursor {
+  fill: rgba(255, 255, 255, 0.04);
+}
+
 /* Tabular numbers for data */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Shell oscuro (sidebar, cabecera): mismo lenguaje que la landing —
+   negro #07090d con un halo teal arriba y naranja abajo. */
+@layer utilities {
+  .shell-glow {
+    background-image:
+      radial-gradient(120% 40% at 0% 0%, rgba(94, 234, 212, 0.08), transparent 60%),
+      radial-gradient(120% 35% at 100% 100%, rgba(251, 146, 60, 0.07), transparent 60%);
+  }
+}
+
+
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Overlay for mobile sidebar */

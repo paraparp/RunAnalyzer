@@ -24,24 +24,24 @@ const SharedTooltip = ({ active, payload, unit, metric, avgLabel = "Media", inve
   if (!active || !payload?.length) return null;
   const pt = payload[0]?.payload;
   if (!pt || pt.ms == null) return null;
-  const U = unit ? <span className="text-slate-500 font-medium ml-0.5">{unit}</span> : null;
+  const U = unit ? <span className="text-slate-500 dark:text-white/55 font-medium ml-0.5">{unit}</span> : null;
   return (
-    <div className="bg-white/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
-      <p className="font-semibold text-slate-500">{fmtDateFull(pt.ms)}</p>
-      <p className="text-label font-bold uppercase text-slate-500 mb-1.5">
+    <div className="bg-white/95 dark:bg-[#0c0e12]/95 backdrop-blur-xl border border-white/40 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[150px]">
+      <p className="font-semibold text-slate-500 dark:text-white/55">{fmtDateFull(pt.ms)}</p>
+      <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-1.5">
         {metric}
-        {inverted && <span className="normal-case font-medium text-slate-500"> · eje invertido</span>}
+        {inverted && <span className="normal-case font-medium text-slate-500 dark:text-white/55"> · eje invertido</span>}
       </p>
       {pt.smooth != null && (
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">{avgLabel}</span>
-          <span className="font-bold text-slate-900">{pt.smooth}{U}</span>
+          <span className="text-slate-500 dark:text-white/55">{avgLabel}</span>
+          <span className="font-bold text-slate-900 dark:text-white">{pt.smooth}{U}</span>
         </div>
       )}
       {pt.raw != null && (
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Diario</span>
-          <span className="font-semibold text-slate-600">{pt.raw}{U}</span>
+          <span className="text-slate-500 dark:text-white/55">Diario</span>
+          <span className="font-semibold text-slate-600 dark:text-white/75">{pt.raw}{U}</span>
         </div>
       )}
     </div>
@@ -62,7 +62,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
     const up = trend > 0;
     const good = trendInverse ? !up : up;
     trendBadge = (
-      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ring-1 ${good ? "text-emerald-600 bg-emerald-50 ring-emerald-500/20" : "text-rose-600 bg-rose-50 ring-rose-500/20"}`}>
+      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ring-1 ${good ? "text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-400/10 ring-emerald-500/20" : "text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10 ring-rose-500/20"}`}>
         {up ? "↗" : "↘"} {Math.abs(trend).toFixed(decimals)}
       </span>
     );
@@ -70,22 +70,22 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
 
   const hasData = data.some((d) => d.smooth != null || d.raw != null);
   const currentValue = current != null && (
-    <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+    <span className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
       {current}
-      {unit && <span className="text-xs font-semibold text-slate-500 ml-0.5">{unit}</span>}
+      {unit && <span className="text-xs font-semibold text-slate-500 dark:text-white/55 ml-0.5">{unit}</span>}
     </span>
   );
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${A.icon}`}>
             <Icon className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">{title}</h3>
-            <p className="text-xs text-slate-500 truncate">{subtitle}</p>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">{title}</h3>
+            <p className="text-xs text-slate-500 dark:text-white/55 truncate">{subtitle}</p>
           </div>
         </div>
         <div className="flex items-baseline gap-2 shrink-0">
@@ -165,11 +165,11 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
               )}
               <Area
                 type="monotone"
-                dataKey="smooth"
+                dataKey="line"
                 stroke={A.stroke}
                 strokeWidth={2.5}
                 fill={`url(#grad-${accent})`}
-                connectNulls
+                connectNulls={false}
                 dot={false}
                 isAnimationActive={false}
               />
@@ -186,7 +186,7 @@ function VitalPanel({ title, subtitle, icon: Icon, accent, data, unit, current, 
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full flex items-center justify-center text-xs text-slate-500">Sin datos en este período</div>
+          <div className="h-full flex items-center justify-center text-xs text-slate-500 dark:text-white/55">Sin datos en este período</div>
         )}
       </div>
     </div>
@@ -253,12 +253,12 @@ export default function VitalsOverview({ activities = [], allActivities }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
+          <div className="w-8 h-8 bg-teal-50 dark:bg-teal-400/10 rounded-xl flex items-center justify-center">
             <ArrowTrendingUpIcon className="w-4 h-4 text-blue-500" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 leading-tight">Resumen Vital</h2>
-            <p className="text-xs text-slate-500">VFC · FC reposo · VO₂max submáximo en paralelo</p>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Resumen Vital</h2>
+            <p className="text-xs text-slate-500 dark:text-white/55">VFC · FC reposo · VO₂max submáximo en paralelo</p>
           </div>
         </div>
 
@@ -268,7 +268,7 @@ export default function VitalsOverview({ activities = [], allActivities }) {
           {/* GAP toggle (afecta solo a Eficiencia aeróbica) */}
           <label
             title="Ajusta la eficiencia por desnivel (modelo de Minetti) e incluye rodajes de hasta 4% de pendiente. Aproximado: solo usa el desnivel medio."
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white cursor-pointer select-none hover:border-sky-300 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] cursor-pointer select-none hover:border-sky-300 transition-colors"
           >
             <input
               type="checkbox"
@@ -276,13 +276,13 @@ export default function VitalsOverview({ activities = [], allActivities }) {
               onChange={(e) => setGapAdjust(e.target.checked)}
               className="w-3.5 h-3.5 accent-sky-500"
             />
-            <span className="text-xs font-semibold text-slate-600">Ajustar por desnivel</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-white/75">Ajustar por desnivel</span>
           </label>
         </div>
       </div>
 
       {!hasGarmin && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 flex items-start gap-2">
+        <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 rounded-xl p-3 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
           <ExclamationTriangleIcon className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
           <span>
             No hay datos de Garmin para VFC y FC en reposo. Conéctate en <strong>Monitor Cardíaco</strong> para verlos aquí.
@@ -414,15 +414,15 @@ export default function VitalsOverview({ activities = [], allActivities }) {
 
       <div className="flex flex-col items-center gap-1.5 px-4">
         {effThreshold != null && goodBands.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-white/55">
             <span className="inline-block w-4 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/30" />
             <span>
               Franja verde = eficiencia aeróbica ≥ 85 % de tu máximo histórico
-              <span className="text-slate-500"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
+              <span className="text-slate-500 dark:text-white/55"> (≥ {effThreshold} m/latido)</span>. Mira cómo están el resto de métricas en esos tramos.
             </span>
           </div>
         )}
-        <p className="text-xs text-slate-500 text-center">
+        <p className="text-xs text-slate-500 dark:text-white/55 text-center">
           Las líneas punteadas marcan el máx/mín del período. Los ejes temporales están alineados para comparar tendencias. ↗/↘ indica el cambio respecto a la primera mitad.
         </p>
       </div>

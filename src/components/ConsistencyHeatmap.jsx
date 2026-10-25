@@ -12,16 +12,16 @@ import { dayKey, activityDayKey } from '../lib/trainingLoad';
 import { weekStartKey } from '../lib/isoWeek';
 
 function getColorForValue(value, max, metric) {
-  if (!value || value === 0) return 'bg-slate-100/60';
+  if (!value || value === 0) return 'bg-slate-100/60 dark:bg-white/[0.04]';
   const intensity = Math.min(value / max, 1);
   if (metric === 'load') {
-    if (intensity < 0.2) return 'bg-rose-100';
+    if (intensity < 0.2) return 'bg-rose-100 dark:bg-rose-400/10';
     if (intensity < 0.4) return 'bg-rose-200';
     if (intensity < 0.6) return 'bg-rose-300';
     if (intensity < 0.8) return 'bg-rose-500';
     return 'bg-rose-700';
   }
-  if (intensity < 0.2) return 'bg-emerald-100';
+  if (intensity < 0.2) return 'bg-emerald-100 dark:bg-emerald-400/10';
   if (intensity < 0.4) return 'bg-emerald-200';
   if (intensity < 0.6) return 'bg-emerald-300';
   if (intensity < 0.8) return 'bg-emerald-500';
@@ -193,55 +193,55 @@ export default function ConsistencyHeatmap({ activities }) {
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
-          { label: t('consistency.stats.active_days'), value: consistencyStats.totalDays, unit: `${t('dashboard.in', 'en')} ${selectedYear}`, color: "text-slate-900", icon: CalendarDaysIcon },
-          { label: t('consistency.stats.current_streak'), value: consistencyStats.currentStreak, unit: t('dashboard.days', 'días'), color: "text-emerald-600", icon: FireIcon },
-          { label: t('consistency.stats.best_streak'), value: consistencyStats.longestStreak, unit: t('dashboard.days', 'días'), color: "text-blue-600", icon: TrophyIcon },
-          { label: t('consistency.stats.consistency'), value: `${consistencyStats.weeksWith3}/${consistencyStats.totalWeeks}`, unit: t('dashboard.weeks_min', 'semanas ≥3'), color: "text-amber-600", icon: CheckBadgeIcon }
+          { label: t('consistency.stats.active_days'), value: consistencyStats.totalDays, unit: `${t('dashboard.in', 'en')} ${selectedYear}`, color: "text-slate-900 dark:text-white", icon: CalendarDaysIcon },
+          { label: t('consistency.stats.current_streak'), value: consistencyStats.currentStreak, unit: t('dashboard.days', 'días'), color: "text-emerald-600 dark:text-emerald-300", icon: FireIcon },
+          { label: t('consistency.stats.best_streak'), value: consistencyStats.longestStreak, unit: t('dashboard.days', 'días'), color: "text-teal-700 dark:text-teal-300", icon: TrophyIcon },
+          { label: t('consistency.stats.consistency'), value: `${consistencyStats.weeksWith3}/${consistencyStats.totalWeeks}`, unit: t('dashboard.weeks_min', 'semanas ≥3'), color: "text-amber-600 dark:text-amber-300", icon: CheckBadgeIcon }
         ].map((card, i) => (
-          <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md group">
+          <div key={i} className="bg-white dark:bg-white/[0.03] rounded-2xl p-6 border border-slate-100 dark:border-white/10 shadow-sm transition-all hover:shadow-md group">
             <div className="flex justify-between items-start mb-3">
-              <div className="p-2 bg-slate-50 rounded-xl text-slate-500 group-hover:text-slate-600 transition-colors">
+              <div className="p-2 bg-slate-50 dark:bg-white/[0.04] rounded-xl text-slate-500 dark:text-white/55 group-hover:text-slate-600 transition-colors">
                 <card.icon className="w-5 h-5" />
               </div>
-              <div className="text-label font-bold uppercase text-slate-500 text-right">{card.label}</div>
+              <div className="text-label font-bold uppercase text-slate-500 dark:text-white/55 text-right">{card.label}</div>
             </div>
             <div className="flex items-baseline gap-1.5">
               <p className={`text-3xl font-black tabular-nums transition-transform group-hover:translate-x-1 ${card.color}`}>{card.value}</p>
-              <p className="text-label font-bold text-slate-500 uppercase tracking-tighter">{card.unit}</p>
+              <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase tracking-tighter">{card.unit}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Heatmap */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl">
+      <div className="bg-white dark:bg-[#0c0e12] rounded-3xl border border-slate-100 dark:border-white/10 p-8 shadow-xl">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="bg-emerald-600 text-white p-1 rounded-lg">
                 <SparklesIcon className="w-4 h-4" />
               </div>
-              <h3 className="text-slate-900 font-black text-xl uppercase tracking-tight">{t('consistency.title')}</h3>
+              <h3 className="text-slate-900 dark:text-white font-black text-xl uppercase tracking-tight">{t('consistency.title')}</h3>
             </div>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-2xl">
+            <p className="text-slate-500 dark:text-white/55 text-sm font-medium leading-relaxed max-w-2xl">
               {t('consistency.subtitle')}
             </p>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+            <div className="flex bg-slate-50 dark:bg-white/[0.04] p-1 rounded-xl border border-slate-100 dark:border-white/10">
               {availableYears.map(y => (
                 <button
                   key={y}
                   onClick={() => setSelectedYear(y)}
-                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${selectedYear === y ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${selectedYear === y ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white'}`}
                 >
                   {y}
                 </button>
               ))}
             </div>
 
-            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+            <div className="flex bg-slate-50 dark:bg-white/[0.04] p-1 rounded-xl border border-slate-100 dark:border-white/10">
               {[
                 { id: 'distance', label: t('consistency.metrics.distance') },
                 { id: 'time', label: t('consistency.metrics.time') },
@@ -250,7 +250,7 @@ export default function ConsistencyHeatmap({ activities }) {
                 <button
                   key={m.id}
                   onClick={() => setMetric(m.id)}
-                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${metric === m.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-label font-bold uppercase transition-all ${metric === m.id ? 'bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-white/55 hover:text-slate-600 dark:hover:text-white'}`}
                 >
                   {m.label}
                 </button>
@@ -260,13 +260,13 @@ export default function ConsistencyHeatmap({ activities }) {
         </div>
 
         <div className="overflow-x-auto -mx-4 px-4 pb-4 scrollbar-hide">
-          <div className="inline-block min-w-[800px] bg-slate-50/30 p-8 rounded-2xl border border-slate-100">
+          <div className="inline-block min-w-[800px] bg-slate-50/30 dark:bg-white/[0.04] p-8 rounded-2xl border border-slate-100 dark:border-white/10">
             {/* Month labels */}
             <div className="flex ml-10 mb-2 relative h-5">
               {monthPositions.map(({ month, weekIndex }) => (
                 <span
                   key={month}
-                  className="text-label text-slate-500 font-bold uppercase tracking-tighter"
+                  className="text-label text-slate-500 dark:text-white/55 font-bold uppercase tracking-tighter"
                   style={{ position: 'absolute', left: `${weekIndex * 15}px` }}
                 >
                   {MONTH_LABELS[month]}
@@ -279,7 +279,7 @@ export default function ConsistencyHeatmap({ activities }) {
               <div className="flex flex-col gap-[4px] mr-2">
                 {DAY_LABELS.map((label, i) => (
                   <div key={i} className="h-[12px] flex items-center">
-                    <span className="text-label text-slate-500 font-bold uppercase tracking-tighter w-6 text-right leading-none">{label}</span>
+                    <span className="text-label text-slate-500 dark:text-white/55 font-bold uppercase tracking-tighter w-6 text-right leading-none">{label}</span>
                   </div>
                 ))}
               </div>
@@ -311,16 +311,16 @@ export default function ConsistencyHeatmap({ activities }) {
 
             {/* Legend */}
             <div className="flex items-center gap-3 mt-8 ml-10">
-              <span className="text-label font-bold uppercase text-slate-500">{t('dashboard.less', 'Menos')}</span>
-              <div className="flex gap-1.5 p-1 bg-white rounded-lg border border-slate-100 shadow-sm">
-                <div className="w-[12px] h-[12px] rounded-sm bg-slate-100/60" />
-                <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-100' : 'bg-emerald-100'}`} />
+              <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('dashboard.less', 'Menos')}</span>
+              <div className="flex gap-1.5 p-1 bg-white dark:bg-white/[0.03] rounded-lg border border-slate-100 dark:border-white/10 shadow-sm">
+                <div className="w-[12px] h-[12px] rounded-sm bg-slate-100/60 dark:bg-white/[0.04]" />
+                <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-100 dark:bg-rose-400/10' : 'bg-emerald-100 dark:bg-emerald-400/10'}`} />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-200' : 'bg-emerald-200'}`} />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-300' : 'bg-emerald-300'}`} />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                 <div className={`w-[12px] h-[12px] rounded-sm ${metric === 'load' ? 'bg-rose-700' : 'bg-emerald-700'}`} />
               </div>
-              <span className="text-label font-bold uppercase text-slate-500">{t('dashboard.more', 'Más')}</span>
+              <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('dashboard.more', 'Más')}</span>
             </div>
           </div>
         </div>

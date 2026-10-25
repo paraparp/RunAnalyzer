@@ -7,6 +7,7 @@
 // ============================================================================
 import { getGarminClientFor } from './garmin-session.js';
 import { dayKey } from '../../src/lib/trainingLoad.js';
+import { sleepAvgHr } from './garmin-helpers.js';
 
 const API = 'https://connectapi.garmin.com';
 const round = (n, d = 1) => (n == null ? null : parseFloat(Number(n).toFixed(d)));
@@ -78,6 +79,7 @@ export async function getSleepDaily(userId, { from, to } = {}) {
         avg_overnight_hrv: round(s?.avgOvernightHrv),
         hrv_status: s?.hrvStatus ?? null,
         resting_hr: s?.restingHeartRate ?? null,
+        avg_sleep_hr: sleepAvgHr(s),
         body_battery_change: s?.bodyBatteryChange ?? null,
         feedback: dto.sleepScoreFeedback ?? null,
       };

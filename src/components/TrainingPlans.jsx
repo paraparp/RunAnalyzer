@@ -26,11 +26,11 @@ import { buildLoadParams, sessionLoad } from '../lib/trainingLoad';
 
 // Color de cada fase del bloque: escala de índigo según la carga, cian para el taper.
 const PHASE_STYLE = {
-    base: { band: 'bg-indigo-200', text: 'text-indigo-500', wash: 'bg-indigo-50' },
-    build: { band: 'bg-indigo-400', text: 'text-indigo-600', wash: 'bg-indigo-50' },
-    peak: { band: 'bg-indigo-600', text: 'text-indigo-700', wash: 'bg-indigo-100' },
-    taper: { band: 'bg-cyan-500', text: 'text-cyan-700', wash: 'bg-cyan-50' },
-    recovery: { band: 'bg-slate-300', text: 'text-slate-500', wash: 'bg-slate-100' },
+    base: { band: 'bg-indigo-200', text: 'text-indigo-500', wash: 'bg-indigo-50 dark:bg-indigo-400/10' },
+    build: { band: 'bg-indigo-400', text: 'text-indigo-600 dark:text-indigo-300', wash: 'bg-indigo-50 dark:bg-indigo-400/10' },
+    peak: { band: 'bg-indigo-600', text: 'text-indigo-700 dark:text-indigo-300', wash: 'bg-indigo-100 dark:bg-indigo-400/10' },
+    taper: { band: 'bg-cyan-500', text: 'text-cyan-700 dark:text-cyan-300', wash: 'bg-cyan-50 dark:bg-cyan-400/10' },
+    recovery: { band: 'bg-slate-300', text: 'text-slate-500 dark:text-white/55', wash: 'bg-slate-100 dark:bg-white/[0.04]' },
 };
 
 const VIEW_KEY = 'trainingplans_view';
@@ -55,9 +55,9 @@ const toFormWorkout = (w) => ({
 });
 
 const STATUS_STYLE = {
-    planned: 'bg-blue-50 text-blue-600 ring-blue-100',
-    done: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
-    skipped: 'bg-slate-100 text-slate-500 ring-slate-200',
+    planned: 'bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 ring-blue-100',
+    done: 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-300 ring-emerald-100',
+    skipped: 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55 ring-slate-200 dark:ring-white/10',
 };
 
 const locale = typeof navigator !== 'undefined' ? navigator.language : undefined;
@@ -84,8 +84,8 @@ const Chip = ({ className = '', children }) => (
     </span>
 );
 
-const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
-const iconBtn = "p-1.5 rounded-lg text-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+const inputClass = "w-full px-3 py-2 text-sm bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400";
+const iconBtn = "p-1.5 rounded-lg text-slate-500 dark:text-white/55 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
     const [form, setForm] = useState(initial);
@@ -110,56 +110,56 @@ const WorkoutForm = ({ initial, onSave, onCancel, t }) => {
     };
 
     return (
-        <form onSubmit={submit} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+        <form onSubmit={submit} className="bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.date')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.date')}</label>
                     <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className={inputClass} />
                 </div>
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.type')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.type')}</label>
                     <input type="text" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} placeholder={t('trainingplans.type_ph')} className={inputClass} />
                 </div>
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.status')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.status')}</label>
                     <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inputClass}>
                         {WORKOUT_STATUSES.map((s) => <option key={s} value={s}>{t(`trainingplans.status_${s}`)}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.category')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.category')}</label>
                     <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputClass}>
                         <option value="">{t('trainingplans.category_auto')}</option>
                         {WORKOUT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_STYLE[c].label}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.distance')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.distance')}</label>
                     <input type="number" step="0.1" min="0" value={form.distance_km} onChange={(e) => setForm((f) => ({ ...f, distance_km: e.target.value }))} placeholder={t('trainingplans.distance_ph')} className={inputClass} />
                 </div>
                 <div>
-                    <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.duration')}</label>
+                    <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.duration')}</label>
                     <input type="number" step="1" min="0" value={form.duration_min} onChange={(e) => setForm((f) => ({ ...f, duration_min: e.target.value }))} placeholder={t('trainingplans.duration_ph')} className={inputClass} />
                 </div>
             </div>
             <div>
-                <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.summary')}</label>
+                <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.summary')}</label>
                 <textarea value={form.summary} onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} placeholder={t('trainingplans.summary_ph')} rows={3} className={`${inputClass} resize-y`} />
             </div>
             <div>
-                <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.key_rule')}</label>
+                <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.key_rule')}</label>
                 <input type="text" value={form.key_rule} onChange={(e) => setForm((f) => ({ ...f, key_rule: e.target.value }))} placeholder={t('trainingplans.key_rule_ph')} className={inputClass} />
             </div>
             <div>
-                <label className="block text-label font-bold text-slate-500 uppercase mb-1.5">{t('trainingplans.coach_note')}</label>
+                <label className="block text-label font-bold text-slate-500 dark:text-white/55 uppercase mb-1.5">{t('trainingplans.coach_note')}</label>
                 <textarea value={form.coach_note} onChange={(e) => setForm((f) => ({ ...f, coach_note: e.target.value }))} placeholder={t('trainingplans.coach_note_ph')} rows={2} className={`${inputClass} resize-y`} />
             </div>
-            {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
+            {error && <p className="text-sm font-medium text-rose-600 dark:text-rose-300">{error}</p>}
             <div className="flex items-center gap-2">
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all">
+                <button type="submit" className="px-4 py-2 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-white/90 transition-all">
                     {t('trainingplans.save')}
                 </button>
-                <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-300 transition-all">
+                <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-white/75 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-300 transition-all">
                     {t('trainingplans.cancel')}
                 </button>
             </div>
@@ -183,12 +183,12 @@ const ActualLine = ({ actual, workout, onOpen, t }) => {
             type="button"
             onClick={() => actual.activity_id && onOpen?.(actual.activity_id)}
             title={actual.name || t('trainingplans.open_activity')}
-            className="mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs text-slate-600 hover:border-blue-200 hover:text-blue-700 transition-colors"
+            className="mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 text-xs text-slate-600 dark:text-white/75 hover:border-blue-200 hover:text-teal-800 dark:hover:text-teal-200 transition-colors"
         >
-            <span className="font-black uppercase text-label text-slate-500">{t('trainingplans.actual')}</span>
+            <span className="font-black uppercase text-label text-slate-500 dark:text-white/55">{t('trainingplans.actual')}</span>
             <span className="font-bold tabular-nums">{parts.join(' · ')}</span>
             {delta != null && Math.abs(delta) >= 5 && (
-                <span className="font-semibold tabular-nums text-slate-500">({delta > 0 ? '+' : ''}{delta}% {t('trainingplans.vs_plan')})</span>
+                <span className="font-semibold tabular-nums text-slate-500 dark:text-white/55">({delta > 0 ? '+' : ''}{delta}% {t('trainingplans.vs_plan')})</span>
             )}
         </button>
     );
@@ -208,13 +208,13 @@ const PlanVsActual = ({ workout, actual, onOpen, t }) => {
         pace: (v) => `${formatMinutes(v)}/km`,
     };
     return (
-        <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/60">
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100">
+        <div className="mt-3 rounded-lg border border-slate-100 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.04]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100 dark:divide-white/10">
                 {rows.map((r) => (
                     <div key={r.key} className="px-3 py-2.5 min-w-0">
-                        <p className="text-label font-bold uppercase text-slate-500">{t(`trainingplans.cmp_${r.key}`)}</p>
-                        <p className="text-base font-black text-slate-900 tabular-nums mt-0.5">{r.real != null ? fmt[r.key](r.real) : '—'}</p>
-                        <p className="text-xs font-medium text-slate-500 tabular-nums flex items-center gap-1.5">
+                        <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t(`trainingplans.cmp_${r.key}`)}</p>
+                        <p className="text-base font-black text-slate-900 dark:text-white tabular-nums mt-0.5">{r.real != null ? fmt[r.key](r.real) : '—'}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-white/55 tabular-nums flex items-center gap-1.5">
                             {r.level && <span className={`w-1.5 h-1.5 rounded-full ${LEVEL_DOT[r.level]}`} aria-hidden />}
                             {r.plan != null ? `${t('trainingplans.cmp_plan')} ${fmt[r.key](r.plan)}` : t('trainingplans.cmp_no_plan')}
                             {r.delta != null && ` · ${r.delta > 0 ? '+' : ''}${r.delta}%`}
@@ -222,10 +222,10 @@ const PlanVsActual = ({ workout, actual, onOpen, t }) => {
                     </div>
                 ))}
                 <div className="px-3 py-2.5 min-w-0">
-                    <p className="text-label font-bold uppercase text-slate-500">{t('trainingplans.cmp_hr')}</p>
-                    <p className="text-base font-black text-slate-900 tabular-nums mt-0.5">{actual.avg_hr ? `${actual.avg_hr} ppm` : '—'}</p>
+                    <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('trainingplans.cmp_hr')}</p>
+                    <p className="text-base font-black text-slate-900 dark:text-white tabular-nums mt-0.5">{actual.avg_hr ? `${actual.avg_hr} ppm` : '—'}</p>
                     {actual.activity_id && (
-                        <button type="button" onClick={() => onOpen?.(actual.activity_id)} className="text-xs font-bold text-blue-600 hover:text-blue-700">
+                        <button type="button" onClick={() => onOpen?.(actual.activity_id)} className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200">
                             {t('trainingplans.open_activity')} →
                         </button>
                     )}
@@ -240,18 +240,18 @@ const ExtraRow = ({ run, onOpen, t }) => (
     <button
         type="button"
         onClick={() => run.activity_id && onOpen?.(run.activity_id)}
-        className="relative w-full flex items-center gap-4 px-4 py-2.5 pl-5 text-left hover:bg-slate-50/80 transition-colors"
+        className="relative w-full flex items-center gap-4 px-4 py-2.5 pl-5 text-left hover:bg-slate-50/80 dark:hover:bg-white/[0.05] transition-colors"
         title={run.name || t('trainingplans.open_activity')}
     >
-        <span className="absolute left-0 inset-y-2 border-l-2 border-dashed border-slate-300" aria-hidden />
+        <span className="absolute left-0 inset-y-2 border-l-2 border-dashed border-slate-300 dark:border-white/10" aria-hidden />
         <div className="shrink-0 w-10 text-center">
-            <p className="text-label font-bold uppercase leading-none text-slate-400">{weekdayShort(run.date)}</p>
-            <p className="text-base font-black tabular-nums leading-none mt-1 text-slate-500">{parseISO(run.date).getDate()}</p>
+            <p className="text-label font-bold uppercase leading-none text-slate-400 dark:text-white/40">{weekdayShort(run.date)}</p>
+            <p className="text-base font-black tabular-nums leading-none mt-1 text-slate-500 dark:text-white/55">{parseISO(run.date).getDate()}</p>
         </div>
         <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2.5">
-            <span className="text-sm font-bold text-slate-600 truncate">{run.name || t('trainingplans.extra_run')}</span>
-            <span className="px-1.5 py-0.5 rounded text-[11px] font-bold border border-dashed border-slate-300 text-slate-500">{t('trainingplans.extra_label')}</span>
-            <span className="text-xs font-bold text-slate-500 tabular-nums">
+            <span className="text-sm font-bold text-slate-600 dark:text-white/75 truncate">{run.name || t('trainingplans.extra_run')}</span>
+            <span className="px-1.5 py-0.5 rounded text-[11px] font-bold border border-dashed border-slate-300 dark:border-white/10 text-slate-500 dark:text-white/55">{t('trainingplans.extra_label')}</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-white/55 tabular-nums">
                 {[`${run.distance_km} km`, run.pace_min_km != null ? `${formatMinutes(run.pace_min_km)}/km` : null, run.avg_hr ? `${run.avg_hr} ppm` : null].filter(Boolean).join(' · ')}
             </span>
         </div>
@@ -286,9 +286,9 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-4 sm:p-6">
             {hidden > 0 && (
-                <button type="button" onClick={onToggleAll} className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600">
+                <button type="button" onClick={onToggleAll} className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-white/55 hover:text-blue-600">
                     {showAllWeeks ? t('trainingplans.hide_old_weeks') : t('trainingplans.show_old_weeks', { n: hidden })}
                     <ChevronDownIcon className={`w-3 h-3 transition-transform ${showAllWeeks ? 'rotate-180' : ''}`} />
                 </button>
@@ -296,16 +296,16 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
             <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[4.5rem_repeat(7,minmax(0,1fr))] gap-1 sm:gap-1.5">
                 <span />
                 {dayLabels.map((d, i) => (
-                    <span key={d} className={`text-center text-label font-bold uppercase pb-1 ${i >= 5 ? 'text-slate-500' : 'text-slate-400'}`}>{d}</span>
+                    <span key={d} className={`text-center text-label font-bold uppercase pb-1 ${i >= 5 ? 'text-slate-500 dark:text-white/55' : 'text-slate-400 dark:text-white/40'}`}>{d}</span>
                 ))}
                 {visible.map((wk) => {
                     const i = weeks.indexOf(wk);
                     const phase = phases[wk.week_start];
                     return [
-                        <div key={`${wk.week_start}-h`} className={`flex flex-col justify-center gap-0.5 pr-1 sm:pl-2 border-l-2 ${wk.is_current ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}>
+                        <div key={`${wk.week_start}-h`} className={`flex flex-col justify-center gap-0.5 pr-1 sm:pl-2 border-l-2 ${wk.is_current ? 'border-blue-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-slate-500 dark:text-white/55'}`}>
                             <span className="text-xs font-black tabular-nums">{t('trainingplans.week_short', { n: i + 1 })}</span>
                             {phase && <span className={`hidden sm:block text-[10px] font-bold uppercase ${PHASE_STYLE[phase].text}`}>{t(`trainingplans.phase_${phase}`)}</span>}
-                            <span className="hidden sm:block text-[10px] font-semibold tabular-nums text-slate-400">{wk.planned_km} km</span>
+                            <span className="hidden sm:block text-[10px] font-semibold tabular-nums text-slate-400 dark:text-white/40">{wk.planned_km} km</span>
                         </div>,
                         ...Array.from({ length: 7 }, (_, d) => {
                             const date = addDaysISO(wk.week_start, d);
@@ -320,12 +320,12 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                                     onDragLeave={() => setOverDay((o) => (o === date ? null : o))}
                                     onDrop={(e) => { e.preventDefault(); drop(date); }}
                                     className={`min-h-[4.5rem] sm:min-h-[5.5rem] rounded-lg border p-1 sm:p-1.5 flex flex-col gap-1 transition-colors ${
-                                        overDay === date ? 'border-blue-400 bg-blue-50 border-dashed'
-                                            : isToday ? 'border-blue-300 bg-white ring-2 ring-blue-500/15'
-                                                : past ? 'border-transparent bg-slate-50' : 'border-slate-100 bg-white'
+                                        overDay === date ? 'border-blue-400 bg-teal-50 dark:bg-teal-400/10 border-dashed'
+                                            : isToday ? 'border-blue-300 bg-white dark:bg-white/[0.03] ring-2 ring-blue-500/15'
+                                                : past ? 'border-transparent bg-slate-50 dark:bg-white/[0.04]' : 'border-slate-100 dark:border-white/10 bg-white dark:bg-white/[0.03]'
                                     }`}
                                 >
-                                    <span className={`self-start text-[10px] font-bold tabular-nums leading-none ${isToday ? 'px-1.5 py-0.5 rounded-full bg-blue-600 text-white' : 'text-slate-400'}`}>
+                                    <span className={`self-start text-[10px] font-bold tabular-nums leading-none ${isToday ? 'px-1.5 py-0.5 rounded-full bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'text-slate-400 dark:text-white/40'}`}>
                                         {parseISO(date).getDate()}
                                     </span>
                                     {items.map((w) => {
@@ -346,18 +346,18 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                                             >
                                                 <span className={`absolute left-0 inset-y-0 w-1 ${accent.bar}`} aria-hidden />
                                                 <span className="flex items-center gap-1">
-                                                    {status === 'done' && <CheckCircleIcon className="w-3 h-3 text-emerald-600 shrink-0" />}
-                                                    <span className="hidden sm:block text-[11px] font-bold text-slate-800 truncate leading-tight">{w.type}</span>
+                                                    {status === 'done' && <CheckCircleIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-300 shrink-0" />}
+                                                    <span className="hidden sm:block text-[11px] font-bold text-slate-800 dark:text-white truncate leading-tight">{w.type}</span>
                                                 </span>
                                                 {w.distance_km != null && (
-                                                    <span className="block text-[10px] font-semibold text-slate-500 tabular-nums leading-tight">{w.distance_km} km</span>
+                                                    <span className="block text-[10px] font-semibold text-slate-500 dark:text-white/55 tabular-nums leading-tight">{w.distance_km} km</span>
                                                 )}
                                             </button>
                                         );
                                     })}
                                     {extra && !items.some((w) => workoutCategory(w) !== 'rest') && (
                                         <span
-                                            className="rounded-md border border-dashed border-slate-300 px-1 py-0.5 text-[10px] font-semibold text-slate-500 tabular-nums"
+                                            className="rounded-md border border-dashed border-slate-300 dark:border-white/10 px-1 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-white/55 tabular-nums"
                                             title={`${t('trainingplans.extra_label')} · ${extra.name || ''}`}
                                         >
                                             +{extra.distance_km} km
@@ -369,7 +369,7 @@ const PlanCalendar = ({ weeks, workouts, extras, phases, todayISO, showAllWeeks,
                     ];
                 })}
             </div>
-            <p className="mt-3 text-xs font-medium text-slate-400">{t('trainingplans.calendar_hint')}</p>
+            <p className="mt-3 text-xs font-medium text-slate-400 dark:text-white/40">{t('trainingplans.calendar_hint')}</p>
         </div>
     );
 };
@@ -424,15 +424,15 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
         // sin borde propio, separadas por líneas y con el color de categoría en una barra corta.
         <div className={`group relative overflow-hidden transition-colors ${
             featured
-                ? 'rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-white to-white shadow-sm'
-                : 'bg-white hover:bg-slate-50/80'
+                ? 'rounded-2xl border border-teal-200 dark:border-teal-300/25 bg-gradient-to-br from-teal-50/80 via-white to-white dark:from-teal-400/10 dark:via-white/[0.03] dark:to-white/[0.03] shadow-sm'
+                : 'bg-white dark:bg-white/[0.03] hover:bg-slate-50/80 dark:hover:bg-white/[0.05]'
         } ${status === 'skipped' ? 'opacity-60' : ''}`}>
             <div className={`flex items-start gap-4 ${featured ? 'p-5 sm:p-6' : compact ? 'px-4 py-2.5' : 'px-4 py-3.5'}`}>
                 {/* Casilla de fecha teñida con el color de la categoría: el ojo agrupa por tipo antes de leer. */}
                 {workout.date ? (
                     <div className={`shrink-0 rounded-xl flex flex-col items-center justify-center leading-none ${
                         featured ? 'w-16 h-[4.5rem] shadow-sm' : compact ? 'w-10 h-10' : 'w-12 h-12'
-                    } ${featured ? `${accent.bar} text-white` : isToday ? 'bg-blue-600 text-white' : `${accent.wash} ${accent.text}`}`}>
+                    } ${featured ? `${accent.bar} text-white` : isToday ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : `${accent.wash} ${accent.text}`}`}>
                         <span className={`font-bold uppercase ${compact ? 'text-[9px]' : 'text-[10px]'} opacity-80`}>
                             {weekdayShort(workout.date)}
                         </span>
@@ -446,23 +446,23 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                         )}
                     </div>
                 ) : (
-                    <div className="shrink-0 w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">—</div>
+                    <div className="shrink-0 w-12 h-12 rounded-xl bg-slate-100 dark:bg-white/[0.04] flex items-center justify-center text-slate-400 dark:text-white/40">—</div>
                 )}
 
                 <div className="min-w-0 flex-1">
                     {featured && (
-                        <p className="text-label font-bold uppercase text-blue-600 mb-1.5">
+                        <p className="text-label font-bold uppercase text-teal-700 dark:text-teal-300 mb-1.5">
                             {t('trainingplans.next_up')} · {relativeDay(workout.date, todayISO, t)}
                         </p>
                     )}
                     <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                        <span className={`font-black text-slate-900 ${featured ? 'text-xl tracking-tight' : 'text-sm'}`}>{workout.type}</span>
+                        <span className={`font-black text-slate-900 dark:text-white ${featured ? 'text-xl tracking-tight' : 'text-sm'}`}>{workout.type}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${accent.wash} ${accent.text}`}>{accent.label}</span>
                         {compact && metrics.length > 0 && (
-                            <span className="font-bold text-slate-500 tabular-nums text-xs">{metrics.join(' · ')}</span>
+                            <span className="font-bold text-slate-500 dark:text-white/55 tabular-nums text-xs">{metrics.join(' · ')}</span>
                         )}
                         {load > 0 && !compact && (
-                            <span className={`inline-flex items-center gap-0.5 font-bold text-slate-400 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`} title={t('trainingplans.load_hint')}>
+                            <span className={`inline-flex items-center gap-0.5 font-bold text-slate-400 dark:text-white/40 tabular-nums ${featured ? 'text-sm' : 'text-xs'}`} title={t('trainingplans.load_hint')}>
                                 <BoltIcon className="w-3 h-3" />{load}
                             </span>
                         )}
@@ -470,7 +470,7 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                             <Chip className={STATUS_STYLE[status]}>{t(`trainingplans.status_${status}`)}</Chip>
                         )}
                         {onWatch && !isPast && (
-                            <span className={`inline-flex items-center gap-1 text-xs font-bold ${watchStale ? 'text-amber-600' : 'text-emerald-600'}`}>
+                            <span className={`inline-flex items-center gap-1 text-xs font-bold ${watchStale ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
                                 <PaperAirplaneIcon className="w-3 h-3" />
                                 {watchStale ? t('trainingplans.watch_stale', { date: shortDate(workout.garmin_date) }) : t('trainingplans.on_watch')}
                             </span>
@@ -481,7 +481,7 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                     </div>
 
                     {!compact && workout.summary && (
-                        <p className={`text-slate-600 leading-relaxed mt-1 ${featured ? 'text-sm' : 'text-sm line-clamp-2'}`}>{workout.summary}</p>
+                        <p className={`text-slate-600 dark:text-white/75 leading-relaxed mt-1 ${featured ? 'text-sm' : 'text-sm line-clamp-2'}`}>{workout.summary}</p>
                     )}
                     {hasSteps && !compact && !featured && (
                         <MiniProfile workout={workout} className="h-5 mt-2 max-w-xs" />
@@ -489,16 +489,16 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                     {actual && featured && <PlanVsActual workout={workout} actual={actual} onOpen={onOpenActivity} t={t} />}
                     {actual && !featured && <ActualLine actual={actual} workout={workout} onOpen={onOpenActivity} t={t} />}
                     {!compact && workout.coach_note && (
-                        <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                        <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-100 dark:border-amber-300/25">
                             <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                            <p className="text-xs text-amber-800 font-medium leading-relaxed">{workout.coach_note}</p>
+                            <p className="text-xs text-amber-800 dark:text-amber-200 font-medium leading-relaxed">{workout.coach_note}</p>
                         </div>
                     )}
                     {hasSteps && !compact && (
                         <button
                             type="button"
                             onClick={() => setExpanded((v) => !v)}
-                            className="mt-2 inline-flex items-center gap-1 text-label font-bold uppercase text-slate-500 hover:text-blue-600 transition-colors"
+                            className="mt-2 inline-flex items-center gap-1 text-label font-bold uppercase text-slate-500 dark:text-white/55 hover:text-blue-600 transition-colors"
                         >
                             <ClockIcon className="w-3.5 h-3.5" />
                             {expanded ? t('trainingplans.hide_card') : t('trainingplans.show_card', { n: workout.structured_workout.length })}
@@ -509,7 +509,7 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                         <div className="mt-3"><WorkoutCard workout={workout} showHeader={false} /></div>
                     )}
                     {!hasSteps && workout.key_rule && !expanded && !compact && (
-                        <p className="mt-2 text-xs text-slate-600"><span className="font-bold text-slate-800">{t('trainingplans.key_rule')} · </span>{workout.key_rule}</p>
+                        <p className="mt-2 text-xs text-slate-600 dark:text-white/75"><span className="font-bold text-slate-800 dark:text-white">{t('trainingplans.key_rule')} · </span>{workout.key_rule}</p>
                     )}
                     {moving && (
                         <div className="mt-2 inline-flex items-center gap-2">
@@ -518,30 +518,30 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                                 autoFocus
                                 defaultValue={workout.date}
                                 onChange={(e) => { if (e.target.value) { onMove(workout, e.target.value); setMoving(false); } }}
-                                className="px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                className="px-2 py-1 text-xs bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
-                            <button type="button" onClick={() => setMoving(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                            <button type="button" onClick={() => setMoving(false)} className="p-1 text-slate-400 dark:text-white/40 hover:text-slate-600 dark:hover:text-white">
                                 <XMarkIcon className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     )}
-                    {send?.error && <p className="mt-2 text-xs font-semibold text-rose-600">{send.error}</p>}
+                    {send?.error && <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{send.error}</p>}
                 </div>
 
                 {/* La dosis en grande a la derecha: se compara de un vistazo bajando por la lista. */}
                 {!compact && (workout.distance_km != null || workout.duration_min != null) && (
                     <div className="shrink-0 text-right leading-none pt-0.5">
                         {workout.distance_km != null ? (
-                            <p className={`font-black text-slate-900 tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
-                                {workout.distance_km}<span className={`font-bold text-slate-400 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>km</span>
+                            <p className={`font-black text-slate-900 dark:text-white tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
+                                {workout.distance_km}<span className={`font-bold text-slate-400 dark:text-white/40 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>km</span>
                             </p>
                         ) : (
-                            <p className={`font-black text-slate-900 tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
-                                {workout.duration_min}<span className={`font-bold text-slate-400 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>min</span>
+                            <p className={`font-black text-slate-900 dark:text-white tabular-nums tracking-tight ${featured ? 'text-4xl' : 'text-xl'}`}>
+                                {workout.duration_min}<span className={`font-bold text-slate-400 dark:text-white/40 ml-0.5 ${featured ? 'text-base' : 'text-xs'}`}>min</span>
                             </p>
                         )}
                         {workout.distance_km != null && workout.duration_min != null && (
-                            <p className={`font-semibold text-slate-400 tabular-nums mt-1 ${featured ? 'text-sm' : 'text-[11px]'}`}>{workout.duration_min} min</p>
+                            <p className={`font-semibold text-slate-400 dark:text-white/40 tabular-nums mt-1 ${featured ? 'text-sm' : 'text-[11px]'}`}>{workout.duration_min} min</p>
                         )}
                     </div>
                 )}
@@ -550,7 +550,7 @@ const WorkoutRow = ({ workout, actual, isPast, todayISO, variant = 'default', on
                 <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${featured ? '' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100'}`}>
                     <button
                         onClick={() => onToggleDone(workout)}
-                        className={`${iconBtn} ${status === 'done' ? 'text-emerald-600 hover:bg-emerald-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        className={`${iconBtn} ${status === 'done' ? 'text-emerald-600 dark:text-emerald-300 hover:bg-emerald-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
                         title={status === 'done' ? t('trainingplans.mark_planned') : t('trainingplans.mark_done')}
                     >
                         <CheckCircleIcon className="w-4 h-4" />
@@ -603,7 +603,7 @@ const BAND_STYLE = {
 const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
     const max = Math.max(1, ...weeks.map((w) => Math.max(w.planned_km, w.actual_km ?? 0)));
     if (!weeks.some((w) => w.planned_km > 0 || (w.actual_km ?? 0) > 0)) {
-        return <p className="text-xs font-medium text-slate-500">{t('trainingplans.no_volume')}</p>;
+        return <p className="text-xs font-medium text-slate-500 dark:text-white/55">{t('trainingplans.no_volume')}</p>;
     }
     const currentIdx = weeks.findIndex((w) => w.is_current);
     const dense = weeks.length > 8; // en móvil, con muchas semanas, una fecha de cada dos
@@ -617,9 +617,9 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
     return (
         <div>
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
-                <p className="text-label font-bold uppercase text-slate-500">{t('trainingplans.weekly_title')}</p>
+                <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('trainingplans.weekly_title')}</p>
                 {avg > 0 && (
-                    <p className="text-xs font-medium text-slate-500 tabular-nums">{t('trainingplans.volume_stats', { avg, peak })}</p>
+                    <p className="text-xs font-medium text-slate-500 dark:text-white/55 tabular-nums">{t('trainingplans.volume_stats', { avg, peak })}</p>
                 )}
             </div>
             {Object.keys(phases).length > 0 && (
@@ -632,13 +632,13 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
                                 <span className={`block text-[10px] font-bold uppercase truncate h-3.5 leading-none ${p ? PHASE_STYLE[p].text : ''}`}>
                                     {p && p !== prev ? t(`trainingplans.phase_${p}`) : ''}
                                 </span>
-                                <div className={`h-1 rounded-full ${p ? PHASE_STYLE[p].band : 'bg-slate-100'}`} />
+                                <div className={`h-1 rounded-full ${p ? PHASE_STYLE[p].band : 'bg-slate-100 dark:bg-white/[0.04]'}`} />
                             </div>
                         );
                     })}
                 </div>
             )}
-            <div className="flex items-end gap-1.5 sm:gap-2 h-36 border-b border-slate-200">
+            <div className="flex items-end gap-1.5 sm:gap-2 h-36 border-b border-slate-200 dark:border-white/10">
                 {weeks.map((w, i) => {
                     const closed = currentIdx >= 0 ? i < currentIdx : w.actual_km != null && !w.is_current;
                     const started = closed || w.is_current;
@@ -661,9 +661,9 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
                                 {shown > 0 && (
                                     <span
                                         className={`absolute inset-x-0 text-center text-[11px] leading-none tabular-nums ${dense ? 'hidden sm:block' : ''} ${
-                                            over ? 'font-bold text-amber-600'
-                                                : w.is_current ? 'font-black text-slate-900'
-                                                    : closed ? 'font-medium text-slate-400' : 'font-semibold text-slate-600'
+                                            over ? 'font-bold text-amber-600 dark:text-amber-300'
+                                                : w.is_current ? 'font-black text-slate-900 dark:text-white'
+                                                    : closed ? 'font-medium text-slate-400 dark:text-white/40' : 'font-semibold text-slate-600 dark:text-white/75'
                                         }`}
                                         style={{ bottom: `calc(${(top / max) * 100}% + 4px)` }}
                                     >
@@ -674,7 +674,7 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
                                 <div
                                     className={`relative w-full max-w-[1.75rem] rounded-t-[3px] overflow-hidden flex flex-col-reverse transition-opacity ${
                                         closed ? 'opacity-45 group-hover:opacity-80' : ''
-                                    } ${w.is_current ? 'ring-2 ring-slate-900 ring-offset-1' : ''} ${mixSum > 0 ? '' : 'bg-slate-200'}`}
+                                    } ${w.is_current ? 'ring-2 ring-slate-900 ring-offset-1' : ''} ${mixSum > 0 ? '' : 'bg-slate-200 dark:bg-white/10'}`}
                                     style={{ height: `${Math.max(1, (w.planned_km / max) * 100)}%` }}
                                 >
                                     {mixSum > 0 && INTENSITY_BANDS.map((b) => (mix[b] > 0 ? (
@@ -700,21 +700,21 @@ const WeeklyVolume = ({ weeks, mixes = {}, phases = {}, t }) => {
                     <span
                         key={w.week_start}
                         className={`flex-1 min-w-0 text-center text-[10px] tabular-nums whitespace-nowrap overflow-visible ${
-                            w.is_current ? 'font-bold text-slate-900' : 'font-medium text-slate-400'
+                            w.is_current ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-400 dark:text-white/40'
                         } ${dense && i % 2 ? 'invisible sm:visible' : ''}`}
                     >
                         {axisDate(w.week_start)}
                     </span>
                 ))}
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-xs text-slate-500 dark:text-white/55">
                 {usedBands.map((b) => (
                     <span key={b} className="inline-flex items-center gap-1.5">
                         <span className={`w-2.5 h-2.5 rounded-[2px] ${BAND_STYLE[b]}`} />{t(`trainingplans.band_${b}`)}
                     </span>
                 ))}
                 {usedBands.length === 0 && (
-                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-[2px] bg-slate-200" />{t('trainingplans.legend_planned')}</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-[2px] bg-slate-200 dark:bg-white/10" />{t('trainingplans.legend_planned')}</span>
                 )}
                 <span className="inline-flex items-center gap-1.5"><span className="w-3 h-[3px] rounded-full bg-slate-900" />{t('trainingplans.legend_actual')}</span>
                 {anyOver && (
@@ -733,19 +733,19 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
         ? Math.min(100, (meta.actual_km / meta.planned_km) * 100)
         : null;
     return (
-        <div className={`relative flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 ${meta?.is_current ? 'bg-blue-50/50' : 'bg-slate-50/60'}`}>
+        <div className={`relative flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 dark:border-white/10 ${meta?.is_current ? 'bg-teal-50 dark:bg-teal-400/10' : 'bg-slate-50/60 dark:bg-white/[0.04]'}`}>
             {progress != null && (
-                <div className="absolute left-0 bottom-0 h-0.5 bg-blue-600 transition-all" style={{ width: `${progress}%` }} aria-hidden />
+                <div className="absolute left-0 bottom-0 h-0.5 bg-teal-600 dark:bg-teal-300 transition-all" style={{ width: `${progress}%` }} aria-hidden />
             )}
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h4 className={`text-sm font-black ${meta?.is_current ? 'text-blue-600' : 'text-slate-900'}`}>
+                <h4 className={`text-sm font-black ${meta?.is_current ? 'text-teal-700 dark:text-teal-300' : 'text-slate-900 dark:text-white'}`}>
                     {meta?.is_current ? t('trainingplans.this_week') : t('trainingplans.week_label', { n: index })}
                 </h4>
-                <span className="text-xs font-medium text-slate-400 tabular-nums">{shortDate(weekStart)} – {shortDate(end)}</span>
+                <span className="text-xs font-medium text-slate-400 dark:text-white/40 tabular-nums">{shortDate(weekStart)} – {shortDate(end)}</span>
                 <select
                     value={phase || ''}
                     onChange={(e) => onPhase(weekStart, e.target.value || null)}
-                    className={`py-0.5 pl-2 pr-6 rounded-full text-[11px] font-bold uppercase border-0 bg-[length:1rem] bg-[right_0.25rem_center] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer ${phase ? `${PHASE_STYLE[phase].text} ${PHASE_STYLE[phase].wash}` : 'text-slate-400 bg-transparent hover:bg-slate-100'}`}
+                    className={`py-0.5 pl-2 pr-6 rounded-full text-[11px] font-bold uppercase border-0 bg-[length:1rem] bg-[right_0.25rem_center] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer ${phase ? `${PHASE_STYLE[phase].text} ${PHASE_STYLE[phase].wash}` : 'text-slate-400 dark:text-white/40 bg-transparent hover:bg-slate-100 dark:hover:bg-white/[0.05]'}`}
                     title={t('trainingplans.phase_set')}
                 >
                     <option value="">{t('trainingplans.phase_none')}</option>
@@ -754,12 +754,12 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
             </div>
             <div className="flex items-center gap-2">
                 {meta && meta.planned_km > 0 && (
-                    <span className="text-xs font-bold text-slate-600 tabular-nums">
+                    <span className="text-xs font-bold text-slate-600 dark:text-white/75 tabular-nums">
                         {meta.is_current && meta.actual_km != null ? `${meta.actual_km} / ` : ''}{meta.planned_km} km
                     </span>
                 )}
                 {load?.planned > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-xs font-bold text-slate-500 tabular-nums" title={t('trainingplans.load_hint')}>
+                    <span className="inline-flex items-center gap-0.5 text-xs font-bold text-slate-500 dark:text-white/55 tabular-nums" title={t('trainingplans.load_hint')}>
                         <BoltIcon className="w-3 h-3" />
                         {meta?.is_current && load.actual != null ? `${load.actual} / ` : ''}{load.planned}
                     </span>
@@ -769,7 +769,7 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
                         type="button"
                         onClick={() => onSendWeek(weekStart)}
                         disabled={sending}
-                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50 ${sending ? 'animate-pulse' : ''}`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs font-bold text-slate-500 dark:text-white/55 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50 ${sending ? 'animate-pulse' : ''}`}
                         title={t('trainingplans.send_week_hint', { n: sendable })}
                     >
                         <PaperAirplaneIcon className="w-3.5 h-3.5" />
@@ -777,7 +777,7 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
                     </button>
                 )}
                 {meta?.ramp_warning && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700" title={t('trainingplans.ramp_hint')}>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-300" title={t('trainingplans.ramp_hint')}>
                         <ExclamationTriangleIcon className="w-3.5 h-3.5" />
                         +{meta.ramp_pct}%
                     </span>
@@ -785,7 +785,7 @@ const WeekHeader = ({ index, weekStart, meta, phase, load, sendable, sending, on
                 <button
                     type="button"
                     onClick={() => onDuplicate(weekStart)}
-                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    className="p-1 rounded text-slate-400 dark:text-white/40 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     title={t('trainingplans.duplicate_week')}
                 >
                     <DocumentDuplicateIcon className="w-3.5 h-3.5" />
@@ -850,7 +850,7 @@ const PlanTimeline = ({ weeks, phases, hasRace, t }) => {
                             </span>
                             <div className={`h-2 rounded-full ${p ? PHASE_DARK[p] : 'bg-white/20'} ${ahead ? 'opacity-40' : ''}`} />
                             {i === current && (
-                                <span className="absolute left-1/2 -translate-x-1/2 top-[1.15rem] w-3.5 h-3.5 rounded-full bg-white ring-4 ring-white/20 shadow" aria-hidden />
+                                <span className="absolute left-1/2 -translate-x-1/2 top-[1.15rem] w-3.5 h-3.5 rounded-full bg-white dark:bg-[#0c0e12] ring-4 ring-white/20 shadow" aria-hidden />
                             )}
                         </div>
                     );
@@ -867,7 +867,7 @@ const PlanTimeline = ({ weeks, phases, hasRace, t }) => {
  * Hecho = barra llena con check; pasado sin hacer = contorno rojo; descanso = punto.
  */
 const WeekStrip = ({ weekStart, byDate, maxKm, todayISO, onEdit }) => (
-    <div className="grid grid-cols-7 gap-1.5 sm:gap-2 px-4 pt-3 pb-2.5 border-b border-slate-100">
+    <div className="grid grid-cols-7 gap-1.5 sm:gap-2 px-4 pt-3 pb-2.5 border-b border-slate-100 dark:border-white/10">
         {Array.from({ length: 7 }, (_, d) => {
             const date = addDaysISO(weekStart, d);
             const items = (byDate.get(date) || []).filter((w) => !isRest(w));
@@ -890,23 +890,23 @@ const WeekStrip = ({ weekStart, byDate, maxKm, todayISO, onEdit }) => (
                         {main ? (
                             <div
                                 className={`relative w-full max-w-[2.25rem] rounded-md transition-transform group-hover/day:-translate-y-0.5 ${
-                                    missed ? 'border-2 border-rose-300 bg-rose-50' : accent.bar
+                                    missed ? 'border-2 border-rose-300 bg-rose-50 dark:bg-rose-400/10' : accent.bar
                                 } ${!done && !missed && date >= todayISO ? 'opacity-80' : ''}`}
                                 style={{ height: `${Math.max(22, (km / maxKm) * 100)}%` }}
                             >
                                 {done && <CheckCircleIcon className="absolute top-0.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 text-white" />}
                                 {km > 0 && (
-                                    <span className={`absolute -top-4 inset-x-0 text-center text-[10px] font-bold tabular-nums ${missed ? 'text-rose-500' : 'text-slate-600'}`}>
+                                    <span className={`absolute -top-4 inset-x-0 text-center text-[10px] font-bold tabular-nums ${missed ? 'text-rose-500' : 'text-slate-600 dark:text-white/75'}`}>
                                         {Math.round(km)}
                                     </span>
                                 )}
                             </div>
                         ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200 mb-1" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 mb-1" />
                         )}
                     </div>
                     <span className={`text-[10px] font-bold uppercase leading-none ${
-                        isToday ? 'px-1.5 py-0.5 rounded-full bg-blue-600 text-white' : 'text-slate-400'
+                        isToday ? 'px-1.5 py-0.5 rounded-full bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'text-slate-400 dark:text-white/40'
                     }`}>
                         {weekdayShort(date)}
                     </span>
@@ -1223,19 +1223,19 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
             {/* Cabecera de sección + selector de plan */}
             <div className="flex flex-wrap items-end justify-between gap-4 px-1">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">{t('trainingplans.title')}</h2>
-                    <p className="text-slate-500 text-sm font-medium mt-1.5">{t('trainingplans.subtitle')}</p>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none uppercase">{t('trainingplans.title')}</h2>
+                    <p className="text-slate-500 dark:text-white/55 text-sm font-medium mt-1.5">{t('trainingplans.subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     {plans.length > 0 && (
-                        <div className="inline-flex flex-wrap rounded-xl border border-slate-200 bg-white p-1 gap-0.5" role="tablist">
+                        <div className="inline-flex flex-wrap rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] p-1 gap-0.5" role="tablist">
                             {plans.map((p) => (
                                 <button
                                     key={p.id}
                                     role="tab"
                                     aria-selected={selectedPlanId === p.id}
                                     onClick={() => setSelectedPlanId(p.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${selectedPlanId === p.id ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${selectedPlanId === p.id ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 dark:text-white/75 hover:bg-slate-100 dark:hover:bg-white/[0.05]'}`}
                                 >
                                     {p.name || t('trainingplans.untitled')}
                                     <span className="ml-1.5 opacity-60 tabular-nums">{(p.workouts || []).length}</span>
@@ -1246,7 +1246,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     {!addingPlan ? (
                         <button
                             onClick={() => setAddingPlan(true)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-slate-300 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-slate-300 dark:border-white/10 text-slate-500 dark:text-white/55 hover:border-blue-300 hover:text-blue-600 transition-all"
                         >
                             <PlusIcon className="w-3.5 h-3.5" />
                             {t('trainingplans.new_plan')}
@@ -1259,12 +1259,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                 value={newPlanName}
                                 onChange={(e) => setNewPlanName(e.target.value)}
                                 placeholder={t('trainingplans.new_plan_ph')}
-                                className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                className="px-3 py-1.5 text-sm bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
-                            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
+                            <button type="submit" className="px-3 py-1.5 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-lg text-xs font-bold hover:bg-slate-800 dark:hover:bg-white/90">
                                 {t('trainingplans.add')}
                             </button>
-                            <button type="button" onClick={() => { setAddingPlan(false); setNewPlanName(''); }} className="p-1.5 text-slate-400 hover:text-slate-600">
+                            <button type="button" onClick={() => { setAddingPlan(false); setNewPlanName(''); }} className="p-1.5 text-slate-400 dark:text-white/40 hover:text-slate-600 dark:hover:text-white">
                                 <XMarkIcon className="w-4 h-4" />
                             </button>
                         </form>
@@ -1273,12 +1273,12 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
             </div>
 
             {!selectedPlan ? (
-                <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center">
-                    <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-16 border border-slate-100 dark:border-white/10 shadow-sm text-center">
+                    <div className="w-20 h-20 bg-teal-50 dark:bg-teal-400/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CalendarDaysIcon className="w-10 h-10" />
                     </div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{t('trainingplans.empty_title')}</h3>
-                    <p className="text-slate-500 font-medium max-w-sm mx-auto">{t('trainingplans.empty_desc')}</p>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{t('trainingplans.empty_title')}</h3>
+                    <p className="text-slate-500 dark:text-white/55 font-medium max-w-sm mx-auto">{t('trainingplans.empty_desc')}</p>
                 </div>
             ) : (
                 <>
@@ -1314,7 +1314,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                 {editingWorkout === null && (
                                     <button
                                         onClick={() => setEditingWorkout('new')}
-                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 shadow-sm transition-all"
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 shadow-sm transition-all"
                                         title={t('trainingplans.shortcuts_hint')}
                                     >
                                         <PlusIcon className="w-4 h-4" />
@@ -1350,7 +1350,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                         <span>{stats.kmRun}<span className="text-white/40 text-xs">km</span></span>
                                     </Ring>
                                     {/* Cuenta atrás: en la recta final (≤ 21 días) se enciende en cian. */}
-                                    <div className={`rounded-2xl px-5 py-4 text-center sm:col-span-2 lg:col-span-1 ${finalStretch ? 'bg-cyan-400 text-slate-900' : 'bg-white/10'}`}>
+                                    <div className={`rounded-2xl px-5 py-4 text-center sm:col-span-2 lg:col-span-1 ${finalStretch ? 'bg-cyan-400 text-slate-900 dark:text-white' : 'bg-white/10'}`}>
                                         <p className={`text-label font-bold uppercase ${finalStretch ? 'text-slate-900/70' : 'text-white/50'}`}>
                                             {raceDays === 0 ? t('trainingplans.race_day') : finalStretch ? t('trainingplans.final_stretch') : (linkedRace?.name || t('trainingplans.kpi_race'))}
                                         </p>
@@ -1372,20 +1372,20 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     </div>
 
                     {weeks.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                        <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm p-6">
                             <WeeklyVolume weeks={weeks} mixes={weekMixes} t={t} />
                         </div>
                     )}
 
                     {warnings.length > 0 && (
-                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-5 py-4">
-                            <p className="inline-flex items-center gap-1.5 text-label font-bold uppercase text-amber-800">
+                        <div className="rounded-xl border border-amber-200 dark:border-amber-300/25 bg-amber-50/70 dark:bg-amber-400/10 px-5 py-4">
+                            <p className="inline-flex items-center gap-1.5 text-label font-bold uppercase text-amber-800 dark:text-amber-200">
                                 <ExclamationTriangleIcon className="w-4 h-4" />
                                 {t('trainingplans.review_title', { n: warnings.length })}
                             </p>
                             <ul className="mt-2 space-y-1">
                                 {warnings.map((w) => (
-                                    <li key={`${w.type}-${w.week_start || w.dates?.join('-')}`} className="text-sm text-amber-900">
+                                    <li key={`${w.type}-${w.week_start || w.dates?.join('-')}`} className="text-sm text-amber-900 dark:text-amber-200">
                                         {w.type === 'hard_back_to_back' && t('trainingplans.warn_hard', { a: shortDate(w.dates[0]), b: shortDate(w.dates[1]) })}
                                         {w.type === 'no_long' && t('trainingplans.warn_no_long', { week: weekIndex(w.week_start), date: shortDate(w.week_start) })}
                                         {w.type === 'ramp_streak' && t('trainingplans.warn_ramp', { week: weekIndex(w.week_start) })}
@@ -1396,21 +1396,21 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     )}
 
                     <div className="flex items-center justify-between gap-3 px-1">
-                        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="tablist">
+                        <div className="inline-flex rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] p-0.5" role="tablist">
                             {[['list', ListBulletIcon], ['calendar', TableCellsIcon]].map(([v, Icon]) => (
                                 <button
                                     key={v}
                                     role="tab"
                                     aria-selected={view === v}
                                     onClick={() => changeView(v)}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${view === v ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${view === v ? 'bg-slate-900 text-white' : 'text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white'}`}
                                 >
                                     <Icon className="w-3.5 h-3.5" />
                                     {t(`trainingplans.view_${v}`)}
                                 </button>
                             ))}
                         </div>
-                        <span className="hidden sm:inline text-xs font-medium text-slate-400">{t('trainingplans.shortcuts_hint')}</span>
+                        <span className="hidden sm:inline text-xs font-medium text-slate-400 dark:text-white/40">{t('trainingplans.shortcuts_hint')}</span>
                     </div>
 
                     {editingWorkout === 'new' && (
@@ -1421,9 +1421,9 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                     )}
 
                     {upcoming.length === 0 && past.length === 0 ? (
-                        <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl">
-                            <CheckCircleIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                            <p className="text-slate-500 text-sm font-medium">{t('trainingplans.no_workouts')}</p>
+                        <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
+                            <CheckCircleIcon className="w-8 h-8 text-slate-300 dark:text-white/40 mx-auto mb-2" />
+                            <p className="text-slate-500 dark:text-white/55 text-sm font-medium">{t('trainingplans.no_workouts')}</p>
                         </div>
                     ) : view === 'calendar' ? (
                         <PlanCalendar
@@ -1445,8 +1445,8 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                             {upcomingByWeek.map((g) => (
                                 <section
                                     key={g.week_start || 'nodate'}
-                                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-                                        weeks.find((w) => w.week_start === g.week_start)?.is_current ? 'border-blue-200' : 'border-slate-100'
+                                    className={`bg-white dark:bg-white/[0.03] rounded-2xl border shadow-sm overflow-hidden ${
+                                        weeks.find((w) => w.week_start === g.week_start)?.is_current ? 'border-teal-200 dark:border-teal-300/25' : 'border-slate-100 dark:border-white/10'
                                     }`}
                                 >
                                     {g.week_start && (
@@ -1472,14 +1472,14 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                             ))}
 
                             {(past.length > 0 || extras.length > 0) && (
-                                <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                <section className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-100 dark:border-white/10 shadow-sm overflow-hidden">
                                     <button
                                         onClick={() => setShowPast((v) => !v)}
                                         className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-left"
                                         aria-expanded={showPast}
                                     >
-                                        <span className="text-label font-bold uppercase text-slate-500">{t('trainingplans.history')}</span>
-                                        <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                                        <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('trainingplans.history')}</span>
+                                        <span className="text-xs font-semibold text-slate-600 dark:text-white/75 tabular-nums">
                                             {t('trainingplans.kpi_adherence_sub', { done: stats.done, total: stats.pastTotal })}
                                         </span>
                                         {stats.strip.length > 0 && (
@@ -1494,17 +1494,17 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                                             </span>
                                         )}
                                         {extras.length > 0 && (
-                                            <span className="text-xs font-semibold text-slate-500 tabular-nums">
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-white/55 tabular-nums">
                                                 {t('trainingplans.extra_count', { n: extras.length })}
                                             </span>
                                         )}
-                                        <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-slate-500">
+                                        <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-white/55">
                                             {showPast ? t('trainingplans.hide_history') : t('trainingplans.show_history', { n: pastItems.length })}
                                             <ChevronDownIcon className={`w-3 h-3 transition-transform ${showPast ? 'rotate-180' : ''}`} />
                                         </span>
                                     </button>
                                     {showPast && (
-                                        <div className="divide-y divide-slate-100 border-t border-slate-100">
+                                        <div className="divide-y divide-slate-100 dark:divide-white/10 border-t border-slate-100 dark:border-white/10">
                                             {pastItems.map((it) => (it.extra
                                                 ? <ExtraRow key={`extra-${it.run.date}`} run={it.run} onOpen={onOpenActivity} t={t} />
                                                 : renderRow(it.workout, 'compact')))}
@@ -1521,7 +1521,7 @@ const TrainingPlans = ({ activities = [], onOpenActivity }) => {
                 <div
                     role="status"
                     className={`fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-50 flex items-start gap-2 rounded-lg px-4 py-3 shadow-lg text-sm font-semibold fade-in ${
-                        toast.tone === 'error' ? 'bg-rose-600 text-white' : toast.tone === 'warn' ? 'bg-amber-500 text-slate-900' : 'bg-slate-900 text-white'
+                        toast.tone === 'error' ? 'bg-rose-600 text-white' : toast.tone === 'warn' ? 'bg-amber-500 text-slate-900 dark:text-white' : 'bg-slate-900 text-white'
                     }`}
                 >
                     {toast.tone === 'ok' ? <CheckCircleIcon className="w-4 h-4 shrink-0 mt-0.5" /> : <ExclamationTriangleIcon className="w-4 h-4 shrink-0 mt-0.5" />}

@@ -75,19 +75,19 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, aria
     return (
         <div>
             <div className="flex">
-                <div className="relative w-10 shrink-0 h-44 text-xs tabular-nums text-slate-500">
+                <div className="relative w-10 shrink-0 h-44 text-xs tabular-nums text-slate-500 dark:text-white/55">
                     {axis.map(a => (
                         <span key={a.label + a.frac} className="absolute right-2 -translate-y-1/2" style={{ top: `${100 * (1 - a.frac)}%` }}>{a.label}</span>
                     ))}
                 </div>
-                <div className="relative flex-1 min-w-0 h-44 border-b border-slate-200" onMouseLeave={() => setHover(null)}>
+                <div className="relative flex-1 min-w-0 h-44 border-b border-slate-200 dark:border-white/10" onMouseLeave={() => setHover(null)}>
                     {bands.map(b => (
                         <div key={b.label} className="absolute inset-x-0" style={{ bottom: `${100 * b.from}%`, height: `${100 * (b.to - b.from)}%`, background: b.color }}>
                             <span className="absolute right-1 top-0.5 text-xs font-bold" style={{ color: b.text }}>{b.label}</span>
                         </div>
                     ))}
                     {!bands.length && [0.5, 1].map(f => (
-                        <div key={f} className="absolute inset-x-0 border-t border-dashed border-slate-100" style={{ top: `${100 * (1 - f)}%` }} />
+                        <div key={f} className="absolute inset-x-0 border-t border-dashed border-slate-100 dark:border-white/10" style={{ top: `${100 * (1 - f)}%` }} />
                     ))}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
                         {rows.map((r, i) => {
@@ -110,7 +110,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, aria
                         )}
                     </svg>
                     {refLine && (
-                        <span className="absolute left-1 -translate-y-full text-xs font-semibold tabular-nums text-slate-600 bg-white px-1 rounded"
+                        <span className="absolute left-1 -translate-y-full text-xs font-semibold tabular-nums text-slate-600 dark:text-white/75 bg-white dark:bg-[#0c0e12] px-1 rounded"
                             style={{ top: `${100 * (1 - refLine.frac)}%` }}>
                             {refLine.label}
                         </span>
@@ -139,7 +139,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, aria
             </div>
             <div className="flex ml-10 mt-1">
                 {rows.map((r, i) => (
-                    <div key={i} className={`text-center text-xs tabular-nums truncate ${hover === i ? 'font-bold text-slate-700' : 'text-slate-500'}`} style={{ width: `${cols[i].w}%` }}>
+                    <div key={i} className={`text-center text-xs tabular-nums truncate ${hover === i ? 'font-bold text-slate-700 dark:text-white/75' : 'text-slate-500 dark:text-white/55'}`} style={{ width: `${cols[i].w}%` }}>
                         {cols[i].w > 3.5 ? r.lap_index : ''}
                     </div>
                 ))}
@@ -150,7 +150,7 @@ function SplitBars({ rows, frac, color, axis, bands = [], refLine, tooltip, aria
 
 function Legend({ items }) {
     return (
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 mb-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 mb-2 text-xs text-slate-500 dark:text-white/55">
             {items.map(it => (
                 <span key={it.label} className="inline-flex items-center gap-1.5">
                     {it.dashed
@@ -185,9 +185,9 @@ const PaceChart = ({ rows, avgPaceS, scale, hover, setHover }) => {
                 ariaValue={h => `${h.pace}/km · GAP ${h.gap} · ${h.timeStr}`}
                 tooltip={h => (
                     <>
-                        <div className="font-semibold text-slate-300 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
-                        <div className="tabular-nums"><span className="text-sm font-bold">{h.pace}</span>/km <span className="text-slate-300">· GAP {h.gap}</span></div>
-                        <div className="tabular-nums text-slate-300">
+                        <div className="font-semibold text-slate-300 dark:text-white/40 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
+                        <div className="tabular-nums"><span className="text-sm font-bold">{h.pace}</span>/km <span className="text-slate-300 dark:text-white/40">· GAP {h.gap}</span></div>
+                        <div className="tabular-nums text-slate-300 dark:text-white/40">
                             {h.timeStr}
                             {Math.abs(h.elevation) > 2 ? ` · ${h.elevation > 0 ? '▲' : '▼'}${Math.abs(Math.round(h.elevation))} m` : ''}
                         </div>
@@ -234,12 +234,12 @@ const HrChart = ({ rows, bounds, hover, setHover }) => {
                 ariaValue={h => (h.average_heartrate ? `${Math.round(h.average_heartrate)} ${t('session.u_bpm')}${h.hrZone > 0 ? ` · ${ZONES[h.hrZone].label}` : ''}` : '—')}
                 tooltip={h => (
                     <>
-                        <div className="font-semibold text-slate-300 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
+                        <div className="font-semibold text-slate-300 dark:text-white/40 mb-0.5">{t('splits.split_n', { n: h.lap_index })} · {h.distKm} km</div>
                         <div className="tabular-nums">
                             <span className="text-sm font-bold">{h.average_heartrate ? Math.round(h.average_heartrate) : '—'}</span> {t('session.u_bpm')}
                             {h.hrZone > 0 && <span className="ml-1 font-bold" style={{ color: ZONES[h.hrZone].color }}>{ZONES[h.hrZone].label}</span>}
                         </div>
-                        <div className="tabular-nums text-slate-300">{h.pace}/km · {h.timeStr}</div>
+                        <div className="tabular-nums text-slate-300 dark:text-white/40">{h.pace}/km · {h.timeStr}</div>
                     </>
                 )}
             />
@@ -251,12 +251,12 @@ const HrChart = ({ rows, bounds, hover, setHover }) => {
 
 const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
     const { t } = useTranslation();
-    const th = 'py-2 px-2 text-label font-bold uppercase text-slate-500 whitespace-nowrap';
+    const th = 'py-2 px-2 text-label font-bold uppercase text-slate-500 dark:text-white/55 whitespace-nowrap';
     return (
         <div className="overflow-x-auto -mx-1">
             <table className="w-full text-sm tabular-nums" onMouseLeave={() => setHover(null)}>
                 <thead>
-                    <tr className="border-b border-slate-200">
+                    <tr className="border-b border-slate-200 dark:border-white/10">
                         <th className={`${th} text-left w-8`}>#</th>
                         <th className={`${th} text-right`}>{t('splits.dist')}</th>
                         <th className={`${th} text-right`}>{t('splits.pace')}</th>
@@ -274,21 +274,21 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                         return (
                             <tr key={row.idx}
                                 onMouseEnter={() => setHover(i)}
-                                className={`border-b border-slate-100 last:border-0 transition-colors ${hover === i ? 'bg-blue-50/70' : ''} ${row.isPartial ? 'text-slate-500' : 'text-slate-700'}`}>
+                                className={`border-b border-slate-100 dark:border-white/10 last:border-0 transition-colors ${hover === i ? 'bg-teal-50 dark:bg-teal-400/10' : ''} ${row.isPartial ? 'text-slate-500 dark:text-white/55' : 'text-slate-700 dark:text-white/75'}`}>
                                 <td className="py-2 px-2 text-left">
-                                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${row.isBest ? 'text-amber-700' : 'text-slate-500'}`}>
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${row.isBest ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-white/55'}`}>
                                         {row.isBest && <TrophyIcon className="w-3 h-3" aria-label={t('splits.best_efforts')} />}{row.lap_index}
                                     </span>
                                 </td>
-                                <td className="py-2 px-2 text-right">{row.distKm}<span className="text-slate-500 text-xs"> km</span></td>
+                                <td className="py-2 px-2 text-right">{row.distKm}<span className="text-slate-500 dark:text-white/55 text-xs"> km</span></td>
                                 <td className="py-2 px-2 text-right whitespace-nowrap">
-                                    <span className={`font-bold ${row.isPartial ? '' : row.isFaster ? 'text-blue-700' : 'text-slate-900'}`}>{row.pace}</span>
+                                    <span className={`font-bold ${row.isPartial ? '' : row.isFaster ? 'text-teal-700 dark:text-teal-300' : 'text-slate-900 dark:text-white'}`}>{row.pace}</span>
                                     {!row.isPartial && (
-                                        <span className={`ml-1.5 text-xs font-semibold ${delta < -1 ? 'text-emerald-700' : 'text-slate-500'}`}>{signedSec(delta)}</span>
+                                        <span className={`ml-1.5 text-xs font-semibold ${delta < -1 ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-white/55'}`}>{signedSec(delta)}</span>
                                     )}
                                 </td>
                                 <td className="py-2 px-2 hidden md:table-cell">
-                                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                    <div className="h-1.5 rounded-full bg-slate-100 dark:bg-white/[0.04] overflow-hidden">
                                         <div className="h-full rounded-full" style={{
                                             width: `${Math.max(3, scale.frac(row.paceS) * 100)}%`,
                                             background: paceColor(row),
@@ -296,9 +296,9 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                         }} />
                                     </div>
                                 </td>
-                                <td className="py-2 px-2 text-right text-slate-500">{row.gap}</td>
-                                <td className="py-2 px-2 text-right text-slate-500">{row.timeStr}</td>
-                                <td className={`py-2 px-2 text-right text-xs font-semibold ${row.elevation > 2 ? 'text-rose-700' : row.elevation < -2 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                <td className="py-2 px-2 text-right text-slate-500 dark:text-white/55">{row.gap}</td>
+                                <td className="py-2 px-2 text-right text-slate-500 dark:text-white/55">{row.timeStr}</td>
+                                <td className={`py-2 px-2 text-right text-xs font-semibold ${row.elevation > 2 ? 'text-rose-700 dark:text-rose-300' : row.elevation < -2 ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-white/55'}`}>
                                     {row.elevation > 2 ? `▲${Math.round(row.elevation)}` : row.elevation < -2 ? `▼${Math.abs(Math.round(row.elevation))}` : '—'}
                                 </td>
                                 <td className="py-2 px-2 text-right whitespace-nowrap">
@@ -307,9 +307,9 @@ const SplitsTable = ({ rows, avgPaceS, scale, hover, setHover }) => {
                                             {zone && row.hrZone > 0 && (
                                                 <span className="text-xs font-black px-1 py-px rounded" style={{ background: zone.bg, color: zone.text }}>{zone.label}</span>
                                             )}
-                                            <span className="font-semibold text-slate-700">{Math.round(row.average_heartrate)}</span>
+                                            <span className="font-semibold text-slate-700 dark:text-white/75">{Math.round(row.average_heartrate)}</span>
                                         </span>
-                                    ) : <span className="text-slate-500">—</span>}
+                                    ) : <span className="text-slate-500 dark:text-white/55">—</span>}
                                 </td>
                             </tr>
                         );
@@ -347,17 +347,17 @@ const SimilarActivitiesBanner = ({ similar }) => {
 
     const avgPaceStr = average_speed > 0 ? formatPaceFromSecPerKm(1000 / average_speed) : null;
     const Icon = isPR ? TrophyIcon : ArrowTrendingUpIcon;
-    const tone = isPR ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
+    const tone = isPR ? 'bg-amber-50 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300';
     const label = isPR
         ? t('splits.route_pr')
         : t('splits.route_improving');
 
     return (
-        <div className="mb-4 flex items-center gap-3 rounded border border-slate-100 px-3 py-2">
+        <div className="mb-4 flex items-center gap-3 rounded border border-slate-100 dark:border-white/10 px-3 py-2">
             <span className={`inline-flex items-center justify-center w-7 h-7 rounded shrink-0 ${tone}`} aria-hidden="true"><Icon className="w-4 h-4" /></span>
             <div className="min-w-0">
-                <div className="text-xs font-semibold text-slate-800">{label}</div>
-                <div className="text-xs text-slate-500 truncate">
+                <div className="text-xs font-semibold text-slate-800 dark:text-white">{label}</div>
+                <div className="text-xs text-slate-500 dark:text-white/55 truncate">
                     {effort_count} {t('splits.similar_runs')}
                     {avgPaceStr && <> · {t('splits.avg')} {avgPaceStr}/km</>}
                     {diffLabel && <> · {diffLabel}</>}
@@ -378,10 +378,10 @@ const BestEffortsSection = ({ efforts }) => {
 
     return (
         <div>
-            <p className="text-label font-bold uppercase text-slate-500 mb-2">
+            <p className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-2">
                 {t('splits.best_efforts')} <span className="normal-case tracking-normal font-medium">· /km</span>
             </p>
-            <div className="rounded overflow-hidden border border-slate-100 divide-y divide-slate-100">
+            <div className="rounded overflow-hidden border border-slate-100 dark:border-white/10 divide-y divide-slate-100 dark:divide-white/10">
                 {efforts.map((effort) => {
                     const isPR = effort.pr_rank === 1;
                     const prLabel = PR_RANK_LABELS[effort.pr_rank];
@@ -393,12 +393,12 @@ const BestEffortsSection = ({ efforts }) => {
 
                     return (
                         <div key={effort.id} title={formatDuration(effort.elapsed_time)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 ${isPR ? 'bg-amber-50' : isKm ? 'bg-blue-50' : 'bg-white'} ${isKm ? 'ring-1 ring-inset ring-blue-300' : ''}`}>
-                            <span className={`text-xs truncate ${isKm ? 'font-bold text-blue-700' : 'text-slate-500'}`}>{effort.name}</span>
+                            className={`flex items-center gap-1.5 px-3 py-1.5 ${isPR ? 'bg-amber-50 dark:bg-amber-400/10' : isKm ? 'bg-teal-50 dark:bg-teal-400/10' : 'bg-white dark:bg-white/[0.03]'} ${isKm ? 'ring-1 ring-inset ring-blue-300' : ''}`}>
+                            <span className={`text-xs truncate ${isKm ? 'font-bold text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-white/55'}`}>{effort.name}</span>
                             {prLabel && (
-                                <span className={`text-label font-bold px-1 rounded ${isPR ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500'}`}>{prLabel}</span>
+                                <span className={`text-label font-bold px-1 rounded ${isPR ? 'bg-amber-400 text-amber-950 dark:text-amber-200' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-white/55'}`}>{prLabel}</span>
                             )}
-                            <span className={`ml-auto font-bold tabular-nums ${isKm ? 'text-sm' : 'text-xs'} ${isPR ? 'text-amber-700' : isKm ? 'text-blue-700' : 'text-slate-800'}`}>{paceStr}</span>
+                            <span className={`ml-auto font-bold tabular-nums ${isKm ? 'text-sm' : 'text-xs'} ${isPR ? 'text-amber-700 dark:text-amber-300' : isKm ? 'text-teal-700 dark:text-teal-300' : 'text-slate-800 dark:text-white'}`}>{paceStr}</span>
                         </div>
                     );
                 })}
@@ -463,13 +463,13 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
     const scale = useMemo(() => (rows.length ? paceScale(rows) : null), [rows]);
 
     if (!rows.length) {
-        return <p className="py-4 text-center text-sm italic text-slate-500">{t('splits.no_splits')}</p>;
+        return <p className="py-4 text-center text-sm italic text-slate-500 dark:text-white/55">{t('splits.no_splits')}</p>;
     }
 
     if (mode === 'hr') {
         return rows.some(r => r.average_heartrate)
             ? <HrChart rows={rows} bounds={bounds} hover={hover} setHover={setHover} />
-            : <p className="text-xs italic text-slate-500">{t('session.no_hr')}</p>;
+            : <p className="text-xs italic text-slate-500 dark:text-white/55">{t('session.no_hr')}</p>;
     }
 
     const hasEfforts = bestEfforts?.length > 0;
@@ -482,7 +482,7 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
                     type="button"
                     onClick={() => setOpen(o => !o)}
                     aria-expanded={open}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-blue-600 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                 >
                     {open ? t('splits.hide_table') : t('splits.show_table', { count: rows.length })}
                     <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />

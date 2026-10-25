@@ -28,12 +28,12 @@ const shortDate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('es-ES
 
 function Tile({ label, value, unit, sub }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-1">
-      <span className="text-xs text-slate-500 font-semibold tracking-wider uppercase">{label}</span>
-      <div className="text-2xl font-extrabold text-slate-800 tabular-nums">
-        {value}{unit && <span className="text-sm font-semibold text-slate-500 ml-1">{unit}</span>}
+    <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm p-4 flex flex-col gap-1">
+      <span className="text-xs text-slate-500 dark:text-white/55 font-semibold tracking-wider uppercase">{label}</span>
+      <div className="text-2xl font-extrabold text-slate-800 dark:text-white tabular-nums">
+        {value}{unit && <span className="text-sm font-semibold text-slate-500 dark:text-white/55 ml-1">{unit}</span>}
       </div>
-      {sub && <span className="text-xs text-slate-500">{sub}</span>}
+      {sub && <span className="text-xs text-slate-500 dark:text-white/55">{sub}</span>}
     </div>
   );
 }
@@ -66,15 +66,15 @@ export default function WeightTrend({ activities, onOpenConnections }) {
   const header = (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <ScaleIcon className="w-5 h-5 text-slate-500" />
-        <h2 className="text-lg font-bold text-slate-800">Peso y composición</h2>
+        <ScaleIcon className="w-5 h-5 text-slate-500 dark:text-white/55" />
+        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Peso y composición</h2>
       </div>
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+      <div className="flex gap-1 bg-slate-100 dark:bg-white/[0.04] rounded-xl p-1">
         {RANGES.map((r) => (
           <button
             key={r.days}
             onClick={() => setDays(r.days)}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg ${days === r.days ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg ${days === r.days ? 'bg-white dark:bg-white/[0.03] shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 dark:text-white/55'}`}
           >{r.label}</button>
         ))}
       </div>
@@ -82,17 +82,17 @@ export default function WeightTrend({ activities, onOpenConnections }) {
   );
 
   if (state.days !== days) {
-    return <div className="space-y-4">{header}<div className="h-64 rounded-3xl bg-slate-100 animate-pulse" /></div>;
+    return <div className="space-y-4">{header}<div className="h-64 rounded-3xl bg-slate-100 dark:bg-white/[0.04] animate-pulse" /></div>;
   }
 
   if (state.error) {
     return (
       <div className="space-y-4">
         {header}
-        <div className="rounded-2xl border border-slate-200 p-6 text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-6 text-sm text-slate-600 dark:text-white/75">
           No se pudo leer la báscula de Garmin: {state.error}
           {onOpenConnections && (
-            <button onClick={onOpenConnections} className="ml-2 font-semibold text-blue-600 hover:underline">
+            <button onClick={onOpenConnections} className="ml-2 font-semibold text-teal-700 dark:text-teal-300 hover:underline">
               Revisar conexión
             </button>
           )}
@@ -105,7 +105,7 @@ export default function WeightTrend({ activities, onOpenConnections }) {
     return (
       <div className="space-y-4">
         {header}
-        <div className="rounded-2xl border border-slate-200 p-6 text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-6 text-sm text-slate-600 dark:text-white/75">
           No hay pesadas en Garmin Connect en este rango. Hace falta una báscula vinculada
           (Index S2 o similar) o registrar el peso a mano en la app de Garmin.
         </div>
@@ -135,8 +135,8 @@ export default function WeightTrend({ activities, onOpenConnections }) {
         />
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
-        <p className="text-xs text-slate-500 mb-3">
+      <div className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm p-5">
+        <p className="text-xs text-slate-500 dark:text-white/55 mb-3">
           Puntos: cada pesada. Línea: media móvil de 7 días — el peso de un día suelto oscila
           ±1 kg por agua y glucógeno, la tendencia es lo que cuenta.
         </p>
@@ -161,22 +161,22 @@ export default function WeightTrend({ activities, onOpenConnections }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-3">
-        <h3 className="text-sm font-bold text-slate-800">Peso y eficiencia aeróbica</h3>
+      <div className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-200 dark:border-white/10 shadow-sm p-5 space-y-3">
+        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Peso y eficiencia aeróbica</h3>
         {corr.months.length < 4 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-white/55">
             Hacen falta al menos 4 meses con pesadas y 3 rodajes comparables cada uno para cruzar
             peso y eficiencia ({corr.months.length} de 4). Prueba con un rango más largo.
           </p>
         ) : (
           <>
-            <p className="text-sm text-slate-700">
-              {corrText} <span className="text-slate-500">(r = {corr.r}, {corr.months.length} meses)</span>
+            <p className="text-sm text-slate-700 dark:text-white/75">
+              {corrText} <span className="text-slate-500 dark:text-white/55">(r = {corr.r}, {corr.months.length} meses)</span>
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm tabular-nums">
                 <thead>
-                  <tr className="text-xs text-slate-500 text-left">
+                  <tr className="text-xs text-slate-500 dark:text-white/55 text-left">
                     <th className="py-1 pr-4 font-semibold">Mes</th>
                     <th className="py-1 pr-4 font-semibold">Peso medio</th>
                     <th className="py-1 pr-4 font-semibold">EF (m/latido)</th>
@@ -185,7 +185,7 @@ export default function WeightTrend({ activities, onOpenConnections }) {
                 </thead>
                 <tbody>
                   {corr.months.slice(-12).reverse().map((m) => (
-                    <tr key={m.month} className="border-t border-slate-100">
+                    <tr key={m.month} className="border-t border-slate-100 dark:border-white/10">
                       <td className="py-1 pr-4">{m.month}</td>
                       <td className="py-1 pr-4">{fmtKg(m.weight_kg)} kg</td>
                       <td className="py-1 pr-4">{m.ef.toFixed(2)}</td>

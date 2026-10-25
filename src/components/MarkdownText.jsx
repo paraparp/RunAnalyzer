@@ -50,7 +50,7 @@ export const MermaidDiagram = ({ code }) => {
 
     if (error || !svg) {
         return (
-            <pre className="bg-slate-50 border border-slate-200 rounded-lg p-3 my-3 overflow-x-auto text-xs font-mono text-slate-600">
+            <pre className="bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 rounded-lg p-3 my-3 overflow-x-auto text-xs font-mono text-slate-600 dark:text-white/75">
                 <code>{code}</code>
             </pre>
         );
@@ -80,20 +80,20 @@ const parseInline = (text) => {
 
         if (m[1] !== undefined) {
             parts.push(
-                <code key={key++} className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+                <code key={key++} className="bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-white/75 px-1.5 py-0.5 rounded text-[0.85em] font-mono">
                     {m[1]}
                 </code>
             );
         } else if (m[2] !== undefined) {
-            parts.push(<strong key={key++} className="font-semibold text-slate-900">{m[2]}</strong>);
+            parts.push(<strong key={key++} className="font-semibold text-slate-900 dark:text-white">{m[2]}</strong>);
         } else if (m[3] !== undefined) {
-            parts.push(<span key={key++} className="line-through text-slate-500">{m[3]}</span>);
+            parts.push(<span key={key++} className="line-through text-slate-500 dark:text-white/55">{m[3]}</span>);
         } else if (m[4] !== undefined) {
             // Solo esquemas seguros: un enlace del plan puede venir del MCP.
             const href = /^(https?:|mailto:)/i.test(m[5]) ? m[5] : null;
             parts.push(href
                 ? <a key={key++} href={href} target="_blank" rel="noopener noreferrer"
-                    className="text-blue-600 underline decoration-blue-200 underline-offset-2 hover:decoration-blue-500">{m[4]}</a>
+                    className="text-teal-700 dark:text-teal-300 underline decoration-blue-200 underline-offset-2 hover:decoration-blue-500">{m[4]}</a>
                 : <span key={key++}>{m[4]}</span>);
         } else {
             parts.push(<em key={key++} className="italic">{m[6]}</em>);
@@ -126,10 +126,10 @@ const renderItems = (items, keyBase = 'l') => {
 
         const Tag = type === 'ol' ? 'ol' : 'ul';
         const listClass = type === 'ol'
-            ? 'list-decimal list-outside ml-5 space-y-1.5 my-2.5 text-slate-700 marker:text-slate-400 marker:font-semibold'
+            ? 'list-decimal list-outside ml-5 space-y-1.5 my-2.5 text-slate-700 dark:text-white/75 marker:text-slate-400 marker:font-semibold'
             : group.some((g) => g.checked != null)
-                ? 'list-none ml-0.5 space-y-1.5 my-2.5 text-slate-700'
-                : 'list-disc list-outside ml-5 space-y-1.5 my-2.5 text-slate-700 marker:text-slate-300';
+                ? 'list-none ml-0.5 space-y-1.5 my-2.5 text-slate-700 dark:text-white/75'
+                : 'list-disc list-outside ml-5 space-y-1.5 my-2.5 text-slate-700 dark:text-white/75 marker:text-slate-300';
 
         nodes.push(
             <Tag key={`${keyBase}-${nodes.length}`} className={listClass}>
@@ -137,10 +137,10 @@ const renderItems = (items, keyBase = 'l') => {
                     <li key={gi} value={type === 'ol' ? g.value : undefined} className="leading-relaxed pl-1">
                         {g.checked != null ? (
                             <span className="flex items-start gap-2">
-                                <span className={`mt-[3px] w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center text-xs font-black ${g.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 text-transparent'}`}>
+                                <span className={`mt-[3px] w-3.5 h-3.5 shrink-0 rounded border flex items-center justify-center text-xs font-black ${g.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 dark:border-white/10 text-transparent'}`}>
                                     ✓
                                 </span>
-                                <span className={g.checked ? 'text-slate-500 line-through' : ''}>{parseInline(g.text)}</span>
+                                <span className={g.checked ? 'text-slate-500 dark:text-white/55 line-through' : ''}>{parseInline(g.text)}</span>
                             </span>
                         ) : parseInline(g.text)}
                         {g.children.length > 0 && renderItems(g.children, `${keyBase}-${nodes.length}-${gi}`)}
@@ -181,12 +181,12 @@ export const MarkdownText = ({ content }) => {
             const [header, ...body] = tableRows;
             const alignOf = (i) => ALIGN_CLASS[tableAlign[i]] || 'text-left';
             elements.push(
-                <div key={elements.length} className="overflow-x-auto my-3 rounded-xl border border-slate-200">
+                <div key={elements.length} className="overflow-x-auto my-3 rounded-xl border border-slate-200 dark:border-white/10">
                     <table className="min-w-full text-xs border-collapse">
-                        <thead className="bg-slate-50">
+                        <thead className="bg-slate-50 dark:bg-white/[0.04]">
                             <tr>
                                 {header.map((cell, i) => (
-                                    <th key={i} className={`px-3 py-2 font-bold uppercase text-label text-slate-500 border-b border-slate-200 whitespace-nowrap ${alignOf(i)}`}>
+                                    <th key={i} className={`px-3 py-2 font-bold uppercase text-label text-slate-500 dark:text-white/55 border-b border-slate-200 dark:border-white/10 whitespace-nowrap ${alignOf(i)}`}>
                                         {parseInline(cell)}
                                     </th>
                                 ))}
@@ -196,7 +196,7 @@ export const MarkdownText = ({ content }) => {
                             {body.map((row, r) => (
                                 <tr key={r} className="even:bg-slate-50/60 hover:bg-blue-50/40 transition-colors">
                                     {row.map((cell, c) => (
-                                        <td key={c} className={`px-3 py-2 text-slate-700 border-b border-slate-100 align-top last:border-r-0 ${alignOf(c)}`}>
+                                        <td key={c} className={`px-3 py-2 text-slate-700 dark:text-white/75 border-b border-slate-100 dark:border-white/10 align-top last:border-r-0 ${alignOf(c)}`}>
                                             {parseInline(cell)}
                                         </td>
                                     ))}
@@ -213,7 +213,7 @@ export const MarkdownText = ({ content }) => {
         const flushQuote = () => {
             if (quoteLines.length === 0) return;
             elements.push(
-                <blockquote key={elements.length} className="my-3 pl-3 border-l-[3px] border-blue-200 bg-blue-50/40 rounded-r-lg py-2 pr-3 text-slate-600 italic">
+                <blockquote key={elements.length} className="my-3 pl-3 border-l-[3px] border-teal-200 dark:border-teal-300/25 bg-teal-50 dark:bg-teal-400/10 rounded-r-lg py-2 pr-3 text-slate-600 dark:text-white/75 italic">
                     {quoteLines.map((q, i) => <p key={i} className="leading-relaxed">{parseInline(q)}</p>)}
                 </blockquote>
             );
@@ -226,13 +226,13 @@ export const MarkdownText = ({ content }) => {
                 elements.push(<MermaidDiagram key={elements.length} code={codeText} />);
             } else {
                 elements.push(
-                    <div key={elements.length} className="my-3 rounded-xl border border-slate-200 overflow-hidden">
+                    <div key={elements.length} className="my-3 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
                         {codeLang && (
-                            <div className="px-3 py-1.5 bg-slate-100 text-label font-bold uppercase text-slate-500 border-b border-slate-200">
+                            <div className="px-3 py-1.5 bg-slate-100 dark:bg-white/[0.04] text-label font-bold uppercase text-slate-500 dark:text-white/55 border-b border-slate-200 dark:border-white/10">
                                 {codeLang}
                             </div>
                         )}
-                        <pre className="bg-slate-50 p-3 overflow-x-auto text-xs font-mono text-slate-700 leading-snug">
+                        <pre className="bg-slate-50 dark:bg-white/[0.04] p-3 overflow-x-auto text-xs font-mono text-slate-700 dark:text-white/75 leading-snug">
                             <code>{codeText}</code>
                         </pre>
                     </div>
@@ -295,7 +295,7 @@ export const MarkdownText = ({ content }) => {
 
             if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmedLine)) {
                 flushAll();
-                elements.push(<hr key={idx} className="my-4 border-slate-200" />);
+                elements.push(<hr key={idx} className="my-4 border-slate-200 dark:border-white/10" />);
                 return;
             }
 
@@ -330,18 +330,18 @@ export const MarkdownText = ({ content }) => {
                 const level = hMatch[1].length;
                 const inner = parseInline(hMatch[2]);
                 const styles = {
-                    1: 'text-lg font-black text-slate-900 tracking-tight mt-5 mb-2',
-                    2: 'text-base font-black text-slate-900 tracking-tight mt-4 mb-2',
-                    3: 'text-sm font-black text-slate-800 uppercase tracking-wide mt-4 mb-1.5',
+                    1: 'text-lg font-black text-slate-900 dark:text-white tracking-tight mt-5 mb-2',
+                    2: 'text-base font-black text-slate-900 dark:text-white tracking-tight mt-4 mb-2',
+                    3: 'text-sm font-black text-slate-800 dark:text-white uppercase tracking-wide mt-4 mb-1.5',
                 };
-                const cls = styles[level] || 'text-sm font-bold text-slate-700 mt-3 mb-1.5';
+                const cls = styles[level] || 'text-sm font-bold text-slate-700 dark:text-white/75 mt-3 mb-1.5';
                 const Tag = `h${Math.min(level + 1, 6)}`;
                 elements.push(<Tag key={idx} className={cls}>{inner}</Tag>);
                 return;
             }
 
             elements.push(
-                <p key={idx} className="leading-relaxed text-slate-700 my-1.5">
+                <p key={idx} className="leading-relaxed text-slate-700 dark:text-white/75 my-1.5">
                     {parseInline(trimmedLine)}
                 </p>
             );

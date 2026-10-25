@@ -4,7 +4,7 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot,
 } from "recharts";
 import { COLORS, AXIS_TICK } from '../lib/palette';
-import { ACCENTS, extremesOf, evenTicks, fmtDate, fmtDateFull, GRAN_MIN_DAYS } from '../lib/vitalSeries';
+import { ACCENTS, extremesOf, evenTicks, fmtDateFull, GRAN_MIN_DAYS } from '../lib/vitalSeries';
 
 // Gráfico de exploración de métricas vitales, compartido por Resumen Vital y el
 // Explorador de Salud. Las series vienen de `buildVitalMetrics` (lib/vitalSeries).
@@ -20,6 +20,7 @@ function mergeRows(series) {
       if (!r) { r = { ms: d.ms }; m.set(d.ms, r); }
       r[`${s.key}_smooth`] = d.smooth;
       r[`${s.key}_raw`] = d.raw;
+      r[`${s.key}_line`] = d.line ?? d.smooth;
     }
   }
   return [...m.values()].sort((a, b) => a.ms - b.ms);
@@ -52,22 +53,22 @@ const CompareTooltip = ({ active, payload, series }) => {
   const row = payload[0]?.payload;
   if (!row || row.ms == null) return null;
   return (
-    <div className="bg-white/95 backdrop-blur-xl border border-slate-200/60 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[180px] space-y-1">
-      <p className="font-semibold text-slate-500">{fmtDateFull(row.ms)}</p>
+    <div className="bg-white/95 dark:bg-[#0c0e12]/95 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-xl px-3 py-2 text-xs shadow-lg min-w-[180px] space-y-1">
+      <p className="font-semibold text-slate-500 dark:text-white/55">{fmtDateFull(row.ms)}</p>
       {series.map((s) => {
         const v = row[`${s.key}_smooth`];
         const r = row[`${s.key}_raw`];
         if (v == null && r == null) return null;
         return (
           <div key={s.key} className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1.5 text-slate-500">
+            <span className="flex items-center gap-1.5 text-slate-500 dark:text-white/55">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.stroke }} />
               {s.title}
             </span>
-            <span className="font-bold text-slate-900 tabular-nums">
+            <span className="font-bold text-slate-900 dark:text-white tabular-nums">
               {s.fmt(v)}
-              {r != null && <span className="font-normal text-slate-500"> · día {s.fmt(r)}</span>}
-              <span className="font-medium text-slate-500 ml-0.5">{s.unit}</span>
+              {r != null && <span className="font-normal text-slate-500 dark:text-white/55"> · día {s.fmt(r)}</span>}
+              <span className="font-medium text-slate-500 dark:text-white/55 ml-0.5">{s.unit}</span>
             </span>
           </div>
         );
@@ -115,21 +116,21 @@ function seriesLayer(s, { axis, showHist, gradient, compact, guides = true }) {
     );
   }
   els.push(
-    <Area key={`${id}-smooth`} yAxisId={id} type="monotone" dataKey={`${id}_smooth`} name={s.title}
+    <Area key={`${id}-smooth`} yAxisId={id} type="monotone" dataKey={`${id}_line`} name={s.title}
       stroke={s.stroke} strokeWidth={2.5} fill={gradient ? `url(#grad-x-${id})` : "none"}
-      connectNulls dot={false} isAnimationActive={false} />,
+      connectNulls={false} dot={false} isAnimationActive={false} />,
     <Area key={`${id}-raw`} yAxisId={id} type="monotone" dataKey={`${id}_raw`} stroke={s.stroke} strokeWidth={0} fill="none"
       dot={{ r: 2, fill: s.stroke, fillOpacity: 0.3, strokeWidth: 0 }} activeDot={false} connectNulls={false} isAnimationActive={false} />,
   );
   if (s.range) {
     els.push(
       <ReferenceDot key={`${id}-dmax`} yAxisId={id} x={s.range.max.ms} y={s.range.max.v} r={compact ? 4 : 5} fill={s.stroke} stroke={COLORS.paper} strokeWidth={2}
-        label={{ value: `máx ${s.fmt(s.range.max.v)} · ${fmtDate(s.range.max.ms)}`, position: s.invertY ? "bottom" : "top", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
+        label={{ value: `máx ${s.fmt(s.range.max.v)} · ${fmtDateFull(s.range.max.ms)}`, position: s.invertY ? "bottom" : "top", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
     );
     if (s.range.min.ms !== s.range.max.ms) {
       els.push(
         <ReferenceDot key={`${id}-dmin`} yAxisId={id} x={s.range.min.ms} y={s.range.min.v} r={compact ? 4 : 5} fill={COLORS.paper} stroke={s.stroke} strokeWidth={2}
-          label={{ value: `mín ${s.fmt(s.range.min.v)} · ${fmtDate(s.range.min.ms)}`, position: s.invertY ? "top" : "bottom", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
+          label={{ value: `mín ${s.fmt(s.range.min.v)} · ${fmtDateFull(s.range.min.ms)}`, position: s.invertY ? "top" : "bottom", fontSize: fs, fontWeight: 700, fill: s.stroke }} />,
       );
     }
   }
@@ -139,20 +140,20 @@ function seriesLayer(s, { axis, showHist, gradient, compact, guides = true }) {
 // Línea compacta de estadísticas de una serie (para las comparadas).
 const SeriesStatsLine = ({ s }) => (
   <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs">
-    <span className="flex items-center gap-1.5 font-bold text-slate-700">
+    <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-white/75">
       <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.stroke }} />
       {s.title}
-      {s.invertY && <span className="font-medium text-slate-500">(eje invertido)</span>}
+      {s.invertY && <span className="font-medium text-slate-500 dark:text-white/55">(eje invertido)</span>}
     </span>
-    <span className="text-slate-500 tabular-nums">
-      máx <b className="text-slate-800">{s.fmt(s.range?.max.v)}</b>{s.range && ` · ${fmtDate(s.range.max.ms)}`}
+    <span className="text-slate-500 dark:text-white/55 tabular-nums">
+      máx <b className="text-slate-800 dark:text-white">{s.fmt(s.range?.max.v)}</b>{s.range && ` · ${fmtDateFull(s.range.max.ms)}`}
     </span>
-    <span className="text-slate-500 tabular-nums">
-      mín <b className="text-slate-800">{s.fmt(s.range?.min.v)}</b>{s.range && ` · ${fmtDate(s.range.min.ms)}`}
+    <span className="text-slate-500 dark:text-white/55 tabular-nums">
+      mín <b className="text-slate-800 dark:text-white">{s.fmt(s.range?.min.v)}</b>{s.range && ` · ${fmtDateFull(s.range.min.ms)}`}
     </span>
-    <span className="text-slate-500 tabular-nums">media <b className="text-slate-800">{s.fmt(s.mean)}</b> {s.unit}</span>
+    <span className="text-slate-500 dark:text-white/55 tabular-nums">media <b className="text-slate-800 dark:text-white">{s.fmt(s.mean)}</b> {s.unit}</span>
     {s.history && (
-      <span className="text-slate-400 tabular-nums">hist. {s.fmt(s.history.min.v)}–{s.fmt(s.history.max.v)}</span>
+      <span className="text-slate-400 dark:text-white/40 tabular-nums">hist. {s.fmt(s.history.min.v)}–{s.fmt(s.history.max.v)}</span>
     )}
   </div>
 );
@@ -254,11 +255,11 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
     </ResponsiveContainer>
   );
 
-  const pill = (on) => `px-2 py-0.5 rounded-md text-xs font-semibold transition-all ${on ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
+  const pill = (on) => `px-2 py-0.5 rounded-md text-xs font-semibold transition-all ${on ? "bg-white dark:bg-white/[0.03] text-slate-800 dark:text-white shadow-sm" : "text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white"}`;
   const inPrimaryY = (v) => v >= primary.yDomain[0] && v <= primary.yDomain[1];
   const { range, history, fmt } = primary;
   // Cifra + fecha en una línea: las estadísticas van resumidas para dejar sitio al gráfico.
-  const num = (v) => <b className="text-slate-900 tabular-nums">{fmt(v)}</b>;
+  const num = (v) => <b className="text-slate-900 dark:text-white tabular-nums">{fmt(v)}</b>;
   const histOff = history && (!inPrimaryY(history.min.v) || !inPrimaryY(history.max.v));
 
   return (
@@ -277,7 +278,7 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
                 onClick={() => pickPrimary(m.key)}
                 disabled={empty && !on}
                 title={empty ? "Sin datos en este período" : undefined}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${on ? "text-white shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${on ? "text-white shadow-sm" : "bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 border-slate-200 dark:border-white/10 hover:border-slate-300"
                   }`}
                 style={on ? { background: c, borderColor: c } : undefined}
               >
@@ -291,20 +292,20 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
       {/* Barra única: período, escala, comparación y rango */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {periodControls}
-        <span className="w-px h-5 bg-slate-200" />
-        <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+        <span className="w-px h-5 bg-slate-200 dark:bg-white/10" />
+        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5">
           <button className={pill(scale === "fit")} onClick={() => setScale("fit")}>Ajustada</button>
           {history && <button className={pill(scale === "hist")} onClick={() => setScale("hist")} title="Incluir el histórico en la escala">Histórico</button>}
         </div>
         {all.some((s) => s.hasRaw) && (
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none" title="Ajustar la escala a los puntos diarios">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-white/75 cursor-pointer select-none" title="Ajustar la escala a los puntos diarios">
             <input type="checkbox" className="w-3.5 h-3.5" style={{ accentColor: primary.stroke }} checked={fitRaw} onChange={(e) => setFitRaw(e.target.checked)} />
             Diarios
           </label>
         )}
-        <span className="w-px h-5 bg-slate-200" />
+        <span className="w-px h-5 bg-slate-200 dark:bg-white/10" />
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500">Comparar:</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-white/55">Comparar:</span>
           {others.map((m) => {
             const on = compare.includes(m.key);
             const empty = !hasData(m);
@@ -316,7 +317,7 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
                 disabled={empty}
                 aria-pressed={on}
                 title={empty ? "Sin datos en este período" : undefined}
-                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border transition-all ${on ? "bg-white shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border transition-all ${on ? "bg-white dark:bg-white/[0.03] shadow-sm" : "bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-200 dark:border-white/10 hover:border-slate-300"
                   } disabled:opacity-40 disabled:cursor-not-allowed`}
                 style={on ? { borderColor: c, color: c } : undefined}
               >
@@ -327,35 +328,35 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
           })}
         </div>
         {compared.length > 0 && (
-          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+          <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5">
             <button className={pill(layout === "stack")} onClick={() => setLayout("stack")}>Apilados</button>
             <button className={pill(layout === "overlay")} onClick={() => setLayout("overlay")}>Superpuestos</button>
           </div>
         )}
         {zoomFits && (
-          <button onClick={() => setZoom(null)} className="px-2 py-0.5 rounded-md text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
+          <button onClick={() => setZoom(null)} className="px-2 py-0.5 rounded-md text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-400/10 hover:bg-blue-100">
             Restablecer rango
           </button>
         )}
       </div>
 
       {/* Estadísticas de la métrica principal en una línea: rango visible vs histórico */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-slate-500 px-1">
-        <span className="font-semibold text-slate-600">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-white/55 px-1">
+        <span className="font-semibold text-slate-600 dark:text-white/75">
           {zoomFits ? "Rango" : "Período"} {fmtDateFull(xDomain[0])} – {fmtDateFull(xDomain[1])}
         </span>
-        {range && <span>máx {num(range.max.v)} {primary.unit} · {fmtDate(range.max.ms)}</span>}
-        {range && <span>mín {num(range.min.v)} {primary.unit} · {fmtDate(range.min.ms)}</span>}
+        {range && <span>máx {num(range.max.v)} {primary.unit} · {fmtDateFull(range.max.ms)}</span>}
+        {range && <span>mín {num(range.min.v)} {primary.unit} · {fmtDateFull(range.min.ms)}</span>}
         <span>{avgLabel.toLowerCase()} {num(primary.mean)} {primary.unit}</span>
         {history && (
           <span
-            className="text-slate-400"
+            className="text-slate-400 dark:text-white/40"
             title={`Máx histórico ${fmt(history.max.v)} (${fmtDateFull(history.max.ms)}) · mín histórico ${fmt(history.min.v)} (${fmtDateFull(history.min.ms)})`}
           >
             histórico {fmt(history.min.v)}–{fmt(history.max.v)} {primary.unit}{histOff ? " · fuera de escala" : ""}
           </span>
         )}
-        <span className="ml-auto text-slate-400">Arrastra sobre el gráfico para seleccionar un rango</span>
+        <span className="ml-auto text-slate-400 dark:text-white/40">Arrastra sobre el gráfico para seleccionar un rango</span>
       </div>
 
       {/* Gráficos */}
@@ -373,7 +374,7 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
               {chart([primary], { showBands: true })}
             </div>
             {compared.map((s) => (
-              <div key={s.key} className="flex-1 min-h-[160px] flex flex-col border-t border-slate-100 pt-2">
+              <div key={s.key} className="flex-1 min-h-[160px] flex flex-col border-t border-slate-100 dark:border-white/10 pt-2">
                 <div className="px-1 mb-1"><SeriesStatsLine s={s} /></div>
                 <div className="flex-1 min-h-0">{chart([s], { compact: true })}</div>
               </div>
@@ -395,7 +396,7 @@ const GRANS = [
 /** Selector de granularidad; desactiva las que el período no llena. */
 export function GranSelector({ gran, onChange, days }) {
   return (
-    <div className="flex bg-slate-100 p-1 rounded-xl">
+    <div className="flex bg-slate-100 dark:bg-white/[0.04] p-1 rounded-xl">
       {GRANS.map((gr) => {
         const enabled = days >= GRAN_MIN_DAYS[gr.id];
         return (
@@ -405,8 +406,8 @@ export function GranSelector({ gran, onChange, days }) {
             disabled={!enabled}
             title={enabled ? undefined : "Período demasiado corto para esta granularidad"}
             aria-pressed={gran === gr.id}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white text-blue-600 shadow-sm"
-              : enabled ? "text-slate-500 hover:text-slate-700" : "text-slate-300 cursor-not-allowed"
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === gr.id ? "bg-white dark:bg-white/[0.03] text-teal-700 dark:text-teal-300 shadow-sm"
+              : enabled ? "text-slate-500 dark:text-white/55 hover:text-slate-700 dark:hover:text-white" : "text-slate-300 dark:text-white/40 cursor-not-allowed"
               }`}
           >
             {gr.label}

@@ -208,18 +208,18 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
           mueven el PMC, los umbrales, las zonas de cada lap y el prompt del
           coach, no un ajuste de esta vista. Aquí se muestra con qué está
           calibrado lo que se pinta debajo. ─────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <Title className="text-slate-800 font-bold">{t('zones.title')}</Title>
-            <Text className="text-slate-500 text-sm mt-0.5">
+            <Title className="text-slate-800 dark:text-white font-bold">{t('zones.title')}</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-sm mt-0.5">
               {t('zones.subtitle', { count: activitiesWithHR })}
             </Text>
           </div>
           {onOpenCalibration && (
             <button
               onClick={onOpenCalibration}
-              className="h-8 px-3 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 text-xs font-semibold transition-colors shrink-0"
+              className="h-8 px-3 rounded-lg bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-blue-600 text-xs font-semibold transition-colors shrink-0"
             >
               {t('zones.edit_calibration')}
             </button>
@@ -227,56 +227,56 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+          <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-3.5 border border-slate-100 dark:border-white/10">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-label font-bold text-slate-500 uppercase">{t('zones.fc_max')}</p>
+              <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{t('zones.fc_max')}</p>
               <Badge color={maxOv ? 'violet' : 'sky'} size="xs">{maxOv ? t('zones.manual') : t('zones.auto')}</Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrmax} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-white tabular-nums">{hrmax} <span className="text-xs font-medium text-slate-500 dark:text-white/55">{t('zones.bpm')}</span></p>
           </div>
 
-          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+          <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-3.5 border border-slate-100 dark:border-white/10">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-label font-bold text-slate-500 uppercase">{t('zones.fc_rest')}</p>
+              <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{t('zones.fc_rest')}</p>
               <Badge color={restOv ? 'violet' : autoRest.source === 'garmin' ? 'sky' : 'slate'} size="xs">
                 {restOv ? t('zones.manual') : autoRest.source === 'garmin' ? 'Garmin' : t('zones.default_val')}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{hrrest} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-white tabular-nums">{hrrest} <span className="text-xs font-medium text-slate-500 dark:text-white/55">{t('zones.bpm')}</span></p>
           </div>
 
-          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+          <div className="bg-slate-50 dark:bg-white/[0.04] rounded-xl p-3.5 border border-slate-100 dark:border-white/10">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-label font-bold text-slate-500 uppercase">{t('zones.lthr')}</p>
+              <p className="text-label font-bold text-slate-500 dark:text-white/55 uppercase">{t('zones.lthr')}</p>
               <Badge color={lthrOv ? 'violet' : confColor} size="xs">
                 {lthrOv ? t('zones.manual') : `${lthrResult.confidence}% ${t('zones.conf')}`}
               </Badge>
             </div>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums">{lthr} <span className="text-xs font-medium text-slate-500">{t('zones.bpm')}</span></p>
-            <p className="text-xs text-slate-500 mt-0.5 truncate">{lthrOv ? t('zones.manual') : methodText}</p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-white tabular-nums">{lthr} <span className="text-xs font-medium text-slate-500 dark:text-white/55">{t('zones.bpm')}</span></p>
+            <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5 truncate">{lthrOv ? t('zones.manual') : methodText}</p>
           </div>
         </div>
 
         <div className="mt-3 flex gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
+          <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-400/10 border border-indigo-100 dark:border-indigo-300/25 rounded-lg px-3 py-1.5">
             <span className="text-label font-bold text-indigo-400 uppercase">HRR</span>
-            <span className="text-sm font-bold text-indigo-700 tabular-nums">{hrr} {t('zones.bpm')}</span>
+            <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">{hrr} {t('zones.bpm')}</span>
             <span className="text-xs text-indigo-400">({hrmax} − {hrrest})</span>
           </div>
-          <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-lg px-3 py-1.5">
+          <div className="flex items-center gap-1.5 bg-violet-50 dark:bg-violet-400/10 border border-violet-100 dark:border-violet-300/25 rounded-lg px-3 py-1.5">
             <span className="text-label font-bold text-violet-400 uppercase">LTHR / FCmax</span>
-            <span className="text-sm font-bold text-violet-700 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{((lthr / hrmax) * 100).toFixed(1)}%</span>
           </div>
         </div>
       </Card>
 
       {/* ── 2. Zone table ──────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div className="flex-1 min-w-0">
-            <Title className="text-slate-800 font-bold">{model.name}</Title>
-            <Text className="text-slate-500 text-xs mt-0.5 font-medium">{model.ref}</Text>
-            <Text className="text-slate-500 text-sm mt-1">{model.desc}</Text>
+            <Title className="text-slate-800 dark:text-white font-bold">{model.name}</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-xs mt-0.5 font-medium">{model.ref}</Text>
+            <Text className="text-slate-500 dark:text-white/55 text-sm mt-1">{model.desc}</Text>
           </div>
         </div>
 
@@ -289,15 +289,15 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
             >
               <div className="w-1.5 self-stretch rounded-full shrink-0" style={{ background: z.color }} />
               <div className="w-10 shrink-0">
-                <span className="text-xs font-bold text-slate-700">{z.name}</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-white/75">{z.name}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-700">{z.label}</p>
-                <p className="text-xs text-slate-500 mt-0.5 leading-snug">{z.desc}</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-white/75">{z.label}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5 leading-snug">{z.desc}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-xs font-bold text-slate-700 tabular-nums">{bpmRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
-                <p className="text-xs text-slate-500 tabular-nums mt-0.5">{pctMaxRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-white/75 tabular-nums">{bpmRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
+                <p className="text-xs text-slate-500 dark:text-white/55 tabular-nums mt-0.5">{pctMaxRange(bounds[i]?.lo ?? 0, bounds[i]?.hi ?? 999)}</p>
               </div>
             </div>
           ))}
@@ -305,17 +305,17 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
       </Card>
 
       {/* ── 3. Time in zones ────────────────────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="mb-5">
-          <Title className="text-slate-800 font-bold">{t('zones.time_in_zones')}</Title>
-          <Text className="text-slate-500 text-sm">
+          <Title className="text-slate-800 dark:text-white font-bold">{t('zones.time_in_zones')}</Title>
+          <Text className="text-slate-500 dark:text-white/55 text-sm">
             {t('zones.time_in_zones_desc')}
           </Text>
           {/* Resolución del dato: una sesión sin parciales entra con su FC media y
               colapsa en UNA zona, lo que infla Z2 y borra el Z1 del calentamiento.
               Decirlo es la diferencia entre un % medido y un % supuesto. */}
           {mix.hasData && (
-            <p className={`text-xs mt-1.5 font-medium ${mix.avgOnlySessions ? 'text-amber-600' : 'text-slate-500'}`}>
+            <p className={`text-xs mt-1.5 font-medium ${mix.avgOnlySessions ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-white/55'}`}>
               {mix.avgOnlySessions
                 ? t('zones.resolution_partial', { avg: mix.avgOnlySessions, total: mix.sessions })
                 : t('zones.resolution_full', { total: mix.sessions })}
@@ -324,7 +324,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
 
         {zoneStats.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">{t('hr_analysis.no_data')}</div>
+          <div className="text-center py-10 text-slate-500 dark:text-white/55 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <div className="space-y-4">
             {zoneStats.map((z) => {
@@ -335,21 +335,21 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ background: z.color }} />
-                      <span className="text-xs font-bold text-slate-700">{z.name}</span>
-                      <span className="text-xs text-slate-500">{z.label}</span>
-                      <span className="text-xs text-slate-500 tabular-nums">{bpmRange(z.lo ?? 0, z.hi ?? 999)}</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-white/75">{z.name}</span>
+                      <span className="text-xs text-slate-500 dark:text-white/55">{z.label}</span>
+                      <span className="text-xs text-slate-500 dark:text-white/55 tabular-nums">{bpmRange(z.lo ?? 0, z.hi ?? 999)}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       {z.target && (
-                        <span className={`text-xs font-semibold ${overTarget ? 'text-rose-500' : underTarget ? 'text-amber-500' : 'text-slate-500'}`}>
+                        <span className={`text-xs font-semibold ${overTarget ? 'text-rose-500' : underTarget ? 'text-amber-500' : 'text-slate-500 dark:text-white/55'}`}>
                           {t('zones.target_label')} {z.target}%
                         </span>
                       )}
-                      <span className="text-xs font-bold text-slate-700 tabular-nums w-10 text-right">{z.pct}%</span>
-                      <span className="text-xs text-slate-500 tabular-nums w-10 text-right">{z.hours}h</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-white/75 tabular-nums w-10 text-right">{z.pct}%</span>
+                      <span className="text-xs text-slate-500 dark:text-white/55 tabular-nums w-10 text-right">{z.hours}h</span>
                     </div>
                   </div>
-                  <div className="relative h-7 bg-slate-100 rounded-lg overflow-hidden">
+                  <div className="relative h-7 bg-slate-100 dark:bg-white/[0.04] rounded-lg overflow-hidden">
                     {z.target && (
                       <div
                         className="absolute top-0 bottom-0 w-px bg-slate-500/40 z-10"
@@ -373,11 +373,11 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
       </Card>
 
       {/* ── 4. Evolution chart ──────────────────────────────────────────────── */}
-      <Card className="shadow-lg border-slate-200">
+      <Card className="shadow-lg border-slate-200 dark:border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <Title className="text-slate-800 font-bold">{t('zones.evolution')}</Title>
-            <Text className="text-slate-500 text-sm">{t('zones.evolution_desc')}</Text>
+            <Title className="text-slate-800 dark:text-white font-bold">{t('zones.evolution')}</Title>
+            <Text className="text-slate-500 dark:text-white/55 text-sm">{t('zones.evolution_desc')}</Text>
           </div>
           <div className="flex gap-1.5">
             {['month', 'week'].map(g => (
@@ -387,13 +387,13 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                   groupBy === g
                     ? 'bg-slate-700 text-white border-slate-700'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                    : 'bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-200 dark:border-white/10 hover:border-slate-400'
                 }`}
               >
                 {g === 'month' ? t('zones.monthly') : t('zones.weekly')}
               </button>
             ))}
-            <div className="w-px bg-slate-200 mx-1" />
+            <div className="w-px bg-slate-200 dark:bg-white/10 mx-1" />
             {['hours', 'pct'].map(m => (
               <button
                 key={m}
@@ -401,7 +401,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                   evoMode === m
                     ? 'bg-slate-700 text-white border-slate-700'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                    : 'bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-200 dark:border-white/10 hover:border-slate-400'
                 }`}
               >
                 {m === 'hours' ? 'h' : '%'}
@@ -411,7 +411,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
         </div>
 
         {evolutionData.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">{t('hr_analysis.no_data')}</div>
+          <div className="text-center py-10 text-slate-500 dark:text-white/55 text-sm">{t('hr_analysis.no_data')}</div>
         ) : (
           <>
             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -423,14 +423,14 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                     onClick={() => toggleZone(z.name)}
                     aria-pressed={on}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${
-                      on ? 'bg-white border-slate-200 hover:border-slate-400' : 'bg-slate-50 border-slate-100'
+                      on ? 'bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10 hover:border-slate-400' : 'bg-slate-50 dark:bg-white/[0.04] border-slate-100 dark:border-white/10'
                     }`}
                   >
                     <div
                       className="w-2.5 h-2.5 rounded-sm shrink-0"
                       style={{ background: on ? z.color : 'transparent', border: `1.5px solid ${z.color}`, opacity: on ? 1 : 0.45 }}
                     />
-                    <span className={`text-xs font-medium ${on ? 'text-slate-500' : 'text-slate-300 line-through'}`}>
+                    <span className={`text-xs font-medium ${on ? 'text-slate-500 dark:text-white/55' : 'text-slate-300 dark:text-white/40 line-through'}`}>
                       {z.name} {z.label}
                     </span>
                   </button>
@@ -444,7 +444,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
                   <XAxis dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit={evoMode === 'pct' ? '%' : 'h'} domain={evoMode === 'pct' ? [0, 100] : undefined} />
                   <RechartsTooltip
-                    contentStyle={{ background: COLORS.paper, border: '1px solid #e2e8f0', borderRadius: 'var(--radius)', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                    contentStyle={{ background: COLORS.paper, border: `1px solid ${COLORS.hairline}`, borderRadius: 'var(--radius)', fontSize: 11, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                     formatter={(v, name) => [`${v}${evoMode === 'pct' ? '%' : 'h'}`, name]}
                   />
                   {model.zones.filter(z => !hiddenZones.has(z.name)).map(z => (
@@ -459,8 +459,8 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
 
       {/* ── 5. Lectura polarizada (Z1+Z2 / Z3 / Z4+Z5) ───────────────────────────────────────────── */}
       {polarization && (
-        <Card className="shadow-lg border-slate-200">
-          <Title className="text-slate-800 font-bold mb-5">{t('zones.polarization_title')}</Title>
+        <Card className="shadow-lg border-slate-200 dark:border-white/10">
+          <Title className="text-slate-800 dark:text-white font-bold mb-5">{t('zones.polarization_title')}</Title>
 
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
@@ -471,7 +471,7 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
               <div key={row.label} className="text-center p-4 rounded-xl" style={{ background: row.bg, border: `1px solid ${row.border}` }}>
                 <p className="text-label font-bold uppercase mb-1" style={{ color: row.color }}>{row.label}</p>
                 <p className="text-2xl font-bold tabular-nums" style={{ color: row.color }}>{row.val.toFixed(0)}%</p>
-                <p className="text-xs mt-0.5 text-slate-500">{t('zones.target_label')} {row.target}</p>
+                <p className="text-xs mt-0.5 text-slate-500 dark:text-white/55">{t('zones.target_label')} {row.target}</p>
               </div>
             ))}
           </div>
@@ -488,9 +488,9 @@ export default function TrainingZones({ activities, hrParams, onOpenCalibration 
           </Callout>
 
           {/* Reference note */}
-          <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-            <p className="text-xs text-slate-500 leading-relaxed">
-              <span className="font-semibold text-slate-500">{t('zones.scientific_base')}:</span>{' '}
+          <div className="mt-4 p-3 bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/10 rounded-xl">
+            <p className="text-xs text-slate-500 dark:text-white/55 leading-relaxed">
+              <span className="font-semibold text-slate-500 dark:text-white/55">{t('zones.scientific_base')}:</span>{' '}
               {t('hr_analysis.seiler_scientific_base')}
             </p>
           </div>

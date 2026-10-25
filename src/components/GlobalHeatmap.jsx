@@ -6,12 +6,14 @@ import polyline from '@mapbox/polyline';
 import { useTranslation } from 'react-i18next';
 import { getDarkMapTileUrl, getLightMapTileUrl, getSatelliteMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 import { COLORS } from '../lib/palette';
+import useTheme from '../hooks/useTheme';
 
 export default function GlobalHeatmap({ activities }) {
   const { t } = useTranslation();
   const [filterType, setFilterType] = useState('all');
   const [colorMode, setColorMode] = useState('heatmap');
-  const [baseMap, setBaseMap] = useState('dark');
+  const { isDark } = useTheme();
+  const [baseMap, setBaseMap] = useState(isDark ? 'dark' : 'light');
 
   const lines = useMemo(() => {
     if (!activities) return [];
@@ -86,26 +88,26 @@ export default function GlobalHeatmap({ activities }) {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <Card className="shadow-xl border-slate-200 ring-1 ring-slate-100 rounded-3xl overflow-visible">
+      <Card className="shadow-xl border-slate-200 dark:border-white/10 ring-1 ring-slate-100 dark:ring-white/10 rounded-3xl overflow-visible">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 px-2">
           <div className="max-w-xl">
-            <h2 className="text-2xl font-black tracking-tight text-slate-900 mb-2">{t('maps.title')}</h2>
-            <Text className="text-slate-500 text-sm leading-relaxed">
+            <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mb-2">{t('maps.title')}</h2>
+            <Text className="text-slate-500 dark:text-white/55 text-sm leading-relaxed">
               {t('maps.subtitle')}
             </Text>
           </div>
           
           <div className="w-full xl:w-auto grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
             <div>
-              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.base_map')}</Text>
+              <Text className="text-label font-bold text-slate-500 dark:text-white/55 mb-1.5 uppercase">{t('maps.base_map')}</Text>
               <Select value={baseMap} onValueChange={setBaseMap} enableClear={false} className="w-full sm:w-40 font-medium shadow-sm">
                 <SelectItem value="dark"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-800"></span>{t('maps.dark')}</span></SelectItem>
-                <SelectItem value="light"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-200 border border-slate-300"></span>{t('maps.light')}</span></SelectItem>
+                <SelectItem value="light"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-200 dark:bg-white/10 border border-slate-300 dark:border-white/10"></span>{t('maps.light')}</span></SelectItem>
                 <SelectItem value="satellite"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-600"></span>{t('maps.satellite')}</span></SelectItem>
               </Select>
             </div>
             <div>
-              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.filter')}</Text>
+              <Text className="text-label font-bold text-slate-500 dark:text-white/55 mb-1.5 uppercase">{t('maps.filter')}</Text>
               <Select value={filterType} onValueChange={setFilterType} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="all">{t('maps.all')}</SelectItem>
                 <SelectItem value="run">{t('maps.road')}</SelectItem>
@@ -114,7 +116,7 @@ export default function GlobalHeatmap({ activities }) {
               </Select>
             </div>
             <div>
-              <Text className="text-label font-bold text-slate-500 mb-1.5 uppercase">{t('maps.color_mode')}</Text>
+              <Text className="text-label font-bold text-slate-500 dark:text-white/55 mb-1.5 uppercase">{t('maps.color_mode')}</Text>
               <Select value={colorMode} onValueChange={setColorMode} enableClear={false} className="w-full sm:w-44 font-medium shadow-sm">
                 <SelectItem value="heatmap"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-500"></div>{t('maps.density')}</span></SelectItem>
                 <SelectItem value="pace"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-green-500 to-red-500"></div>{t('maps.pace')}</span></SelectItem>
@@ -124,7 +126,7 @@ export default function GlobalHeatmap({ activities }) {
           </div>
         </div>
 
-        <div className={`h-[75vh] min-h-[600px] w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200 relative ${baseMap === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-100'}`}>
+        <div className={`h-[75vh] min-h-[600px] w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200 dark:border-white/10 relative ${baseMap === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-100 dark:bg-white/[0.04]'}`}>
           <MapContainer 
             center={center} 
             zoom={12} 
@@ -150,14 +152,14 @@ export default function GlobalHeatmap({ activities }) {
 
           {/* Map Legend Overlay */}
           {colorMode !== 'heatmap' && (
-            <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur-md px-4 py-3 rounded-xl border border-slate-200/60 shadow-lg shadow-black/5 flex flex-col gap-2">
-              <span className="text-label font-bold uppercase text-slate-500">
+            <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 dark:bg-[#0c0e12]/95 backdrop-blur-md px-4 py-3 rounded-xl border border-slate-200/60 dark:border-white/10 shadow-lg shadow-black/5 flex flex-col gap-2">
+              <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">
                 {colorMode === 'pace' ? t('maps.pace') : t('maps.hr')}
               </span>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-slate-700">{colorMode === 'hr' ? t('maps.legend_slow') : t('maps.legend_slow')}</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-white/75">{colorMode === 'hr' ? t('maps.legend_slow') : t('maps.legend_slow')}</span>
                 <div className="w-24 h-2.5 rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-green-500"></div>
-                <span className="text-xs font-semibold text-slate-700">{colorMode === 'hr' ? t('maps.legend_fast') : t('maps.legend_fast')}</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-white/75">{colorMode === 'hr' ? t('maps.legend_fast') : t('maps.legend_fast')}</span>
               </div>
             </div>
           )}
@@ -169,7 +171,7 @@ export default function GlobalHeatmap({ activities }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
              </span>
-             <span className="text-xs text-slate-500 font-semibold">{t('maps.showing')} <strong className="text-blue-600 font-black">{lines.length}</strong> {t('maps.routes')}</span>
+             <span className="text-xs text-slate-500 dark:text-white/55 font-semibold">{t('maps.showing')} <strong className="text-teal-700 dark:text-teal-300 font-black">{lines.length}</strong> {t('maps.routes')}</span>
           </div>
         </div>
       </Card>

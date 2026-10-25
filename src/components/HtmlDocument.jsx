@@ -87,7 +87,7 @@ const HtmlDocument = ({ html, height = '26rem', autoHeight = true, maxHeight = 4
     // Sin saneado no se pinta HTML: se enseña el fuente.
     if (failed || doc == null) {
         return (
-            <pre className="text-xs leading-relaxed text-slate-500 font-mono whitespace-pre-wrap break-words">{html}</pre>
+            <pre className="text-xs leading-relaxed text-slate-500 dark:text-white/55 font-mono whitespace-pre-wrap break-words">{html}</pre>
         );
     }
 
@@ -96,7 +96,7 @@ const HtmlDocument = ({ html, height = '26rem', autoHeight = true, maxHeight = 4
             title="plan"
             srcDoc={doc}
             style={{ height: measured != null ? `${measured}px` : height }}
-            className="w-full block border-0 bg-white rounded-lg transition-[height] duration-200"
+            className="w-full block border-0 bg-white dark:bg-white/[0.03] rounded-lg transition-[height] duration-200"
             // allow-scripts SIN allow-same-origin: el documento se ejecuta en un
             // origen opaco, aislado de la app. allow-popups es para que un enlace
             // pueda abrirse en otra pestaña.

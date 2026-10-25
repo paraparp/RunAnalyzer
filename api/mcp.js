@@ -31,6 +31,7 @@ import {
 } from './_lib/garmin-live.js';
 import { reportIssue, listIssues, deleteIssue, CATEGORIES, SEVERITIES, STATUSES } from './_lib/mcp-feedback.js';
 import { ensureFresh } from './_lib/mcp-sync.js';
+import { logWellness, getWellnessDiary, getWellnessStatus, ZONE_IDS } from './_lib/mcp-wellness.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 // Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
@@ -314,9 +315,12 @@ const TOOLS = [
   },
   {
     name: 'get_training_readiness',
-    description: 'Training readiness de Garmin (en vivo): score y nivel del día con sus factores (sueño, tiempo de recuperación, ACWR, VFC, estrés). Opcional: date.',
+    description: 'Training readiness de Garmin (en vivo): score y nivel del día con sus factores (sueño, tiempo de recuperación, ACWR, VFC, estrés). Opcional: date. Trae además `subjective`: molestias, ánimo y estrés del diario del atleta (null si no anotó nada en 7 días). Garmin no ve el dolor: una alerta en `subjective.signals` pesa más que un score alto.',
     inputSchema: { type: 'object', properties: { date: dateArg } },
-    run: (userId, args) => getTrainingReadiness(userId, args).then(text),
+    run: async (userId, args) => {
+      const [readiness, subjective] = await Promise.all([getTrainingReadiness(userId, args), getWellnessStatus(userId)]);
+      return text({ ...readiness, subjective });
+    },
   },
   {
     name: 'get_fitness_status',
@@ -351,9 +355,48 @@ const TOOLS = [
   },
   {
     name: 'get_health_alerts',
-    description: 'Alertas de patrón sobre VFC/FC reposo/Body Battery: firma de infección o sobrecarga (Body Battery máx <55 dos noches seguidas, o VFC bajo baseline con FC reposo elevada).',
+    description: 'Alertas de patrón sobre VFC/FC reposo/Body Battery: firma de infección o sobrecarga (Body Battery máx <55 dos noches seguidas, o VFC bajo baseline con FC reposo elevada). `subjective` añade las alertas de molestias del diario de la última semana (null si no hay anotaciones).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
-    run: (userId, args) => getHealthAlerts(userId, args).then(text),
+    run: async (userId, args) => {
+      const [alerts, subjective] = await Promise.all([getHealthAlerts(userId, args), getWellnessStatus(userId)]);
+      return text({ ...alerts, subjective });
+    },
+  },
+  // ── Diario de molestias y bienestar (mismo dato que la pantalla Diario) ───
+  {
+    name: 'log_wellness',
+    description: 'Anota en el diario del atleta las molestias por zona (0-10), el RPE de la sesión, el ánimo y el estrés de un día. Úsalo cuando el usuario cuente que le duele algo o cómo se siente. Por defecto FUSIONA con lo ya anotado ese día: solo cambia las molestias y campos que envíes; level 0 quita una molestia; `replace: true` sustituye la entrada entera. Devuelve la entrada guardada y `status`, el semáforo por zona de la última semana con recomendaciones. Lo ve la app y alimenta su índice de lesión.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: { ...dateArg, description: 'Día YYYY-MM-DD (por defecto hoy)' },
+        pains: {
+          type: 'array',
+          description: 'Molestias del día',
+          items: {
+            type: 'object',
+            properties: {
+              zone: { type: 'string', enum: ZONE_IDS },
+              side: { type: 'string', enum: ['L', 'R'], description: 'Obligatorio salvo lower_back' },
+              level: { type: 'number', description: '0 (quitar) a 10' },
+            },
+            required: ['zone', 'level'],
+          },
+        },
+        rpe: { type: ['number', 'null'], description: 'Esfuerzo percibido de la sesión del día, 1-10' },
+        mood: { type: ['number', 'null'], description: 'Ánimo 1 (muy bajo) a 5 (muy bueno)' },
+        stress: { type: ['number', 'null'], description: 'Estrés 1 (nada) a 5 (mucho)' },
+        note: { type: ['string', 'null'], description: 'Nota libre, máx. 500 caracteres' },
+        replace: { type: 'boolean', description: 'Sustituir la entrada del día en vez de fusionar' },
+      },
+    },
+    run: (userId, args) => logWellness(userId, args).then(text),
+  },
+  {
+    name: 'get_wellness_diary',
+    description: 'Lee el diario de molestias y bienestar: entradas por día (molestias por zona y lado, RPE, ánimo, estrés, nota) en un rango (por defecto los últimos 28 días) y `status`, el semáforo de la última semana (alert/watch/ok por zona, con tendencia y recomendaciones). Consúltalo antes de proponer sesiones de calidad.',
+    inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
+    run: (userId, args) => getWellnessDiary(userId, args).then(text),
   },
   {
     name: 'time_in_zones',
@@ -786,6 +829,7 @@ const TITLES = {
   upsert_training_plan: 'Crear/renombrar plan', delete_training_plan: 'Borrar plan de entrenamiento',
   upsert_planned_workout: 'Crear/editar entreno planificado', delete_planned_workout: 'Borrar entreno planificado',
   upsert_planned_workouts: 'Volcar varios entrenos planificados',
+  log_wellness: 'Anotar molestias y bienestar', get_wellness_diary: 'Diario de molestias',
   report_issue: 'Reportar incidencia', list_issues: 'Listar incidencias',
   delete_issue: 'Borrar incidencia',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
@@ -811,6 +855,8 @@ const ANNOTATIONS = {
   upsert_planned_workout: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   upsert_planned_workouts: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_planned_workout: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  // Diario: escribe en Supabase. Fusiona por defecto, así que repetir no duplica.
+  log_wellness: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   // Buzón de incidencias: escribe en nuestra BD, no toca datos del atleta.
   report_issue: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_issue: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
@@ -909,6 +955,8 @@ const INSTRUCTIONS = [
   'cambio es del atleta, del sensor o del terreno (desnivel por km de cada mitad).',
   'CS: `fit.r2` no vale nada sin `fit.n_activities` — con esfuerzos de una sola sesión el',
   'ajuste es perfecto por construcción (`fit.concentrated`).',
+  'Molestias: si el atleta cuenta que le duele algo, anótalo con log_wellness; `subjective` en',
+  'get_training_readiness y get_health_alerts trae el semáforo del diario, que Garmin no ve.',
 ].join(' ');
 
 function buildServer(userId) {
