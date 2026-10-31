@@ -136,7 +136,7 @@ export default function useGarminConnection() {
             setProgress({ value: msg.progress, period: msg.period, chunks: [...completedChunks] });
             setData([...accumulated]);
           } else if (msg.type === 'done') {
-            saveData(accumulated, false, usr, pwd, msg.sleepData);
+            saveData(accumulated, mergeExisting, usr, pwd, msg.sleepData);
           } else if (msg.type === 'error') {
             throw new Error(msg.error);
           }
