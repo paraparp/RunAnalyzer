@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   readInjuries, normalizeInjury, saveInjury, deleteInjury, injuryLabel, injuryDays,
+  injuryStats, injuryTimeline,
 } from './injuryLog';
 
 const memStorage = () => {
@@ -59,6 +60,55 @@ describe('deleteInjury', () => {
     const { injury } = saveInjury(st, knee);
     saveInjury(st, { ...knee, start_date: '2026-11-02' });
     expect(deleteInjury(st, injury.id).map((i) => i.start_date)).toEqual(['2026-11-02']);
+  });
+});
+
+describe('injuryStats', () => {
+  it('no cuenta dos veces los días en que se solapan dos lesiones', () => {
+    const s = injuryStats([
+      { id: 'a', zone: 'glute', side: 'L', start_date: '2026-10-11', end_date: '2026-10-26' },
+      { id: 'b', zone: 'knee', side: 'L', start_date: '2026-10-18', end_date: '2026-10-26' },
+    ], '2026-10-31');
+    expect(s).toMatchObject({ total: 2, active: 0, daysInjured: 16, repeated: null });
+  });
+
+  it('señala la zona que repite y cuenta una activa hasta hoy', () => {
+    const s = injuryStats([
+      { id: 'a', zone: 'knee', side: 'L', start_date: '2026-01-01', end_date: '2026-01-02' },
+      { id: 'b', zone: 'knee', side: 'L', start_date: '2026-10-30', end_date: null },
+    ], '2026-10-31');
+    expect(s).toMatchObject({ active: 1, daysInjured: 4, repeated: { label: 'Rodilla izq.', count: 2 } });
+  });
+});
+
+describe('injuryTimeline', () => {
+  it('sin lesiones no hay línea temporal', () => {
+    expect(injuryTimeline([], '2026-10-31')).toBeNull();
+  });
+
+  it('alinea las recaídas de una zona en la misma fila, en orden', () => {
+    const t = injuryTimeline([
+      { id: 'b', zone: 'knee', side: 'L', start_date: '2026-10-01', end_date: null },
+      { id: 'a', zone: 'knee', side: 'L', start_date: '2026-01-01', end_date: '2026-02-01' },
+      { id: 'c', zone: 'calf', side: 'R', start_date: '2026-05-01', end_date: '2026-05-02' },
+    ], '2026-10-31');
+    expect(t.rows.map((r) => r.label)).toEqual(['Rodilla izq.', 'Gemelo / sóleo dcha.']);
+    expect(t.rows[0].episodes.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(t.rows[0].episodes[0].left).toBe(0);
+    const last = t.rows[0].episodes[1];
+    expect(last.left + last.width).toBeCloseTo(100, 5); // una activa llega hasta hoy
+  });
+
+  it('una lesión corta no ocupa todo el eje, y las marcas son inicios de mes dentro del rango', () => {
+    const t = injuryTimeline([{ id: 'a', zone: 'calf', side: 'L', start_date: '2026-10-28', end_date: '2026-10-31' }], '2026-10-31');
+    expect(t.rows[0].episodes[0].width).toBeLessThan(10);
+    expect(t.ticks.map((x) => x.iso)).toEqual(['2026-10-01']);
+    expect(t.ticks.every((x) => x.left >= 0 && x.left < 100)).toBe(true);
+  });
+
+  it('en históricos largos espacia las marcas', () => {
+    const t = injuryTimeline([{ id: 'a', zone: 'calf', start_date: '2022-03-15', end_date: '2022-03-20' }], '2026-10-31');
+    expect(t.ticks.map((x) => x.iso)).toEqual(['2023-01-01', '2024-01-01', '2025-01-01', '2026-01-01']);
   });
 });
 

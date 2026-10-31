@@ -77,9 +77,77 @@ export function injuryLabel(i) {
   return [i.title, where].filter(Boolean).join(' · ');
 }
 
+const dayNumber = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / 86400000;
+};
+
 /** Días de duración, contando inicio y fin; una activa cuenta hasta hoy. */
 export function injuryDays(i, todayISO) {
-  const end = i.end_date || todayISO;
-  const dayNumber = (iso) => Date.UTC(...iso.split('-').map((n, k) => (k === 1 ? Number(n) - 1 : Number(n)))) / 86400000;
-  return Math.max(1, dayNumber(end) - dayNumber(i.start_date) + 1);
+  return Math.max(1, dayNumber(i.end_date || todayISO) - dayNumber(i.start_date) + 1);
+}
+
+/** Dónde fue: zona y lado, o el nombre si no se indicó zona. */
+const whereOf = (i) => (i.zone ? painLabel({ zone: i.zone, side: i.side }) : i.title);
+
+/**
+ * Resumen del histórico. `daysInjured` cuenta cada día una sola vez aunque se
+ * solapen dos lesiones; `repeated` es la zona con más episodios, si alguna repite.
+ */
+export function injuryStats(injuries, todayISO) {
+  const days = new Set();
+  const byWhere = new Map();
+  for (const i of injuries) {
+    const first = dayNumber(i.start_date);
+    for (let k = 0; k < injuryDays(i, todayISO); k++) days.add(first + k);
+    const where = whereOf(i);
+    byWhere.set(where, (byWhere.get(where) || 0) + 1);
+  }
+  const [top] = [...byWhere.entries()].sort((a, b) => b[1] - a[1]);
+  return {
+    total: injuries.length,
+    active: injuries.filter((i) => !i.end_date).length,
+    daysInjured: days.size,
+    repeated: top && top[1] > 1 ? { label: top[0], count: top[1] } : null,
+  };
+}
+
+const MIN_SPAN_DAYS = 60; // para que una sola lesión corta no ocupe todo el eje
+
+/**
+ * Línea temporal: una fila por zona, para que las recaídas queden alineadas, y
+ * posiciones en % desde el primer inicio hasta hoy.
+ * `ticks` son inicios de mes (ISO), más espaciados cuanto más largo es el histórico.
+ */
+export function injuryTimeline(injuries, todayISO) {
+  if (!injuries.length) return null;
+  const to = dayNumber(todayISO) + 1;
+  const earliest = Math.min(...injuries.map((i) => dayNumber(i.start_date)));
+  const from = Math.min(earliest, to - MIN_SPAN_DAYS);
+  const span = to - from;
+  const pct = (n) => ((n - from) / span) * 100;
+
+  const rows = new Map();
+  for (const i of [...injuries].sort((a, b) => a.start_date.localeCompare(b.start_date))) {
+    const label = whereOf(i);
+    if (!rows.has(label)) rows.set(label, { label, episodes: [] });
+    const start = dayNumber(i.start_date);
+    rows.get(label).episodes.push({
+      id: i.id,
+      active: !i.end_date,
+      left: pct(start),
+      width: (injuryDays(i, todayISO) / span) * 100,
+    });
+  }
+
+  const step = span <= 190 ? 1 : span <= 560 ? 3 : 12;
+  const ticks = [];
+  const start = new Date(from * 86400000);
+  let month = Math.ceil((start.getUTCFullYear() * 12 + start.getUTCMonth() + (start.getUTCDate() > 1 ? 1 : 0)) / step) * step;
+  for (;; month += step) {
+    const n = Date.UTC(Math.floor(month / 12), month % 12, 1) / 86400000;
+    if (n >= to) break;
+    ticks.push({ iso: new Date(n * 86400000).toISOString().slice(0, 10), left: pct(n) });
+  }
+  return { rows: [...rows.values()], ticks };
 }
