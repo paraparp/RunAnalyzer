@@ -43,6 +43,15 @@ describe('buildVitalMetrics · carga', () => {
   });
 });
 
+describe('estrés y respiración', () => {
+  it('salen de las filas diarias de Garmin', () => {
+    const garmin = [{ date: iso(2), avgStress: 34, respiration: 19.2 }];
+    const r = buildVitalMetrics({ garmin, days: 30, gran: 'day', nowMs: NOW });
+    expect(metric(r, 'stress').data.find((d) => d.raw != null).raw).toBe(34);
+    expect(metric(r, 'respiration').data.find((d) => d.raw != null).raw).toBe(19.2);
+  });
+});
+
 describe('sueño y huecos', () => {
   it('prefiere las noches a la media semanal y no duplica esa semana', () => {
     const garmin = [{ date: iso(2), sleepScore: 55, sleepMin: 400, sleepAvgHR: 52 }];

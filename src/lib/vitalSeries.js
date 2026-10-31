@@ -217,7 +217,8 @@ const tsOf = (iso) => new Date(iso).getTime();
  *
  * @param {object} p
  * @param {Array}  p.garmin      filas diarias de Garmin `{ date, hrv, restingHR, bbHigh, bbLow,
- *                               sleepScore, sleepMin, sleepAvgHR }` (sueño solo en el sync reciente)
+ *                               sleepScore, sleepMin, sleepAvgHR, avgStress, respiration }`
+ *                               (sueño, estrés y respiración solo en el sync reciente)
  * @param {Array}  [p.sleep]     semanas de sueño `{ weekStart, score, durationMin }`
  * @param {Array}  [p.weights]   pesadas `{ date, weight_kg }`
  * @param {Array}  [p.pmc]       serie diaria del PMC calibrado `{ date, load, ctl, atl, tsb }`
@@ -281,6 +282,9 @@ export function buildVitalMetrics({
   );
   // FC media durante el sueño (Garmin, noche a noche).
   const sleepHR = build(garminPts("sleepAvgHR"), 7, 1);
+  // Estrés medio del día y respiración durante el sueño (Garmin).
+  const stress = build(garminPts("avgStress"), 7, 0);
+  const respiration = build(garminPts("respiration"), 7, 1);
 
   // ── Peso (báscula Garmin) ──
   const weight = build(
@@ -337,6 +341,8 @@ export function buildVitalMetrics({
     { key: "sleep", title: "Sueño", accent: "indigo", unit: "/100", decimals: 0, invertY: false, ...sleepScore },
     { key: "sleepHours", title: "Horas de sueño", accent: "cyan", unit: "h", decimals: 1, invertY: false, ...sleepHours },
     { key: "sleepHR", title: "FC nocturna", accent: "pink", unit: "ppm", decimals: 0, invertY: true, ...sleepHR },
+    { key: "stress", title: "Estrés", accent: "violet", unit: "/100", decimals: 0, invertY: true, ...stress },
+    { key: "respiration", title: "Respiración nocturna", accent: "sky", unit: "rpm", decimals: 1, invertY: true, ...respiration },
     { key: "weight", title: "Peso", accent: "slate", unit: "kg", decimals: 1, invertY: false, ...weight },
     { key: "load", title: "Carga diaria", accent: "teal", unit: "TSS", decimals: 0, invertY: false, ...load },
     { key: "ctl", title: "Forma (CTL)", accent: "blue", unit: "", decimals: 1, invertY: false, ...ctl },
