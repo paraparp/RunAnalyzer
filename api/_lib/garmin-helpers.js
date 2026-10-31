@@ -389,20 +389,36 @@ const ENRICHABLE_TYPES = /(run|cycling|biking|ride)/;
  * Un fallo al listar LANZA en vez de devolver []: quien llama no puede distinguir
  * "Garmin caído" de "no hay actividades", y guardar ese [] borraba el histórico.
  */
+const ACTIVITY_PAGE = 300;
+const MAX_ACTIVITIES = 5000;
+
 export async function fetchGarminActivities(
   client, limit = 100, { enrichDetail = 40, enrichRuns, alreadyEnriched = null } = {}
 ) {
   const budget = Number.isFinite(enrichRuns) ? enrichRuns : enrichDetail; // enrichRuns: nombre antiguo
-  const cap = Math.min(Math.max(limit, 1), 300);
-  let raw;
-  try {
-    raw = await client.client.get(
-      `https://connectapi.garmin.com/activitylist-service/activities/search/activities?start=0&limit=${cap}`
-    );
-  } catch (e) {
-    throw new Error(`No se pudo listar actividades de Garmin: ${e.message}`);
+  const wanted = Math.min(Math.max(limit, 1), MAX_ACTIVITIES);
+  const raw = [];
+  // Garmin da 300 como mucho por petición. Solo la primera página puede tumbar el
+  // sync: si falla una posterior, se aprovecha lo ya bajado.
+  while (raw.length < wanted) {
+    const size = Math.min(wanted - raw.length, ACTIVITY_PAGE);
+    let page;
+    try {
+      page = await client.client.get(
+        `https://connectapi.garmin.com/activitylist-service/activities/search/activities?start=${raw.length}&limit=${size}`
+      );
+    } catch (e) {
+      if (!raw.length) throw new Error(`No se pudo listar actividades de Garmin: ${e.message}`);
+      console.warn(`Página de actividades ${raw.length} falló:`, e.message);
+      break;
+    }
+    if (!Array.isArray(page)) {
+      if (!raw.length) throw new Error('Respuesta inesperada del activitylist-service de Garmin');
+      break;
+    }
+    raw.push(...page);
+    if (page.length < size) break;
   }
-  if (!Array.isArray(raw)) throw new Error('Respuesta inesperada del activitylist-service de Garmin');
   const normalized = raw.map(normalizeGarminActivity).filter((a) => a && a.start_time);
   if (budget > 0) {
     const done = alreadyEnriched instanceof Set ? alreadyEnriched

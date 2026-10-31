@@ -233,6 +233,22 @@ describe('fetchGarminActivities', () => {
     expect(log[1]).toContain('limit=1');
   });
 
+  it('pagina hasta agotar el histórico, y una página fallida conserva lo ya bajado', async () => {
+    const page = (from, n) => Array.from({ length: n }, (_, i) => ({ activityId: from + i + 1, startTimeGMT: '2024-01-01 06:00:00' }));
+    const starts = [];
+    const client = (fail) => ({ client: { get: async (url) => {
+      const start = Number(/start=(\d+)/.exec(url)[1]);
+      starts.push(start);
+      if (start === 0) return page(0, 300);
+      if (fail) throw new Error('500');
+      return page(300, 120);
+    } } });
+    const all = await fetchGarminActivities(client(false), 5000, { enrichDetail: 0 });
+    expect(all).toHaveLength(420);
+    expect(starts).toEqual([0, 300]);
+    expect(await fetchGarminActivities(client(true), 5000, { enrichDetail: 0 })).toHaveLength(300);
+  });
+
   it('descarta las actividades sin fecha de inicio', async () => {
     const client = clientWith({ [listUrl]: [item(1), item(2, { startTimeGMT: null }), { activityName: 'sin id' }] });
     const out = await fetchGarminActivities(client, 100, { enrichDetail: 0 });

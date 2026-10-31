@@ -57,7 +57,7 @@ export default function useGarminConnection() {
   // hace el MISMO código (`garminHealthStore`): una sola mezcla por día/semana,
   // una sola marca de `garmin_last_sync` y el mismo criterio con las respuestas
   // vacías. Lee de lo GUARDADO, no del estado, que es un espejo.
-  const saveData = useCallback((newData, mergeExisting, usr, pwd, newSleepData = null) => {
+  const saveData = useCallback((newData, mergeExisting, usr, pwd, newSleepData = null, activityOptions) => {
     const saved = saveGarminHealth(
       { cardiac: newData, sleep: newSleepData },
       { replace: !mergeExisting },
@@ -72,7 +72,7 @@ export default function useGarminConnection() {
       setCreds({ username: usr, password: pwd });
       // Traer también las actividades con running dynamics (banda) para el MCP.
       // Best-effort y no destructivo: un fallo deja el histórico guardado intacto.
-      syncGarminActivities(usr, pwd);
+      syncGarminActivities(usr, pwd, activityOptions);
     }
   }, []);
 
@@ -136,7 +136,8 @@ export default function useGarminConnection() {
             setProgress({ value: msg.progress, period: msg.period, chunks: [...completedChunks] });
             setData([...accumulated]);
           } else if (msg.type === 'done') {
-            saveData(accumulated, mergeExisting, usr, pwd, msg.sleepData);
+            // Una descarga larga es la que completa también el histórico de actividades.
+            saveData(accumulated, mergeExisting, usr, pwd, msg.sleepData, { limit: 5000 });
           } else if (msg.type === 'error') {
             throw new Error(msg.error);
           }
