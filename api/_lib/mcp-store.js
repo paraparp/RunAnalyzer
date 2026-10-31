@@ -81,6 +81,23 @@ export async function readKey(userId, key) {
   return value;
 }
 
+/**
+ * Lee una clave de TODOS los usuarios, sin cache: [{ user_id, value }]. Cruza la
+ * frontera entre usuarios, así que quien la llame debe haber comprobado el rol.
+ */
+export async function readKeyAllUsers(key) {
+  const { data, error } = await service()
+    .from('user_storage')
+    .select('user_id,value')
+    .eq('key', key);
+  if (error) throw new Error(`user_storage read "${key}": ${error.message}`);
+  return (data ?? []).map((row) => {
+    let value = null;
+    if (row.value) { try { value = JSON.parse(row.value); } catch { value = null; } }
+    return { user_id: row.user_id, value };
+  });
+}
+
 /** Invalida la entrada cacheada de una clave (tras escribirla desde otro sitio). */
 function invalidateKey(userId, key) {
   _cache.delete(`${userId}:${key}`);

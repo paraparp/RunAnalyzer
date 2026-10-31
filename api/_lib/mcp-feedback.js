@@ -10,7 +10,8 @@
 // mezcla con las tools de análisis, para que el modelo no lo use como cajón de
 // sastre ni interrumpa la conversación. Solo escribe cuando encuentra algo real.
 // ============================================================================
-import { readKeyFresh, writeKey } from './mcp-store.js';
+import { readKeyFresh, readKeyAllUsers, writeKey } from './mcp-store.js';
+import { isAdminUser } from './admin.js';
 
 const FEEDBACK_KEY = 'agent_feedback';
 
@@ -50,6 +51,8 @@ function prune(list) {
 
 const shape = (e, { include_detail = true } = {}) => ({
   id: e.id,
+  // Solo en la vista de admin: las entradas guardadas no llevan autor.
+  ...(e.user_id ? { user_id: e.user_id } : {}),
   title: e.title,
   category: e.category,
   severity: e.severity,
@@ -136,13 +139,12 @@ export async function reportIssue(userId, {
 }
 
 /**
- * Lee el buzón. Por defecto solo lo ABIERTO y sin el detalle largo, ordenado por
- * severidad y luego por la última vez que se vio.
+ * Filtra y ordena el buzón. Por defecto solo lo ABIERTO y sin el detalle largo,
+ * ordenado por severidad y luego por la última vez que se vio.
  */
-export async function listIssues(userId, {
+function summarize(list, {
   status, category, include_closed = false, include_detail = false, limit = 50,
 } = {}) {
-  const list = await readFeedback(userId);
   const rank = { high: 0, medium: 1, low: 2 };
   const kept = list
     .filter((e) => (status ? e.status === status : include_closed || !CLOSED.has(e.status)))
@@ -156,6 +158,28 @@ export async function listIssues(userId, {
     open: list.filter((e) => !CLOSED.has(e.status)).length,
     issues: capped.map((e) => shape(e, { include_detail })),
   };
+}
+
+/** Lee el buzón del propio usuario. */
+export async function listIssues(userId, options) {
+  return summarize(await readFeedback(userId), options);
+}
+
+/** Lee el buzón de todos los usuarios, indicando de quién es cada entrada. */
+async function listAllIssues(options) {
+  const rows = await readKeyAllUsers(FEEDBACK_KEY);
+  const all = rows.flatMap(({ user_id, value }) => (
+    Array.isArray(value) ? value.map((e) => ({ ...e, user_id })) : []
+  ));
+  return { scope: 'all_users', ...summarize(all, options) };
+}
+
+/**
+ * Lectura para la tool: un admin ve todo y el resto solo lo suyo. El rol se
+ * revalida en cada llamada contra `app_admins`, porque puede revocarse.
+ */
+export async function listIssuesFor(userId, options) {
+  return (await isAdminUser(userId)) ? listAllIssues(options) : listIssues(userId, options);
 }
 
 /** Borra una incidencia por id (para limpiar ruido, no para "cerrarla"). */

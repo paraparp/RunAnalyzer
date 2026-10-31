@@ -12,17 +12,29 @@ const store = vi.hoisted(() => {
 // Mock mínimo de Supabase con soporte de upsert (el de mcp-store.test solo lee).
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    from: () => {
+    from: (table) => {
       const f = {};
       const builder = {
         select: () => builder,
         eq: (col, val) => { f[col] = val; return builder; },
-        maybeSingle: async () => ({
-          data: store.has(`${f.user_id}:${f.key}`)
-            ? { value: JSON.stringify(store.get(`${f.user_id}:${f.key}`)) }
-            : null,
+        // Sin maybeSingle: lectura de una clave de todos los usuarios.
+        then: (resolve) => resolve({
+          data: [...store.entries()]
+            .filter(([k]) => k.endsWith(`:${f.key}`))
+            .map(([k, v]) => ({ user_id: k.split(':')[0], value: JSON.stringify(v) })),
           error: null,
         }),
+        maybeSingle: async () => {
+          if (table === 'app_admins') {
+            return { data: store.has(`admin:${f.user_id}`) ? { user_id: f.user_id } : null, error: null };
+          }
+          return {
+            data: store.has(`${f.user_id}:${f.key}`)
+              ? { value: JSON.stringify(store.get(`${f.user_id}:${f.key}`)) }
+              : null,
+            error: null,
+          };
+        },
         upsert: async (row) => {
           store.set(`${row.user_id}:${row.key}`, JSON.parse(row.value));
           return { error: null };
@@ -33,7 +45,7 @@ vi.mock('@supabase/supabase-js', () => ({
   }),
 }));
 
-const { reportIssue, listIssues, deleteIssue } = await import('./mcp-feedback.js');
+const { reportIssue, listIssues, listIssuesFor, deleteIssue } = await import('./mcp-feedback.js');
 
 const U = 'user-1';
 const raw = () => store.get(`${U}:agent_feedback`) || [];
@@ -138,6 +150,42 @@ describe('listIssues', () => {
 
   it('sin nada guardado devuelve una lista vacia, no un error', async () => {
     expect(await listIssues(U)).toMatchObject({ total: 0, open: 0, issues: [] });
+  });
+});
+
+describe('listIssuesFor: visibilidad por rol', () => {
+  const OTHER = 'user-2';
+  beforeEach(async () => {
+    await reportIssue(U, { title: 'de uno' });
+    await reportIssue(OTHER, { title: 'de otro', severity: 'high' });
+  });
+
+  it('un usuario normal solo ve lo suyo y sin autor', async () => {
+    const res = await listIssuesFor(U);
+    expect(res.issues.map((i) => i.title)).toEqual(['de uno']);
+    expect(res).not.toHaveProperty('scope');
+    expect(res.issues[0]).not.toHaveProperty('user_id');
+  });
+
+  it('un admin ve lo de todos, con autor y el orden por severidad', async () => {
+    store.set(`admin:${U}`, true);
+    const res = await listIssuesFor(U);
+    expect(res.scope).toBe('all_users');
+    expect(res.issues.map((i) => [i.title, i.user_id])).toEqual([['de otro', OTHER], ['de uno', U]]);
+    expect(res.open).toBe(2);
+  });
+
+  it('al revocar el rol deja de ver lo ajeno', async () => {
+    store.set(`admin:${U}`, true);
+    await listIssuesFor(U);
+    store.delete(`admin:${U}`);
+    expect((await listIssuesFor(U)).issues.map((i) => i.title)).toEqual(['de uno']);
+  });
+
+  it('ver lo de todos no escribe el autor en lo guardado', async () => {
+    store.set(`admin:${U}`, true);
+    await listIssuesFor(U);
+    expect(raw()[0]).not.toHaveProperty('user_id');
   });
 });
 
