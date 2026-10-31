@@ -12,13 +12,13 @@ const day = (date, pains = [], extra = {}) => ({ date, pains, ...extra });
 const knee = (level) => ({ zone: 'knee', side: 'R', level });
 
 describe('normalizeEntry', () => {
-  it('acota niveles, quita dolores a 0 y zonas desconocidas', () => {
+  it('acota niveles, conserva dolores a 0 y quita zonas desconocidas', () => {
     const e = normalizeEntry({
       date: '2026-10-07',
       pains: [knee(12), { zone: 'knee', side: 'L', level: 0 }, { zone: 'nariz', side: 'C', level: 5 }],
       rpe: 14, mood: 0,
     });
-    expect(e.pains).toEqual([{ zone: 'knee', side: 'R', level: 10 }]);
+    expect(e.pains).toEqual([{ zone: 'knee', side: 'R', level: 10 }, { zone: 'knee', side: 'L', level: 0 }]);
     expect(e.rpe).toBe(10);
     expect(e.mood).toBe(1);
   });
@@ -56,6 +56,18 @@ describe('painSignals', () => {
     const s = painSignals(entries, '2026-10-07')[0];
     expect(s.trend).toBeGreaterThanOrEqual(2);
     expect(s.signal).toBe('alert');
+  });
+
+  it('una molestia anotada a 0 pasa a last 0, baja la tendencia y deja de alertar', () => {
+    const entries = [day('2026-10-03', [knee(7)]), day('2026-10-04', [knee(7)]), day('2026-10-07', [knee(0)])];
+    const [s] = painSignals(entries, '2026-10-07');
+    expect(s).toMatchObject({ last: 0, max: 7, signal: 'ok', reasons: [] });
+    expect(s.trend).toBeLessThan(0);
+    expect(subjectiveRisk(entries, '2026-10-07').score).toBe(0);
+  });
+
+  it('una semana solo con ceros no genera señal', () => {
+    expect(painSignals([day('2026-10-07', [knee(0)])], '2026-10-07')).toEqual([]);
   });
 
   it('vigilar con dos días de molestia leve; ignora lo de hace más de una semana', () => {

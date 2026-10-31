@@ -32,6 +32,7 @@ import {
 import { reportIssue, listIssuesFor, deleteIssue, CATEGORIES, SEVERITIES, STATUSES } from './_lib/mcp-feedback.js';
 import { ensureFresh } from './_lib/mcp-sync.js';
 import { logWellness, getWellnessDiary, getWellnessStatus, ZONE_IDS } from './_lib/mcp-wellness.js';
+import { listInjuries, upsertInjury, removeInjury } from './_lib/mcp-injuries.js';
 
 // ── Definición de tools (JSON Schema puro: sin dependencia de zod) ───────────
 // Cada tool declara su `name`/`description`/`inputSchema` (lo que ve el cliente) y
@@ -365,7 +366,7 @@ const TOOLS = [
   // ── Diario de molestias y bienestar (mismo dato que la pantalla Diario) ───
   {
     name: 'log_wellness',
-    description: 'Anota en el diario del atleta las molestias por zona (0-10), el RPE de la sesión, el ánimo y el estrés de un día. Úsalo cuando el usuario cuente que le duele algo o cómo se siente. Por defecto FUSIONA con lo ya anotado ese día: solo cambia las molestias y campos que envíes; level 0 quita una molestia; `replace: true` sustituye la entrada entera. Devuelve la entrada guardada y `status`, el semáforo por zona de la última semana con recomendaciones. Lo ve la app y alimenta su índice de lesión.',
+    description: 'Anota en el diario del atleta las molestias por zona (0-10), el RPE de la sesión, el ánimo y el estrés de un día. Úsalo cuando el usuario cuente que le duele algo o cómo se siente. Por defecto FUSIONA con lo ya anotado ese día: solo cambia las molestias y campos que envíes; level 0 anota que ya no duele (queda en el historial y el semáforo pasa a `last: 0`); `remove: true` borra una anotación errónea de ese día; `replace: true` sustituye la entrada entera. Devuelve la entrada guardada y `status`, el semáforo por zona de la última semana con recomendaciones. Lo ve la app y alimenta su índice de lesión.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -378,9 +379,10 @@ const TOOLS = [
             properties: {
               zone: { type: 'string', enum: ZONE_IDS },
               side: { type: 'string', enum: ['L', 'R'], description: 'Obligatorio salvo lower_back' },
-              level: { type: 'number', description: '0 (quitar) a 10' },
+              level: { type: 'number', description: '0 (ya no duele) a 10. Obligatorio salvo con remove' },
+              remove: { type: 'boolean', description: 'Borra la anotación de esa zona ese día, por ejemplo si fue un error' },
             },
-            required: ['zone', 'level'],
+            required: ['zone'],
           },
         },
         rpe: { type: ['number', 'null'], description: 'Esfuerzo percibido de la sesión del día, 1-10' },
@@ -397,6 +399,42 @@ const TOOLS = [
     description: 'Lee el diario de molestias y bienestar: entradas por día (molestias por zona y lado, RPE, ánimo, estrés, nota) en un rango (por defecto los últimos 28 días) y `status`, el semáforo de la última semana (alert/watch/ok por zona, con tendencia y recomendaciones). Consúltalo antes de proponer sesiones de calidad.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
     run: (userId, args) => getWellnessDiary(userId, args).then(text),
+  },
+  {
+    name: 'list_injuries',
+    description: 'Histórico completo de lesiones: un episodio por lesión, con inicio, fin (`end_date` null = sigue activa), zona, lado, nombre, nota y duración en días. Las activas van primero. Consúltalo antes de planificar carga o de interpretar una caída de rendimiento. Para las molestias del día a día usa get_wellness_diary.',
+    inputSchema: {
+      type: 'object',
+      properties: { status: { type: 'string', enum: ['active', 'ended'], description: 'Por defecto todas' } },
+    },
+    run: (userId, args) => listInjuries(userId, args).then(text),
+  },
+  {
+    name: 'upsert_injury',
+    description: 'Registra una lesión o edita una existente. Sin `id` crea un episodio (necesita zona o `title`; `start_date` por defecto hoy). Con `id` cambia solo los campos enviados: para darla por terminada envía `{ id, end_date }`, y `end_date: null` la reabre. Una recaída es un episodio NUEVO, para no perder las fechas del anterior. No inventes fechas: pregúntalas si el atleta no las ha dicho.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Episodio a editar; omítelo para crear' },
+        zone: { type: ['string', 'null'], enum: [...ZONE_IDS, null] },
+        side: { type: ['string', 'null'], enum: ['L', 'R', null], description: 'Lado; null si no se conoce' },
+        title: { type: ['string', 'null'], description: 'Nombre o diagnóstico, p. ej. "Tendinopatía glútea"' },
+        start_date: { ...dateArg, description: 'Inicio YYYY-MM-DD' },
+        end_date: { type: ['string', 'null'], description: 'Fin YYYY-MM-DD; null = sigue activa' },
+        note: { type: ['string', 'null'], description: 'Tratamiento, pautas o evolución, máx. 1000 caracteres' },
+      },
+    },
+    run: (userId, args) => upsertInjury(userId, args).then(text),
+  },
+  {
+    name: 'delete_injury',
+    description: 'Borra un episodio del histórico. Solo para registros erróneos: una lesión curada se cierra con upsert_injury y `end_date`.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Id del episodio' } },
+      required: ['id'],
+    },
+    run: (userId, args) => removeInjury(userId, args.id).then(text),
   },
   {
     name: 'time_in_zones',
@@ -830,6 +868,7 @@ const TITLES = {
   upsert_planned_workout: 'Crear/editar entreno planificado', delete_planned_workout: 'Borrar entreno planificado',
   upsert_planned_workouts: 'Volcar varios entrenos planificados',
   log_wellness: 'Anotar molestias y bienestar', get_wellness_diary: 'Diario de molestias',
+  list_injuries: 'Histórico de lesiones', upsert_injury: 'Registrar/editar lesión', delete_injury: 'Borrar lesión',
   report_issue: 'Reportar incidencia', list_issues: 'Listar incidencias',
   delete_issue: 'Borrar incidencia',
   search: 'Buscar actividades', fetch: 'Recuperar actividad',
@@ -857,6 +896,9 @@ const ANNOTATIONS = {
   delete_planned_workout: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   // Diario: escribe en Supabase. Fusiona por defecto, así que repetir no duplica.
   log_wellness: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  // Lesiones: escriben en Supabase. Sin `id` crean un episodio, así que repetir duplica.
+  upsert_injury: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  delete_injury: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   // Buzón de incidencias: escribe en nuestra BD, no toca datos del atleta.
   report_issue: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   delete_issue: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },

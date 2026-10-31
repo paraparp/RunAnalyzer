@@ -445,15 +445,20 @@ export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null,
   const row = { date: dateStr };
   const date = new Date(dateStr);
 
-  // Con sueño, las dos requests del día van en paralelo: así el histórico largo
+  // Con sueño, las requests del día van en paralelo: así el histórico largo
   // (stream, hasta 5 años) no dobla su duración.
-  const [hr, sleepRes] = await Promise.all([
+  const [hr, sleepRes, stress] = await Promise.all([
     client.getHeartRate(date).catch(() => null), // day unavailable
     withSleep ? client.getSleepData(date).catch(() => null) : undefined,
+    withSleep
+      ? client.client.get(`https://connectapi.garmin.com/wellness-service/wellness/dailyStress/${dateStr}`).catch(() => null)
+      : null,
   ]);
   if (hr?.restingHeartRate && hr.restingHeartRate > 20) {
     row.restingHR = hr.restingHeartRate;
   }
+  // Garmin marca con valores negativos los días sin medida de estrés.
+  if (stress?.avgStressLevel >= 0) row.avgStress = stress.avgStressLevel;
 
   const bulkHrv = hrvMap?.get(dateStr);
   if (bulkHrv) {
@@ -471,6 +476,8 @@ export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null,
     if (dto.deepSleepSeconds != null) row.deepSleepMin = Math.round(dto.deepSleepSeconds / 60);
     const avgHr = sleepAvgHr(sleep);
     if (avgHr != null) row.sleepAvgHR = avgHr;
+    if (dto.averageRespirationValue > 0) row.respiration = g1(dto.averageRespirationValue);
+    if (dto.avgSleepStress >= 0) row.sleepStress = g1(dto.avgSleepStress);
   }
 
   if (!row.hrv) {

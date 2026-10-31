@@ -66,7 +66,10 @@ export function readDiary(storage) {
   }
 }
 
-/** Limpia una entrada: niveles acotados, sin dolores a 0, sin duplicados. */
+/**
+ * Limpia una entrada: niveles acotados, sin duplicados. Un dolor a 0 se conserva:
+ * es "ya no duele" ese día, que no es lo mismo que no haber anotado nada.
+ */
 export function normalizeEntry(e) {
   const clamp = (v, lo, hi) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
   const seen = new Map();
@@ -74,7 +77,7 @@ export function normalizeEntry(e) {
     if (!ZONE_BY_ID[p?.zone]) continue;
     const side = ZONE_BY_ID[p.zone].bilateral ? (p.side === 'L' ? 'L' : 'R') : 'C';
     const level = clamp(p.level, 0, 10);
-    if (!level) continue;
+    if (level == null) continue;
     seen.set(`${p.zone}:${side}`, { zone: p.zone, side, level });
   }
   return {
@@ -121,6 +124,7 @@ export function painSignals(entries, todayISO) {
     const dates = Object.keys(byDate).sort();
     const levels = dates.map((d) => byDate[d]);
     const max = Math.max(...levels);
+    if (!max) continue; // solo ceros esta semana: no hay nada que vigilar
     const last = byDate[dates[dates.length - 1]];
     const days = levels.filter((l) => l >= 3).length;
     const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
@@ -129,6 +133,12 @@ export function painSignals(entries, todayISO) {
     const prev4 = [3, 4, 5, 6].map((i) => byDate[addDays(todayISO, -i)] ?? 0);
     const trend = Math.round((mean(recent3) - mean(prev4)) * 10) / 10;
     const severeRecent = dates.some((d) => d >= from3 && byDate[d] >= 6);
+
+    // Anotada como resuelta (última anotación a 0): se informa, pero ya no alerta.
+    if (last === 0) {
+      out.push({ zone, side, label: painLabel({ zone, side }), max, last, days, trend, signal: 'ok', reasons: [] });
+      continue;
+    }
 
     const reasons = [];
     if (severeRecent) reasons.push('dolor ≥ 6 en los últimos 3 días');
@@ -172,7 +182,8 @@ export function subjectiveRisk(entries, todayISO) {
   if (!recent.length) return null;
 
   const signals = painSignals(entries, todayISO);
-  const worst = signals[0];
+  // Lo ya resuelto no puntúa, aunque esta semana llegara a doler mucho.
+  const worst = signals.find((s) => s.last > 0);
   let painRisk = 0;
   if (worst?.signal === 'alert') painRisk = Math.min(100, 60 + worst.max * 4);
   else if (worst?.signal === 'watch') painRisk = 35 + worst.max * 2;

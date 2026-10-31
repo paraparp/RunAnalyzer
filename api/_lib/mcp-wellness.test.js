@@ -51,11 +51,23 @@ describe('logWellness', () => {
     expect(e.rpe).toBe(7);
   });
 
-  it('level 0 quita una molestia y una entrada vacía se borra', async () => {
+  it('remove borra la anotación y una entrada vacía se borra', async () => {
     await logWellness(U, { pains: [{ zone: 'knee', side: 'R', level: 4 }] });
-    const res = await logWellness(U, { pains: [{ zone: 'knee', side: 'R', level: 0 }] });
+    const res = await logWellness(U, { pains: [{ zone: 'knee', side: 'R', remove: true }] });
     expect(res.deleted).toBe(true);
     expect(raw()).toHaveLength(0);
+  });
+
+  it('level 0 guarda "ya no duele" y actualiza el semáforo', async () => {
+    await logWellness(U, { date: daysAgo(3), pains: [{ zone: 'calf', side: 'L', level: 3 }] });
+    const res = await logWellness(U, { pains: [{ zone: 'calf', side: 'L', level: 0 }] });
+    expect(res.deleted).toBe(false);
+    expect(res.saved.pains).toEqual([{ zone: 'calf', side: 'L', level: 0 }]);
+    expect(res.status.signals[0]).toMatchObject({ zone: 'calf', last: 0, signal: 'ok' });
+  });
+
+  it('rechaza una molestia sin level ni remove', async () => {
+    await expect(logWellness(U, { pains: [{ zone: 'calf', side: 'L' }] })).rejects.toThrow(/necesita level/);
   });
 
   it('replace sustituye la entrada entera', async () => {

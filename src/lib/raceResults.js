@@ -17,6 +17,10 @@ import { DISTANCES } from './targetRaces';
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 const isRunning = (a) => RUNNING_TYPES.includes(a.type) || RUNNING_TYPES.includes(a.sport_type);
 
+// Por debajo de esto no es error de GPS: la prueba no se terminó (retirada). Su
+// tiempo es de otra distancia y compararlo con el objetivo daría un falso "cumplido".
+const MIN_FINISHED_RATIO = 0.95;
+
 /** Fecha local de la actividad en YYYY-MM-DD. */
 function activityDay(a) {
   const raw = a.start_date_local || a.start_date;
@@ -57,6 +61,8 @@ export function buildRaceResult(race, activity) {
   const officialM = DISTANCES[race.distance] ? Math.round(DISTANCES[race.distance] * 1000) : null;
   const paceMin = distanceM > 0 ? timeMin / (distanceM / 1000) : null;
   const goal = race.goalTimeMin ?? null;
+  const incomplete = officialM != null && distanceM < officialM * MIN_FINISHED_RATIO;
+  const judged = goal != null && !incomplete;
 
   return {
     activity_id: activity.id,
@@ -71,8 +77,9 @@ export function buildRaceResult(race, activity) {
     avg_hr: activity.average_heartrate || null,
     elevation_gain: activity.total_elevation_gain ?? null,
     goal_time_min: goal,
-    delta_min: goal != null ? timeMin - goal : null,
-    achieved: goal != null ? timeMin <= goal : null,
+    incomplete,
+    delta_min: judged ? timeMin - goal : null,
+    achieved: judged ? timeMin <= goal : null,
   };
 }
 

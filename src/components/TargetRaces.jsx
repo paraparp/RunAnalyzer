@@ -298,7 +298,7 @@ const RaceCard = ({ race, isPrimary, isSelected, open, raw, activities, onToggle
                                         ? formatMinutes(result.time_min)
                                         : race.goalTimeMin != null ? formatMinutes(race.goalTimeMin) : '—'}
                                     tone={result
-                                        ? (result.achieved === false ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300')
+                                        ? (result.incomplete ? 'text-slate-900 dark:text-white' : result.achieved === false ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300')
                                         : race.goalTimeMin != null ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-white/40'}
                                 />
                                 <Stat

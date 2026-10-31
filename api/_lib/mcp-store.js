@@ -2070,6 +2070,10 @@ function shapeRaceResult(race, activity) {
   const distanceM = Math.round(activity.distance);
   const officialM = DISTANCE_M[race.distance] || null;
   const goal = race.goalTimeMin ?? null;
+  // Espejo de buildRaceResult: con menos del 95 % de la distancia la prueba no se
+  // terminó, y su tiempo no se compara con el objetivo.
+  const incomplete = officialM != null && distanceM < officialM * 0.95;
+  const judged = goal != null && !incomplete;
   return {
     activity_id: activity.id,
     activity_name: activity.name || null,
@@ -2082,8 +2086,9 @@ function shapeRaceResult(race, activity) {
     avg_hr: activity.average_heartrate || null,
     elevation_gain: activity.total_elevation_gain ?? null,
     goal_time_min: goal,
-    delta_min: goal != null ? round(timeMin - goal) : null,   // negativo = cumplido
-    achieved: goal != null ? timeMin <= goal : null,
+    incomplete,
+    delta_min: judged ? round(timeMin - goal) : null,   // negativo = cumplido
+    achieved: judged ? timeMin <= goal : null,
   };
 }
 

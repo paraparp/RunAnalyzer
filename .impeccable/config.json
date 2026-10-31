@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-11T15:12:28.907Z",
         "reason": "Claude: white-alpha text on dark glass over a dark photo, not gray on a saturated color"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/components/TargetRaces.jsx"
+        ],
+        "createdAt": "2026-10-31T09:38:51.245Z",
+        "reason": "Claude triage: false positive, the coloured backgrounds are hover-only and those buttons switch text colour on hover too (L344, L351, L358)"
       }
     ]
   }

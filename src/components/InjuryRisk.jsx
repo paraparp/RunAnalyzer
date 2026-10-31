@@ -20,6 +20,7 @@ import { COLORS, AXIS_TICK } from '../lib/palette';
 import cloudStorage from '../lib/cloudStorage';
 import { DIARY_EVENT, readDiary, subjectiveRisk, diaryRecommendations } from '../lib/wellnessDiary';
 import WellnessDiary from './WellnessDiary';
+import InjuryLog from './InjuryLog';
 
 function getRiskLevel(score, t) {
   if (score < 35) return { label: t('injury.risk_levels.low'), color: COLORS.good, bg: 'bg-emerald-50 dark:bg-emerald-400/10', border: 'border-emerald-200 dark:border-emerald-300/25', text: 'text-emerald-700 dark:text-emerald-300' };
@@ -438,6 +439,7 @@ export default function InjuryRisk({ activities }) {
         </div>
       </Card>
       <WellnessDiary activities={activities} />
+      <InjuryLog />
     </div>
   );
 }

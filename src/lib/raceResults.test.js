@@ -61,6 +61,19 @@ describe('buildRaceResult', () => {
     expect(r.delta_min).toBe(null);
   });
 
+  it('una retirada no cumple el objetivo: queda incompleta y sin veredicto', () => {
+    const r = buildRaceResult(media, act({ moving_time: 2717, distance: 9233 }));
+    expect(r.incomplete).toBe(true);
+    expect(r.achieved).toBe(null);
+    expect(r.delta_min).toBe(null);
+  });
+
+  it('quedarse algo corto por el GPS sigue contando como terminada', () => {
+    const r = buildRaceResult(media, act({ moving_time: 5936, distance: 20800 }));
+    expect(r.incomplete).toBe(false);
+    expect(r.achieved).toBe(true);
+  });
+
   it('sin actividad no hay resultado', () => {
     expect(buildRaceResult(media, null)).toBe(null);
     expect(raceResult(media, [])).toBe(null);

@@ -327,6 +327,25 @@ describe('fetchDayData', () => {
     expect(sleepCalls).toBe(1);
   });
 
+  it('withSleep guarda el estrés del día y la respiración y el estrés nocturnos', async () => {
+    const c = client({
+      sleep: async () => ({ dailySleepDTO: { sleepTimeSeconds: 26220, averageRespirationValue: 15.26, avgSleepStress: 21.44 } }),
+      get: async (url) => (url.includes('dailyStress') ? { avgStressLevel: 34 } : null),
+    });
+    const row = await fetchDayData(c, '2026-07-15', null, null, { withSleep: true });
+    expect(row).toMatchObject({ avgStress: 34, respiration: 15.3, sleepStress: 21.4 });
+  });
+
+  it('un estrés negativo es "sin medida", y sin él el día se guarda igual', async () => {
+    const c = client({
+      hr: async () => ({ restingHeartRate: 45 }),
+      get: async (url) => (url.includes('dailyStress') ? { avgStressLevel: -1 } : null),
+    });
+    const row = await fetchDayData(c, '2026-07-15', null, null, { withSleep: true });
+    expect(row.restingHR).toBe(45);
+    expect(row).not.toHaveProperty('avgStress');
+  });
+
   it('sin bulk cae al sueño y, si tampoco, al hrv-service', async () => {
     const porSueno = await fetchDayData(client({ sleep: async () => ({ avgOvernightHrv: 58, restingHeartRate: 44 }) }), '2026-07-15');
     expect(porSueno).toMatchObject({ hrv: 58, restingHR: 44 });

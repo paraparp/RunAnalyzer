@@ -74,6 +74,8 @@ function buildChartData(data, sleepData = [], granularity = 'month') {
     if (d.hrv)            buckets[key].hrv.push(d.hrv);
     if (d.bbHigh != null) buckets[key].bbHigh.push(d.bbHigh);
     if (d.bbLow  != null) buckets[key].bbLow.push(d.bbLow);
+    if (d.avgStress != null) (buckets[key].stress ||= []).push(d.avgStress);
+    if (d.respiration != null) (buckets[key].respiration ||= []).push(d.respiration);
   });
   
   sleepData.forEach(s => {
@@ -99,8 +101,10 @@ function buildChartData(data, sleepData = [], granularity = 'month') {
       bbHigh:    avg(v.bbHigh || []),
       bbLow:     avg(v.bbLow || []),
       sleepScore: avg(v.sleep || []),
+      avgStress: avg(v.stress || []),
+      respiration: avg(v.respiration || []),
     }))
-    .filter(d => d.restingHR || d.hrv || d.bbHigh || d.sleepScore);
+    .filter(d => d.restingHR || d.hrv || d.bbHigh || d.sleepScore || d.avgStress != null || d.respiration);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +112,7 @@ function buildChartData(data, sleepData = [], granularity = 'month') {
 // ---------------------------------------------------------------------------
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-  const normKeys = new Set(['hrvNorm','hrNorm','bbHighNorm','bbLowNorm','sleepHistNorm','baselineHrvNorm','baselineHrNorm']);
+  const normKeys = new Set(['hrvNorm','hrNorm','bbHighNorm','bbLowNorm','sleepHistNorm','baselineHrvNorm','baselineHrNorm','stressNorm','respirationNorm']);
   const isNormMode = payload.some(p => normKeys.has(p.dataKey));
   return (
     <motion.div
@@ -207,6 +211,10 @@ export default function GarminCardiac({ onOpenConnections }) {
   const [showBBHigh, setShowBBHigh] = useState(false);
   const [showBBLow, setShowBBLow] = useState(false);
   const [showSleep, setShowSleep] = useState(false);
+  const [showStress, setShowStress] = useState(false);
+  const [showRespiration, setShowRespiration] = useState(false);
+  const hasStress = data?.some(d => d.avgStress != null);
+  const hasRespiration = data?.some(d => d.respiration != null);
   const [showReadiness, setShowReadiness] = useState(false);
   const [showBaseline, setShowBaseline] = useState(false);
   const [normalizeChart, setNormalizeChart] = useState(true);
@@ -394,6 +402,12 @@ export default function GarminCardiac({ onOpenConnections }) {
     const sleepMin   = rawSleep.length  ? Math.min(...rawSleep)  : 0;
     const sleepMax   = rawSleep.length  ? Math.max(...rawSleep)  : 100;
     const norm = (v, min, max) => max === min ? 50 : +((v - min) / (max - min) * 100).toFixed(1);
+    const rawStress = raw.map(d => d.avgStress).filter(v => v != null);
+    const rawResp = raw.map(d => d.respiration).filter(v => v);
+    const stressMin = Math.min(...rawStress);
+    const stressMax = Math.max(...rawStress);
+    const respMin = Math.min(...rawResp);
+    const respMax = Math.max(...rawResp);
     
     return raw.map((d, i) => {
       let readinessScore = null;
@@ -453,6 +467,9 @@ export default function GarminCardiac({ onOpenConnections }) {
         bbHighNorm:   d.bbHigh     != null ? norm(d.bbHigh, bbHighMin, bbHighMax)     : null,
         bbLowNorm:    d.bbLow      != null ? norm(d.bbLow,  bbLowMin,  bbLowMax)      : null,
         sleepHistNorm: d.sleepScore != null ? norm(d.sleepScore, sleepMin, sleepMax)  : null,
+        // Invertidas como la FC de reposo: en la vista normalizada, arriba siempre es mejor.
+        stressNorm:   d.avgStress  != null ? 100 - norm(d.avgStress, stressMin, stressMax) : null,
+        respirationNorm: d.respiration ? 100 - norm(d.respiration, respMin, respMax) : null,
         baselineHrv,
         baselineHr,
         baselineHrvNorm: baselineHrv != null ? norm(baselineHrv, hrvMin, hrvMax)        : null,
@@ -621,6 +638,32 @@ export default function GarminCardiac({ onOpenConnections }) {
         >
           <span className={`w-2 h-2 rounded-full transition-colors ${showSleep ? 'bg-indigo-500' : 'bg-slate-300'}`} />
           Sueño
+        </button>
+      )}
+      {hasStress && (
+        <button
+          onClick={() => setShowStress(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showStress
+              ? 'bg-pink-50 dark:bg-pink-400/10 text-pink-700 dark:text-pink-300 border-pink-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-200 dark:border-white/10 hover:border-slate-300 hover:text-slate-600 dark:hover:text-white'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showStress ? 'bg-pink-500' : 'bg-slate-300'}`} />
+          Estrés
+        </button>
+      )}
+      {hasRespiration && (
+        <button
+          onClick={() => setShowRespiration(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            showRespiration
+              ? 'bg-cyan-50 dark:bg-cyan-400/10 text-cyan-700 dark:text-cyan-300 border-cyan-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]'
+              : 'bg-white dark:bg-white/[0.03] text-slate-500 dark:text-white/55 border-slate-200 dark:border-white/10 hover:border-slate-300 hover:text-slate-600 dark:hover:text-white'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full transition-colors ${showRespiration ? 'bg-cyan-600' : 'bg-slate-300'}`} />
+          Respiración
         </button>
       )}
 
@@ -1277,7 +1320,7 @@ export default function GarminCardiac({ onOpenConnections }) {
               <div>
                 <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight">Tendencias Cardíacas</h3>
                 <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5 font-medium">
-                  {[showHRV && stats?.hasHRV && 'VFC nocturna', showHR && stats?.hasHR && 'FC reposo', showReadiness && 'Readiness', showSleep && sleepData?.length && 'Sueño'].filter(Boolean).join(' · ') || 'Selecciona métricas abajo'}
+                  {[showHRV && stats?.hasHRV && 'VFC nocturna', showHR && stats?.hasHR && 'FC reposo', showReadiness && 'Readiness', showSleep && sleepData?.length && 'Sueño', showStress && hasStress && 'Estrés', showRespiration && hasRespiration && 'Respiración nocturna'].filter(Boolean).join(' · ') || 'Selecciona métricas abajo'}
                 </p>
               </div>
               {/* Granularity pills */}
@@ -1412,6 +1455,12 @@ export default function GarminCardiac({ onOpenConnections }) {
                   axisLine={false}
                   hide={true}
                 />
+              )}
+              {hasStress && showStress && !useNorm && (
+                <YAxis yAxisId="stress" orientation="right" domain={[0, 100]} hide={true} />
+              )}
+              {hasRespiration && showRespiration && !useNorm && (
+                <YAxis yAxisId="respiration" orientation="right" domain={['auto', 'auto']} hide={true} />
               )}
               <Tooltip content={<CustomTooltip />} />
               
@@ -1554,6 +1603,32 @@ export default function GarminCardiac({ onOpenConnections }) {
                   strokeWidth={3}
                   dot={{ r: 0 }}
                   activeDot={{ r: 6, fill: COLORS.seriesIndigo, stroke: COLORS.paper, strokeWidth: 2 }}
+                  connectNulls
+                />
+              )}
+              {hasStress && showStress && (
+                <Line
+                  yAxisId={useNorm ? 'norm' : 'stress'}
+                  type="monotone"
+                  dataKey={useNorm ? 'stressNorm' : 'avgStress'}
+                  name={useNorm ? 'Estrés (% invertido)' : 'Estrés medio (0-100)'}
+                  stroke={COLORS.seriesPink}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 5, fill: COLORS.seriesPink, stroke: COLORS.paper, strokeWidth: 2 }}
+                  connectNulls
+                />
+              )}
+              {hasRespiration && showRespiration && (
+                <Line
+                  yAxisId={useNorm ? 'norm' : 'respiration'}
+                  type="monotone"
+                  dataKey={useNorm ? 'respirationNorm' : 'respiration'}
+                  name={useNorm ? 'Respiración (% invertido)' : 'Respiración nocturna (rpm)'}
+                  stroke={COLORS.seriesCyan}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 5, fill: COLORS.seriesCyan, stroke: COLORS.paper, strokeWidth: 2 }}
                   connectNulls
                 />
               )}

@@ -34,6 +34,9 @@ function validatePains(pains) {
   for (const p of pains || []) {
     const z = ZONES.get(p?.zone);
     if (!z) throw new Error(`Zona desconocida "${p?.zone}". Válidas: ${ZONE_IDS.join(', ')}`);
+    if (!p.remove && !Number.isFinite(p.level)) {
+      throw new Error(`"${p.zone}" necesita level (0 = ya no duele) o remove: true.`);
+    }
     if (z.bilateral && p.side !== 'L' && p.side !== 'R') {
       throw new Error(`"${p.zone}" tiene lado: indica side L o R.`);
     }
@@ -49,8 +52,9 @@ export function wellnessSnapshot(entries, todayISO) {
 
 /**
  * Guarda la entrada de un día. Por defecto FUSIONA con lo ya anotado ese día:
- * las molestias se suman por zona+lado (level 0 la quita) y los campos no
- * enviados se conservan. `replace: true` sustituye la entrada entera.
+ * las molestias se suman por zona+lado (level 0 anota que ya no duele y
+ * `remove: true` borra la anotación) y los campos no enviados se conservan.
+ * `replace: true` sustituye la entrada entera.
  */
 export async function logWellness(userId, args = {}) {
   const todayISO = dayKey(new Date());
@@ -64,7 +68,8 @@ export async function logWellness(userId, args = {}) {
   const pains = new Map(base.pains.map((p) => [`${p.zone}:${p.side}`, p]));
   for (const p of args.pains || []) {
     const side = ZONES.get(p.zone).bilateral ? p.side : 'C';
-    pains.set(`${p.zone}:${side}`, { zone: p.zone, side, level: p.level });
+    if (p.remove) pains.delete(`${p.zone}:${side}`);
+    else pains.set(`${p.zone}:${side}`, { zone: p.zone, side, level: p.level });
   }
   const pick = (k) => (args[k] !== undefined ? args[k] : base[k]);
   const next = saveEntry(storage, {
