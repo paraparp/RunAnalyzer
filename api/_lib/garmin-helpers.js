@@ -123,22 +123,20 @@ export async function fetchSleepBulk(client, numWeeks) {
   const allRows = [];
   const CHUNK_WEEKS = 52;
 
-  // Anclar al lunes de la semana actual y retroceder N-1 semanas,
-  // así el rango cubre hasta la semana en curso (incluida).
-  const monday = new Date();
-  const d = monday.getDay() || 7;
-  monday.setDate(monday.getDate() - d + 1);
-  const start = new Date(monday);
-  start.setDate(start.getDate() - (numWeeks - 1) * 7);
+  // La fecha de este endpoint es el FIN de la ventana: devuelve las N semanas que
+  // acaban ahí. Se recorre hacia atrás desde el último lunes, que es lo que mantiene
+  // estables las claves `weekStart`. Tratarla como inicio dejaba sin el último año
+  // cualquier descarga de más de 52 semanas.
+  const currentEnd = new Date();
+  currentEnd.setDate(currentEnd.getDate() - (currentEnd.getDay() || 7) + 1);
 
   let weeksRemaining = numWeeks;
-  let currentStart = new Date(start);
 
   while (weeksRemaining > 0) {
     const fetchWeeks = Math.min(weeksRemaining, CHUNK_WEEKS);
     try {
       const body = await client.client.get(
-        `https://connectapi.garmin.com/sleep-service/stats/sleep/weekly/${toDateStr(currentStart)}/${fetchWeeks}`
+        `https://connectapi.garmin.com/sleep-service/stats/sleep/weekly/${toDateStr(currentEnd)}/${fetchWeeks}`
       );
       const rows = (body?.individualStats ?? []).map(s => ({
         weekStart:   s.weekStartDate,
@@ -158,7 +156,7 @@ export async function fetchSleepBulk(client, numWeeks) {
       console.warn(`Sleep bulk fetch failed:`, e.message);
     }
 
-    currentStart.setDate(currentStart.getDate() + fetchWeeks * 7);
+    currentEnd.setDate(currentEnd.getDate() - fetchWeeks * 7);
     weeksRemaining -= fetchWeeks;
   }
   return allRows;

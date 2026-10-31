@@ -3,7 +3,7 @@
 // normalización de unidades y penalización por calor). Lo que se fija aquí es la
 // normalización de actividades y laps, el origen de la FC, los rellenos de dinámica
 // del enriquecido y el reparto del presupuesto de `fetchGarminActivities`.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // El módulo instancia `GarminConnect` solo dentro de `createClient`; se sustituye para
 // no arrastrar la librería (ni su login) al importar.
@@ -11,7 +11,7 @@ vi.mock('garmin-connect', () => ({ default: { GarminConnect: class { async login
 
 const {
   normalizeGarminActivity, normalizeGarminLap, deriveHrSource, deriveDataQuality,
-  enrichGarminActivity, fetchGarminActivities, fetchDayData, sleepAvgHr,
+  enrichGarminActivity, fetchGarminActivities, fetchDayData, fetchSleepBulk, sleepAvgHr,
   mergeData, mergeSleepData, threeMonthChunks, toDateStr,
 } = await import('./garmin-helpers.js');
 
@@ -280,6 +280,26 @@ describe('fetchGarminActivities', () => {
     await fetchGarminActivities(client, 100, { enrichDetail: 10 });
     const enriched = [...new Set(log.filter((u) => u.includes('/splits')).map((u) => u.match(/activity\/(\d+)\//)[1]))];
     expect(enriched).toEqual(['1']);   // la bici sí, la fuerza no
+  });
+});
+
+describe('fetchSleepBulk', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('pide ventanas hacia atrás desde el último lunes, sin dejar huecos', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-31T12:00:00'), toFake: ['Date'] });
+    const urls = [];
+    const c = { client: { get: async (url) => { urls.push(url.split('/weekly/')[1]); return { individualStats: [] }; } } };
+    await fetchSleepBulk(c, 105);
+    expect(urls).toEqual(['2026-10-26/52', '2025-10-27/52', '2024-10-28/1']);
+  });
+
+  it('un fallo en una ventana no pierde las demás', async () => {
+    const stat = { weekStartDate: '2026-10-20', weekEndDate: '2026-10-26', values: { averageSleepScore: 70 } };
+    let n = 0;
+    const c = { client: { get: async () => { if (n++ === 0) throw new Error('500'); return { individualStats: [stat] }; } } };
+    const rows = await fetchSleepBulk(c, 60);
+    expect(rows.map((r) => r.weekStart)).toEqual(['2026-10-20']);
   });
 });
 
