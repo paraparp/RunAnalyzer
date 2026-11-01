@@ -17,6 +17,7 @@
 //      `garminActivitiesSync`.
 // ============================================================================
 import cloudStorage from './cloudStorage';
+import { WEIGHT_KEY } from './weightHistory';
 
 export const CARDIAC_KEY = 'garmin_cardiac_data';
 export const SLEEP_KEY = 'garmin_sleep_data';
@@ -40,6 +41,9 @@ export const readCardiac = () => readArray(CARDIAC_KEY);
 
 /** Registros semanales de sueño guardados. */
 export const readSleep = () => readArray(SLEEP_KEY);
+
+/** Pesadas guardadas. */
+export const readWeights = () => readArray(WEIGHT_KEY);
 
 /** Credenciales de Garmin, o null si no hay una pareja usable. */
 export function readGarminCreds() {

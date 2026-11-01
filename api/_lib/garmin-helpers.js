@@ -452,6 +452,36 @@ export function sleepAvgHr(sleep) {
   return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
 }
 
+/**
+ * Pesadas de los últimos `days` días: UNA llamada al rango de `weight-service`, no
+ * una por día. Garmin agrupa por día y manda la última pesada (`latestWeight`).
+ */
+export async function fetchWeightRange(client, days = 365) {
+  const span = Math.min(Math.max(Number(days) || 365, 7), 1825);
+  const to = toDateStr(new Date());
+  const from = toDateStr(new Date(Date.now() - (span - 1) * 86400000));
+  const res = await client.client.get(
+    `https://connectapi.garmin.com/weight-service/weight/range/${from}/${to}?includeAll=true`,
+  );
+  const fixed = (v, d) => (v == null ? null : +Number(v).toFixed(d));
+  const rows = (res?.dailyWeightSummaries || [])
+    .map((s) => {
+      const w = s?.latestWeight;
+      if (!w || w.weight == null) return null;
+      return {
+        date: s.summaryDate || w.calendarDate,
+        weight_kg: fixed(w.weight / 1000, 2), // Garmin devuelve gramos
+        bmi: fixed(w.bmi, 1),
+        body_fat_pct: fixed(w.bodyFat, 1),
+        muscle_mass_kg: w.muscleMass != null ? fixed(w.muscleMass / 1000, 2) : null,
+        body_water_pct: fixed(w.bodyWater, 1),
+      };
+    })
+    .filter((r) => r?.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return { from, to, rows };
+}
+
 // `withSleep`: guarda también la noche (score, duración, profundo, FC media). El
 // readiness y el explorador la necesitan noche a noche; el cache semanal de sueño
 // solo da medias.

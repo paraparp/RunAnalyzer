@@ -33,6 +33,11 @@ vi.mock('./garmin-helpers.js', () => ({
   fetchBodyBatteryBulk: async () => ({}),
   fetchSleepBulk: async (_c, weeks) => { garmin.seen.weeks = weeks; return garmin.sleep; },
   fetchDayData: async (_c, dateStr) => { (garmin.seen.days ||= []).push(dateStr); return garmin.day ? { date: dateStr, ...garmin.day } : null; },
+  fetchWeightRange: async (_c, days) => {
+    garmin.seen.weightDays = days;
+    if (garmin.weightError) throw new Error(garmin.weightError);
+    return { rows: garmin.weights || [] };
+  },
   toDateStr: (d) => d.toISOString().split('T')[0],
 }));
 
@@ -316,6 +321,37 @@ describe('Garmin', () => {
     expect(cardiac.find((r) => r.date === ayer)).toBeTruthy();
     expect(cardiac.map((r) => r.date)).toEqual([...cardiac.map((r) => r.date)].sort());
     expect(get(u, 'garmin_last_sync')).toBeTruthy();
+  });
+
+  it('la primera vez guarda todo el peso; después solo relee 30 días y mezcla', async () => {
+    const u = nextUser();
+    put(u, 'garmin_cardiac_data', [{ date: hoy }]);
+    garmin.activities = [gact(1)];
+    garmin.weights = [{ date: '2024-01-10', weight_kg: 72 }];
+    await runFullSync(u, { backfill: false, force: true });
+    expect(garmin.seen.weightDays).toBe(1825);
+
+    garmin.weights = [{ date: '2026-10-30', weight_kg: 70 }];
+    await runFullSync(u, { backfill: false, force: true });
+    expect(garmin.seen.weightDays).toBe(30);
+    expect(get(u, 'garmin_weight_data').map((w) => w.weight_kg)).toEqual([72, 70]);
+    garmin.weights = [];
+  });
+
+  it('si falla el peso, la salud se guarda igual y el histórico de peso sigue', async () => {
+    const u = nextUser();
+    put(u, 'garmin_cardiac_data', [{ date: hoy }]);
+    put(u, 'garmin_weight_data', [{ date: '2026-10-01', weight_kg: 71 }]);
+    garmin.activities = [gact(1)];
+    garmin.day = { restingHR: 50 };
+    garmin.weightError = 'weight-service caído';
+
+    const out = await runFullSync(u, { backfill: false, force: true });
+    garmin.weightError = null;
+
+    expect(out.garmin_health.wroteCardiac).toBe(true);
+    expect(out.garmin_health.weight.error).toMatch(/caído/);
+    expect(get(u, 'garmin_weight_data')).toEqual([{ date: '2026-10-01', weight_kg: 71 }]);
   });
 
   it('sin filas de sueño no se toca el sueño guardado', async () => {

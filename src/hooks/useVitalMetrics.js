@@ -3,14 +3,14 @@ import useHrParams from './useHrParams';
 import useCalibratedPMC from './useCalibratedPMC';
 import useTimeScope from './useTimeScope';
 import { scopeDays } from '../lib/timeScope';
-import { readCardiac, readSleep, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
+import { readCardiac, readSleep, readWeights, SYNC_COMPLETE_EVENT } from '../lib/garminHealthStore';
 import { fetchWeightHistory } from '../services/garminWorkouts';
 import {
   buildVitalMetrics, domainOf, xFormatter, GRAN_MIN_DAYS, GRAN_LABEL, AVG_LABEL, MS_DAY,
 } from '../lib/vitalSeries';
 
-// El peso se lee de Garmin en vivo: se pide un tope fijo una vez por montaje en
-// vez de por cada cambio de período (el corte al período lo hace buildVitalMetrics).
+// Garmin se consulta con un tope fijo una vez por montaje, no por cada cambio de
+// período (el corte al período lo hace buildVitalMetrics).
 const WEIGHT_DAYS = 1825;
 
 /**
@@ -46,13 +46,14 @@ export default function useVitalMetrics(activities, { withWeight = false, loadAc
     return () => events.forEach((e) => window.removeEventListener(e, onUpdate));
   }, []);
 
-  const [weights, setWeights] = useState([]);
+  // Se pinta lo guardado de inmediato y Garmin lo actualiza si responde.
+  const [weights, setWeights] = useState(() => (withWeight ? readWeights() : []));
   useEffect(() => {
     if (!withWeight) return undefined;
     const ctrl = new AbortController();
     fetchWeightHistory({ days: WEIGHT_DAYS, signal: ctrl.signal })
-      .then((d) => setWeights(d.weights || []))
-      .catch(() => { /* sin báscula o sin conexión: la métrica sale vacía */ });
+      .then((d) => { if (d.weights?.length) setWeights(d.weights); })
+      .catch(() => { /* sin báscula o sin conexión: se queda lo guardado */ });
     return () => ctrl.abort();
   }, [withWeight]);
 

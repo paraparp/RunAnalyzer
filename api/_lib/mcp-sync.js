@@ -32,8 +32,10 @@ import {
 import { getGarminClientFor } from './garmin-session.js';
 import {
   fetchGarminActivities, fetchHrvBulk, fetchBodyBatteryBulk, fetchSleepBulk,
-  fetchDayData, toDateStr,
+  fetchDayData, fetchWeightRange, toDateStr,
 } from './garmin-helpers.js';
+import { refreshVitalsDerived } from './mcp-vitals.js';
+import { WEIGHT_KEY, mergeWeights } from '../../src/lib/weightHistory.js';
 import { computeFlatEfforts, needsFlatEfforts } from '../../src/lib/flatEfforts.js';
 import { computeStreamGap, needsStreamGap } from '../../src/lib/streamGap.js';
 import { computeHrEffort, needsHrEffort } from '../../src/lib/hrEffortWindow.js';
@@ -470,8 +472,25 @@ async function syncGarminHealth(userId) {
     await writeKey(userId, 'garmin_sleep_data', merged);
     wroteSleep = true;
   }
+  // Best-effort: sin báscula o con este endpoint caído, la salud ya está guardada.
+  let weight;
+  try { weight = await syncGarminWeight(userId, client); }
+  catch (e) { weight = { error: e.message }; }
+
   await writeKey(userId, 'garmin_last_sync', new Date().toLocaleString('es-ES'));
-  return { days, cardiac: fresh.length, wroteCardiac, wroteSleep };
+  return { days, cardiac: fresh.length, wroteCardiac, wroteSleep, weight };
+}
+
+// La primera vez trae todo el histórico. Después relee 30 días, porque una pesada
+// se puede subir tarde o corregir.
+async function syncGarminWeight(userId, client) {
+  const prev = await readKeyFresh(userId, WEIGHT_KEY);
+  const days = Array.isArray(prev) && prev.length ? 30 : 1825;
+  const { rows } = await fetchWeightRange(client, days);
+  if (!rows.length) return { days, added: 0, wrote: false };
+  const merged = mergeWeights(prev, rows);
+  await writeKey(userId, WEIGHT_KEY, merged);
+  return { days, total: merged.length, wrote: true };
 }
 
 // ── Orquestación ────────────────────────────────────────────────────────────
@@ -532,6 +551,8 @@ export async function ensureFresh(userId) {
             // se guardaron arriba no se pierden.
             try { out.garmin_health = await syncGarminHealth(userId); }
             catch (e) { out.garmin_health = { error: e.message }; }
+            try { out.vitals = await refreshVitalsDerived(userId); }
+            catch (e) { out.vitals = { error: e.message }; }
             await writeState(userId, { garmin: mark(true, { added: out.garmin.added ?? 0 }) });
           } catch (e) {
             out.garmin = { error: e.message };
@@ -603,6 +624,10 @@ export async function runFullSync(userId, { force = false, backfill = true } = {
         await writeState(userId, { garmin: { at: now(), ok: false, error: e.message } });
       }
     }
+
+    // Con Strava y Garmin ya al día. Best-effort: un fallo aquí no invalida lo guardado.
+    try { out.vitals = await refreshVitalsDerived(userId); }
+    catch (e) { out.vitals = { error: e.message }; }
 
     // El backlog va al final y es best-effort: si el cron se queda sin tiempo, lo
     // importante (lo nuevo) ya está guardado y el siguiente pase sigue por donde iba.

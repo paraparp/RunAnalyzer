@@ -26,11 +26,12 @@ import {
   createWorkout, updateWorkout, deleteWorkout, listWorkouts, scheduleWorkout, getWorkout,
 } from './_lib/garmin-write.js';
 import {
-  getSleepDaily, getWeightRange, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
+  getSleepDaily, getTrainingReadiness, getFitnessStatus, getPlannedWorkouts,
   getLactateThreshold,
 } from './_lib/garmin-live.js';
 import { reportIssue, listIssuesFor, deleteIssue, CATEGORIES, SEVERITIES, STATUSES } from './_lib/mcp-feedback.js';
 import { ensureFresh } from './_lib/mcp-sync.js';
+import { getVitals, getStoredWeights, VITAL_KEYS } from './_lib/mcp-vitals.js';
 import { logWellness, getWellnessDiary, getWellnessStatus, ZONE_IDS } from './_lib/mcp-wellness.js';
 import { listInjuries, upsertInjury, removeInjury } from './_lib/mcp-injuries.js';
 
@@ -310,9 +311,27 @@ const TOOLS = [
   },
   {
     name: 'list_weight',
-    description: 'Peso y composición corporal por día (báscula, en vivo): peso, IMC, % grasa, masa muscular, % agua. Rango por defecto: últimos 14 días (usa from/to para más).',
+    description: 'Peso y composición corporal por día (báscula, histórico guardado): peso, IMC, % grasa, masa muscular, % agua. Rango por defecto: últimos 14 días (usa from/to para más, sin tope).',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
-    run: (userId, args) => getWeightRange(userId, args).then(text),
+    run: (userId, args) => getStoredWeights(userId, args).then(text),
+  },
+  {
+    name: 'list_vitals',
+    description: 'Las 16 métricas de Resumen Vital con los mismos cálculos que la app, desde datos guardados: VFC (hrv), FC reposo (rhr), Body Battery máx. y mín. (bb, bbLow), sueño (sleep), horas de sueño (sleepHours), FC nocturna (sleepHR), estrés del día (stress), respiración nocturna (respiration), peso (weight), carga diaria (load), CTL, ATL, TSB, VO₂max submáximo (vo2) y eficiencia en m/latido (eff). Es la tool para ver varias métricas juntas o comparar periodos. `vo2` es una estimación propia desde ritmo y FC, distinta del VO₂max de Garmin de get_fitness_status. En diario, `rows` da el valor del día en `<clave>` y la media móvil en `<clave>_avg`; en semanal, mensual o anual da la media del periodo en `<clave>`. `metrics` resume cada métrica: último valor, cambio entre mitades del periodo, días con dato y extremos históricos. Por defecto, últimos 30 días; sin `granularity`, más de 180 días pasan a semanal. Si `metrics[].days_with_data` es 0, no hay dato guardado en ese rango, lo que no significa que el valor sea 0. CTL/ATL/TSB solo son comparables con el mismo `model.version`.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: dateArg,
+        to: dateArg,
+        granularity: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly'] },
+        metrics: {
+          type: 'array',
+          items: { type: 'string', enum: VITAL_KEYS },
+          description: 'Limita la respuesta a estas métricas (por defecto, todas)',
+        },
+      },
+    },
+    run: (userId, args) => getVitals(userId, args).then(text),
   },
   {
     name: 'get_training_readiness',
@@ -850,7 +869,7 @@ const TITLES = {
   hr_at_fixed_effort: 'Forma aeróbica (FC a esfuerzo fijo)',
   get_personal_bests: 'Mejores marcas', personal_records: 'Récords por distancia',
   best_efforts_progression: 'Progresión por distancia', list_hrv_resting: 'VFC y FC en reposo',
-  list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición',
+  list_sleep: 'Sueño semanal', list_sleep_daily: 'Sueño por noche', list_weight: 'Peso y composición', list_vitals: 'Resumen vital',
   get_training_readiness: 'Training readiness', get_fitness_status: 'Estado de forma',
   get_lactate_threshold: 'Umbral de lactato (Garmin)',
   list_planned_workouts: 'Entrenos planificados', get_training_load_model: 'Carga de entrenamiento',
@@ -878,7 +897,7 @@ const TITLES = {
 // a Garmin en el momento; las de escritura mutan el calendario/biblioteca del usuario.
 const ANNOTATIONS = {
   list_sleep: READ_LIVE,            // completa la semana en curso desde Garmin en vivo
-  list_sleep_daily: READ_LIVE, list_weight: READ_LIVE,
+  list_sleep_daily: READ_LIVE,
   get_training_readiness: READ_LIVE, get_fitness_status: READ_LIVE,
   get_lactate_threshold: READ_LIVE,
   list_planned_workouts: READ_LIVE, list_garmin_workouts: READ_LIVE, get_garmin_workout: READ_LIVE,

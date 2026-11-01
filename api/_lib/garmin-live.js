@@ -7,7 +7,9 @@
 // ============================================================================
 import { getGarminClientFor } from './garmin-session.js';
 import { dayKey } from '../../src/lib/trainingLoad.js';
-import { sleepAvgHr } from './garmin-helpers.js';
+import { sleepAvgHr, fetchWeightRange } from './garmin-helpers.js';
+import { readKeyFresh, writeKey } from './mcp-store.js';
+import { WEIGHT_KEY, mergeWeights } from '../../src/lib/weightHistory.js';
 
 const API = 'https://connectapi.garmin.com';
 const round = (n, d = 1) => (n == null ? null : parseFloat(Number(n).toFixed(d)));
@@ -89,65 +91,18 @@ export async function getSleepDaily(userId, { from, to } = {}) {
   return { count: nights.length, nights, ...(note ? { note } : {}) };
 }
 
-/** Peso y composición corporal (báscula) en un rango. */
-export async function getWeightRange(userId, { from, to } = {}) {
-  const client = await getGarminClientFor(userId);
-  const cap = from ? 62 : 14; // por defecto 14 días; rango explícito hasta 62
-  const dates = dateRange(from, to, cap);
-  const rows = (await mapLimit(dates, 5, async (date) => {
-    try {
-      const w = await client.getDailyWeightData(new Date(date + 'T12:00:00'));
-      const d = w?.dateWeightList?.[0];
-      if (!d || d.weight == null) return null;
-      return {
-        date: d.calendarDate || date,
-        weight_kg: round(d.weight / 1000, 2),   // Garmin devuelve gramos
-        bmi: d.bmi ?? null,
-        body_fat_pct: d.bodyFat ?? null,
-        muscle_mass_kg: d.muscleMass != null ? round(d.muscleMass / 1000, 2) : null,
-        body_water_pct: d.bodyWater ?? null,
-        source: d.sourceType ?? null,
-      };
-    } catch { return null; /* día sin pesada */ }
-  })).filter(Boolean);
-  const note = rows.length
-    ? truncationNote(dates, from, cap)
-    : `Sin pesadas en el rango (${dates.length} días consultados).`;
-  return {
-    count: rows.length,
-    weights: rows,
-    has_scale: rows.length > 0 || dates.length < cap, // true si hay al menos una pesada O el rango es pequeño
-    ...(note ? { note } : {}),
-    ...(rows.length === 0 && dates.length >= cap ? { warning: 'No hay báscula Garmin vinculada o sin pesadas registradas.' } : {}),
-  };
-}
-
-/**
- * Histórico de pesadas para la app: UNA llamada al rango de `weight-service` en vez
- * de una por día (`getWeightRange` va día a día y se corta en 62). Garmin agrupa por
- * día y la última pesada del día manda (`latestWeight`).
- */
+/** Histórico de pesadas de Garmin en vivo. También lo deja guardado. */
 export async function getWeightHistory(userId, { days = 365 } = {}) {
   const client = await getGarminClientFor(userId);
-  const span = Math.min(Math.max(Number(days) || 365, 7), 1825);
-  const to = todayISO();
-  const from = dayKey(new Date(Date.now() - (span - 1) * 86400000));
-  const res = await client.client.get(`${API}/weight-service/weight/range/${from}/${to}?includeAll=true`);
-  const rows = (res?.dailyWeightSummaries || [])
-    .map((s) => {
-      const w = s?.latestWeight;
-      if (!w || w.weight == null) return null;
-      return {
-        date: s.summaryDate || w.calendarDate,
-        weight_kg: round(w.weight / 1000, 2),
-        bmi: w.bmi != null ? round(w.bmi, 1) : null,
-        body_fat_pct: w.bodyFat != null ? round(w.bodyFat, 1) : null,
-        muscle_mass_kg: w.muscleMass != null ? round(w.muscleMass / 1000, 2) : null,
-        body_water_pct: w.bodyWater != null ? round(w.bodyWater, 1) : null,
-      };
-    })
-    .filter((r) => r?.date)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const { from, to, rows } = await fetchWeightRange(client, days);
+  // Cada lectura de la app deja el histórico guardado para el MCP. Si falla la
+  // escritura, la app sigue teniendo su respuesta.
+  try {
+    const prev = await readKeyFresh(userId, WEIGHT_KEY);
+    if (rows.length) await writeKey(userId, WEIGHT_KEY, mergeWeights(prev, rows));
+  } catch (e) {
+    console.warn('[garmin-live] no se pudo guardar el peso:', e.message);
+  }
   return { from, to, count: rows.length, weights: rows };
 }
 
