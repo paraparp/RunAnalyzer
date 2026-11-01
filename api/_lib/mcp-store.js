@@ -1467,6 +1467,18 @@ export async function getHrvResting(userId, { from, to } = {}) {
       hrv_deviation: hrvDeviation(r.hrv, normalizeBaseline(r.baseline)),
       body_battery_low: r.bbLow ?? null,
       body_battery_high: r.bbHigh ?? null,
+      body_battery_charged: r.bbCharged ?? null,
+      body_battery_drained: r.bbDrained ?? null,
+      avg_stress: r.avgStress ?? null,
+      max_stress: r.maxStress ?? null,
+      awake_avg_stress: r.awakeStress ?? null,
+      sleep_avg_stress: r.sleepStress ?? null,
+      stress_min: r.stressRestMin == null ? null : {
+        rest: r.stressRestMin,
+        low: r.stressLowMin,
+        medium: r.stressMediumMin,
+        high: r.stressHighMin,
+      },
     }));
   const avg = (vals) => (vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null);
   // hrv_7d_avg: media móvil de 7 días sobre el HISTÓRICO COMPLETO, NO sobre el rango filtrado.

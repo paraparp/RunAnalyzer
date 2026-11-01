@@ -372,6 +372,24 @@ describe('fetchDayData', () => {
     expect(row).toMatchObject({ avgStress: 34, respiration: 15.3, sleepStress: 21.4 });
   });
 
+  it('withSleep guarda el resumen de estrés y Body Battery del día', async () => {
+    const c = client({
+      sleep: async () => ({ dailySleepDTO: { sleepTimeSeconds: 26220, sleepStartTimestampGMT: 100, sleepEndTimestampGMT: 200 } }),
+      get: async (url) => (url.includes('dailyStress') ? {
+        avgStressLevel: 40,
+        maxStressLevel: 90,
+        stressValuesArray: [[150, 10], [300, 40], [400, 60], [500, 80], [600, -2]],
+        bodyBatteryValuesArray: [[1, 'MEASURED', 50, 1], [2, 'MEASURED', 80, 1], [3, 'MEASURED', 30, 1]],
+      } : null),
+    });
+    const row = await fetchDayData(c, '2026-07-15', null, null, { withSleep: true });
+    expect(row).toMatchObject({
+      avgStress: 40, maxStress: 90, awakeStress: 60,
+      stressRestMin: 3, stressLowMin: 3, stressMediumMin: 3, stressHighMin: 3,
+      bbCharged: 30, bbDrained: 50,
+    });
+  });
+
   it('un estrés negativo es "sin medida", y sin él el día se guarda igual', async () => {
     const c = client({
       hr: async () => ({ restingHeartRate: 45 }),

@@ -452,6 +452,61 @@ export function sleepAvgHr(sleep) {
   return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
 }
 
+const STRESS_SAMPLE_MIN = 3; // Garmin da una muestra de estrés cada 3 minutos
+
+/**
+ * Resumen del día desde `dailyStress`: máximo, media de vigilia (sin la ventana de
+ * sueño), minutos por nivel con los cortes de Garmin (reposo 0-25, bajo 26-50, medio
+ * 51-75, alto 76-100) y Body Battery cargado y gastado. Los valores negativos son
+ * tramos sin medida o en actividad, y no cuentan. Sin muestras devuelve {}.
+ */
+export function summarizeDailyStress(stress, sleepDto) {
+  const samples = (Array.isArray(stress?.stressValuesArray) ? stress.stressValuesArray : [])
+    .filter((p) => Number.isFinite(p?.[1]) && p[1] >= 0);
+  const out = {};
+  if (stress?.maxStressLevel >= 0) out.maxStress = stress.maxStressLevel;
+  if (samples.length) {
+    out.maxStress ??= Math.max(...samples.map((p) => p[1]));
+    const inRange = (lo, hi) => samples.filter((p) => p[1] >= lo && p[1] <= hi).length * STRESS_SAMPLE_MIN;
+    out.stressRestMin = inRange(0, 25);
+    out.stressLowMin = inRange(26, 50);
+    out.stressMediumMin = inRange(51, 75);
+    out.stressHighMin = inRange(76, 100);
+    const start = sleepDto?.sleepStartTimestampGMT;
+    const end = sleepDto?.sleepEndTimestampGMT;
+    const awake = start && end ? samples.filter((p) => p[0] < start || p[0] > end) : samples;
+    if (awake.length) out.awakeStress = g1(awake.reduce((s, p) => s + p[1], 0) / awake.length);
+  }
+  // [timestamp, estado, nivel, versión]; el nivel se localiza por su descriptor.
+  const levelIdx = (stress?.bodyBatteryValueDescriptorsDTOList || [])
+    .find((d) => d?.bodyBatteryValueDescriptorKey === 'bodyBatteryLevel')?.bodyBatteryValueDescriptorIndex ?? 2;
+  const levels = (Array.isArray(stress?.bodyBatteryValuesArray) ? stress.bodyBatteryValuesArray : [])
+    .map((p) => p?.[levelIdx])
+    .filter(Number.isFinite);
+  if (levels.length > 1) {
+    out.bbCharged = 0;
+    out.bbDrained = 0;
+    for (let i = 1; i < levels.length; i++) {
+      const diff = levels[i] - levels[i - 1];
+      if (diff > 0) out.bbCharged += diff;
+      else out.bbDrained -= diff;
+    }
+  }
+  return out;
+}
+
+/**
+ * Resumen de estrés de un día ya guardado, para completar el histórico. Devuelve
+ * null si Garmin falla, para distinguirlo de un día sin datos.
+ */
+export async function fetchDayStress(client, dateStr) {
+  const [stress, sleep] = await Promise.all([
+    client.client.get(`https://connectapi.garmin.com/wellness-service/wellness/dailyStress/${dateStr}`).catch(() => null),
+    client.getSleepData(new Date(dateStr)).catch(() => null),
+  ]);
+  return stress ? summarizeDailyStress(stress, sleep?.dailySleepDTO) : null;
+}
+
 /**
  * Pesadas de los últimos `days` días: UNA llamada al rango de `weight-service`, no
  * una por día. Garmin agrupa por día y manda la última pesada (`latestWeight`).
@@ -523,6 +578,8 @@ export async function fetchDayData(client, dateStr, hrvMap = null, bbMap = null,
     if (dto.averageRespirationValue > 0) row.respiration = g1(dto.averageRespirationValue);
     if (dto.avgSleepStress >= 0) row.sleepStress = g1(dto.avgSleepStress);
   }
+
+  Object.assign(row, summarizeDailyStress(stress, dto));
 
   if (!row.hrv) {
     try {

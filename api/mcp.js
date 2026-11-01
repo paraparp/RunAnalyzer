@@ -293,7 +293,7 @@ const TOOLS = [
   },
   {
     name: 'list_hrv_resting',
-    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery. Incluye baseline de Garmin (`hrv_baseline`: {low, high, marker} en ms — rango balanceado y marcador de Garmin dentro de él), media móvil 7d y un `current` con `hrv_deviation` (above|below|within) para el semáforo HRV.',
+    description: 'VFC (HRV) nocturna y FC en reposo por día (Garmin), con Body Battery (`body_battery_low/high`, y `body_battery_charged/drained`: lo cargado y gastado en el día) y estrés de Garmin del DÍA completo: `avg_stress` y `max_stress` (0-100), `awake_avg_stress` (solo vigilia), `sleep_avg_stress` (solo sueño) y `stress_min` (minutos en rest/low/medium/high). Excluyen los tramos de actividad. Un null significa que ese día aún no tiene el dato, no que sea 0: el histórico se completa por tandas en cada sync. Incluye baseline de Garmin (`hrv_baseline`: {low, high, marker} en ms — rango balanceado y marcador de Garmin dentro de él), media móvil 7d y un `current` con `hrv_deviation` (above|below|within) para el semáforo HRV.',
     inputSchema: { type: 'object', properties: { from: dateArg, to: dateArg } },
     run: (userId, args) => getHrvResting(userId, args).then(text),
   },

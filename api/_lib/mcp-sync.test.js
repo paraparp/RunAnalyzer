@@ -33,6 +33,10 @@ vi.mock('./garmin-helpers.js', () => ({
   fetchBodyBatteryBulk: async () => ({}),
   fetchSleepBulk: async (_c, weeks) => { garmin.seen.weeks = weeks; return garmin.sleep; },
   fetchDayData: async (_c, dateStr) => { (garmin.seen.days ||= []).push(dateStr); return garmin.day ? { date: dateStr, ...garmin.day } : null; },
+  fetchDayStress: async (_c, dateStr) => {
+    (garmin.seen.stressDays ||= []).push(dateStr);
+    return garmin.stress === undefined ? { maxStress: 70 } : garmin.stress;
+  },
   fetchWeightRange: async (_c, days) => {
     garmin.seen.weightDays = days;
     if (garmin.weightError) throw new Error(garmin.weightError);
@@ -352,6 +356,35 @@ describe('Garmin', () => {
     expect(out.garmin_health.wroteCardiac).toBe(true);
     expect(out.garmin_health.weight.error).toMatch(/caído/);
     expect(get(u, 'garmin_weight_data')).toEqual([{ date: '2026-10-01', weight_kg: 71 }]);
+  });
+
+  it('completa el estrés histórico de reciente a antiguo y por tandas', async () => {
+    const u = nextUser();
+    const dias = Array.from({ length: 35 }, (_, i) => `2025-01-${String(i + 1).padStart(2, '0')}`);
+    put(u, 'garmin_cardiac_data', [...dias.map((date) => ({ date })), { date: hoy, maxStress: 50 }]);
+    garmin.activities = [gact(1)];
+    garmin.seen.stressDays = [];
+
+    const out = await runFullSync(u, { backfill: false, force: true });
+
+    expect(out.garmin_health.stress).toMatchObject({ filled: 30, wrote: true });
+    expect(garmin.seen.stressDays[0]).toBe(dias[34]);
+    const cardiac = get(u, 'garmin_cardiac_data');
+    expect(cardiac.find((r) => r.date === dias[34]).maxStress).toBe(70);
+    expect(cardiac.find((r) => r.date === dias[0]).maxStress).toBeUndefined();
+  }, 15000);
+
+  it('con Garmin caído no marca el estrés como ya revisado', async () => {
+    const u = nextUser();
+    put(u, 'garmin_cardiac_data', [{ date: '2025-01-01' }]);
+    garmin.activities = [gact(1)];
+    garmin.stress = null;
+
+    const out = await runFullSync(u, { backfill: false, force: true });
+    garmin.stress = undefined;
+
+    expect(out.garmin_health.stress.wrote).toBe(false);
+    expect(get(u, 'garmin_cardiac_data')[0].stressChecked).toBeUndefined();
   });
 
   it('sin filas de sueño no se toca el sueño guardado', async () => {

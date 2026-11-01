@@ -32,7 +32,7 @@ import {
 import { getGarminClientFor } from './garmin-session.js';
 import {
   fetchGarminActivities, fetchHrvBulk, fetchBodyBatteryBulk, fetchSleepBulk,
-  fetchDayData, fetchWeightRange, toDateStr,
+  fetchDayData, fetchDayStress, fetchWeightRange, toDateStr,
 } from './garmin-helpers.js';
 import { refreshVitalsDerived } from './mcp-vitals.js';
 import { WEIGHT_KEY, mergeWeights } from '../../src/lib/weightHistory.js';
@@ -59,6 +59,7 @@ const GARMIN_HARD_TTL_MS = 4 * 60 * 60 * 1000;
 const ERROR_BACKOFF_MS = 15 * 60 * 1000;     // tras un fallo, no reintentar en cada tool
 const LOCK_MS = 3 * 60 * 1000;               // vida del lock entre instancias
 const REQUEST_BUDGET_MS = 8000;              // lo máximo que una tool espera al sync
+const STRESS_BACKFILL_BATCH = 30;            // días de estrés histórico por pase de sync
 
 // Vencimiento memoizado por usuario: mientras no llegue, `ensureFresh` no hace NI
 // UNA lectura a Supabase. Es lo que hace que el coste por tool sea realmente cero.
@@ -477,8 +478,42 @@ async function syncGarminHealth(userId) {
   try { weight = await syncGarminWeight(userId, client); }
   catch (e) { weight = { error: e.message }; }
 
+  let stress;
+  try { stress = await backfillDayStress(userId, client); }
+  catch (e) { stress = { error: e.message }; }
+
   await writeKey(userId, 'garmin_last_sync', new Date().toLocaleString('es-ES'));
-  return { days, cardiac: fresh.length, wroteCardiac, wroteSleep, weight };
+  return { days, cardiac: fresh.length, wroteCardiac, wroteSleep, weight, stress };
+}
+
+// Completa el resumen de estrés de los días guardados sin él, de reciente a antiguo y
+// por tandas, porque cada día son dos llamadas a Garmin. `stressChecked` marca lo ya
+// mirado. Si falla toda la tanda, Garmin está caído y no se marca nada; si falla solo
+// algún día, se marca para que un día sin datos no bloquee la cola.
+async function backfillDayStress(userId, client) {
+  const rows = (await readKeyFresh(userId, 'garmin_cardiac_data')) || [];
+  const pending = rows
+    .filter((r) => r.date && r.maxStress === undefined && !r.stressChecked)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const batch = pending.slice(0, STRESS_BACKFILL_BATCH);
+  if (!batch.length) return { filled: 0, pending: 0 };
+
+  const patches = new Map();
+  let filled = 0;
+  for (const r of batch) {
+    const summary = await fetchDayStress(client, r.date);
+    if (summary) filled++;
+    patches.set(r.date, { ...summary, stressChecked: true });
+    await new Promise((done) => setTimeout(done, 120));
+  }
+  if (!filled) return { filled: 0, pending: pending.length, wrote: false };
+
+  // Se relee: el bucle tarda y la app puede haber escrito mientras tanto.
+  const latest = (await readKeyFresh(userId, 'garmin_cardiac_data')) || [];
+  await writeKey(userId, 'garmin_cardiac_data', latest.map((r) => (
+    patches.has(r.date) ? { ...r, ...patches.get(r.date) } : r
+  )));
+  return { filled, pending: pending.length - batch.length, wrote: true };
 }
 
 // La primera vez trae todo el histórico. Después relee 30 días, porque una pesada
