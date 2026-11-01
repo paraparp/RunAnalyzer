@@ -24,7 +24,7 @@
   --line:          15 23 42;     /* bordes: se usa con alfa, p. ej. /10 */
   --ink:           10 12 16;
   --ink-muted:     71 85 105;
-  --accent:        15 118 110;   /* teal-700: legible sobre blanco */
+  --accent:        79 70 229;    /* indigo-600: legible sobre blanco */
   --accent-2:      194 65 12;    /* orange-700 */
 
   /* Colores neutros de gráficos (Recharts, Leaflet, SVG): los lee lib/palette.js. */

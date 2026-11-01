@@ -18,7 +18,7 @@ export default function ThemeToggle({ className = '' }) {
     <div
       role="radiogroup"
       aria-label={t('user_menu.theme', 'Tema')}
-      className={`inline-flex items-center p-0.5 rounded-sm border border-slate-900/15 bg-slate-900/[0.04] dark:border-white/20 dark:bg-white/[0.04] ${className}`}
+      className={`inline-flex items-center p-0.5 rounded-sm border border-slate-200 bg-slate-100 dark:border-white/20 dark:bg-white/[0.04] ${className}`}
     >
       {options.map(({ id, Icon, label, active }) => (
         <button
@@ -30,7 +30,7 @@ export default function ThemeToggle({ className = '' }) {
           title={label}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-bold transition-colors ${
             active
-              ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
+              ? 'bg-white text-indigo-700 shadow-sm dark:bg-white dark:text-slate-950'
               : 'text-slate-500 hover:text-slate-950 dark:text-white/55 dark:hover:text-white'
           }`}
         >

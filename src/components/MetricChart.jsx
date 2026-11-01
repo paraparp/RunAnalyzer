@@ -359,24 +359,26 @@ export default function MetricChart({ metricKey, onMetricChange, metrics, period
         <span className="ml-auto text-slate-400 dark:text-white/40">Arrastra sobre el gráfico para seleccionar un rango</span>
       </div>
 
-      {/* Gráficos */}
-      <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto select-none cursor-crosshair">
+      {/* Gráficos. Cada contenedor recorta (overflow-hidden) su SVG: si no, el SVG
+          aún sin redimensionar desborda, aparece la barra de scroll, el gráfico
+          encoge, la barra desaparece y vuelve a crecer, en bucle (vibración). */}
+      <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto overflow-x-hidden select-none cursor-crosshair">
         {overlay ? (
           <>
             <div className="flex flex-col gap-1 px-1">
               {compared.map((s) => <SeriesStatsLine key={s.key} s={s} />)}
             </div>
-            <div className="flex-1 min-h-[240px]">{chart(all, { showBands: true })}</div>
+            <div className="flex-1 min-h-[240px] overflow-hidden">{chart(all, { showBands: true })}</div>
           </>
         ) : (
           <>
-            <div className={`${compared.length ? "flex-[1.4]" : "flex-1"} min-h-[220px]`}>
+            <div className={`${compared.length ? "flex-[1.4]" : "flex-1"} min-h-[220px] overflow-hidden`}>
               {chart([primary], { showBands: true })}
             </div>
             {compared.map((s) => (
               <div key={s.key} className="flex-1 min-h-[160px] flex flex-col border-t border-slate-100 dark:border-white/10 pt-2">
                 <div className="px-1 mb-1"><SeriesStatsLine s={s} /></div>
-                <div className="flex-1 min-h-0">{chart([s], { compact: true })}</div>
+                <div className="flex-1 min-h-0 overflow-hidden">{chart([s], { compact: true })}</div>
               </div>
             ))}
           </>

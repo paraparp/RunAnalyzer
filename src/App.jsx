@@ -60,7 +60,6 @@ import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
   Squares2X2Icon,
   SparklesIcon,
   ArrowTrendingUpIcon,
@@ -441,44 +440,42 @@ const Dashboard = ({ user, handleLogout }) => {
     return (
       <>
         {/* Logo */}
-        <div className="px-5 py-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <Logo className="w-10 h-10 rounded-sm ring-1 ring-slate-900/10 dark:ring-white/20" />
-            <div className="leading-none">
-              <div className="text-[18px] font-black tracking-tighter text-slate-950 dark:text-white">RunAnalyzer</div>
-              <div className="text-label font-bold uppercase text-teal-700 dark:text-teal-300/80 mt-1.5">AI Running Analytics</div>
-            </div>
-          </div>
+        <div className="h-14 px-4 flex items-center gap-2.5 shrink-0">
+          <Logo className="w-7 h-7 rounded-md" />
+          <span className="text-[15px] font-semibold text-slate-950 dark:text-white">RunAnalyzer</span>
         </div>
 
-        {/* Navigation — top-level categories only */}
-        <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
+        {/* Navegación: la categoría activa despliega sus secciones */}
+        <nav aria-label="Principal" className="flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto">
           {navCategories.map(cat => {
             const Icon = cat.icon;
             const isActive = cat.id === activeCatId;
+            const hasChildren = cat.itemIds.length > 1;
             return (
-              <div key={cat.id} className="mb-0.5">
+              <div key={cat.id}>
                 <button
+                  type="button"
+                  aria-current={isActive && !hasChildren ? 'page' : undefined}
+                  aria-expanded={hasChildren ? isActive : undefined}
                   onClick={() => {
                     if (!isActive) setCurrentView(cat.itemIds[0]);
-                    // Don't close mobile menu here if we just clicked a category, let them see the submenu
-                    // setMobileMenuOpen(false); 
+                    // Con secciones, el menú móvil sigue abierto para poder elegir una.
+                    if (!hasChildren) setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-all active:opacity-75 ${isActive
-                    ? 'text-slate-950 dark:text-white font-bold border-r-2 border-teal-600 dark:border-teal-300 bg-slate-900/[0.05] dark:bg-white/[0.06]'
-                    : 'text-slate-500 dark:text-white/55 font-medium hover:text-slate-950 dark:hover:text-white hover:bg-slate-900/[0.04] dark:hover:bg-white/[0.04] border-r-2 border-transparent'
+                  className={`group w-full h-9 flex items-center gap-2.5 px-2.5 rounded-md text-[13px] cursor-pointer transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${isActive
+                    ? `font-medium text-slate-950 dark:text-white ${hasChildren ? '' : 'bg-slate-900/[0.06] dark:bg-white/[0.08]'}`
+                    : 'text-slate-600 dark:text-white/60 hover:text-slate-950 dark:hover:text-white hover:bg-slate-900/[0.04] dark:hover:bg-white/[0.05]'
                     }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-5 h-5 shrink-0`} />
-                    <span>{t(`nav.categories.${cat.id}`)}</span>
-                  </div>
-                  {isActive ? <ChevronDownIcon className="w-4 h-4 text-teal-600 dark:text-teal-300" /> : <ChevronRightIcon className="w-4 h-4 opacity-0 group-hover:opacity-50" />}
+                  <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-accent' : ''}`} />
+                  <span className="flex-1 min-w-0 truncate text-left">{t(`nav.categories.${cat.id}`)}</span>
+                  {hasChildren && (
+                    <ChevronRightIcon className={`w-3.5 h-3.5 shrink-0 transition-[transform,opacity] duration-150 ${isActive ? 'rotate-90 opacity-50' : 'opacity-0 group-hover:opacity-50'}`} />
+                  )}
                 </button>
 
-                {/* Submenus (only shown if category is active) */}
-                {isActive && (
-                  <div className="pl-11 pr-2 py-1.5 space-y-0.5 mr-2">
+                {isActive && hasChildren && (
+                  <div className="ml-[19px] my-0.5 pl-2 border-l border-slate-900/10 dark:border-white/10 space-y-px">
                     {cat.itemIds.map(itemId => {
                       const item = navItems.find(i => i.id === itemId);
                       if (!item) return null;
@@ -486,16 +483,18 @@ const Dashboard = ({ user, handleLogout }) => {
                       return (
                         <button
                           key={itemId}
+                          type="button"
+                          aria-current={isItemActive ? 'page' : undefined}
                           onClick={() => {
                             setCurrentView(itemId);
                             setMobileMenuOpen(false);
                           }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all ${isItemActive
-                            ? 'text-teal-800 dark:text-teal-200 font-bold bg-teal-600/[0.08] dark:bg-teal-300/[0.08]'
-                            : 'text-slate-500 dark:text-white/50 font-medium hover:text-slate-950 dark:hover:text-white hover:bg-slate-900/[0.04] dark:hover:bg-white/[0.04]'
+                          className={`relative w-full h-8 flex items-center px-2.5 rounded-md text-[13px] text-left cursor-pointer transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${isItemActive
+                            ? 'font-medium text-slate-950 dark:text-white bg-slate-900/[0.06] dark:bg-white/[0.08]'
+                            : 'text-slate-500 dark:text-white/55 hover:text-slate-950 dark:hover:text-white hover:bg-slate-900/[0.04] dark:hover:bg-white/[0.05]'
                             }`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${isItemActive ? 'bg-teal-600 dark:bg-teal-300' : 'bg-transparent'}`} />
+                          {isItemActive && <span aria-hidden="true" className="absolute -left-[9px] inset-y-1.5 w-0.5 rounded-full bg-accent" />}
                           <span className="truncate">{t(`nav.${item.id}`)}</span>
                         </button>
                       );
@@ -508,7 +507,7 @@ const Dashboard = ({ user, handleLogout }) => {
         </nav>
 
         {/* User section */}
-        <div className="mt-auto px-3 pb-5 border-t border-slate-900/10 dark:border-white/10 pt-3">
+        <div className="shrink-0 p-2 border-t border-slate-900/10 dark:border-white/10">
           <UserMenu
             user={user}
             handleLogout={handleLogout}
@@ -547,16 +546,16 @@ const Dashboard = ({ user, handleLogout }) => {
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-64 bg-white dark:bg-[#07090d] dark:shell-glow border-r border-slate-900/10 dark:border-white/10 shrink-0 h-screen z-50">
-        <SidebarContent />
+      <aside className="hidden lg:flex lg:flex-col w-60 bg-white dark:bg-[#07090d] border-r border-slate-900/10 dark:border-white/10 shrink-0 h-screen z-50">
+        {SidebarContent()}
       </aside>
 
       {/* Mobile Sidebar Overlay */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="sidebar-overlay fixed inset-0" onClick={() => setMobileMenuOpen(false)} />
-          <aside className="sidebar-enter fixed inset-y-0 left-0 w-[260px] bg-white dark:bg-[#07090d] dark:shell-glow shadow-2xl flex flex-col z-50">
-            <SidebarContent />
+          <aside className="sidebar-enter fixed inset-y-0 left-0 w-[260px] bg-white dark:bg-[#07090d] shadow-2xl flex flex-col z-50">
+            {SidebarContent()}
           </aside>
         </div>
       )}
@@ -568,7 +567,7 @@ const Dashboard = ({ user, handleLogout }) => {
           const activeCat = navCategories.find(cat => cat.itemIds.includes(navView));
           const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
           return (
-            <header className="sticky top-0 z-40 flex justify-between items-center px-4 sm:px-8 w-full bg-white dark:bg-[#07090d] border-b border-slate-900/10 dark:border-white/10 h-16 shrink-0 gap-3 sm:gap-6">
+            <header className="sticky top-0 z-40 flex justify-between items-center px-4 sm:px-8 w-full bg-white dark:bg-[#07090d] border-b border-slate-200 dark:border-white/10 h-16 shrink-0 gap-3 sm:gap-6">
               {/* Mobile menu */}
               <button
                 type="button"
@@ -590,7 +589,7 @@ const Dashboard = ({ user, handleLogout }) => {
                       key={item.id}
                       onClick={() => setCurrentView(item.id)}
                       className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${currentView === item.id
-                        ? 'text-slate-950 dark:text-white border-b-2 border-teal-600 dark:border-teal-300'
+                        ? 'text-slate-950 dark:text-white border-b-2 border-indigo-600 dark:border-teal-300'
                         : 'text-slate-500 dark:text-white/55 hover:text-slate-950 dark:hover:text-white border-b-2 border-transparent'
                         }`}
                     >
@@ -607,7 +606,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 <ThemeToggle />
                 <button
                   onClick={changeLanguage}
-                  className="px-3 py-1.5 text-xs font-bold border border-slate-900/15 text-slate-700 hover:bg-slate-900/5 dark:border-white/20 dark:text-white/80 dark:hover:bg-white/10 rounded-sm uppercase transition-colors"
+                  className="px-3 py-1.5 text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-white/20 dark:text-white/80 dark:hover:bg-white/10 rounded-sm uppercase transition-colors"
                   title={i18n.language.startsWith('en') ? 'Switch to Spanish' : 'Cambiar a Inglés'}
                 >
                   {i18n.language.startsWith('en') ? 'EN' : 'ES'}
@@ -616,7 +615,7 @@ const Dashboard = ({ user, handleLogout }) => {
                   onClick={() => runSync({ force: true })}
                   disabled={isSyncing}
                   title={isSyncing ? t('topbar.syncing') : t('topbar.sync')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold px-2.5 sm:px-4 py-2 rounded-sm transition-all ${isSyncing ? 'bg-slate-900/5 text-slate-400 dark:bg-white/10 dark:text-white/40 cursor-not-allowed' : 'bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-teal-100'
+                  className={`inline-flex items-center gap-2 text-xs font-bold px-2.5 sm:px-4 py-2 rounded-sm transition-all ${isSyncing ? 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-slate-950 dark:hover:bg-teal-100'
                     }`}
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />

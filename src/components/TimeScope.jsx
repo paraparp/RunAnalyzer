@@ -41,7 +41,7 @@ export function TimeScopeSelector({ className = '' }) {
           onClick={() => setScope(s.id)}
           aria-pressed={scope === s.id}
           className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${scope === s.id
-            ? 'bg-white text-blue-600 dark:text-slate-950 shadow-sm'
+            ? 'bg-white text-indigo-700 dark:text-slate-950 shadow-sm'
             : 'text-slate-500 hover:text-slate-700 dark:text-white/55 dark:hover:text-white'}`}
         >
           {t(`time_scope.options.${s.id}`)}

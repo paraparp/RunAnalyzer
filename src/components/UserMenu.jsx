@@ -122,10 +122,10 @@ export default function UserMenu({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left ${
+          className={`w-full flex items-center gap-2.5 p-2 rounded-md cursor-pointer transition-colors duration-150 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
             isOpen
-              ? 'bg-teal-50/80 dark:bg-white/[0.06] ring-2 ring-teal-600/30 dark:ring-teal-300/30'
-              : 'hover:bg-slate-100/90 dark:hover:bg-white/[0.04]'
+              ? 'bg-slate-900/[0.06] dark:bg-white/[0.08]'
+              : 'hover:bg-slate-900/[0.04] dark:hover:bg-white/[0.05]'
           }`}
           aria-expanded={isOpen}
           aria-label={t('user_menu.title', 'Perfil y configuración de usuario')}
@@ -134,20 +134,19 @@ export default function UserMenu({
             <img
               src={user?.picture}
               alt={user?.name || 'Usuario'}
-              className="w-9 h-9 rounded-full ring-2 ring-blue-400/40 shadow-sm object-cover"
+              className="w-8 h-8 rounded-full object-cover"
             />
             <span
-              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10"
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-[#07090d]"
               title="Strava Conectado"
             />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+            <p className="text-[13px] font-medium leading-tight text-slate-900 dark:text-white truncate">
               {user?.name || 'Corredor'}
             </p>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-white/55 truncate">
-              <SparklesIcon className="w-3 h-3 text-teal-600 dark:text-teal-300 shrink-0" />
-              <span className="truncate font-medium capitalize">{cleanModelName}</span>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs leading-tight text-slate-500 dark:text-white/55 truncate">
+              <span className="truncate capitalize">{cleanModelName}</span>
               {isGarminConnected && (
                 <span
                   className="w-1.5 h-1.5 rounded-full bg-[#007cc3] shrink-0"
