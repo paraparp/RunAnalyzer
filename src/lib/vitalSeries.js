@@ -11,9 +11,10 @@
 // diario) y `smooth` la media móvil (diario) o la media del bucket.
 // ============================================================================
 
-import { vo2FromRun } from './physiology';
-import { efficiencyFactorRun } from './efficiencyFactor';
-import { COLORS } from './palette';
+// Con extensión: el MCP también importa este módulo, y Node la exige.
+import { vo2FromRun } from './physiology.js';
+import { efficiencyFactorRun } from './efficiencyFactor.js';
+import { COLORS } from './palette.js';
 
 export const MS_DAY = 86400000;
 export const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -188,6 +189,11 @@ function withLine(data, maxGapMs) {
   return out;
 }
 
+/** La serie con el valor real de cada día como dato y línea, sin media móvil. Los
+ *  huecos cortos se cruzan en recta; los largos cortan la línea, como en la media. */
+export const rawAsLine = (data) =>
+  withLine(data.map((d) => ({ ...d, smooth: d.raw, raw: null })), MAX_LINE_GAP_DAYS * MS_DAY);
+
 /** Último valor suavizado no nulo (las series densificadas pueden acabar en hueco). */
 export function lastOf(arr) {
   for (let i = arr.length - 1; i >= 0; i--) if (arr[i].smooth != null) return arr[i].smooth;
@@ -213,6 +219,29 @@ export function domainOf(metrics, fallback) {
 const tsOf = (iso) => new Date(iso).getTime();
 
 /**
+ * Puntos por carrera de VO₂max submáximo y eficiencia `{ vo2, eff }`, cada uno
+ * `[{ ms, v }]`. FCmax y FC de reposo vienen de la calibración compartida. La
+ * eficiencia se define en efficiencyFactor.js (m/latido, solo km aeróbicos).
+ */
+export function runDerivedPoints(activities = [], { hrmax, hrrest, gapAdjust = false } = {}) {
+  const vo2 = activities
+    .filter((a) => a.average_heartrate >= 90 && a.average_speed >= 1.5 && (a.moving_time || 0) >= 600)
+    .map((a) => {
+      const v = vo2FromRun(a.average_speed, a.average_heartrate, hrrest, hrmax);
+      return v ? { ms: tsOf(a.start_date), v } : null;
+    })
+    .filter(Boolean);
+  const eff = activities
+    .map((a) => {
+      const v = efficiencyFactorRun(a, { maxObservedHr: hrmax, gapAdjust });
+      return v == null ? null : { ms: tsOf(a.start_date), v: +v.toFixed(3) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.ms - b.ms);
+  return { vo2, eff };
+}
+
+/**
  * Todas las métricas vitales con su serie del período y sus extremos históricos.
  *
  * @param {object} p
@@ -223,11 +252,12 @@ const tsOf = (iso) => new Date(iso).getTime();
  * @param {Array}  [p.weights]   pesadas `{ date, weight_kg }`
  * @param {Array}  [p.pmc]       serie diaria del PMC calibrado `{ date, load, ctl, atl, tsb }`
  * @param {Array}  p.activities  carreras (para VO₂max submáximo y eficiencia)
+ * @param {object} [p.derived]   puntos ya calculados de runDerivedPoints; sustituyen a `activities`
  * @returns {{ metrics: Array, goodBands: Array, effThreshold: number|null, cutoff: number }}
  *   `metrics` = [{ key, title, accent, unit, decimals, invertY, data, history }]
  */
 export function buildVitalMetrics({
-  garmin = [], sleep = [], weights = [], pmc = [], activities = [],
+  garmin = [], sleep = [], weights = [], pmc = [], activities = [], derived = null,
   days, gran, gapAdjust = false, hrmax, hrrest, nowMs,
 }) {
   const cutoff = nowMs - days * MS_DAY;
@@ -303,28 +333,10 @@ export function buildVitalMetrics({
   const atl = build(pmcPts("atl"), 0, 1, { noRaw: true });
   const tsb = build(pmcPts("tsb"), 0, 1, { noRaw: true });
 
-  // ── VO₂max submáximo (proxy de eficiencia) desde los runs de Strava ──
-  // FCmax / FCreposo vienen de useHrParams (detectMaxHR / detectRestHR), no de
-  // estimadores propios de esta vista.
-  const vo2Pts = activities
-    .filter((a) => a.average_heartrate >= 90 && a.average_speed >= 1.5 && (a.moving_time || 0) >= 600)
-    .map((a) => {
-      const v = vo2FromRun(a.average_speed, a.average_heartrate, hrrest, hrmax);
-      return v ? { ms: tsOf(a.start_date), v } : null;
-    })
-    .filter(Boolean);
+  // VO₂max submáximo y eficiencia: los puntos ya guardados (MCP) o, sin ellos, las
+  // actividades.
+  const { vo2: vo2Pts, eff: effPts } = derived ?? runDerivedPoints(activities, { hrmax, hrrest, gapAdjust });
   const vo2 = build(vo2Pts, 28, 1); // ~4-week rolling fitness en diario
-
-  // ── Eficiencia aeróbica (metros por latido) ──
-  // La definición vive en src/lib/efficiencyFactor.js (m/latido, solo km
-  // aeróbicos, ajustada por desnivel): es la compartida por toda la app.
-  const effPts = activities
-    .map((a) => {
-      const v = efficiencyFactorRun(a, { maxObservedHr: hrmax, gapAdjust });
-      return v == null ? null : { ms: tsOf(a.start_date), v: +v.toFixed(3) };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.ms - b.ms);
   const effAll = series(effPts, 28, 2);
   const eff = { data: effAll.filter((d) => d.ms >= cutoff), history: extremesOf(effAll) };
 

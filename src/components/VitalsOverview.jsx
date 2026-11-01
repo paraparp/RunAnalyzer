@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -15,6 +15,7 @@ import { ACCENTS, fmtDate, fmtDateFull, lastOf, deltaOf } from '../lib/vitalSeri
 import useVitalMetrics from '../hooks/useVitalMetrics';
 import ExpandableChart, { ExpandButton } from './ExpandableChart';
 import MetricChart, { GranSelector } from './MetricChart';
+import { TimeScopeSelector } from './TimeScope';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -205,6 +206,7 @@ const PANEL_KEYS = ["hrv", "rhr", "vo2", "eff"];
 export default function VitalsOverview({ activities = [], allActivities }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const viewerKey = searchParams.get("m");
+  const [daily, setDaily] = useState(false); // visor: valor real de cada día en vez de la media móvil
   const openViewer = (k) => setSearchParams((sp) => { sp.set("m", k); return sp; });
   // Cerrar quita `m` de la URL: recargar o volver atrás no reabre el visor.
   const closeViewer = () => setSearchParams((sp) => { sp.delete("m"); return sp; }, { replace: true });
@@ -235,6 +237,7 @@ export default function VitalsOverview({ activities = [], allActivities }) {
   const viewerMetric = metrics.find((m) => m.key === viewerKey) ?? null;
   const periodControls = (
     <div className="flex flex-wrap items-center gap-2">
+      <TimeScopeSelector />
       {granSelector}
     </div>
   );
@@ -432,8 +435,8 @@ export default function VitalsOverview({ activities = [], allActivities }) {
         trigger="none"
         open={viewerMetric != null}
         onOpenChange={(o) => { if (!o) closeViewer(); }}
-        title={viewerMetric?.title ?? ""}
-        subtitle={granLabel}
+        title="Resumen Vital"
+        hideHeader
         expandedContent={viewerMetric && (
           <MetricChart
             metricKey={viewerMetric.key}
@@ -444,6 +447,8 @@ export default function VitalsOverview({ activities = [], allActivities }) {
             xFmt={xFmt}
             bands={goodBands}
             avgLabel={avgLabel}
+            daily={daily}
+            onDailyChange={setDaily}
           />
         )}
       />

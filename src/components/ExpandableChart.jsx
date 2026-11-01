@@ -21,10 +21,12 @@ import { ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/react/24/outline';
  * @param {boolean} [open] / [onOpenChange]  Modo controlado (para ExpandButton).
  * @param {React.ReactNode} [expandedContent]  Contenido alternativo para el
  *   modal (p. ej. una versión del gráfico con zoom y más anotaciones).
+ * @param {boolean} [hideHeader]  Sin cabecera visible, solo el botón de cerrar;
+ *   `title` queda como nombre accesible del diálogo.
  */
 export default function ExpandableChart({
   title, subtitle, toolbar, footer, className = '', style,
-  trigger = 'overlay', open: openProp, onOpenChange, expandedContent, children,
+  trigger = 'overlay', open: openProp, onOpenChange, expandedContent, hideHeader = false, children,
 }) {
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
@@ -67,14 +69,16 @@ export default function ExpandableChart({
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="flex flex-col w-full h-full bg-white dark:bg-[#0c0e12] rounded-2xl shadow-2xl overflow-hidden"
+            className="relative flex flex-col w-full h-full bg-white dark:bg-[#0c0e12] rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-white/10 flex-wrap">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base font-bold text-slate-800 dark:text-white truncate">{title}</h2>
-                {subtitle && <p className="text-xs text-slate-500 dark:text-white/55 truncate">{subtitle}</p>}
-              </div>
+            <div className={hideHeader ? "absolute top-2 right-2 z-10" : "flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-white/10 flex-wrap"}>
+              {!hideHeader && (
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-bold text-slate-800 dark:text-white truncate">{title}</h2>
+                  {subtitle && <p className="text-xs text-slate-500 dark:text-white/55 truncate">{subtitle}</p>}
+                </div>
+              )}
               {toolbar}
               <button
                 type="button"
@@ -86,7 +90,7 @@ export default function ExpandableChart({
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 min-h-0 p-3 sm:p-6">{expandedContent ?? children}</div>
+            <div className={`flex-1 min-h-0 ${hideHeader ? "px-3 pb-3 pt-12 sm:p-6 sm:pr-14" : "p-3 sm:p-6"}`}>{expandedContent ?? children}</div>
             {footer && <div className="px-4 sm:px-6 pb-4">{footer}</div>}
           </div>
         </div>,
