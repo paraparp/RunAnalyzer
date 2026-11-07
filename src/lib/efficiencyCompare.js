@@ -301,6 +301,8 @@ export function compareEfficiency(points, { refEffort = null, refHr = null } = {
   sessions.forEach((s, i) => {
     const w = sessions.slice(Math.max(0, i - k), i + k + 1).map((x) => x.pace_at_ref_s);
     s.rolling_pace_s = w.length >= 3 ? median(w) : null;
+    const h = sessions.slice(Math.max(0, i - k), i + k + 1).map((x) => x.hr_at_ref);
+    s.rolling_hr = h.length >= 3 ? median(h) : null;
   });
 
   // Tendencia: el coeficiente de tiempo traducido a ritmo a FC fija.
