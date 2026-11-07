@@ -135,7 +135,8 @@ export function adjustRun(run, coef, refSpeed) {
   const v = mean(run.rows.map((r) => r.v));
   const vRaw = mean(run.rows.map((r) => r.vRaw));
   const g1 = coef.drift.value;
-  const g2 = coef.driftLong.value;
+  // La deriva se frena pasado el km 10 pero no se invierte: γ1 + γ2 ≥ 0.
+  const g2 = Math.max(coef.driftLong.value, -g1);
   const driftRun = g1 * mean(run.rows.map((r) => r.k - 1)) + g2 * mean(run.rows.map((r) => Math.max(0, r.k - BASE_KM)));
   const drift10 = g1 * 5; // km 2..10 → (k − 1) medio = 5
   const hrDist = hr - (driftRun - drift10);
@@ -197,6 +198,9 @@ export function epochAdjusters(activities, { windowDays = WINDOW_DAYS, refPaceS 
       ts: d.getTime(),
       drift: coef.drift.value,
       drift_long: coef.driftLong.value,
+      // Deriva TOTAL por km pasado el 10 (γ1 + γ2, nunca negativa): un γ2 negativo
+      // solo dice que la deriva se frena, y leído suelto parecía que la FC bajaba.
+      drift_after: Math.max(0, coef.drift.value + coef.driftLong.value),
       drift_long_source: coef.driftLong.source,
       pace_per_10s: coef.pace.value * (ref - 1000 / (refPace + 10)),
       n_runs: coef.n_runs,

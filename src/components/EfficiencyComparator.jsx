@@ -21,6 +21,7 @@ import { formatPaceFromSecPerKm } from '../lib/timeFormat';
 import {
   sessionPoint, selectGroup, compareEfficiency, modelLine, DISTANCE_FAMILIES, secPerKm,
 } from '../lib/efficiencyCompare';
+import { epochAdjusters } from '../lib/driftAdjust';
 
 // Identidad de las tiradas elegidas para el cara a cara: orden FIJO (el color sigue a
 // la tirada, no a su puesto) y validado con el script de dataviz en claro y oscuro
@@ -31,6 +32,7 @@ const MAX_PICK = 4;
 
 const pace = (s) => formatPaceFromSecPerKm(s);
 const fmtDate = (d, locale) => new Date(d).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' });
+const mpbFmt = (v) => (Number.isFinite(v) ? v.toFixed(3) : '—');
 const signed = (v, d = 0) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`);
 // Tono secuencial de un solo color: más antiguo = más claro.
 const recencyFill = (f) => `color-mix(in oklab, ${COLORS.signal} ${Math.round(45 + 55 * f)}%, ${COLORS.paper})`;
@@ -90,7 +92,9 @@ function SessionTooltip({ active, payload, metric, model, t, locale }) {
           : t('eff_cmp.tt_hr', { hr: s.hr_at_ref.toFixed(1), pace: pace(model.ref_pace_s) })}
       </p>
       <p className="text-slate-500 dark:text-white/55 tabular-nums">
-        {Math.round(s.beats_per_km)} {t('eff_cmp.bpk_unit')}
+        {Number.isFinite(s.mpb_10k)
+          ? t('eff_cmp.tt_mpb', { raw: mpbFmt(s.mpb_raw), eq: mpbFmt(s.mpb_10k) })
+          : `${mpbFmt(s.ef)} m/lat`}
       </p>
       <p className="text-slate-500 dark:text-white/55 tabular-nums">
         {t('eff_cmp.tt_raw', { pace: pace(secPerKm(s.effort)), hr: Math.round(s.hr) })}
@@ -158,7 +162,7 @@ function OverlayChart({ picks, colors, field, unit, reversed, fmt, t }) {
   );
 }
 
-function HeadToHead({ picks, colors, model, onRemove, t, locale }) {
+function HeadToHead({ picks, colors, model, refPace10k, onRemove, t, locale }) {
   const best = (key, lower) => {
     const vals = picks.map((p) => p[key]).filter(Number.isFinite);
     if (vals.length < 2) return null;
@@ -171,7 +175,11 @@ function HeadToHead({ picks, colors, model, onRemove, t, locale }) {
     { key: 'avg_hr', label: t('eff_cmp.h_hr'), fmt: (v) => `${Math.round(v)} ppm` },
     { key: 'elev_per_km', label: t('eff_cmp.h_elev'), fmt: (v) => `${v.toFixed(0)} m/km` },
     { key: 'wbgt', label: 'WBGT', fmt: (v) => `${v.toFixed(0)} °C` },
-    { key: 'beats_per_km', label: t('eff_cmp.h_bpk'), fmt: (v) => `${Math.round(v)}`, better: 'low' },
+    { key: 'mpb_raw', label: t('eff_cmp.h_mpb_raw'), fmt: mpbFmt },
+    { key: 'adj_grade', label: t('eff_cmp.h_adj_grade'), fmt: (v) => signed(v, 3), sub: true },
+    { key: 'adj_distance', label: t('eff_cmp.h_adj_distance'), fmt: (v) => signed(v, 3), sub: true },
+    { key: 'adj_pace', label: t('eff_cmp.h_adj_pace', { pace: pace(refPace10k) }), fmt: (v) => signed(v, 3), sub: true },
+    { key: 'mpb_10k', label: t('eff_cmp.h_mpb_10k'), fmt: mpbFmt, better: 'high', strong: true },
     { key: 'hr_at_ref', label: t('eff_cmp.h_hr_at_ref', { pace: pace(model.ref_pace_s) }), fmt: (v) => `${v.toFixed(1)} ppm`, better: 'low' },
     { key: 'pace_at_ref_s', label: t('eff_cmp.h_pace_at_ref', { hr: Math.round(model.ref_hr) }), fmt: (v) => `${pace(v)}/km`, better: 'low', strong: true },
   ];
@@ -207,7 +215,7 @@ function HeadToHead({ picks, colors, model, onRemove, t, locale }) {
               const b = r.better ? best(r.key, r.better === 'low') : null;
               return (
                 <tr key={r.key} className="border-t border-slate-100 dark:border-white/10">
-                  <td className={`py-2 pr-3 ${r.strong ? 'font-bold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-white/70'}`}>{r.label}</td>
+                  <td className={`py-2 pr-3 ${r.strong ? 'font-bold text-slate-800 dark:text-white' : r.sub ? 'pl-4 text-slate-500 dark:text-white/55' : 'text-slate-600 dark:text-white/70'}`}>{r.label}</td>
                   {picks.map((p) => {
                     const v = p[r.key];
                     const isBest = b != null && v === b;
@@ -239,6 +247,61 @@ function HeadToHead({ picks, colors, model, onRemove, t, locale }) {
   );
 }
 
+// ── Ajustadores por época: cómo cambian la deriva y el coste del ritmo ──────
+
+function EpochMini({ data, dataKey, title, fmt, locale }) {
+  return (
+    <div>
+      <p className="text-xs font-bold text-slate-700 dark:text-white/80 mb-1">{title}</p>
+      <ResponsiveContainer width="100%" height={150}>
+        <LineChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
+          <XAxis
+            dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} tick={AXIS_TICK} minTickGap={30}
+            tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'short' })}
+          />
+          <YAxis width={36} tick={AXIS_TICK} tickFormatter={fmt} domain={[0, (max) => Math.ceil(max * 1.2 * 10) / 10]} />
+          <RechartsTooltip
+            formatter={(v) => [fmt(v), title]}
+            labelFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+          />
+          <Line dataKey={dataKey} stroke={COLORS.signal} strokeWidth={2} dot={{ r: 3, fill: COLORS.signal, stroke: COLORS.paper, strokeWidth: 1.5 }} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function EpochAdjusters({ adjusters, from, t, locale }) {
+  // Se AJUSTAN con todo el histórico (la ventana de ±6 semanas necesita vecinas),
+  // pero se ENSEÑAN solo los meses del período elegido en la barra superior.
+  const fromTs = from ? new Date(from).getTime() : -Infinity;
+  const epochs = adjusters.epochs.filter((e) => e.ts >= fromTs);
+  if (!epochs.length) return null;
+  const last = epochs[epochs.length - 1];
+  const f1 = (v) => v.toFixed(1);
+  return (
+    <Card>
+      <p className="text-sm font-bold text-slate-800 dark:text-white">{t('eff_cmp.adj_title')}</p>
+      <p className="text-xs text-slate-500 dark:text-white/55 mb-3 max-w-3xl">
+        {t('eff_cmp.adj_sub', { pace: pace(adjusters.ref_pace_s) })}
+      </p>
+      <div className="grid md:grid-cols-3 gap-4">
+        <EpochMini data={epochs} dataKey="drift" title={t('eff_cmp.adj_drift')} fmt={f1} locale={locale} />
+        <EpochMini data={epochs} dataKey="drift_after" title={t('eff_cmp.adj_drift_long')} fmt={f1} locale={locale} />
+        <EpochMini data={epochs} dataKey="pace_per_10s" title={t('eff_cmp.adj_pace')} fmt={f1} locale={locale} />
+      </div>
+      <p className="text-xs text-slate-600 dark:text-white/70 mt-3 max-w-3xl">
+        {t('eff_cmp.adj_now', {
+          drift: f1(last.drift), long: f1(last.drift_after), cost: f1(last.pace_per_10s), n: last.n_runs,
+        })}
+        {last.drift_long_source === 'prior' && ` ${t('eff_cmp.adj_long_prior')}`}
+      </p>
+    </Card>
+  );
+}
+
 // ── Componente principal ────────────────────────────────────────────────────
 
 export default function EfficiencyComparator({ activities, onOpenActivity }) {
@@ -252,7 +315,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   const [family, setFamily] = useState('medium');
   const [terrain, setTerrain] = useState('any');
   const [refId, setRefId] = useState('');
-  const [metric, setMetric] = useState('pace');
+  const [metric, setMetric] = useState('ef10');
   const [sortBy, setSortBy] = useState('date');
   const [picked, setPicked] = useState([]);
 
@@ -275,14 +338,25 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   ])), [points, terrain, from]);
 
   const group = useMemo(() => selectGroup(points, {
-    mode, family, terrain, refId, from: mode === 'similar' ? null : from,
+    mode, family, terrain, refId, from,
   }), [points, mode, family, terrain, refId, from]);
   const model = useMemo(() => compareEfficiency(group.points), [group]);
 
+  // Ajustadores de deriva/ritmo por época: se ajustan sobre TODAS las tiradas (no solo
+  // el grupo) porque la deriva por km se estima mejor con más tiradas de la época.
+  const adjusters = useMemo(() => epochAdjusters(activities), [activities]);
+  const sessions = useMemo(() => (model.ok ? model.sessions.map((s) => {
+    const a = adjusters.byId.get(String(s.id));
+    return a ? {
+      ...s, mpb_10k: a.mpb_10k, mpb_raw: a.mpb_raw,
+      adj_grade: a.adj.grade, adj_distance: a.adj.distance, adj_pace: a.adj.pace,
+    } : s;
+  }) : []), [model, adjusters]);
+
   const refOptions = useMemo(() => points
-    .filter((p) => p.ok && p.distance_m >= 3000)
+    .filter((p) => p.ok && p.distance_m >= 3000 && (!from || String(p.date).slice(0, 10) >= from))
     .sort((a, b) => b.ts - a.ts)
-    .slice(0, 400), [points]);
+    .slice(0, 400), [points, from]);
 
   // Ids del grupo actual: la selección que ya no pertenece al grupo se ignora.
   const groupIds = useMemo(() => new Set(model.ok ? model.sessions.map((s) => String(s.id)) : []), [model]);
@@ -307,14 +381,24 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   // ── Datos de las gráficas ──
   const tsMin = model.ok ? model.sessions[0].ts : 0;
   const tsMax = model.ok ? model.sessions[model.sessions.length - 1].ts : 1;
-  const evo = useMemo(() => (model.ok ? model.sessions.map((s) => ({
-    ...s,
-    value: metric === 'pace' ? s.pace_at_ref_s : metric === 'hr' ? s.hr_at_ref : s.beats_per_km,
-    rolling: metric === 'pace' ? s.rolling_pace_s : metric === 'hr' ? s.rolling_hr : s.rolling_bpk,
-  })) : []), [model, metric]);
-  const median = metric === 'pace' ? model.median_pace_s : metric === 'hr' ? model.hr_at_ref_mean : model.median_bpk;
+  const isEf = metric === 'ef10' || metric === 'ef';
+  const evo = useMemo(() => {
+    const valueOf = (s) => (metric === 'pace' ? s.pace_at_ref_s
+      : metric === 'hr' ? s.hr_at_ref
+        : metric === 'ef10' ? (s.mpb_10k ?? null) : s.ef);
+    const rows = sessions.map((s) => ({ ...s, value: valueOf(s) })).filter((r) => Number.isFinite(r.value));
+    // Mediana móvil de 5 tiradas sobre los puntos que SÍ tienen valor.
+    return rows.map((r, i) => {
+      const w = rows.slice(Math.max(0, i - 2), i + 3).map((x) => x.value).sort((a, b) => a - b);
+      return { ...r, rolling: w.length >= 3 ? w[Math.floor(w.length / 2)] : null };
+    });
+  }, [sessions, metric]);
+  const median = useMemo(() => {
+    const v = evo.map((r) => r.value).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : null;
+  }, [evo]);
 
-  const scatter = useMemo(() => (model.ok ? model.sessions.map((s) => ({ ...s, x: secPerKm(s.effort), y: s.hr })) : []), [model]);
+  const scatter = useMemo(() => sessions.map((s) => ({ ...s, x: secPerKm(s.effort), y: s.hr })), [sessions]);
   const line = useMemo(() => {
     if (!model.ok) return [];
     const sp = model.sessions.map((s) => s.effort);
@@ -323,7 +407,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   }, [model]);
 
   const picks = selectedIds.map((id) => {
-    const s = model.sessions.find((x) => String(x.id) === id);
+    const s = sessions.find((x) => String(x.id) === id);
     const a = byId.get(id);
     return {
       ...s,
@@ -337,7 +421,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   });
 
   const tableRows = model.ok
-    ? [...model.sessions].sort((a, b) => (sortBy === 'date' ? b.ts - a.ts : a.pace_at_ref_s - b.pace_at_ref_s))
+    ? [...sessions].sort((a, b) => (sortBy === 'date' ? b.ts - a.ts : a.pace_at_ref_s - b.pace_at_ref_s))
     : [];
 
   const dot = (props) => {
@@ -453,13 +537,16 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
                 ? t('eff_cmp.evo_sub_pace', { hr: refHr })
                 : metric === 'hr'
                   ? t('eff_cmp.evo_sub_hr', { pace: pace(model.ref_pace_s) })
-                  : t('eff_cmp.evo_sub_bpk')}
+                  : metric === 'ef10'
+                    ? t('eff_cmp.evo_sub_ef10', { pace: pace(adjusters.ref_pace_s) })
+                    : t('eff_cmp.evo_sub_ef')}
             </p>
           </div>
           <Segmented value={metric} onChange={setMetric} options={[
+            ...(adjusters.ref_speed ? [{ id: 'ef10', label: t('eff_cmp.metric_ef10') }] : []),
             { id: 'pace', label: t('eff_cmp.metric_pace', { hr: refHr }) },
             { id: 'hr', label: t('eff_cmp.metric_hr', { pace: pace(model.ref_pace_s) }) },
-            { id: 'bpk', label: t('eff_cmp.metric_bpk') },
+            { id: 'ef', label: t('eff_cmp.metric_ef') },
           ]} />
         </div>
         <ExpandableChart className="h-[300px]" title={t('eff_cmp.evo_title')}>
@@ -471,15 +558,15 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
                 tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
                 tick={AXIS_TICK} minTickGap={36}
               />
-              {/* Invertido: mejor = arriba en las dos métricas (menos s/km, menos ppm). */}
+              {/* Mejor = arriba siempre: ritmo y FC van invertidos (menos es mejor), m/latido no. */}
               <YAxis
-                reversed width={48} tick={AXIS_TICK} allowDecimals={false}
+                reversed={!isEf} width={isEf ? 52 : 48} tick={AXIS_TICK} allowDecimals={isEf}
                 domain={metric === 'pace'
                   ? [(min) => Math.floor((min - 3) / 10) * 10, (max) => Math.ceil((max + 3) / 10) * 10]
                   : metric === 'hr'
                     ? [(min) => Math.floor(min - 2), (max) => Math.ceil(max + 2)]
-                    : [(min) => Math.floor((min - 5) / 10) * 10, (max) => Math.ceil((max + 5) / 10) * 10]}
-                tickFormatter={(v) => (metric === 'pace' ? pace(v) : Math.round(v))}
+                    : [(min) => Math.floor((min - 0.02) * 50) / 50, (max) => Math.ceil((max + 0.02) * 50) / 50]}
+                tickFormatter={(v) => (metric === 'pace' ? pace(v) : isEf ? v.toFixed(2) : Math.round(v))}
               />
               <RechartsTooltip content={<SessionTooltip metric={metric} model={model} t={t} locale={locale} />} cursor={{ stroke: COLORS.hairlineStrong }} />
               {median != null && <ReferenceLine y={median} stroke={COLORS.inkFaint} strokeDasharray="4 4" label={{ value: t('eff_cmp.median'), position: 'insideTopRight', fontSize: 10, fill: COLORS.inkMuted }} />}
@@ -489,12 +576,16 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
           </ResponsiveContainer>
         </ExpandableChart>
         <p className="text-xs text-slate-500 dark:text-white/55 mt-2">{t('eff_cmp.evo_hint')}</p>
-        {metric === 'bpk' && (
+        {metric === 'ef' && (
           <p className="text-xs bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2 mt-2">
-            {t('eff_cmp.bpk_warn')}
+            {t('eff_cmp.ef_warn')}
           </p>
         )}
       </Card>
+
+      {adjusters.epochs.length > 0 && (
+        <EpochAdjusters adjusters={adjusters} from={from} t={t} locale={locale} />
+      )}
 
       {/* Nube ritmo-FC con la recta del grupo: debajo de la recta = más eficiente. */}
       <Card>
@@ -539,7 +630,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
         {picks.length < 2 ? (
           <p className="text-xs text-slate-500 dark:text-white/55">{t('eff_cmp.h2h_empty', { max: MAX_PICK })}</p>
         ) : (
-          <HeadToHead picks={picks} colors={PICK} model={model} onRemove={toggle} t={t} locale={locale} />
+          <HeadToHead picks={picks} colors={PICK} model={model} refPace10k={adjusters.ref_pace_s} onRemove={toggle} t={t} locale={locale} />
         )}
       </Card>
 
@@ -563,6 +654,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
                 <th className="py-2 px-2 text-right">GAP</th>
                 <th className="py-2 px-2 text-right">{t('eff_cmp.c_hr')}</th>
                 <th className="py-2 px-2 text-right">WBGT</th>
+                <th className="py-2 px-2 text-right">{t('eff_cmp.c_mpb10')}</th>
                 <th className="py-2 px-2 text-right">{t('eff_cmp.c_pace_at', { hr: refHr })}</th>
                 <th className="py-2 px-2 text-right">{t('eff_cmp.c_delta')}</th>
                 <th className="py-2 px-2 text-right">#</th>
@@ -596,7 +688,8 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
                     <td className="py-1.5 px-2 text-right text-slate-600 dark:text-white/70">{pace(secPerKm(s.effort))}</td>
                     <td className="py-1.5 px-2 text-right text-slate-600 dark:text-white/70">{Math.round(s.hr)}</td>
                     <td className="py-1.5 px-2 text-right text-slate-500 dark:text-white/55">{Number.isFinite(s.wbgt) ? s.wbgt.toFixed(0) : '—'}</td>
-                    <td className="py-1.5 px-2 text-right font-bold text-slate-900 dark:text-white">{pace(s.pace_at_ref_s)}</td>
+                    <td className="py-1.5 px-2 text-right font-bold text-slate-900 dark:text-white">{mpbFmt(s.mpb_10k)}</td>
+                    <td className="py-1.5 px-2 text-right font-semibold text-slate-700 dark:text-white/80">{pace(s.pace_at_ref_s)}</td>
                     <td className={`py-1.5 px-2 text-right ${notable ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-500 dark:text-white/55'}`}>
                       {notable && (s.delta_pace_s < 0 ? '▲ ' : '▼ ')}{signed(s.delta_pace_s)} s
                     </td>

@@ -161,6 +161,8 @@ export const DISTANCE_FAMILIES = [
   { id: 'long', lo: 12500, hi: 17500 },
   { id: 'half', lo: 17500, hi: 24000 },
   { id: 'xlong', lo: 24000, hi: 60000 },
+  // Todas: solo tiene sentido con la métrica de 10k llano, que ya corrige la distancia.
+  { id: 'all', lo: 3000, hi: 100000 },
 ];
 
 export const TERRAINS = {
