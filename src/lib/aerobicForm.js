@@ -246,7 +246,7 @@ export const fitOls = (X, y) => {
 };
 
 /** Error estándar de la combinación lineal c'β. */
-const seOf = (fit, c) => {
+export const seOf = (fit, c) => {
   let q = 0;
   for (let a = 0; a < c.length; a++) {
     if (c[a] === 0) continue;

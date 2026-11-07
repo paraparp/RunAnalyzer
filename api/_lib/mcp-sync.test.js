@@ -376,7 +376,7 @@ describe('Garmin', () => {
 
   it('con Garmin caído no marca el estrés como ya revisado', async () => {
     const u = nextUser();
-    put(u, 'garmin_cardiac_data', [{ date: '2025-01-01' }]);
+    put(u, 'garmin_cardiac_data', [{ date: '2025-01-01' }, { date: hoy, maxStress: 50 }]);
     garmin.activities = [gact(1)];
     garmin.stress = null;
 
