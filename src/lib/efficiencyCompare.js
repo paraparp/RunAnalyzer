@@ -28,8 +28,7 @@
 // ============================================================================
 
 import { sessionWindow, fitOls, seOf } from './aerobicForm.js';
-import { activityGapSpeed } from './streamGap.js';
-import { gapFactor } from './gap.js';
+import { gapFactor, gapSpeedFromGain } from './gap.js';
 import { efficiencyMPerBeat } from './efficiencyFactor.js';
 
 const RUNNING = new Set(['Run', 'TrailRun', 'VirtualRun']);
@@ -51,7 +50,20 @@ export const median = (arr) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
+// Mismo rango que `sessionHeat` (weather.js): fuera de él la unidad de origen venía
+// mal etiquetada (se han visto 58 °C) y meterlo en la regresión movería todo el grupo.
+const plausibleWbgt = (w) => (Number.isFinite(w) && w >= -5 && w <= 45 ? w : null);
+
 const movingTime = (a) => a?.moving_time || a?.elapsed_time || 0;
+
+// GAP de sesión entera desde el D+ de la cabecera. NO se usa `activityGapSpeed`
+// (stream_gap) a propósito: hoy devuelve GAP ~35 s/km más rápido que el ritmo real
+// en rodajes llanos (bug aguas arriba), y aquí movería la pendiente del grupo.
+const wholeGap = (a) => {
+  const t = movingTime(a);
+  if (!(a?.distance > 0) || !(t > 0)) return 0;
+  return gapSpeedFromGain(a.distance / t, a.distance, a.total_elevation_gain || 0);
+};
 const elevPerKm = (a) => (a?.distance > 0 && a.total_elevation_gain != null
   ? a.total_elevation_gain / (a.distance / 1000) : null);
 
@@ -112,7 +124,7 @@ export function sessionPoint(a, { wbgtOf = (x) => x?._wbgt ?? null, hrSourceOf =
     if (sp && sp.cv <= MAX_SPLIT_CV) { pair = { effort: sp.effort, hr: sp.hr }; source = 'splits'; }
   }
   if (!pair) {
-    const g = activityGapSpeed(a);
+    const g = wholeGap(a);
     if (g > 0) { pair = { effort: g, hr: a.average_heartrate }; source = 'whole'; }
   }
   if (!pair) return { ok: false, reason: 'sin-datos' };
@@ -126,7 +138,7 @@ export function sessionPoint(a, { wbgtOf = (x) => x?._wbgt ?? null, hrSourceOf =
     distance_m: a.distance,
     moving_s: t,
     speed_ms: a.distance / t,
-    gap_ms: activityGapSpeed(a) || null,
+    gap_ms: wholeGap(a) || null,
     avg_hr: a.average_heartrate,
     elev_per_km: elevPerKm(a),
     effort: pair.effort,
@@ -134,7 +146,7 @@ export function sessionPoint(a, { wbgtOf = (x) => x?._wbgt ?? null, hrSourceOf =
     drift_bpm: pair.drift ?? null,
     source,
     split_cv: splitSpeedCv(a.splits_metric),
-    wbgt: wbgtOf(a),
+    wbgt: plausibleWbgt(wbgtOf(a)),
     hr_source: hrSourceOf(a),
     ef: efficiencyMPerBeat(pair.effort, pair.hr),
     race: a.workout_type === 1,
@@ -279,6 +291,8 @@ export function compareEfficiency(points, { refEffort = null, refHr = null } = {
       hr_at_ref: hrAtRef,
       speed_at_ref: speedAtRef,
       pace_at_ref_s: secPerKm(speedAtRef),
+      // El cociente clásico, SIN normalizar: latidos por km a ritmo GAP.
+      beats_per_km: p.effort > 0 ? (p.hr * 1000) / (p.effort * 60) : null,
     };
   });
 
@@ -303,6 +317,8 @@ export function compareEfficiency(points, { refEffort = null, refHr = null } = {
     s.rolling_pace_s = w.length >= 3 ? median(w) : null;
     const h = sessions.slice(Math.max(0, i - k), i + k + 1).map((x) => x.hr_at_ref);
     s.rolling_hr = h.length >= 3 ? median(h) : null;
+    const b = sessions.slice(Math.max(0, i - k), i + k + 1).map((x) => x.beats_per_km);
+    s.rolling_bpk = b.length >= 3 ? median(b) : null;
   });
 
   // Tendencia: el coeficiente de tiempo traducido a ritmo a FC fija.
@@ -338,6 +354,7 @@ export function compareEfficiency(points, { refEffort = null, refHr = null } = {
     hr_at_ref_mean: mH,
     residual_sd_pace_s: secPerKm(refE) - secPerKm(refE + residualSd / slope),
     median_pace_s: medPace,
+    median_bpk: median(sessions.map((x) => x.beats_per_km)),
     recent_vs_median_s: recent.length ? median(recent) - medPace : null,
     trend,
     r2: fit?.r2 ?? null,

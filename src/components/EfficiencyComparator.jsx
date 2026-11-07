@@ -33,7 +33,7 @@ const pace = (s) => formatPaceFromSecPerKm(s);
 const fmtDate = (d, locale) => new Date(d).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: '2-digit' });
 const signed = (v, d = 0) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`);
 // Tono secuencial de un solo color: más antiguo = más claro.
-const recencyFill = (f) => `color-mix(in oklab, ${COLORS.signal} ${Math.round(25 + 75 * f)}%, ${COLORS.paper})`;
+const recencyFill = (f) => `color-mix(in oklab, ${COLORS.signal} ${Math.round(45 + 55 * f)}%, ${COLORS.paper})`;
 
 const wbgtOfGarmin = (g) => {
   const w = g?.weather;
@@ -88,6 +88,9 @@ function SessionTooltip({ active, payload, metric, model, t, locale }) {
         {metric === 'pace'
           ? t('eff_cmp.tt_pace', { pace: pace(s.pace_at_ref_s), hr: Math.round(model.ref_hr) })
           : t('eff_cmp.tt_hr', { hr: s.hr_at_ref.toFixed(1), pace: pace(model.ref_pace_s) })}
+      </p>
+      <p className="text-slate-500 dark:text-white/55 tabular-nums">
+        {Math.round(s.beats_per_km)} {t('eff_cmp.bpk_unit')}
       </p>
       <p className="text-slate-500 dark:text-white/55 tabular-nums">
         {t('eff_cmp.tt_raw', { pace: pace(secPerKm(s.effort)), hr: Math.round(s.hr) })}
@@ -168,7 +171,7 @@ function HeadToHead({ picks, colors, model, onRemove, t, locale }) {
     { key: 'avg_hr', label: t('eff_cmp.h_hr'), fmt: (v) => `${Math.round(v)} ppm` },
     { key: 'elev_per_km', label: t('eff_cmp.h_elev'), fmt: (v) => `${v.toFixed(0)} m/km` },
     { key: 'wbgt', label: 'WBGT', fmt: (v) => `${v.toFixed(0)} °C` },
-    { key: 'ef', label: t('eff_cmp.h_ef'), fmt: (v) => v.toFixed(2), better: 'high' },
+    { key: 'beats_per_km', label: t('eff_cmp.h_bpk'), fmt: (v) => `${Math.round(v)}`, better: 'low' },
     { key: 'hr_at_ref', label: t('eff_cmp.h_hr_at_ref', { pace: pace(model.ref_pace_s) }), fmt: (v) => `${v.toFixed(1)} ppm`, better: 'low' },
     { key: 'pace_at_ref_s', label: t('eff_cmp.h_pace_at_ref', { hr: Math.round(model.ref_hr) }), fmt: (v) => `${pace(v)}/km`, better: 'low', strong: true },
   ];
@@ -281,7 +284,9 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
     .sort((a, b) => b.ts - a.ts)
     .slice(0, 400), [points]);
 
-  const selectedIds = picked.filter((id) => model.ok && model.sessions.some((s) => String(s.id) === id));
+  // Ids del grupo actual: la selección que ya no pertenece al grupo se ignora.
+  const groupIds = useMemo(() => new Set(model.ok ? model.sessions.map((s) => String(s.id)) : []), [model]);
+  const selectedIds = picked.filter((id) => groupIds.has(id));
   const colorOf = (id) => {
     const i = selectedIds.indexOf(String(id));
     return i >= 0 ? PICK[i] : null;
@@ -290,7 +295,7 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
     const k = String(id);
     setPicked((prev) => (prev.includes(k)
       ? prev.filter((x) => x !== k)
-      : [...prev.filter((x) => selectedIds.includes(x)), k].slice(-MAX_PICK)));
+      : [...prev.filter((x) => groupIds.has(x)), k].slice(-MAX_PICK)));
   };
 
   const compareWithSimilar = (id) => {
@@ -304,10 +309,10 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
   const tsMax = model.ok ? model.sessions[model.sessions.length - 1].ts : 1;
   const evo = useMemo(() => (model.ok ? model.sessions.map((s) => ({
     ...s,
-    value: metric === 'pace' ? s.pace_at_ref_s : s.hr_at_ref,
-    rolling: metric === 'pace' ? s.rolling_pace_s : s.rolling_hr,
+    value: metric === 'pace' ? s.pace_at_ref_s : metric === 'hr' ? s.hr_at_ref : s.beats_per_km,
+    rolling: metric === 'pace' ? s.rolling_pace_s : metric === 'hr' ? s.rolling_hr : s.rolling_bpk,
   })) : []), [model, metric]);
-  const median = metric === 'pace' ? model.median_pace_s : model.hr_at_ref_mean;
+  const median = metric === 'pace' ? model.median_pace_s : metric === 'hr' ? model.hr_at_ref_mean : model.median_bpk;
 
   const scatter = useMemo(() => (model.ok ? model.sessions.map((s) => ({ ...s, x: secPerKm(s.effort), y: s.hr })) : []), [model]);
   const line = useMemo(() => {
@@ -446,12 +451,15 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
             <p className="text-xs text-slate-500 dark:text-white/55">
               {metric === 'pace'
                 ? t('eff_cmp.evo_sub_pace', { hr: refHr })
-                : t('eff_cmp.evo_sub_hr', { pace: pace(model.ref_pace_s) })}
+                : metric === 'hr'
+                  ? t('eff_cmp.evo_sub_hr', { pace: pace(model.ref_pace_s) })
+                  : t('eff_cmp.evo_sub_bpk')}
             </p>
           </div>
           <Segmented value={metric} onChange={setMetric} options={[
             { id: 'pace', label: t('eff_cmp.metric_pace', { hr: refHr }) },
             { id: 'hr', label: t('eff_cmp.metric_hr', { pace: pace(model.ref_pace_s) }) },
+            { id: 'bpk', label: t('eff_cmp.metric_bpk') },
           ]} />
         </div>
         <ExpandableChart className="h-[300px]" title={t('eff_cmp.evo_title')}>
@@ -460,13 +468,17 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} vertical={false} />
               <XAxis
                 dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']}
-                tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'short', year: '2-digit' })}
-                tick={AXIS_TICK} minTickGap={28}
+                tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
+                tick={AXIS_TICK} minTickGap={36}
               />
               {/* Invertido: mejor = arriba en las dos métricas (menos s/km, menos ppm). */}
               <YAxis
-                reversed width={48} tick={AXIS_TICK}
-                domain={[(min) => Math.floor(min - 3), (max) => Math.ceil(max + 3)]}
+                reversed width={48} tick={AXIS_TICK} allowDecimals={false}
+                domain={metric === 'pace'
+                  ? [(min) => Math.floor((min - 3) / 10) * 10, (max) => Math.ceil((max + 3) / 10) * 10]
+                  : metric === 'hr'
+                    ? [(min) => Math.floor(min - 2), (max) => Math.ceil(max + 2)]
+                    : [(min) => Math.floor((min - 5) / 10) * 10, (max) => Math.ceil((max + 5) / 10) * 10]}
                 tickFormatter={(v) => (metric === 'pace' ? pace(v) : Math.round(v))}
               />
               <RechartsTooltip content={<SessionTooltip metric={metric} model={model} t={t} locale={locale} />} cursor={{ stroke: COLORS.hairlineStrong }} />
@@ -477,6 +489,11 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
           </ResponsiveContainer>
         </ExpandableChart>
         <p className="text-xs text-slate-500 dark:text-white/55 mt-2">{t('eff_cmp.evo_hint')}</p>
+        {metric === 'bpk' && (
+          <p className="text-xs bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2 mt-2">
+            {t('eff_cmp.bpk_warn')}
+          </p>
+        )}
       </Card>
 
       {/* Nube ritmo-FC con la recta del grupo: debajo de la recta = más eficiente. */}
@@ -488,8 +505,8 @@ export default function EfficiencyComparator({ activities, onOpenActivity }) {
             <ComposedChart margin={{ top: 10, right: 16, left: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.hairline} />
               <XAxis
-                dataKey="x" type="number" reversed tick={AXIS_TICK} tickFormatter={pace}
-                domain={[(min) => Math.floor(min - 5), (max) => Math.ceil(max + 5)]}
+                dataKey="x" type="number" reversed tick={AXIS_TICK} tickFormatter={pace} allowDecimals={false}
+                domain={[(min) => Math.floor((min - 5) / 10) * 10, (max) => Math.ceil((max + 5) / 10) * 10]}
                 label={{ value: t('eff_cmp.map_x'), position: 'insideBottomRight', offset: -2, fontSize: 10, fill: COLORS.inkMuted }}
               />
               <YAxis
