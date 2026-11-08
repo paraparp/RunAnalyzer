@@ -7,8 +7,9 @@ import {
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getSessionStreams } from '../services/strava';
-import { buildChartSeries, segmentStats, SESSION_STREAM_KEYS } from '../lib/streamChart';
+import { buildChartSeries, segmentStats, bestEfficiencyWindows, SESSION_STREAM_KEYS } from '../lib/streamChart';
 import { formatDuration, formatPaceFromSpeed } from '../lib/timeFormat';
+import { efficiencyMPerBeat } from '../lib/efficiencyFactor';
 import { getLightMapTileUrl, getDarkMapTileUrl, getMapAttribution } from '../lib/mapTiles';
 import useTheme from '../hooks/useTheme';
 import { COLORS, AXIS_TICK } from '../lib/palette';
@@ -67,7 +68,17 @@ function StreamsMap({ track, selection, hover }) {
   );
 }
 
-function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
+// Colores de los mejores tramos marcados (3 / 5 / 10 km).
+const BEST_COLORS = ['#10b981', '#f59e0b', '#8b5cf6'];
+
+function SegmentPanel({ stats, whole, t, onZoom, onClear, zoomed }) {
+  // Eficiencia del tramo (m por latido) frente a la de la sesión entera.
+  const ef = efficiencyMPerBeat(stats.speed_ms, stats.avg_hr);
+  const efGap = efficiencyMPerBeat(stats.gap_speed_ms, stats.avg_hr);
+  const efWhole = whole ? efficiencyMPerBeat(whole.speed_ms, whole.avg_hr) : null;
+  const efDelta = ef != null && efWhole ? ((ef / efWhole) - 1) * 100 : null;
+  const efTone = efDelta == null || Math.abs(efDelta) < 1 ? 'text-slate-900 dark:text-white'
+    : efDelta > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300';
   const items = [
     [t('session.streams_distance'), `${(stats.distance_m / 1000).toFixed(2)} km`],
     [t('session.streams_time'), formatDuration(stats.time_s)],
@@ -94,6 +105,22 @@ function SegmentPanel({ stats, t, onZoom, onClear, zoomed }) {
           </button>
         </div>
       </div>
+      {ef != null && (
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-3 pb-3 border-b border-teal-200 dark:border-teal-300/25" title={t('session.ef_aerobic_hint')}>
+          <span className="text-xs text-blue-800">{t('session.efficiency_title')}</span>
+          <span className={`text-2xl font-black tabular-nums ${efTone}`}>
+            {ef.toFixed(2)}<span className="ml-1 text-xs font-semibold text-slate-500 dark:text-white/55">{t('session.u_ef')}</span>
+          </span>
+          {efDelta != null && (
+            <span className={`text-sm font-bold tabular-nums ${efTone}`}>
+              {efDelta > 0 ? '+' : ''}{efDelta.toFixed(1)}% <span className="font-medium text-slate-500 dark:text-white/55">vs {t('session.streams_whole', 'sesión completa')} ({efWhole.toFixed(2)})</span>
+            </span>
+          )}
+          {efGap != null && (
+            <span className="text-xs tabular-nums text-slate-600 dark:text-white/75">EF GAP {efGap.toFixed(2)}</span>
+          )}
+        </div>
+      )}
       <dl className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-x-4 gap-y-2">
         {items.map(([label, value, title]) => (
           <div key={label} title={title}>
@@ -117,6 +144,7 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
   const [hoverIdx, setHoverIdx] = useState(null);
   const [touchArmed, setTouchArmed] = useState(false); // dedo apoyado, aún sin moverse
   const [attempt, setAttempt] = useState(0);
+  const [marked, setMarked] = useState({}); // { [distance_m]: true } mejores tramos marcados
 
   useEffect(() => {
     if (!accessToken || !activityId) return;
@@ -145,6 +173,11 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
   const stats = useMemo(
     () => (sel ? segmentStats(state.streams, series[sel.a].i, series[sel.b].i) : null),
     [sel, series, state.streams],
+  );
+  const bestWindows = useMemo(() => bestEfficiencyWindows(state.streams), [state.streams]);
+  const wholeStats = useMemo(
+    () => (series.length > 1 ? segmentStats(state.streams, series[0].i, series[series.length - 1].i) : null),
+    [series, state.streams],
   );
   const selTrack = useMemo(
     () => (sel ? series.slice(sel.a, sel.b + 1).filter((p) => p.lat != null).map((p) => [p.lat, p.lng]) : null),
@@ -228,9 +261,47 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
           : <span className="text-xs text-slate-500 dark:text-white/55">{t('session.streams_hint')}</span>}
       </div>
 
+      {bestWindows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('session.best_ef_title', 'Mejor eficiencia')}>
+          <span className="text-label font-bold uppercase text-slate-500 dark:text-white/55">{t('session.best_ef_title', 'Mejor eficiencia')}</span>
+          {bestWindows.map((w, k) => {
+            const color = BEST_COLORS[k % BEST_COLORS.length];
+            const on = !!marked[w.distance_m];
+            const select = () => {
+              const a = series.findIndex((p) => p.i >= w.i0);
+              let b = series.findIndex((p) => p.i >= w.i1);
+              if (b < 0) b = series.length - 1;
+              if (a >= 0 && b - a >= 2) { setSel({ a, b }); setZoom(null); }
+            };
+            return (
+              <span key={w.distance_m} className={`inline-flex items-center rounded border text-xs ${on ? 'border-slate-300 dark:border-white/20 bg-white dark:bg-white/[0.05]' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03]'}`}>
+                <label className="inline-flex items-center gap-1.5 pl-2 pr-1.5 py-1 cursor-pointer">
+                  <input
+                    type="checkbox" checked={on}
+                    onChange={() => setMarked((m) => ({ ...m, [w.distance_m]: !m[w.distance_m] }))}
+                    className="w-3.5 h-3.5" style={{ accentColor: color }}
+                  />
+                  <span className="w-2 h-2 rounded-[50%]" style={{ background: color }} aria-hidden="true" />
+                  <span className="font-semibold text-slate-800 dark:text-white">{w.distance_m / 1000} km</span>
+                  <span className="font-black tabular-nums text-slate-900 dark:text-white">{w.ef.toFixed(2)}</span>
+                  {w.gap && <span className="text-label font-bold text-slate-500 dark:text-white/55">GAP</span>}
+                </label>
+                <button
+                  type="button" onClick={select}
+                  title={`${formatPaceFromSpeed(w.speed_ms)} /km${w.gap_speed_ms ? ` (GAP ${formatPaceFromSpeed(w.gap_speed_ms)})` : ''} · EF ${w.ef_raw.toFixed(2)} · ${Math.round(w.avg_hr)} ${t('session.u_bpm')} · km ${(series.find((p) => p.i >= w.i0)?.km ?? 0).toFixed(1)}`}
+                  className="px-1.5 py-1 border-l border-slate-200 dark:border-white/10 tabular-nums text-slate-500 dark:text-white/55 hover:text-teal-700 dark:hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-blue-500"
+                >
+                  {formatPaceFromSpeed(w.gap_speed_ms ?? w.speed_ms)} · {Math.round(w.avg_hr)}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {stats && (
         <SegmentPanel
-          stats={stats} t={t} zoomed={!!zoom}
+          stats={stats} whole={wholeStats} t={t} zoomed={!!zoom}
           onZoom={() => setZoom(sel)}
           onClear={() => { setSel(null); setZoom(null); }}
         />
@@ -268,6 +339,14 @@ export default function SessionStreams({ activityId, accessToken, fallback = nul
                   {m.area
                     ? <Area dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.25} isAnimationActive={false} connectNulls />
                     : <Line dataKey={m.key} stroke={m.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />}
+                  {bestWindows.map((w, wk) => marked[w.distance_m] && (
+                    <ReferenceArea
+                      key={`best-${w.distance_m}`}
+                      x1={series.find((p) => p.i >= w.i0)?.km} x2={(series.find((p) => p.i >= w.i1) ?? series[series.length - 1]).km}
+                      fill={BEST_COLORS[wk % BEST_COLORS.length]} fillOpacity={0.12}
+                      stroke={BEST_COLORS[wk % BEST_COLORS.length]} strokeOpacity={0.6}
+                    />
+                  ))}
                   {band && series[band.a] && series[band.b] && (
                     <ReferenceArea
                       x1={series[Math.min(band.a, band.b)].km} x2={series[Math.max(band.a, band.b)].km}

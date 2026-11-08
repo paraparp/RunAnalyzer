@@ -38,6 +38,7 @@ import {
   readGarminCreds, garminSyncDays, saveGarminHealth, SYNC_COMPLETE_EVENT,
 } from './garminHealthStore';
 import { syncGarminActivities } from './garminActivitiesSync';
+import { summarizeSyncRun, recordSyncRun } from './syncHistory';
 
 /** Cuántas actividades de Strava se guardan como mucho. */
 const STRAVA_LIMIT = 1000;
@@ -186,6 +187,7 @@ export async function syncAll({
   onGarminHealth,
   onActivities,
 } = {}) {
+  const startedAt = Date.now();
   const stravaLane = syncStrava({ full, onData: onStravaData, onDisconnected: onStravaDisconnected })
     .then((strava) => {
       // El enriquecido en segundo plano (splits, streams) gasta hasta ~90 de las
@@ -202,6 +204,10 @@ export async function syncAll({
     stravaLane,
     syncGarmin({ full, onHealth: onGarminHealth }),
   ]);
+
+  recordSyncRun(summarizeSyncRun({
+    startedAt, finishedAt: Date.now(), mode: full ? 'full' : force ? 'force' : 'quick', strava, garmin,
+  }));
 
   // Un solo aviso al final, con los dos carriles ya escritos: es el que despierta
   // a las vistas que leen de cloudStorage (GarminCardiac, VO2Max, wearable, AI…).

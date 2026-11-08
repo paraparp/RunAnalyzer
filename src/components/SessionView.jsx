@@ -583,20 +583,35 @@ function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onCli
   );
 }
 
-/** Las cifras de la sesión, en una franja compacta: contexto del veredicto, no titular. */
-function Totals({ items, cols }) {
+/** Las cifras de la sesión: las clave en grande; el resto, contexto compacto. */
+function Totals({ items }) {
+  const primary = items.filter((it) => it.primary);
+  const rest = items.filter((it) => !it.primary);
   return (
-    <dl className={`grid grid-cols-3 sm:grid-cols-5 ${cols} gap-x-4 gap-y-3 px-5 py-4`}>
-      {items.map((it) => (
-        <div key={it.label} className="min-w-0" title={it.title}>
-          <dt className="text-label font-bold uppercase text-slate-500 dark:text-white/55 truncate">{it.label}</dt>
-          <dd className="text-lg leading-tight font-black tabular-nums text-slate-900 dark:text-white truncate">
-            {it.value}{it.unit && <span className="ml-0.5 text-xs font-semibold text-slate-500 dark:text-white/55">{it.unit}</span>}
-          </dd>
-          {it.hint && <dd className="text-xs text-slate-500 dark:text-white/55 truncate">{it.hint}</dd>}
-        </div>
-      ))}
-    </dl>
+    <div>
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 px-5 pt-4 pb-3">
+        {primary.map((it) => (
+          <div key={it.label} className="min-w-0" title={it.title}>
+            <dt className="text-label font-bold uppercase text-slate-500 dark:text-white/55 truncate">{it.label}</dt>
+            <dd className="text-3xl leading-none mt-1 font-black tabular-nums tracking-tight text-slate-900 dark:text-white truncate">
+              {it.value}{it.unit && <span className="ml-1 text-sm font-semibold text-slate-500 dark:text-white/55">{it.unit}</span>}
+            </dd>
+            {it.hint && <dd className="mt-0.5 text-xs text-slate-500 dark:text-white/55 truncate">{it.hint}</dd>}
+          </div>
+        ))}
+      </dl>
+      <dl className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-2 px-5 py-3 border-t border-slate-100 dark:border-white/10">
+        {rest.map((it) => (
+          <div key={it.label} className="min-w-0" title={it.title}>
+            <dt className="text-label font-bold uppercase text-slate-500 dark:text-white/55 truncate">{it.label}</dt>
+            <dd className="text-sm leading-tight font-bold tabular-nums text-slate-700 dark:text-white/85 truncate">
+              {it.value}{it.unit && <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-white/55">{it.unit}</span>}
+            </dd>
+            {it.hint && <dd className="text-xs text-slate-500 dark:text-white/55 truncate">{it.hint}</dd>}
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -666,7 +681,7 @@ function StepButton({ target, label, dir, onStep, locale }) {
 }
 
 export default function SessionView({
-  activityId, activities, hrParams, accessToken,
+  activityId, activities, hrParams, accessToken, shoes,
   onBack, onOpenActivity, onStepActivity, onEnrichActivity, onNavigate, onAskCoach,
 }) {
   const { t, i18n } = useTranslation();
@@ -753,7 +768,8 @@ export default function SessionView({
   const { gap, zones, decoupling, efficiency, weather, similar } = model;
   const race = isRace(activity);
   // Sin vueltas del reloj se cae a los parciales por km, que no traen `lap_index`.
-  const splits = activity.laps?.length
+  // Una sola vuelta es la sesión entera (sin auto-lap): no informa nada, mejor los km.
+  const splits = activity.laps?.length > 1 || !activity.splits_metric?.length
     ? activity.laps
     : activity.splits_metric?.map((s) => ({ ...s, lap_index: s.split }));
   const polyline = activity.map?.summary_polyline || activity.map?.polyline || null;
@@ -761,6 +777,10 @@ export default function SessionView({
   const cadence = spm(activity.average_cadence);
   const bpm = t('session.u_bpm');
   const dateLabel = start.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const shoe = activity.gear_id
+    ? (shoes || []).find((sh) => sh.id === activity.gear_id) ?? activity.gear ?? { name: activity.gear_id }
+    : null;
 
   const showHeat = weather?.wbgt_plausible && weather.heat_penalty_session_pct != null && weather.heat_penalty_session_pct >= 0.5;
   const stoppedLong = activity.elapsed_time && activity.elapsed_time - moving > 60;
@@ -831,13 +851,13 @@ export default function SessionView({
   // el perfil de la sesión (enlazado al tramo) y no se repite.
   const headerMap = !accessToken && polyline;
   const totals = [
-    { label: t('session.distance'), value: (activity.distance / 1000).toFixed(2), unit: 'km' },
-    { label: t('session.moving_time'), value: formatDuration(moving),
+    { primary: true, label: t('session.distance'), value: (activity.distance / 1000).toFixed(2), unit: 'km' },
+    { primary: true, label: t('session.moving_time'), value: formatDuration(moving),
       hint: stoppedLong ? `${t('session.elapsed')} ${formatDuration(activity.elapsed_time)}` : null },
-    { label: t('session.pace'), value: formatPaceFromSpeed(speed), unit: '/km' },
+    { primary: true, label: t('session.pace'), value: formatPaceFromSpeed(speed), unit: '/km' },
     { label: 'GAP', value: gap ? formatPaceFromSpeed(gap.speed_ms) : '—', unit: gap ? '/km' : null,
       hint: gap ? t(`session.gap_source.${gap.source}`) : null },
-    { label: t('session.avg_hr'), value: activity.average_heartrate ? Math.round(activity.average_heartrate) : '—', unit: activity.average_heartrate ? bpm : null },
+    { primary: true, label: t('session.avg_hr'), value: activity.average_heartrate ? Math.round(activity.average_heartrate) : '—', unit: activity.average_heartrate ? bpm : null },
     { label: t('session.hr_max'), value: activity.max_heartrate ? Math.round(activity.max_heartrate) : '—', unit: activity.max_heartrate ? bpm : null },
     { label: t('session.elevation'), value: Math.round(activity.total_elevation_gain || 0), unit: 'm' },
     { label: t('session.cadence'), value: cadence ?? '—', unit: cadence ? 'spm' : null },
@@ -921,6 +941,16 @@ export default function SessionView({
                 <span className="first-letter:uppercase">{dateLabel}</span>
                 <span className="text-slate-400 dark:text-white/40" aria-hidden="true">·</span>
                 <span className="tabular-nums">{start.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
+                {shoe && (
+                  <>
+                    <span className="text-slate-400 dark:text-white/40" aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-white/80" title={t('session.shoe', 'Calzado')}>
+                      <span aria-hidden="true">👟</span>
+                      <span className="font-semibold">{shoe.name}</span>
+                      {shoe.distance > 0 && <span className="tabular-nums text-slate-500 dark:text-white/55">· {Math.round(shoe.distance / 1000)} km</span>}
+                    </span>
+                  </>
+                )}
                 {race && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-px rounded text-label font-bold uppercase bg-slate-100 dark:bg-white/[0.04] text-slate-800 dark:text-white ring-1 ring-inset ring-slate-300">
                     <FlagIcon className="w-3 h-3" aria-hidden="true" />{t('session.race')}
@@ -953,7 +983,7 @@ export default function SessionView({
           {insights.length > 0 && <HowToRead t={t} />}
 
           <div className="border-t border-slate-100 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.04]">
-            <Totals items={totals} cols={headerMap ? '' : 'xl:grid-cols-9'} />
+            <Totals items={totals} />
           </div>
         </div>
 
@@ -979,7 +1009,7 @@ export default function SessionView({
       <Card id="pace" title={t('session.pace_title')}>
         {splitsBody(
           <ActivitySplits mode="pace" splits={splits} hrParams={hrParams} bestEfforts={activity.best_efforts}
-            similarActivities={activity.similar_activities} splitsMetric={activity.splits_metric} />,
+            similarActivities={activity.similar_activities} />,
         )}
       </Card>
 
@@ -987,7 +1017,7 @@ export default function SessionView({
       <Card id="hr" title={t('session.hr_title')}>
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 min-w-0">
-            {splitsBody(<ActivitySplits mode="hr" splits={splits} hrParams={hrParams} splitsMetric={activity.splits_metric} />)}
+            {splitsBody(<ActivitySplits mode="hr" splits={splits} hrParams={hrParams} />)}
           </div>
           <div className="min-w-0">
             <h3 className="text-label font-bold uppercase text-slate-500 dark:text-white/55 mb-3">{t('session.zones_title')}</h3>

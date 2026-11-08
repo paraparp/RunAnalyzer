@@ -409,7 +409,7 @@ const BestEffortsSection = ({ efforts }) => {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, splitsMetric, mode = 'pace', defaultOpen = false }) => {
+const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, mode = 'pace', defaultOpen = false }) => {
     const { t } = useTranslation();
     // El gráfico ya resume la sesión; la tabla, vuelta a vuelta, se despliega a demanda.
     const [open, setOpen] = useState(defaultOpen);
@@ -423,14 +423,12 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
         if (!splits || splits.length === 0) return { rows: [], avgPaceS: 0 };
         const full = splits.filter(s => s.distance >= 950 && s.average_speed > 0);
         const ref = full.length ? full : splits.filter(s => s.average_speed > 0);
-        const avgSpeed = ref.reduce((s, a) => s + a.average_speed, 0) / ref.length;
-        const avgPaceS = avgSpeed > 0 ? 1000 / avgSpeed : 300;
-        const fastestSpeed = Math.max(...(full.length ? full : splits).filter(s => s.average_speed > 0).map(s => s.average_speed));
-
-        // Build a map of Strava's official GAP speed by split index
-        const stravaGapMap = splitsMetric?.length
-            ? Object.fromEntries(splitsMetric.map(s => [s.split, s.average_grade_adjusted_speed]))
-            : {};
+        // Ritmo medio = distancia total / tiempo total (no la media de velocidades,
+        // que pesa igual un parcial de 200 m que uno de 1 km y no cuadra con la sesión).
+        const refDist = ref.reduce((s, a) => s + (a.distance || 0), 0);
+        const refTime = ref.reduce((s, a) => s + (a.moving_time || (a.distance / a.average_speed)), 0);
+        const avgPaceS = refDist > 0 && refTime > 0 ? (refTime / refDist) * 1000 : 300;
+        const fastestSpeed = Math.max(...ref.map(s => s.average_speed));
 
         const rows = splits.map((split, idx) => {
             const paceS = split.average_speed > 0 ? 1000 / split.average_speed : avgPaceS;
@@ -441,8 +439,10 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
             const hrZone = bounds ? getZone(split.average_heartrate, bounds) : 0;
             const isFaster = deviationPct < 0;
 
-            // Use Strava's official GAP if available, otherwise fall back to local calculation
-            const stravaGapSpeed = stravaGapMap[split.split];
+            // GAP oficial de Strava solo si viene EN ese parcial (splits_metric por km).
+            // Las vueltas del reloj también traen `split`, pero es su número de vuelta:
+            // cruzarlo con el km N daba a una serie de 400 m el GAP de otro kilómetro.
+            const stravaGapSpeed = split.average_grade_adjusted_speed;
             const gap = stravaGapSpeed
                 ? formatPaceFromSpeed(stravaGapSpeed)
                 : calculateGAP(split.average_speed, split.distance, split.elevation_difference, split.total_elevation_gain);
@@ -458,7 +458,7 @@ const ActivitySplits = ({ splits, hrParams, bestEfforts, similarActivities, spli
         });
 
         return { rows, avgPaceS };
-    }, [splits, bounds, splitsMetric]);
+    }, [splits, bounds]);
 
     const scale = useMemo(() => (rows.length ? paceScale(rows) : null), [rows]);
 

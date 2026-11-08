@@ -668,7 +668,7 @@ const Dashboard = ({ user, handleLogout }) => {
             {currentView !== 'dashboard' && (() => {
               const viewMap = {
                 log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onOpenActivity={openActivity} />,
-                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} onNavigate={setCurrentView} onAskCoach={askCoachAboutSession} />,
+                activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} shoes={stravaData?.athlete?.shoes} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} onNavigate={setCurrentView} onAskCoach={askCoachAboutSession} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,

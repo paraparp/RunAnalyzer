@@ -18,6 +18,7 @@ import useAIModel from '../hooks/useAIModel';
 import useTheme from '../hooks/useTheme';
 import cloudStorage from '../lib/cloudStorage';
 import { parseModelValue } from '../services/ai';
+import { readSyncHistory } from '../lib/syncHistory';
 
 /**
  * Comprueba si el usuario tiene credenciales o datos guardados de Garmin Connect.
@@ -313,6 +314,7 @@ export default function UserMenu({
                     'Vuelve a bajar todo el histórico de Strava y Garmin. Tarda más; el sync automático solo trae lo nuevo.'
                   )}
                 </p>
+                <SyncHistoryLine t={t} />
               </div>
             )}
 
@@ -386,5 +388,29 @@ export default function UserMenu({
         </div>
       )}
     </div>
+  );
+}
+
+// Último sync por carril (historial de lib/syncHistory): deja ver de un vistazo si
+// Strava o Garmin llevan días fallando en silencio.
+function SyncHistoryLine({ t }) {
+  const [last] = readSyncHistory();
+  if (!last) return null;
+  const time = new Date(last.startedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  const lane = (name, l) => {
+    if (l.status === 'disconnected') return null;
+    const ok = l.status === 'synced';
+    return (
+      <span key={name} title={l.error || ''} className={ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}>
+        {name} {ok ? '✓' : '✗'}
+      </span>
+    );
+  };
+  return (
+    <p className="text-xs text-slate-500 dark:text-white/55 flex flex-wrap gap-x-2">
+      <span>{t('user_menu.last_sync', 'Último sync')}: {time}</span>
+      {lane('Strava', last.strava)}
+      {lane('Garmin', last.garmin)}
+    </p>
   );
 }

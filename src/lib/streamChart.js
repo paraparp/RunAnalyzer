@@ -9,7 +9,7 @@
 // El GAP del tramo no se recalcula aquí: se recorta el stream y se pasa por
 // `computeStreamGap`, el mismo que da el GAP de la sesión entera.
 // ============================================================================
-import { computeStreamGap, hasStreamGap } from './streamGap';
+import { computeStreamGap, hasStreamGap, gapTimePrefix } from './streamGap';
 import { streamLength } from './streamProfile';
 
 /** Claves que pide la vista de sesión (key_by_type). */
@@ -177,4 +177,78 @@ export function segmentStats(streams, i0, i1) {
     loss_m: sg.loss_m != null ? round(sg.loss_m) : alt ? round(loss) : null,
     drift_pct,
   };
+}
+
+/**
+ * Mejor eficiencia (m por latido) en ventanas continuas de cada distancia.
+ *
+ * Cuidado con los artefactos que inflan la EF de una ventana:
+ *  - Retraso cardiaco: en los primeros minutos la FC aún no ha subido, así que
+ *    cualquier ventana que empiece ahí sale "espectacular". Se exige empezar
+ *    tras WARMUP_S (o, en sesiones cortas, tras el 15 % del tiempo).
+ *  - Caídas de la banda/muñeca: muestras muy por debajo de la mediana se tratan
+ *    como hueco, no como FC baja.
+ *  - Pausas: distancia, tiempo, GAP y FC se suman sólo sobre los mismos
+ *    intervalos válidos, para que numerador y denominador sean coherentes.
+ * Se ordena por EF sobre GAP (descuenta el desnivel); sin altitud, por ritmo real.
+ * Devuelve [{ distance_m, ef, ef_raw, gap, speed_ms, gap_speed_ms, avg_hr, i0, i1 }].
+ */
+const WARMUP_S = 600;
+export function bestEfficiencyWindows(streams, distances = [3000, 5000, 10000]) {
+  const dist = data(streams, 'distance');
+  const time = data(streams, 'time');
+  const hr = data(streams, 'heartrate');
+  if (!dist || !time || !hr || dist.length < 3) return [];
+  const n = dist.length;
+
+  const hrs = hr.filter((v) => v > 0).sort((x, y) => x - y);
+  if (!hrs.length) return [];
+  const hrFloor = hrs[Math.floor(hrs.length / 2)] * 0.7;
+
+  let gapT = null;
+  try { gapT = gapTimePrefix(streams); } catch { gapT = null; }
+
+  // Prefijos sobre intervalos válidos (en movimiento y con FC plausible).
+  const D = new Float64Array(n), T = new Float64Array(n), G = new Float64Array(n), H = new Float64Array(n);
+  let gapOk = !!gapT;
+  for (let j = 1; j < n; j++) {
+    const dd = dist[j] - dist[j - 1];
+    const dt = time[j] - time[j - 1];
+    const ok = dd > 0 && dt > 0 && dt <= 30 && dd / dt >= 1.2 && dd / dt <= 10 && hr[j] >= hrFloor;
+    const g = gapT ? gapT[j] - gapT[j - 1] : 0;
+    if (ok && !(g > 0)) gapOk = false;
+    D[j] = D[j - 1] + (ok ? dd : 0);
+    T[j] = T[j - 1] + (ok ? dt : 0);
+    G[j] = G[j - 1] + (ok ? g : 0);
+    H[j] = H[j - 1] + (ok ? hr[j] * dt : 0);
+  }
+
+  const duration = time[n - 1] - time[0];
+  const minStart = time[0] + Math.min(WARMUP_S, duration * 0.15);
+  const out = [];
+  for (const target of distances) {
+    let best = null;
+    let a = 0;
+    while (a < n && time[a] < minStart) a++;
+    const a0 = a;
+    for (let b = a0 + 1; b < n; b++) {
+      while (a + 1 < b && dist[b] - dist[a + 1] >= target) a++;
+      const span = dist[b] - dist[a];
+      if (span < target) continue;
+      const d = D[b] - D[a], t = T[b] - T[a];
+      // Si se descartó más del 15 % del tramo, la ventana no es representativa.
+      if (!(t > 0) || d < span * 0.85) continue;
+      const avgHr = (H[b] - H[a]) / t;
+      const speed = d / t;
+      const gt = gapOk ? G[b] - G[a] : 0;
+      const gapSpeed = gt > 0 ? d / gt : null;
+      const efRaw = (speed * 60) / avgHr;
+      const ef = gapSpeed ? (gapSpeed * 60) / avgHr : efRaw;
+      if (!best || ef > best.ef) {
+        best = { distance_m: target, ef, ef_raw: efRaw, gap: !!gapSpeed, speed_ms: speed, gap_speed_ms: gapSpeed, avg_hr: avgHr, i0: a, i1: b };
+      }
+    }
+    if (best) out.push(best);
+  }
+  return out;
 }

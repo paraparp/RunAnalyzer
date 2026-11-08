@@ -164,3 +164,29 @@ export const computeStreamGap = (streams) => {
   result.per_km = per_km;
   return result;
 };
+
+/**
+ * Prefijo del tiempo equivalente en llano (Minetti, pendiente por intervalo).
+ * Los intervalos que computeStreamGap descarta cuentan con su tiempo real,
+ * para que el prefijo se pueda restar en cualquier ventana. null sin altitud.
+ */
+export const gapTimePrefix = (streams) => {
+  const n = streamLength(streams);
+  if (!n) return null;
+  const dist = streams.distance.data;
+  const alt = streams.altitude.data;
+  const time = streams.time.data;
+  const { grade } = gradeSeries(streams, dist, alt, n);
+  const out = new Float64Array(n);
+  for (let i = 1; i < n; i++) {
+    const dd = dist[i] - dist[i - 1];
+    const dt = time[i] - time[i - 1];
+    let g = dt > 0 ? dt : 0;
+    if (dd > 0 && dt > 0 && dd <= MAX_GAP_M && dt <= MAX_STEP_S) {
+      const speed = dd / dt;
+      if (speed >= MIN_SPEED_MS && speed <= MAX_SPEED_MS) g = dt / gapFactor(grade[i]);
+    }
+    out[i] = out[i - 1] + g;
+  }
+  return out;
+};
