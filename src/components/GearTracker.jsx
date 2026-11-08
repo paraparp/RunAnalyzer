@@ -205,10 +205,11 @@ export default function GearTracker({ activities, stravaData, setStravaData }) {
 
         const formatPace = (speedMps) => formatPaceFromSpeed(speedMps, '-');
 
-        const today = new Date();
-        const diffTime = Math.abs(today - gear.lastUsed);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const lastUsedStr = diffDays <= 1 ? t('dashboard.today') : diffDays === 2 ? t('dashboard.yesterday') : `${diffDays}d`;
+        // Días de CALENDARIO (medianoche a medianoche), no bloques de 24 h: con
+        // Math.ceil, una salida de ayer a las 20:00 vista hoy a las 11:00 salía "hoy".
+        const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const diffDays = Math.round((midnight(new Date()) - midnight(gear.lastUsed)) / 86400000);
+        const lastUsedStr = diffDays <= 0 ? t('dashboard.today') : diffDays === 1 ? t('dashboard.yesterday') : `${diffDays}d`;
 
         const fmtDate = (d) => d.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
         const hasFirst = gear.firstUsed.getTime() < 8640000000000000;

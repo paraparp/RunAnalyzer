@@ -562,7 +562,7 @@ function SimilarModal({ isOpen, onClose, activity, activities, gap, onOpenActivi
 }
 
 /** Indicador del veredicto: la cifra y su lectura; si tiene sección, lleva a ella. */
-function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onClick }) {
+function Insight({ Icon, tone, valueTone, label, value, unit, sub, extra, title, onClick, big }) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
@@ -575,7 +575,9 @@ function Insight({ Icon, tone, valueTone, label, value, sub, extra, title, onCli
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-label font-bold uppercase text-slate-500 dark:text-white/55">{label}</span>
-        <span className={`block text-2xl leading-tight font-black tabular-nums tracking-tight ${valueTone}`}>{value}</span>
+        <span className={`block ${big ? 'text-4xl' : 'text-2xl'} leading-tight font-black tabular-nums tracking-tight ${valueTone}`}>
+          {value}{unit && <span className="ml-1 text-sm font-semibold text-slate-500 dark:text-white/55">{unit}</span>}
+        </span>
         <span className="block text-xs font-medium text-slate-600 dark:text-white/75 first-letter:uppercase">{sub}</span>
         {extra && <span className="block text-xs tabular-nums text-slate-500 dark:text-white/55">{extra}</span>}
       </span>
@@ -782,13 +784,14 @@ export default function SessionView({
     ? (shoes || []).find((sh) => sh.id === activity.gear_id) ?? activity.gear ?? { name: activity.gear_id }
     : null;
 
-  const showHeat = weather?.wbgt_plausible && weather.heat_penalty_session_pct != null && weather.heat_penalty_session_pct >= 0.5;
+  const showHeat = weather?.wbgt_plausible && weather.heat_penalty_session_pct != null && weather.heat_penalty_session_pct >= 1;
   const stoppedLong = activity.elapsed_time && activity.elapsed_time - moving > 60;
 
   // ── Veredicto ───────────────────────────────────────────────────────────
   // Cada indicador es la cifra y su lectura; la frase de arriba los dice en
   // palabras para que nada dependa del hover.
-  const efDelta = similar?.ef_delta_pct;
+  // Con menos de 3 sesiones parecidas la comparación es anécdota, no referencia.
+  const efDelta = similar?.n >= 3 ? similar.ef_delta_pct : null;
   const efNeutral = efDelta == null || Math.abs(efDelta) < EF_NOISE_PCT;
   const decH = decoupling.halves;
   const decD = decoupling.durability;
@@ -809,13 +812,16 @@ export default function SessionView({
       tone: efNeutral ? NEUTRAL_PILL : efDelta > 0 ? 'bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-400/10 text-rose-700 dark:text-rose-300',
       valueTone: efNeutral ? 'text-slate-900 dark:text-white' : efDelta > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300',
       label: t('session.efficiency_title'),
-      value: efDelta != null ? `${signed(efDelta)}%` : efficiency.whole.toFixed(2),
-      sub: efDelta != null ? t('session.insight_vs_similar', { rank: similar.rank, total: similar.n + 1 }) : t('session.u_ef'),
+      big: true,
+      value: efficiency.whole.toFixed(2),
+      unit: t('session.u_ef'),
+      sub: efDelta != null
+        ? `${signed(efDelta)}% ${t('session.insight_vs_similar', { rank: similar.rank, total: similar.n + 1 })}`
+        : t('session.ef_hint_short', 'metros por latido: más es mejor'),
       extra: [
         efDelta != null && efNeutral && t('session.ef_neutral'),
-        efDelta != null && `EF ${efficiency.whole.toFixed(2)} ${t('session.u_ef')}`,
         efficiency.aerobic != null && `${t('session.ef_aerobic_short')} ${efficiency.aerobic.toFixed(2)}`,
-        similar?.median_ef && `${t('session.median_short')} ${similar.median_ef.toFixed(2)}`,
+        efDelta != null && similar?.median_ef && `${t('session.median_short')} ${similar.median_ef.toFixed(2)}`,
       ].filter(Boolean).join(' · ') || null,
       title: efDelta == null ? t('session.ef_aerobic_hint') : undefined,
       target: efDelta != null ? 'similar' : null,
@@ -845,7 +851,11 @@ export default function SessionView({
       target: 'weather',
     },
   ].filter(Boolean);
-  const INSIGHT_COLS = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
+  // La eficiencia manda: ocupa el doble que el resto de indicadores.
+  const hasEf = insights[0]?.key === 'ef';
+  const INSIGHT_COLS = hasEf
+    ? { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-[2fr_1fr]', 3: 'sm:grid-cols-[2fr_1fr_1fr]' }
+    : { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
 
   // El mapa de la cabecera solo cuando no hay streams: con ellos, el mapa vive en
   // el perfil de la sesión (enlazado al tramo) y no se repite.
@@ -969,9 +979,12 @@ export default function SessionView({
           </div>
 
           {/* La respuesta, en palabras: lo primero que se lee después del nombre. */}
-          <p className="px-5 pt-2 pb-4 text-sm leading-relaxed text-slate-600 dark:text-white/75 max-w-[75ch]">
-            {verdict.length ? verdict.join(' ') : t('session.verdict_none')}
-          </p>
+          {/* Con indicadores, la frase solo repetía sus cifras: se omite. */}
+          {insights.length === 0 ? (
+            <p className="px-5 pt-2 pb-4 text-sm leading-relaxed text-slate-600 dark:text-white/75 max-w-[75ch]">
+              {verdict.length ? verdict.join(' ') : t('session.verdict_none')}
+            </p>
+          ) : <div className="pb-4" />}
 
           {insights.length > 0 && (
             <div className={`grid gap-px bg-slate-100 dark:bg-white/[0.04] border-y border-slate-100 dark:border-white/10 ${INSIGHT_COLS[insights.length]}`}>
