@@ -54,6 +54,19 @@ export const formatDataDate = (input) => {
 // El modelo devuelve un objeto validado por Zod en servidor; aquí se convierte
 // a los bloques de texto + metadatos que consume la UI (misma forma que el
 // antiguo protocolo "|||", así caché, seed del chat y componentes no cambian).
+// Algunos modelos (Groq gpt-oss) dan la zona pero omiten fcMin/fcMax: se
+// completan con los límites Karvonen de esa zona, los mismos que recibe el
+// prompt, así que no se inventa nada. Muta `sesion` para que la validación de
+// coherencia vea el rango completado.
+export const fillSessionHr = (obj, zones) => {
+  const s = obj?.sesion;
+  const z = s?.zona && zones?.[Math.round(s.zona) - 1];
+  if (!z) return obj;
+  if (s.fcMin == null && z.lo) s.fcMin = z.lo;
+  if (s.fcMax == null && z.hi) s.fcMax = z.hi;
+  return obj;
+};
+
 export const coachObjectToBlocks = (obj) => {
   if (!obj || !Array.isArray(obj.diagnostico) || !Array.isArray(obj.tendencia)) return null;
   const join = (arr) => (Array.isArray(arr) ? arr.map(s => String(s).trim()).filter(Boolean).join('\n') : '');
@@ -62,9 +75,9 @@ export const coachObjectToBlocks = (obj) => {
   // Respuesta aceptable: al menos diagnóstico + tendencia con contenido real.
   if (cur.length < 15 || trend.length < 15) return null;
   const s = obj.sesion ?? {};
-  const zona = s.zona
-    ? `Zona ${Math.round(s.zona)}${s.fcMin && s.fcMax ? ` · ${Math.round(s.fcMin)}-${Math.round(s.fcMax)} ppm` : ''}`
-    : null;
+  const hr = s.fcMin && s.fcMax ? ` · ${Math.round(s.fcMin)}-${Math.round(s.fcMax)} ppm`
+    : s.fcMax ? ` · <${Math.round(s.fcMax)} ppm` : '';
+  const zona = s.zona ? `Zona ${Math.round(s.zona)}${hr}` : null;
   return {
     cur,
     trend,

@@ -128,8 +128,19 @@ export function formatActivities(acts) {
         if (a.total_elevation_gain) extras.push(`Desnivel: +${Math.round(a.total_elevation_gain)}m`);
         if (a.max_speed) extras.push(`Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h`);
         if (a.average_cadence) extras.push(`Cadencia: ${Math.round(a.average_cadence * 2)} spm`);
+        // Parciales por km: sin ellos, los proveedores sin herramientas (todos
+        // menos el OpenUI Gateway) respondían "no hay desglose km a km".
+        const splits = Array.isArray(a.splits_metric)
+            ? a.splits_metric.filter(sp => sp.distance > 0 && sp.moving_time > 0).map(sp => {
+                const p = paceStr((sp.moving_time / 60) / (sp.distance / 1000));
+                const hr = sp.average_heartrate ? `/${Math.round(sp.average_heartrate)}` : '';
+                const el = Math.abs(sp.elevation_difference ?? 0) >= 2 ? `/${sp.elevation_difference > 0 ? '+' : ''}${Math.round(sp.elevation_difference)}m` : '';
+                return `${p}${hr}${el}`;
+            })
+            : [];
+        const splitsLine = splits.length >= 2 ? `\n   • Parciales/km (ritmo/FC/±desnivel; el último puede ser un tramo parcial): ${splits.join(' · ')}` : '';
         return `${idx + 1}. "${a.name}" - ${date}${a.id != null ? ` [id ${a.id}]` : ''}
-   • Distancia: ${distKm} km | Tiempo: ${formatDuration(a.moving_time)} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
+   • Distancia: ${distKm} km | Tiempo: ${formatDuration(a.moving_time)} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}${splitsLine}`;
     }).join('\n\n');
 }
 

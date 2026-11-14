@@ -7,7 +7,7 @@ import {
 import useAIModel from './useAIModel';
 import { buildPrompt } from '../lib/athleteContext';
 import { getPrimaryTargetRace, DISTANCES, TARGET_RACES_EVENT } from '../lib/targetRaces';
-import { paceStr, coachObjectToBlocks, coachCoherenceWarnings } from '../lib/aiInsights';
+import { paceStr, coachObjectToBlocks, coachCoherenceWarnings, fillSessionHr } from '../lib/aiInsights';
 
 // Máquina de estados del análisis IA: caché con validación, backup/restore,
 // cadena de proveedores (Gemini → Groq) y carga de datos Garmin/Strava.
@@ -169,6 +169,7 @@ export default function useAIInsights(activities) {
           // Conversión a bloques de texto + metadatos. Si el objeto no trae
           // diagnóstico/tendencia con contenido real (típico del fallback que
           // no respeta el esquema), se trata como fallo y se prueba el siguiente.
+          fillSessionHr(object, builtSci?.zones);
           const blocks = coachObjectToBlocks(object);
           if (!blocks) {
             throw new Error('Respuesta estructurada incompleta');

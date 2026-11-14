@@ -23,7 +23,7 @@ export function resolveModel(provider = 'gemini', model) {
   switch (provider) {
     case 'groq': {
       const groq = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: key });
-      return groq(model);
+      return groq.chat(model);
     }
     case 'openrouter': {
       // OpenRouter es compatible con el protocolo OpenAI: mismo patrón que Groq.
@@ -74,7 +74,7 @@ export function resolveModel(provider = 'gemini', model) {
 // gigantes ni modelos caros con nuestras keys).
 const ALLOWED_MODELS = {
   gemini: (m) => /^gemini-[\w.-]{1,60}$/.test(m),
-  groq: (m) => m === 'llama-3.3-70b-versatile',
+  groq: (m) => m === 'openai/gpt-oss-120b',
   // Solo modelos gratuitos de OpenRouter (id que termina en ":free"). Esto
   // garantiza coste $0 con nuestra key aunque un cliente manipulado pida otro,
   // y hace que cualquier modelo gratis NUEVO funcione sin tocar código.

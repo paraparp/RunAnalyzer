@@ -35,8 +35,8 @@ describe('buildProviderChain', () => {
   });
 
   it('otro proveedor no arrastra la escalera de Gemini', () => {
-    const chain = ids(buildProviderChain({ provider: 'groq', model: 'llama-3.3-70b-versatile' }));
-    expect(chain[0]).toBe('groq|llama-3.3-70b-versatile');
+    const chain = ids(buildProviderChain({ provider: 'groq', model: 'openai/gpt-oss-120b' }));
+    expect(chain[0]).toBe('groq|openai/gpt-oss-120b');
     expect(chain.some(s => s.startsWith('gemini|'))).toBe(false);
   });
 });

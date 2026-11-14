@@ -39,6 +39,9 @@ export async function aiObject(req, res) {
       // Sin reintentos: un 429/503 del pool gratis no se arregla en 2 s, y el
       // cliente ya salta al siguiente proveedor de buildProviderChain.
       maxRetries: 0,
+      // Groq aplica el modo estricto de JSON Schema y rechaza los campos
+      // .optional() de los esquemas; sin strict los acepta (Zod valida igual).
+      providerOptions: { openai: { strictJsonSchema: false } },
     });
     res.json({ object });
   } catch (e) {

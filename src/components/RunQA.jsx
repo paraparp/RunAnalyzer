@@ -138,6 +138,8 @@ const RunQA = ({ activities }) => {
     const [pendingAsk, setPendingAsk] = useState(null); // pregunta auto-lanzada al llegar con foco desde el panel
     const autoAskedRef = useRef(false);
     const [error, setError] = useState('');
+    // Modelo que está respondiendo de verdad (puede ser un respaldo de la cadena).
+    const [usedModel, setUsedModel] = useState(null);
     // Modelo IA: preferencia global (se cambia en el menú de usuario).
     const [selectedModel] = useAIModel();
     const [copiedIdx, setCopiedIdx] = useState(null);
@@ -246,6 +248,7 @@ const RunQA = ({ activities }) => {
                 if (controller.signal.aborted) break;
                 try {
                     onChunk(null, ''); // limpia el parcial del intento anterior
+                    setUsedModel(`${step.provider} · ${String(step.model).split('/').pop().replace(/:free$/, '')}`);
                     full = await streamAI(
                         { provider: step.provider, model: step.model, messages: messagesFor(step.provider), temperature: 0.5, signal: controller.signal, tools: step.provider === 'thesys' },
                         onChunk
@@ -658,6 +661,11 @@ const RunQA = ({ activities }) => {
                                     </button>
                                 )}
                             </form>
+                            {usedModel && (
+                                <p className="mt-1 pr-1 text-right text-[10px] text-slate-400/80 dark:text-white/30 truncate" title="Modelo que ha respondido">
+                                    {usedModel}
+                                </p>
+                            )}
                             <p className="hidden sm:block mt-1.5 text-[11px] text-slate-400 dark:text-white/35 text-center">
                                 Enter para enviar · Shift+Enter nueva línea · Pega o arrastra capturas para analizarlas
                             </p>

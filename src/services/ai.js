@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 // Un único sitio del que tiran el selector (empresa → modelos), las cadenas de
 // fallback y los valores por defecto. Añadir un proveedor aquí lo propaga a todo.
 
-export const GROQ_MODEL = 'llama-3.3-70b-versatile';
+export const GROQ_MODEL = 'openai/gpt-oss-120b';
 
 // Modelo gratis de Z.ai (GLM). El servidor solo acepta "glm-*-flash" (nivel
 // gratuito), así que si cambia el id basta con tocar esta línea.
@@ -54,7 +54,7 @@ export const FALLBACK_GEMINI = [
 // permite). Gemini y OpenRouter llegan por API viva; estos son estáticos.
 const STATIC_PROVIDER_MODELS = {
   zai: [{ id: ZAI_MODEL, label: 'GLM-4.5-Flash · gratis' }],
-  groq: [{ id: GROQ_MODEL, label: 'Llama 3.3 70B · gratis' }],
+  groq: [{ id: GROQ_MODEL, label: 'GPT-OSS 120B · gratis' }],
 };
 
 const PROVIDER_LABELS = {
@@ -114,9 +114,9 @@ export function buildModelGroups({ gemini, openrouter } = {}) {
 // Si el primario es Gemini se intercalan ANTES las versiones anteriores de
 // Gemini (3.8 → 3.7 → 3.6 → 3.1 Flash Lite, ver GEMINI_FALLBACK_CHAIN): bajar
 // de versión conserva la calidad del prompt mejor que saltar a un modelo
-// gratuito de otra casa. Agotado Gemini se sigue con Nemotron Ultra (gratis, hace
-// texto Y estructurado), luego Z.ai/Groq (solo chat, pero rápidos) y
-// por último el backup estructurado de OpenRouter.
+// gratuito de otra casa. Agotado Gemini se sigue con Groq (gpt-oss-120b: ~6 s
+// y salida estructurada fiable, aunque solo ~1 análisis/min por su límite de
+// tokens), luego Nemotron Ultra, Z.ai y el resto de OpenRouter.
 export function buildProviderChain({ provider = 'gemini', model } = {}) {
   const orName = (m) => `OpenRouter ${m.split('/').pop().replace(':free', '')}`;
   const [orUniversal, ...orRest] = OPENROUTER_FALLBACK_MODELS;
@@ -131,9 +131,9 @@ export function buildProviderChain({ provider = 'gemini', model } = {}) {
     : [];
   const fallback = [
     ...geminiFallback,
+    { provider: 'groq', model: GROQ_MODEL, name: 'Groq GPT-OSS' },
     { provider: 'openrouter', model: orUniversal, name: orName(orUniversal) },
     { provider: 'zai', model: ZAI_MODEL, name: 'Z.ai GLM Flash' },
-    { provider: 'groq', model: GROQ_MODEL, name: 'Groq Llama' },
     ...orRest.map(m => ({ provider: 'openrouter', model: m, name: orName(m) })),
   ];
   const primary = { provider, model, name: PROVIDER_LABELS[provider] ?? provider };
