@@ -1,7 +1,8 @@
 // Handlers del proxy de IA. Viven en _lib (no cuentan como función serverless):
 // el dispatcher api/ai/[action].js los sirve bajo /api/ai/{stream,object,models}
 // en una sola función, por el límite de 12 del plan Hobby de Vercel.
-import { generateObject, streamText } from 'ai';
+import { generateObject, streamText, stepCountIs } from 'ai';
+import { buildChatTools } from './chat-tools.js';
 import {
   resolveModel, pipeStream, SCHEMAS, validateAIRequest,
   listGeminiModels, listOpenRouterModels,
@@ -47,9 +48,10 @@ export async function aiObject(req, res) {
 
 export async function aiStream(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
-  if (!(await ensureAuth(req, res))) return;
+  const user = await ensureAuth(req, res);
+  if (!user) return;
 
-  const { provider = 'gemini', model, messages, temperature = 0.7 } = req.body ?? {};
+  const { provider = 'gemini', model, messages, temperature = 0.7, tools: wantTools = false } = req.body ?? {};
   if (!model || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'model y messages son requeridos' });
   }
@@ -57,11 +59,22 @@ export async function aiStream(req, res) {
   if (invalid) return res.status(400).json({ error: invalid });
 
   try {
+    // Chat con herramientas: el modelo consulta los datos del usuario (lectura)
+    // en varias rondas antes de responder. Máx. 5 pasos para no agotar los 60 s.
+    const toolOpts = wantTools === true
+      ? {
+          tools: buildChatTools(user.id, {
+            onCall: (name, args) => console.log(`[ai/stream] tool ${name} ${JSON.stringify(args).slice(0, 160)}`),
+          }),
+          stopWhen: stepCountIs(5),
+        }
+      : {};
     const result = streamText({
       model: resolveModel(provider, model),
       messages,
       temperature,
       maxRetries: 0,
+      ...toolOpts,
     });
     await pipeStream(result, res);
   } catch (e) {

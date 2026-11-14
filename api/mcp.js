@@ -923,7 +923,7 @@ const ANNOTATIONS = {
   delete_issue: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
 };
 
-const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({
+export const TOOL_DESCRIPTORS = TOOLS.map(({ name, description, inputSchema }) => ({
   name,
   title: TITLES[name] || name,
   description,
@@ -959,7 +959,7 @@ function validateArgs(args) {
   return null;
 }
 
-async function runTool(userId, name, args = {}) {
+export async function runTool(userId, name, args = {}) {
   const tool = TOOL_MAP.get(name);
   if (!tool) {
     return toolError(`Tool desconocida: ${name}`, { available: [...TOOL_MAP.keys()] });

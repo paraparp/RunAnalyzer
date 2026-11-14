@@ -1,58 +1,139 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { Renderer } from '@openuidev/react-lang';
 import cloudStorage from '../lib/cloudStorage';
 import useGarminWearableData from '../hooks/useGarminWearableData';
-import { streamAI, buildProviderChain, parseModelValue } from '../services/ai';
-import { Card, Text, Button, Select, SelectItem } from "@tremor/react";
-import { PaperAirplaneIcon, ChatBubbleLeftRightIcon, SparklesIcon, TrashIcon, BoltIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, CheckCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/solid";
+import { streamAI, buildProviderChain, parseModelValue, THESYS_MODEL } from '../services/ai';
+import { ArrowUpIcon, StopIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, ChevronDownIcon, ClipboardDocumentIcon, CheckIcon, ArrowPathIcon, XMarkIcon, PlusIcon, DocumentTextIcon, ClockIcon, TrashIcon, PaperClipIcon, PhotoIcon } from "@heroicons/react/20/solid";
+import { fileToChatImage, isImageFile, toApiMessages, MAX_CHAT_IMAGES } from '../lib/chatImages';
+import { listConversations, saveConversation, deleteConversation, newConversationId, restoreMessages, dayLabel, HISTORY_DAYS } from '../lib/chatHistory';
 import useAIModel from '../hooks/useAIModel';
 import MarkdownText from './MarkdownText';
-import { paceStr } from '../lib/aiInsights';
-import { formatDuration } from '../lib/timeFormat';
+import { getTargetRaces, getPrimaryTargetRace, daysUntil, formatMinutes } from '../lib/targetRaces';
+import { buildChatSystemPrompt, sortActivities, selectDetail, seedToText } from '../lib/chatContext';
+import { getTrainingPlans } from '../lib/trainingPlans';
+import { chatLibrary, chatUIPrompt, chatCloudPrompt, isOpenUI, cleanOpenUI, ChatAskContext } from '../lib/chatUI';
 
-// Typing indicator component
-const TypingIndicator = () => (
-    <div className="flex items-center gap-1 px-2 py-1">
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
-        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+
+const SUGGESTIONS_DEFAULT = [
+    { title: 'Mejor sesión', text: '¿Cuál fue mi mejor carrera y por qué?' },
+    { title: 'Evolución del ritmo', text: '¿Cómo ha evolucionado mi ritmo con la misma frecuencia cardiaca?' },
+    { title: 'Volumen y carga', text: 'Resume mi volumen semanal y si la carga es sostenible.' },
+    { title: 'Próxima sesión', text: '¿Qué sesión me recomiendas hacer mañana?' },
+];
+// "Zurich Maratón Donostia San Sebastián" → "Maratón Donostia": nombre corto
+// para la etiqueta de la cabecera.
+const shortRaceName = (name = '') => {
+    const words = name.replace(/^(zurich|the)\s+/i, '').split(/\s+/);
+    return words.slice(0, 2).join(' ') || name;
+};
+
+// Sugerencias según el momento: carrera recién corrida, semanas finales antes
+// de la principal, preparación en curso o sin objetivo.
+function raceContext() {
+    let races = [], primary = null;
+    try { races = getTargetRaces() || []; primary = getPrimaryTargetRace(); } catch { /* sin datos */ }
+    const recent = races
+        .filter(r => { const d = daysUntil(r.date); return d < 0 && d >= -7; })
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+    const d = primary ? daysUntil(primary.date) : null;
+    const name = primary ? shortRaceName(primary.name) : '';
+    if (recent) {
+        const rn = shortRaceName(recent.name);
+        return { race: primary, suggestions: [
+            { title: `Analiza ${rn}`, text: `Analiza mi carrera ${recent.name}: ritmos, FC y cómo la gestioné.` },
+            { title: 'Frente al objetivo', text: `¿Cómo quedé en ${recent.name} frente a mi objetivo y qué me dice de mi forma?` },
+            { title: 'Recuperación', text: '¿Cómo tengo que recuperar estos días después de la carrera?' },
+            primary && d >= 0
+                ? { title: `Hacia ${name}`, text: `¿Qué cambia de cara a ${primary.name} tras esta carrera?` }
+                : { title: 'Siguiente objetivo', text: '¿Qué objetivo me propones para las próximas semanas?' },
+        ] };
+    }
+    if (primary && d >= 0 && d <= 14) {
+        return { race: primary, suggestions: [
+            { title: '¿Llego bien?', text: `¿Llego bien a ${primary.name}?` },
+            { title: 'Estrategia de ritmo', text: `¿Qué estrategia de ritmo sigo en ${primary.name}?` },
+            { title: 'Esta semana', text: '¿Qué tengo que hacer esta semana?' },
+            { title: 'Días previos', text: '¿Cómo organizo la alimentación, el descanso y la víspera de la carrera?' },
+        ] };
+    }
+    if (primary && d > 14) {
+        return { race: primary, suggestions: [
+            { title: 'Progreso al objetivo', text: `¿Cómo voy de cara a ${primary.name}?` },
+            { title: 'Próxima sesión', text: '¿Qué sesión me toca mañana y cómo la hago?' },
+            { title: 'Volumen y carga', text: 'Resume mi volumen semanal y si la carga es sostenible.' },
+            { title: 'Predicción', text: `¿Qué tiempo podría hacer hoy en ${primary.name}?` },
+        ] };
+    }
+    return { race: primary && d >= 0 ? primary : null, suggestions: null };
+}
+
+const SUGGESTIONS_SEED = [
+    { title: 'Justifica la sesión', text: '¿Por qué me recomiendas esa sesión y no intervalos?' },
+    { title: 'Subir volumen', text: '¿Cómo subo volumen sin pasarme de carga?' },
+    { title: 'Objetivo', text: '¿Llego en forma a mi carrera objetivo con esta tendencia?' },
+    { title: 'Forma actual', text: 'Explícame mi readiness y mi forma (TSB) actual.' },
+];
+
+const IconButton = ({ title, onClick, disabled, children, className = '' }) => (
+    <button
+        type="button"
+        title={title}
+        aria-label={title}
+        onClick={onClick}
+        disabled={disabled}
+        className={`p-1.5 rounded-md text-slate-500 dark:text-white/55 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors disabled:opacity-40 ${className}`}
+    >
+        {children}
+    </button>
+);
+
+// Respuesta del asistente: UI generativa (OpenUI) o markdown si el modelo no
+// siguió el formato. Mientras el stream aún no deja ver qué es, se muestra el
+// indicador de escritura en vez de restos de "root =".
+const AssistantContent = ({ content: raw, streaming }) => {
+    const content = cleanOpenUI(raw);
+    const trimmed = content.trimStart();
+    // Mientras llega: hasta que aparezca `root =` puede ser narración previa a
+    // las herramientas ("Voy a consultar…"); no se pinta. Un modelo que responda
+    // en markdown se muestra en cuanto el texto deja claro que no es OpenUI.
+    if (!trimmed || (streaming && !isOpenUI(content) && trimmed.length < 400 && !/\n\n/.test(trimmed))) {
+        return <ThinkingDots />;
+    }
+    if (isOpenUI(content)) {
+        return <Renderer response={content} library={chatLibrary} isStreaming={streaming} />;
+    }
+    return (
+        <div className="text-sm text-slate-700 dark:text-white/80 leading-relaxed">
+            <MarkdownText content={content} />
+        </div>
+    );
+};
+
+const ThinkingDots = () => (
+    <div className="flex items-center gap-2 h-6 text-xs font-medium text-slate-500 dark:text-white/55">
+        <span className="flex gap-1">
+            {[0, 150, 300].map(d => (
+                <span key={d} className="w-1.5 h-1.5 rounded-full bg-teal-600 dark:bg-teal-300 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+            ))}
+        </span>
+        Analizando tus datos
     </div>
 );
 
-// Convierte el análisis del panel (AIInsights) en texto markdown reutilizable
-// tanto para la tarjeta de contexto visible como para el system prompt del chat.
-const seedToText = (seed) => {
-    if (!seed?.blocks) return '';
-    const b = seed.blocks;
-    const s = seed.sci;
-    const lines = [];
-    if (b.cur) lines.push(`**Estado actual**\n${b.cur}`);
-    if (b.trend) lines.push(`**Tendencia y patrón**\n${b.trend}`);
-    if (b.nextWork) lines.push(`**Sesión recomendada**\n${b.nextWork}`);
-    if (b.lastWork) lines.push(`**Análisis del último entrenamiento**\n${b.lastWork}`);
-    if (s) {
-        const parts = [];
-        if (s.readiness != null) parts.push(`Readiness ${s.readiness}/100${s.readinessLabel ? ` (${s.readinessLabel})` : ''}`);
-        if (s.ctl != null) parts.push(`CTL ${s.ctl}`);
-        if (s.atl != null) parts.push(`ATL ${s.atl}`);
-        if (s.tsb != null) parts.push(`TSB ${s.tsb > 0 ? '+' : ''}${s.tsb}`);
-        if (s.acwr != null) parts.push(`ACWR ${s.acwr}`);
-        if (s.fcmax != null) parts.push(`FCmax ${s.fcmax}ppm`);
-        if (s.lthr != null) parts.push(`LTHR ${s.lthr}ppm`);
-        if (s.fcRest != null) parts.push(`FC reposo ${s.fcRest}ppm`);
-        if (parts.length) lines.push(`**Métricas clave:** ${parts.join(' · ')}`);
-    }
-    return lines.join('\n\n');
-};
-
 const RunQA = ({ activities }) => {
     const [question, setQuestion] = useState('');
-    const [numRaces, setNumRaces] = useState('10');
-    const [filterMode, setFilterMode] = useState('count'); // 'count' | 'period'
-    const [selectedPeriod, setSelectedPeriod] = useState('30d');
+    // Capturas adjuntas pendientes de enviar (ya reducidas, ver lib/chatImages).
+    const [attachments, setAttachments] = useState([]);
+    const [dragging, setDragging] = useState(false);
+    const fileInputRef = useRef(null);
     const { garmin } = useGarminWearableData();
-    const [garminPeriod, setGarminPeriod] = useState('none'); // 'none' | '30d' | '90d'
     const [loading, setLoading] = useState(false);
     const [conversation, setConversation] = useState([]);
+    // Historial (lib/chatHistory): id de la conversación actual y lista de los últimos 7 días.
+    const [convId, setConvId] = useState(newConversationId);
+    const [history, setHistory] = useState(listConversations);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const savedSigRef = useRef('');
     const [seed, setSeed] = useState(null);
     const [pendingAsk, setPendingAsk] = useState(null); // pregunta auto-lanzada al llegar con foco desde el panel
     const autoAskedRef = useRef(false);
@@ -62,16 +143,14 @@ const RunQA = ({ activities }) => {
     const [copiedIdx, setCopiedIdx] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [seedOpen, setSeedOpen] = useState(false);
-    // En móvil los controles de configuración van plegados para no comerse la pantalla
-    const [configOpen, setConfigOpen] = useState(false);
     // En pantallas táctiles Enter hace salto de línea; se envía con el botón
     const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches, []);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const abortRef = useRef(null);
+    const msgRefs = useRef({});
 
-    // Persist the model choice across sessions.
     // Abort any in-flight stream on unmount.
     useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -106,90 +185,19 @@ const RunQA = ({ activities }) => {
         } catch { /* semilla ilegible: se abre el chat vacío */ }
     }, []);
 
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
     useEffect(() => {
-        scrollToBottom();
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: 'end' });
     }, [conversation, loading]);
 
-    const periodDays = { '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 };
-    const periodLabels = { '7d': 'última semana', '30d': 'último mes', '90d': 'últimos 3 meses', '180d': 'últimos 6 meses', '365d': 'último año' };
+    // Contexto automático (lib/chatContext): detalle reciente + historial
+    // mensual + objetivos y plan. Se lee en cada envío para estar al día.
+    const sortedActs = useMemo(() => sortActivities(activities), [activities]);
+    const getSelectedActivities = () => selectDetail(sortedActs);
 
-    const getSelectedActivities = () => {
-        if (!activities || activities.length === 0) return [];
-        const sorted = [...activities].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
-        if (filterMode === 'period') {
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - periodDays[selectedPeriod]);
-            return sorted.filter(a => new Date(a.start_date) >= cutoff);
-        }
-        return sorted.slice(0, parseInt(numRaces));
-    };
-
-    const formatActivitiesForPrompt = (acts) => {
-        return acts.map((a, idx) => {
-            const distKm = (a.distance / 1000).toFixed(2);
-            // Ritmo en M:SS (el decimal "5.32 min/km" se presta a leerse como 5:32)
-            // y con guard: una actividad manual sin distancia no debe meter Infinity.
-            const pace = a.distance > 0 && a.moving_time > 0
-                ? `${paceStr((a.moving_time / 60) / (a.distance / 1000))} min/km`
-                : 'n/d';
-            const date = new Date(a.start_date).toLocaleDateString('es-ES', {
-                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
-            });
-            const extras = [];
-            if (a.average_heartrate) extras.push(`FC: ${Math.round(a.average_heartrate)} ppm`);
-            if (a.total_elevation_gain) extras.push(`Desnivel: +${Math.round(a.total_elevation_gain)}m`);
-            if (a.max_speed) extras.push(`Vel. máx: ${(a.max_speed * 3.6).toFixed(1)} km/h`);
-            if (a.average_cadence) extras.push(`Cadencia: ${Math.round(a.average_cadence * 2)} spm`);
-            return `${idx + 1}. "${a.name}" - ${date}
-   • Distancia: ${distKm} km | Tiempo: ${formatDuration(a.moving_time)} | Ritmo: ${pace}${extras.length ? '\n   • ' + extras.join(' | ') : ''}`;
-        }).join('\n\n');
-    };
-
-    const formatGarminForPrompt = () => {
-        if (!garmin?.length || garminPeriod === 'none') return null;
-        const days = garminPeriod === '30d' ? 30 : 90;
-        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
-        const filtered = [...garmin]
-            .filter(d => new Date(d.date) >= cutoff)
-            .sort((a, b) => b.date.localeCompare(a.date));
-        if (!filtered.length) return null;
-        const lines = filtered.map(d => {
-            const parts = [d.date.slice(5)];
-            if (d.hrv)        parts.push(`VFC=${d.hrv}ms`);
-            if (d.restingHR)  parts.push(`RHR=${d.restingHR}ppm`);
-            if (d.hrvStatus)  parts.push(`[${d.hrvStatus}]`);
-            if (d.sleepHours) parts.push(`sueño=${d.sleepHours}h`);
-            if (d.stress)     parts.push(`estrés=${d.stress}`);
-            return parts.join(' ');
-        });
-        return `DATOS GARMIN (últimos ${days} días):\n${lines.join('\n')}`;
-    };
-
-    const buildSystemPrompt = (selectedActs) => {
-        const activitiesText = formatActivitiesForPrompt(selectedActs);
-        const garminText = formatGarminForPrompt();
-        return `Eres un analista experto de running y entrenamiento deportivo.
-El usuario te proporcionará sus últimas carreras/entrenamientos y te hará preguntas sobre ellas.
-
-HOY ES: ${new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Usa esta fecha como referencia para "esta semana", "último mes", etc.
-
-DATOS DE LAS ÚLTIMAS ${selectedActs.length} CARRERAS/ENTRENAMIENTOS:
-${activitiesText}
-${garminText ? '\n' + garminText : ''}
-${seed ? `\nANÁLISIS PREVIO DEL PANEL DE IA (el usuario viene de aquí; sus preguntas son SEGUIMIENTO de este diagnóstico — trátalo como contexto principal y mantén coherencia con él):\n${seedToText(seed)}\n` : ''}
-INSTRUCCIONES:
-- Responde de forma clara, directa y útil
-- Usa SOLO los datos proporcionados para dar respuestas precisas; si un dato no está en ellos, dilo claramente en lugar de estimarlo o inventarlo
-- Si necesitas hacer cálculos (promedios, tendencias, etc.), hazlos con las cifras exactas de los datos
-- Puedes dar recomendaciones basadas en los datos
-- Responde en el mismo idioma en el que pregunta el usuario (por defecto, español)
-- Sé conciso pero completo
-- Usa formato markdown: **negrita** para destacar, listas con - o números`;
+    const buildSystemPrompt = (formatPrompt, lean = false) => {
+        let races = [], primary = null, plans = [];
+        try { races = getTargetRaces() || []; primary = getPrimaryTargetRace(); plans = getTrainingPlans() || []; } catch { /* datos ilegibles */ }
+        return buildChatSystemPrompt({ activities, garmin, races, primary, plans, seed, formatPrompt, lean });
     };
 
     // Core: stream a response for the given history (which must end with a user
@@ -197,7 +205,7 @@ INSTRUCCIONES:
     const runQuery = async (history) => {
         const selectedActs = getSelectedActivities();
         if (selectedActs.length === 0) {
-            setError('No hay carreras disponibles para analizar.');
+            setError('Todavía no hay actividades sincronizadas para analizar.');
             return;
         }
 
@@ -207,9 +215,13 @@ INSTRUCCIONES:
         abortRef.current = controller;
 
         try {
-            const messages = [
-                { role: 'system', content: buildSystemPrompt(selectedActs) },
-                ...history.map(m => ({ role: m.role, content: m.content })),
+            const turns = toApiMessages(history);
+            // El OpenUI Gateway recibe su bloque gestionado (cloud), herramientas
+            // para consultar datos y un contexto ligero; el resto de proveedores
+            // (respaldo, quizá sin soporte de herramientas), el prompt completo.
+            const messagesFor = (provider) => [
+                { role: 'system', content: provider === 'thesys' ? buildSystemPrompt(chatCloudPrompt, true) : buildSystemPrompt(chatUIPrompt) },
+                ...turns,
             ];
 
             setConversation(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
@@ -225,7 +237,9 @@ INSTRUCCIONES:
             // modelo elegido primero y, si falla (p. ej. 429 de cuota), el resto
             // de proveedores gratuitos. El abort del usuario se propaga tal cual
             // y conserva el texto parcial.
-            const chain = buildProviderChain(parseModelValue(selectedModel));
+            // Primero el OpenUI Gateway (si el servidor no tiene THESYS_API_KEY falla
+            // al instante y se sigue con la cadena habitual).
+            const chain = [{ provider: 'thesys', model: THESYS_MODEL }, ...buildProviderChain(parseModelValue(selectedModel))];
             let full = '';
             let primaryErr = null;
             for (const step of chain) {
@@ -233,19 +247,20 @@ INSTRUCCIONES:
                 try {
                     onChunk(null, ''); // limpia el parcial del intento anterior
                     full = await streamAI(
-                        { provider: step.provider, model: step.model, messages, temperature: 0.7, signal: controller.signal },
+                        { provider: step.provider, model: step.model, messages: messagesFor(step.provider), temperature: 0.5, signal: controller.signal, tools: step.provider === 'thesys' },
                         onChunk
                     );
                     primaryErr = null;
                     break;
                 } catch (e) {
                     if (e?.name === 'AbortError') throw e;
-                    if (!primaryErr) primaryErr = e;
+                    if (step.provider === 'thesys') console.warn('[chat] OpenUI Gateway no disponible, se usa la cadena habitual:', e?.message);
+                    else if (!primaryErr) primaryErr = e;
                 }
             }
             if (primaryErr) throw primaryErr;
             // Si el stream terminó sin texto (p. ej. corte del servidor a mitad),
-            // no dejamos una burbuja vacía: la quitamos y avisamos.
+            // no dejamos una respuesta vacía: la quitamos y avisamos.
             if (!full.trim() && !controller.signal.aborted) {
                 setConversation(prev => {
                     const next = [...prev];
@@ -259,8 +274,7 @@ INSTRUCCIONES:
                 // user stopped the stream — keep whatever streamed so far
             } else {
                 console.error('Error en la consulta:', err);
-                setError(`Error: ${err.message}`);
-                // No dejes la burbuja del asistente vacía si nadie respondió.
+                setError(err.message || 'No se pudo completar la consulta.');
                 setConversation(prev => {
                     const next = [...prev];
                     if (next[next.length - 1]?.role === 'assistant' && !next[next.length - 1].content) next.pop();
@@ -270,26 +284,53 @@ INSTRUCCIONES:
         } finally {
             setLoading(false);
             abortRef.current = null;
-            inputRef.current?.focus();
+            if (!isTouch) inputRef.current?.focus();
         }
+    };
+
+    const ask = (text, images = []) => {
+        const q = (text || '').trim();
+        if ((!q && !images.length) || loading) return;
+        const msg = { role: 'user', content: q || (images.length > 1 ? 'Analiza estas imágenes.' : 'Analiza esta imagen.'), timestamp: new Date() };
+        if (images.length) msg.images = images;
+        const newHistory = [...conversation, msg];
+        setConversation(newHistory);
+        runQuery(newHistory);
     };
 
     const handleSubmit = (e) => {
         e?.preventDefault?.();
-        const q = question.trim();
-        if (!q || loading) return;
-        const newHistory = [...conversation, { role: 'user', content: q, timestamp: new Date() }];
+        if ((!question.trim() && !attachments.length) || loading) return;
+        ask(question, attachments);
         setQuestion('');
+        setAttachments([]);
         if (inputRef.current) inputRef.current.style.height = 'auto';
-        setConversation(newHistory);
-        runQuery(newHistory);
     };
 
-    const sendSuggestion = (text) => {
-        if (loading) return;
-        const newHistory = [...conversation, { role: 'user', content: text, timestamp: new Date() }];
-        setConversation(newHistory);
-        runQuery(newHistory);
+    // Adjuntar: botón, pegar (Ctrl+V de una captura) o arrastrar al chat.
+    const addFiles = async (files) => {
+        const imgs = [...(files || [])].filter(isImageFile);
+        if (!imgs.length) return;
+        const room = MAX_CHAT_IMAGES - attachments.length;
+        if (room <= 0) { setError(`Máximo ${MAX_CHAT_IMAGES} imágenes por mensaje.`); return; }
+        if (imgs.length > room) setError(`Máximo ${MAX_CHAT_IMAGES} imágenes por mensaje: se añaden las ${room} primeras.`);
+        else setError('');
+        try {
+            const ready = await Promise.all(imgs.slice(0, room).map(fileToChatImage));
+            setAttachments(prev => [...prev, ...ready].slice(0, MAX_CHAT_IMAGES));
+            inputRef.current?.focus();
+        } catch (err) {
+            setError(err.message || 'No se pudo leer la imagen.');
+        }
+    };
+    const onPaste = (e) => {
+        const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
+        if (files.some(isImageFile)) { e.preventDefault(); addFiles(files); }
+    };
+    const dragProps = {
+        onDragOver: (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); setDragging(true); } },
+        onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); },
+        onDrop: (e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer?.files); },
     };
 
     // Lanza automáticamente la pregunta de ampliación que llegó con el seed
@@ -300,7 +341,7 @@ INSTRUCCIONES:
         if (!activities?.length) return;
         autoAskedRef.current = true;
         setPendingAsk(null);
-        sendSuggestion(pendingAsk);
+        ask(pendingAsk);
     }, [pendingAsk, loading, activities]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const stopGeneration = () => abortRef.current?.abort();
@@ -314,395 +355,317 @@ INSTRUCCIONES:
         runQuery(conv);
     };
 
-    const copyMessage = async (text, idx) => {
+    // Copia el texto ya renderizado (no el código OpenUI crudo).
+    const copyText = async (text, key) => {
         try {
             await navigator.clipboard.writeText(text);
-            setCopiedIdx(idx);
-            setTimeout(() => setCopiedIdx(c => (c === idx ? null : c)), 1500);
+            setCopiedIdx(key);
+            setTimeout(() => setCopiedIdx(c => (c === key ? null : c)), 1500);
         } catch { /* el portapapeles puede estar bloqueado */ }
     };
+    const copyMessage = (idx, raw) => copyText(msgRefs.current[idx]?.innerText?.trim() || raw, idx);
 
     const clearConversation = () => {
         abortRef.current?.abort();
         setConversation([]);
+        setConvId(newConversationId());
         setError('');
     };
 
-    const suggestedQuestions = seed
-        ? [
-            { text: "¿Por qué me recomiendas esa sesión y no intervalos?", icon: "🤔" },
-            { text: "¿Cómo subo volumen sin pasarme de carga?", icon: "📈" },
-            { text: "¿Llego en forma al maratón con esta tendencia?", icon: "🎯" },
-            { text: "Explícame mi readiness y mi forma (TSB) actual", icon: "🔋" }
-        ]
-        : [
-            { text: "¿Cuál fue mi mejor carrera?", icon: "🏆" },
-            { text: "¿Cómo ha evolucionado mi ritmo?", icon: "📈" },
-            { text: "¿Cuál es mi distancia promedio?", icon: "📊" },
-            { text: "Dame un resumen de mi entrenamiento", icon: "📋" }
-        ];
+    // Guarda la conversación al terminar cada respuesta (no a cada trozo del stream).
+    useEffect(() => {
+        if (loading || !conversation.some(m => m.role === 'assistant' && m.content)) return;
+        // Solo si cambió algo: abrir una conversación antigua no la "rejuvenece".
+        const sig = `${convId}:${conversation.length}:${conversation[conversation.length - 1]?.content?.length}`;
+        if (sig === savedSigRef.current) return;
+        savedSigRef.current = sig;
+        saveConversation(convId, conversation);
+        setHistory(listConversations());
+    }, [loading, conversation, convId]);
 
+    const openConversation = (c) => {
+        abortRef.current?.abort();
+        const msgs = restoreMessages(c);
+        savedSigRef.current = `${c.id}:${msgs.length}:${msgs[msgs.length - 1]?.content?.length}`;
+        setConvId(c.id);
+        setConversation(msgs);
+        setError('');
+        setHistoryOpen(false);
+    };
+
+    const removeConversation = (id) => {
+        deleteConversation(id);
+        setHistory(listConversations());
+        if (id === convId) clearConversation();
+    };
+
+    const historyGroups = history.reduce((acc, c) => {
+        const label = dayLabel(c.updatedAt);
+        (acc[label] ||= []).push(c);
+        return acc;
+    }, {});
+
+    const { race: mainRace, suggestions: raceSuggestions } = raceContext();
+    const suggestions = seed ? SUGGESTIONS_SEED : (raceSuggestions || SUGGESTIONS_DEFAULT);
+    const mainDays = mainRace ? daysUntil(mainRace.date) : null;
+    // En pantalla completa hay sitio: la conversación se ensancha (tablas y
+    // gráficos respiran) sin pasar de una línea de lectura cómoda.
+    const column = fullscreen ? 'max-w-5xl' : 'max-w-3xl';
     const selectedCount = getSelectedActivities().length;
+    const empty = conversation.length === 0;
 
     return (
-        <div className={fullscreen
-            ? 'fixed inset-0 z-50 bg-slate-100 dark:bg-white/[0.04] p-2 sm:p-4 flex flex-col gap-2 sm:gap-3 overflow-hidden'
-            : 'flex flex-col gap-2 sm:gap-3 flex-1 min-h-0'}>
-            {/* Compact Header — mismo lenguaje visual que el módulo Coach IA */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] shadow-sm shrink-0 px-3 py-2.5 sm:px-4 sm:py-3">
-                <div className="absolute inset-x-0 top-0 h-[3px] kinetic-gradient" />
-                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 shrink-0">
-                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white leading-tight truncate">Pregunta sobre tus Carreras</p>
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 dark:text-teal-300">
-                                <BoltIcon className="w-3 h-3" />
-                                {selectedCount} carreras cargadas
-                            </span>
-                        </div>
-                        {/* Ajustes: solo visible bajo lg, despliega los controles */}
-                        <button
-                            type="button"
-                            onClick={() => setConfigOpen(o => !o)}
-                            title="Configuración del chat"
-                            className={`ml-auto lg:hidden flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${configOpen
-                                ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-400/10 border-teal-200 dark:border-teal-300/25'
-                                : 'text-slate-600 dark:text-white/75 bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10 hover:border-blue-300 hover:text-teal-800 dark:hover:text-teal-200'}`}
-                        >
-                            <Cog6ToothIcon className="w-4 h-4" />
-                            <ChevronDownIcon className={`w-3 h-3 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFullscreen(f => !f)}
-                            title={fullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
-                            className="lg:ml-1 flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-white/75 bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 hover:border-blue-300 hover:text-teal-800 dark:hover:text-teal-200 hover:bg-blue-50/60 transition-colors"
-                        >
-                            {fullscreen
-                                ? <ArrowsPointingInIcon className="w-3.5 h-3.5" />
-                                : <ArrowsPointingOutIcon className="w-3.5 h-3.5" />}
-                            <span className="hidden sm:inline">{fullscreen ? 'Reducir' : 'Ampliar'}</span>
-                        </button>
-                    </div>
-
-                    <div className={`${configOpen ? 'flex' : 'hidden'} lg:flex flex-wrap items-center gap-2`}>
-                        {/* Filter mode toggle + selector */}
-                        {/* Toggle buttons */}
-                        <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-medium flex-shrink-0">
-                            <button
-                                onClick={() => setFilterMode('count')}
-                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'count' ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
-                            >
-                                Por número
-                            </button>
-                            <button
-                                onClick={() => setFilterMode('period')}
-                                className={`px-2.5 py-1.5 transition-colors ${filterMode === 'period' ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
-                            >
-                                Por periodo
-                            </button>
-                        </div>
-
-                        {filterMode === 'count' ? (
-                            <Select value={numRaces} onValueChange={setNumRaces} enableClear={false} className="w-32">
-                                <SelectItem value="5">Últimas 5</SelectItem>
-                                <SelectItem value="10">Últimas 10</SelectItem>
-                                <SelectItem value="20">Últimas 20</SelectItem>
-                                <SelectItem value="30">Últimas 30</SelectItem>
-                                <SelectItem value="50">Últimas 50</SelectItem>
-                            </Select>
-                        ) : (
-                            <Select value={selectedPeriod} onValueChange={setSelectedPeriod} enableClear={false} className="w-40">
-                                <SelectItem value="7d">Última semana</SelectItem>
-                                <SelectItem value="30d">Último mes</SelectItem>
-                                <SelectItem value="90d">Últimos 3 meses</SelectItem>
-                                <SelectItem value="180d">Últimos 6 meses</SelectItem>
-                                <SelectItem value="365d">Último año</SelectItem>
-                            </Select>
-                        )}
-
-                        {/* Garmin period selector */}
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 dark:text-white/55 flex-shrink-0">Garmin</span>
-                            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-medium">
-                                {[
-                                    { value: 'none', label: 'Sin datos' },
-                                    { value: '30d', label: '30 días' },
-                                    { value: '90d', label: '90 días' },
-                                ].map(({ value, label }) => (
-                                    <button
-                                        key={value}
-                                        onClick={() => setGarminPeriod(value)}
-                                        className={`px-2.5 py-1.5 transition-colors ${garminPeriod === value ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950' : 'bg-white dark:bg-white/[0.03] text-slate-600 dark:text-white/75 hover:bg-slate-50 dark:hover:bg-white/[0.05]'}`}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                            {garmin && garminPeriod !== 'none' && (
-                                <span className="text-xs text-slate-500 dark:text-white/55">
-                                    {[...garmin].filter(d => {
-                                        const c = new Date(); c.setDate(c.getDate() - (garminPeriod === '30d' ? 30 : 90));
-                                        return new Date(d.date) >= c;
-                                    }).length} registros
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Context from the AI panel (when arriving via "Seguir preguntando en el chat") */}
-            {seed && (
-                <Card className="p-0 ring-1 ring-blue-200 shadow-sm bg-teal-50 dark:bg-teal-400/10 shrink-0 overflow-hidden">
-                    {/* Barra compacta: contexto añadido + desplegar */}
-                    <div className="flex items-center gap-2 px-3 py-2">
-                        <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <button
-                            onClick={() => setSeedOpen(o => !o)}
-                            className="flex items-center gap-1.5 min-w-0 text-left group"
-                            title={seedOpen ? 'Ocultar contexto' : 'Ver contexto añadido'}
-                        >
-                            <span className="text-xs font-semibold text-blue-800 truncate">
-                                Contexto del análisis añadido a la conversación
-                            </span>
-                            <ChevronDownIcon className={`w-3.5 h-3.5 text-blue-500 shrink-0 transition-transform ${seedOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        <button
-                            onClick={() => copyMessage(seedToText(seed), 'seed')}
-                            title="Copiar contexto"
-                            className="ml-auto shrink-0 text-slate-500 dark:text-white/55 hover:text-blue-600 transition-colors"
-                        >
-                            {copiedIdx === 'seed'
-                                ? <CheckIcon className="w-4 h-4 text-emerald-500" />
-                                : <ClipboardDocumentIcon className="w-4 h-4" />}
-                        </button>
-                        <button
-                            onClick={() => setSeed(null)}
-                            title="Quitar contexto"
-                            className="shrink-0 text-slate-500 dark:text-white/55 hover:text-rose-500 transition-colors"
-                        >
-                            <TrashIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                    {seedOpen && (
-                        <div className="px-3 pb-3 border-t border-teal-200 dark:border-teal-300/25">
-                            <div className="text-sm text-slate-700 dark:text-white/75 max-h-48 overflow-y-auto pr-1 pt-2">
-                                <MarkdownText content={seedToText(seed)} />
-                            </div>
+        <ChatAskContext.Provider value={ask}>
+            <div className={fullscreen
+                ? 'fixed inset-0 z-50 bg-[#f4f6fb] dark:bg-[#07090d] p-0 sm:p-4 flex flex-col overflow-hidden'
+                : 'flex flex-col flex-1 min-h-0'}>
+                <section {...dragProps} className="relative flex flex-col flex-1 min-h-[60dvh] lg:min-h-0 overflow-hidden bg-white dark:bg-[#0c0e12] ring-1 ring-slate-200 dark:ring-white/10 sm:rounded-xl shadow-sm">
+                    {dragging && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/85 dark:bg-[#0c0e12]/85 border-2 border-dashed border-teal-600/60 dark:border-teal-300/50 sm:rounded-xl pointer-events-none">
+                            <p className="inline-flex items-center gap-2 text-sm font-semibold text-teal-800 dark:text-teal-200"><PhotoIcon className="w-5 h-5" /> Suelta aquí tus capturas</p>
                         </div>
                     )}
-                </Card>
-            )}
-
-            {/* Chat Container */}
-            <Card
-                className="ring-1 ring-slate-200 dark:ring-white/10 shadow-sm bg-white dark:bg-white/[0.03] overflow-hidden flex flex-col flex-1 min-h-[45dvh] lg:min-h-0"
-            >
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto">
-                    {conversation.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center p-3 sm:p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-blue-200 rounded-full blur-md opacity-50 animate-pulse" />
-                                    <div className="relative p-1.5 bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-lg shadow">
-                                        <SparklesIcon className="w-4 h-4 text-white" />
-                                    </div>
-                                </div>
-                                <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white">¿Qué quieres saber?</h3>
+                    {/* Cabecera */}
+                    <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-white/10 shrink-0">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <h2 className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-white leading-tight truncate">Analista de entrenamiento</h2>
+                                {mainRace && mainDays >= 0 && (
+                                    <span title={`${mainRace.name} · ${mainRace.date}`} className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold tabular-nums text-teal-800 dark:text-teal-200 bg-teal-50 dark:bg-teal-400/10 ring-1 ring-teal-600/20 dark:ring-teal-300/20 shrink-0 truncate max-w-[22rem]">
+                                        {shortRaceName(mainRace.name)} · {mainDays === 0 ? 'hoy' : mainDays === 1 ? 'mañana' : `${mainDays} días`}{mainRace.goalTimeMin ? ` · objetivo ${formatMinutes(mainRace.goalTimeMin)}` : ''}
+                                    </span>
+                                )}
                             </div>
-                            <Text className="text-slate-500 dark:text-white/55 mb-3 text-center max-w-md text-xs sm:text-xs">
-                                Analizo tus {selectedCount} carreras {filterMode === 'period' ? `del ${periodLabels[selectedPeriod]}` : 'más recientes'} y respondo cualquier pregunta sobre tu rendimiento
-                            </Text>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full max-w-lg">
-                                {suggestedQuestions.map((q, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => sendSuggestion(q.text)}
-                                        disabled={loading}
-                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-white/[0.03] hover:bg-blue-50/60 border border-slate-200 dark:border-white/10 hover:border-blue-300 rounded-lg transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                                    >
-                                        <span className="flex-shrink-0 text-sm">{q.icon}</span>
-                                        <span className="text-xs font-medium text-slate-700 dark:text-white/75 group-hover:text-blue-700 leading-snug">{q.text}</span>
-                                    </button>
-                                ))}
-                            </div>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-white/55 truncate">
+                                {selectedCount} actividades recientes en detalle{sortedActs.length > selectedCount ? ` · historial de ${sortedActs.length}` : ''}{garmin?.length ? ' · salud Garmin' : ''}{seed ? ' · análisis del panel' : ''}
+                            </p>
                         </div>
-                    ) : (
-                        <div className="p-3 sm:p-4 space-y-4 sm:space-y-5">
-                            {conversation.map((msg, idx) => {
-                                const isUser = msg.role === 'user';
-                                const isLastAssistant = !isUser && idx === conversation.length - 1;
-                                const streaming = isLastAssistant && loading;
-                                return (
-                                    <div key={idx} className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
-                                        {/* Avatar — oculto en móvil para ganar ancho de burbuja */}
-                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full hidden sm:flex items-center justify-center shadow-sm ${isUser
-                                                ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 text-xs font-bold'
-                                                : 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
-                                            }`}>
-                                            {isUser ? 'Tú' : <SparklesIcon className="w-4 h-4" />}
-                                        </div>
-
-                                        {/* Message Bubble */}
-                                        <div className={`flex flex-col max-w-[92%] sm:max-w-[82%] ${isUser ? 'items-end' : 'items-start'}`}>
-                                            <div className={`rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 ${isUser
-                                                    ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 rounded-tr-sm'
-                                                    : 'bg-white dark:bg-white/[0.03] ring-1 ring-slate-200 dark:ring-white/10 shadow-sm rounded-tl-sm'
-                                                }`}>
-                                                {isUser ? (
-                                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                                ) : (
-                                                    <div className="text-sm">
-                                                        <MarkdownText content={msg.content} />
-                                                        {streaming && <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-blue-500 animate-pulse rounded-sm" />}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* Meta + actions */}
-                                            <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-                                                <span className="text-xs text-slate-500 dark:text-white/55">
-                                                    {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                                {!isUser && msg.content && !streaming && (
-                                                    // En táctil no hay hover: las acciones se muestran siempre
-                                                    <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => copyMessage(msg.content, idx)}
-                                                            title="Copiar respuesta"
-                                                            className="p-1 text-slate-500 dark:text-white/55 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                                        >
-                                                            {copiedIdx === idx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
-                                                        </button>
-                                                        {isLastAssistant && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={regenerate}
-                                                                disabled={loading}
-                                                                title="Regenerar respuesta"
-                                                                className="p-1 text-slate-500 dark:text-white/55 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-40"
-                                                            >
-                                                                <ArrowPathIcon className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-
-                            {/* Loading indicator (only before the assistant bubble appears) */}
-                            {loading && (conversation.length === 0 || conversation[conversation.length - 1].role !== 'assistant' || conversation[conversation.length - 1].content === '') && (
-                                <div className="flex gap-2 sm:gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-950 text-white dark:bg-white dark:text-slate-950 hidden sm:flex items-center justify-center shadow-sm">
-                                        <SparklesIcon className="w-4 h-4 text-white" />
-                                    </div>
-                                    <div className="bg-white dark:bg-white/[0.03] ring-1 ring-slate-200 dark:ring-white/10 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                                        <TypingIndicator />
-                                    </div>
-                                </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                            {!empty && (
+                                <IconButton title="Nueva conversación" onClick={() => { clearConversation(); setHistoryOpen(false); }}>
+                                    <PlusIcon className="w-4 h-4" />
+                                </IconButton>
                             )}
-
-                            <div ref={messagesEndRef} />
+                            <IconButton title={`Historial (${HISTORY_DAYS} días)`} onClick={() => { setHistory(listConversations()); setHistoryOpen(o => !o); }} className={historyOpen ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-400/10' : ''}>
+                                <ClockIcon className="w-4 h-4" />
+                            </IconButton>
+                            <IconButton title={fullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'} onClick={() => setFullscreen(f => !f)}>
+                                {fullscreen ? <ArrowsPointingInIcon className="w-4 h-4" /> : <ArrowsPointingOutIcon className="w-4 h-4" />}
+                            </IconButton>
                         </div>
-                    )}
-                </div>
+                    </header>
 
-                {/* Error */}
-                {error && (
-                    <div className="px-4 py-2 bg-rose-50 dark:bg-rose-400/10 border-t border-rose-100 dark:border-rose-300/25">
-                        <Text className="text-rose-600 dark:text-rose-300 text-sm">{error}</Text>
-                    </div>
-                )}
 
-                {/* Input Area */}
-                <div className="border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-2.5 sm:p-4">
-                    {/* Quick follow-up chips: en móvil una fila con scroll horizontal */}
-                    {conversation.length > 0 && !loading && (
-                        <div className="flex sm:flex-wrap gap-1.5 mb-2.5 sm:mb-3 overflow-x-auto sm:overflow-visible [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            {suggestedQuestions.slice(0, 3).map((q, idx) => (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => sendSuggestion(q.text)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 shrink-0 whitespace-nowrap bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 hover:border-blue-300 hover:bg-blue-50/60 rounded-full text-xs font-medium text-slate-600 dark:text-white/75 hover:text-teal-800 dark:hover:text-teal-200 transition-colors"
-                                >
-                                    <span>{q.icon}</span>
-                                    {q.text}
-                                </button>
+                    {/* Contexto heredado del panel de IA */}
+                    {historyOpen && (
+                        <div className="shrink-0 max-h-[45%] overflow-y-auto border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02]">
+                            {history.length === 0 ? (
+                                <p className="px-4 py-4 text-sm text-slate-500 dark:text-white/55">Aún no hay conversaciones en los últimos {HISTORY_DAYS} días.</p>
+                            ) : Object.entries(historyGroups).map(([label, items]) => (
+                                <div key={label} className="px-2 py-2">
+                                    <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500 dark:text-white/55">{label}</p>
+                                    <ul>
+                                        {items.map(c => (
+                                            <li key={c.id} className="group/item flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openConversation(c)}
+                                                    className={`flex-1 min-w-0 flex items-baseline gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${c.id === convId ? 'bg-white dark:bg-white/[0.06] ring-1 ring-slate-200 dark:ring-white/10' : 'hover:bg-white dark:hover:bg-white/[0.04]'}`}
+                                                >
+                                                    <span className="flex-1 truncate text-sm text-slate-800 dark:text-white/85">{c.title}</span>
+                                                    <span className="shrink-0 text-[11px] tabular-nums text-slate-400 dark:text-white/40">
+                                                        {new Date(c.updatedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </button>
+                                                <IconButton title="Borrar conversación" onClick={() => removeConversation(c.id)} className="sm:opacity-0 sm:group-hover/item:opacity-100 focus:opacity-100">
+                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                </IconButton>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             ))}
                         </div>
                     )}
-                    <form onSubmit={handleSubmit} className="flex items-end gap-2 sm:gap-3">
-                        <div className="flex-1 relative">
-                            <textarea
-                                ref={inputRef}
-                                placeholder="Escribe tu pregunta..."
-                                value={question}
-                                onChange={(e) => setQuestion(e.target.value)}
-                                rows={1}
-                                className="w-full px-4 py-3 pr-12 bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm placeholder:text-slate-400 transition-all"
-                                style={{ minHeight: '48px', maxHeight: '120px' }}
-                                onKeyDown={(e) => {
-                                    // En táctil, Enter hace salto de línea; se envía con el botón
-                                    if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
-                                        e.preventDefault();
-                                        handleSubmit(e);
-                                    }
-                                }}
-                                onInput={(e) => {
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-                                }}
-                            />
-                            {conversation.length > 0 && !loading && (
-                                <button
-                                    type="button"
-                                    onClick={clearConversation}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 dark:text-white/55 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                    title="Limpiar conversación"
-                                >
-                                    <TrashIcon className="w-4 h-4" />
+
+                    {seed && (
+                        <div className="px-4 py-2 border-b border-slate-200 dark:border-white/10 bg-teal-50/60 dark:bg-teal-400/[0.06] shrink-0">
+                            <div className="flex items-center gap-2">
+                                <DocumentTextIcon className="w-4 h-4 text-teal-700 dark:text-teal-300 shrink-0" />
+                                <button type="button" onClick={() => setSeedOpen(o => !o)} className="flex items-center gap-1 min-w-0 text-left">
+                                    <span className="text-xs font-semibold text-teal-900 dark:text-teal-100 truncate">Usando el análisis del panel como contexto</span>
+                                    <ChevronDownIcon className={`w-3.5 h-3.5 text-teal-700 dark:text-teal-300 shrink-0 transition-transform ${seedOpen ? 'rotate-180' : ''}`} />
                                 </button>
+                                <div className="ml-auto flex items-center">
+                                    <IconButton title="Copiar contexto" onClick={() => copyText(seedToText(seed), 'seed')}>
+                                        {copiedIdx === 'seed' ? <CheckIcon className="w-3.5 h-3.5 text-emerald-600" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                                    </IconButton>
+                                    <IconButton title="Quitar contexto" onClick={() => setSeed(null)}>
+                                        <XMarkIcon className="w-3.5 h-3.5" />
+                                    </IconButton>
+                                </div>
+                            </div>
+                            {seedOpen && (
+                                <div className="mt-2 text-sm text-slate-700 dark:text-white/75 max-h-48 overflow-y-auto pr-1">
+                                    <MarkdownText content={seedToText(seed)} />
+                                </div>
                             )}
                         </div>
-                        {loading ? (
-                            <Button
-                                type="button"
-                                icon={StopIcon}
-                                onClick={stopGeneration}
-                                color="rose"
-                                variant="secondary"
-                                className="h-12 px-3 sm:px-5 shrink-0"
+                    )}
+
+                    {/* Conversación */}
+                    <div className="flex-1 overflow-y-auto">
+                        <div className={`mx-auto w-full ${column} px-4 sm:px-6 py-5 sm:py-6`}>
+                            {empty ? (
+                                <div className="flex flex-col justify-center min-h-full py-6 sm:py-10">
+                                    <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">¿Qué quieres analizar?</h3>
+                                    <p className="mt-1.5 text-sm text-slate-500 dark:text-white/55 max-w-lg">
+                                        Respuestas con cifras, tablas y gráficos a partir de todo tu historial de entrenamiento y salud.
+                                    </p>
+                                    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {suggestions.map((s) => (
+                                            <button
+                                                key={s.title}
+                                                type="button"
+                                                onClick={() => ask(s.text)}
+                                                disabled={loading || !selectedCount}
+                                                className="group text-left px-3.5 py-3 rounded-lg ring-1 ring-slate-200 dark:ring-white/10 hover:ring-teal-600/40 dark:hover:ring-teal-300/40 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-white">{s.title}</p>
+                                                <p className="text-xs text-slate-500 dark:text-white/55 mt-0.5 leading-snug">{s.text}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {conversation.map((msg, idx) => {
+                                        const isUser = msg.role === 'user';
+                                        const isLastAssistant = !isUser && idx === conversation.length - 1;
+                                        const streaming = isLastAssistant && loading;
+                                        if (isUser) {
+                                            return (
+                                                <div key={idx} className="flex flex-col items-end gap-1.5">
+                                                    {msg.images?.length > 0 && (
+                                                        <div className="flex flex-wrap justify-end gap-1.5 max-w-[85%]">
+                                                            {msg.images.map(im => (
+                                                                <a key={im.id} href={im.dataUrl} target="_blank" rel="noreferrer" title={im.name}>
+                                                                    <img src={im.dataUrl} alt={im.name} className="h-28 max-w-[14rem] object-cover rounded-lg ring-1 ring-slate-200 dark:ring-white/10" />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {!msg.images?.length && msg.imageCount > 0 && (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-white/40"><PhotoIcon className="w-3.5 h-3.5" /> {msg.imageCount === 1 ? '1 imagen no guardada' : `${msg.imageCount} imágenes no guardadas`} en el historial</span>
+                                                    )}
+                                                    <p className="max-w-[85%] px-3.5 py-2 rounded-xl rounded-br-sm bg-slate-100 dark:bg-white/[0.07] text-sm text-slate-900 dark:text-white whitespace-pre-wrap">
+                                                        {msg.content}
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <article key={idx} className="group">
+                                                <div ref={el => { msgRefs.current[idx] = el; }}>
+                                                    <AssistantContent content={msg.content} streaming={streaming} />
+                                                </div>
+                                                {msg.content && !streaming && (
+                                                    <div className="flex items-center gap-0.5 mt-2 -ml-1.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+                                                        <IconButton title="Copiar respuesta" onClick={() => copyMessage(idx, msg.content)}>
+                                                            {copiedIdx === idx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-600" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                                                        </IconButton>
+                                                        {isLastAssistant && (
+                                                            <IconButton title="Regenerar respuesta" onClick={regenerate} disabled={loading}>
+                                                                <ArrowPathIcon className="w-3.5 h-3.5" />
+                                                            </IconButton>
+                                                        )}
+                                                        <span className="ml-1 text-xs text-slate-400 dark:text-white/40 tabular-nums">
+                                                            {msg.timestamp?.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </article>
+                                        );
+                                    })}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Composer */}
+                    <div className="shrink-0 border-t border-slate-200 dark:border-white/10 px-3 sm:px-4 py-3">
+                        <div className={`mx-auto w-full ${column}`}>
+                            {error && (
+                                <p role="alert" className="mb-2 px-3 py-2 rounded-md text-xs font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-400/10 ring-1 ring-rose-200 dark:ring-rose-300/20">
+                                    {error}
+                                </p>
+                            )}
+                            {attachments.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {attachments.map(im => (
+                                        <div key={im.id} className="relative">
+                                            <img src={im.dataUrl} alt={im.name} className="h-16 w-16 object-cover rounded-lg ring-1 ring-slate-200 dark:ring-white/10" />
+                                            <button type="button" onClick={() => setAttachments(a => a.filter(x => x.id !== im.id))} title="Quitar imagen" aria-label="Quitar imagen"
+                                                className="absolute -top-1.5 -right-1.5 h-5 w-5 inline-flex items-center justify-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow">
+                                                <XMarkIcon className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <form
+                                onSubmit={handleSubmit}
+                                className="flex items-end gap-1.5 rounded-xl ring-1 ring-slate-200 dark:ring-white/10 bg-slate-50 dark:bg-white/[0.03] focus-within:bg-white dark:focus-within:bg-white/[0.05] focus-within:ring-2 focus-within:ring-teal-600/50 dark:focus-within:ring-teal-300/40 pl-1.5 pr-1.5 py-1.5 transition-colors"
                             >
-                                <span className="hidden sm:inline">Detener</span>
-                            </Button>
-                        ) : (
-                            <Button
-                                type="submit"
-                                icon={PaperAirplaneIcon}
-                                disabled={!question.trim()}
-                                color="blue"
-                                className="h-12 px-3 sm:px-5 shrink-0"
-                            >
-                                <span className="hidden sm:inline">Enviar</span>
-                            </Button>
-                        )}
-                    </form>
-                    <p className="hidden sm:block text-xs text-slate-500 dark:text-white/55 mt-2 text-center">
-                        Enter para enviar • Shift+Enter para nueva línea
-                    </p>
-                </div>
-            </Card>
-        </div>
+                                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+                                    onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || attachments.length >= MAX_CHAT_IMAGES}
+                                    title="Adjuntar captura o imagen" aria-label="Adjuntar captura o imagen"
+                                    className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg text-slate-500 dark:text-white/55 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-40 transition-colors">
+                                    <PaperClipIcon className="w-4 h-4" />
+                                </button>
+                                <textarea
+                                    onPaste={onPaste}
+                                    ref={inputRef}
+                                    placeholder="Pregunta sobre tus entrenamientos…"
+                                    aria-label="Pregunta"
+                                    value={question}
+                                    onChange={(e) => setQuestion(e.target.value)}
+                                    rows={1}
+                                    className="flex-1 bg-transparent resize-none border-0 p-0 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/35 focus:outline-none focus:ring-0"
+                                    style={{ maxHeight: '140px' }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
+                                            e.preventDefault();
+                                            handleSubmit(e);
+                                        }
+                                    }}
+                                    onInput={(e) => {
+                                        e.target.style.height = 'auto';
+                                        e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
+                                    }}
+                                />
+                                {loading ? (
+                                    <button type="button" onClick={stopGeneration} title="Detener" aria-label="Detener"
+                                        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 transition-opacity">
+                                        <StopIcon className="w-4 h-4" />
+                                    </button>
+                                ) : (
+                                    <button type="submit" disabled={!question.trim() && !attachments.length} title="Enviar" aria-label="Enviar"
+                                        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-colors">
+                                        <ArrowUpIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </form>
+                            <p className="hidden sm:block mt-1.5 text-[11px] text-slate-400 dark:text-white/35 text-center">
+                                Enter para enviar · Shift+Enter nueva línea · Pega o arrastra capturas para analizarlas
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </ChatAskContext.Provider>
     );
 };
 

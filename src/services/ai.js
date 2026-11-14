@@ -62,7 +62,12 @@ const PROVIDER_LABELS = {
   zai: 'Z.ai (GLM)',
   groq: 'Groq',
   openrouter: 'OpenRouter (gratis)',
+  thesys: 'OpenUI Gateway',
 };
+
+// OpenUI AI Gateway (Thesys): solo lo usa el chat, que responde en OpenUI Lang.
+// El servidor solo acepta ids "*-free" (nivel promocional gratuito).
+export const THESYS_MODEL = 'google/gemini-3.6-flash-free';
 
 // El valor del <select> codifica proveedor + modelo como "provider|model" (los
 // ids de modelo no contienen "|"). Un valor "pelado" (sin "|") se asume Gemini,
@@ -151,7 +156,7 @@ export async function authHeaders(extra = {}) {
  * siguiente proveedor en vez de quedarse colgadas indefinidamente.
  */
 export async function streamAI(
-  { provider = 'gemini', model, messages, temperature = 0.7, signal, connectTimeoutMs = 30000, idleTimeoutMs = 25000 },
+  { provider = 'gemini', model, messages, temperature = 0.7, signal, tools = false, connectTimeoutMs = tools ? 55000 : 30000, idleTimeoutMs = 25000 },
   onChunk
 ) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -172,7 +177,7 @@ export async function streamAI(
     const res = await fetch('/api/ai/stream', {
       method: 'POST',
       headers: await authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ provider, model, messages, temperature }),
+      body: JSON.stringify({ provider, model, messages, temperature, ...(tools ? { tools: true } : {}) }),
       signal: ctrl.signal,
     });
     if (!res.ok || !res.body) {

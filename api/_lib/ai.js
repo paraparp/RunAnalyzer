@@ -11,6 +11,8 @@ const KEYS = {
   anthropic: () => process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY,
   openrouter: () => process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY,
   zai: () => process.env.ZAI_API_KEY || process.env.VITE_ZAI_API_KEY,
+  // Sin variante VITE_: esta key no debe acabar nunca en el bundle.
+  thesys: () => process.env.THESYS_API_KEY,
 };
 
 /** Crea el modelo del SDK para el proveedor pedido, con la key del servidor. */
@@ -46,6 +48,13 @@ export function resolveModel(provider = 'gemini', model) {
       });
       return zai.chat(model);
     }
+    case 'thesys': {
+      // OpenUI AI Gateway (Thesys): protocolo OpenAI Chat Completions. Valida y
+      // corrige el OpenUI Lang mientras hace stream. Igual que Z.ai, .chat()
+      // fuerza /chat/completions en vez de la Responses API.
+      const thesys = createOpenAI({ baseURL: 'https://api.thesys.dev/v1/embed', apiKey: key });
+      return thesys.chat(model);
+    }
     case 'anthropic': {
       const anthropic = createAnthropic({ apiKey: key });
       return anthropic(model);
@@ -73,9 +82,17 @@ const ALLOWED_MODELS = {
   // Z.ai: solo modelos GLM "*-flash" (el nivel gratuito). Restringir al sufijo
   // -flash evita que con nuestra key se pidan los GLM de pago (air, 4.6, etc).
   zai: (m) => typeof m === 'string' && /^glm-[\w.-]*flash$/i.test(m),
+  // Thesys: solo los modelos promocionalmente gratuitos (id "autor/modelo-free").
+  thesys: (m) => typeof m === 'string' && m.length <= 80 && /^[\w.-]+\/[\w.-]+-free$/.test(m),
 };
 const MAX_PROMPT_CHARS = 150_000;
 const MAX_MESSAGES = 50;
+// Imágenes del chat (capturas): base64 sin prefijo data:. El cliente ya las
+// reduce; el tope total queda bajo el límite de 4,5 MB por petición de Vercel.
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGES = 4;
+const MAX_IMAGE_CHARS = 1_500_000;
+const MAX_IMAGE_TOTAL_CHARS = 3_500_000;
 
 /** Valida provider/model/tamaño. Devuelve un mensaje de error o null si es válido. */
 export function validateAIRequest({ provider = 'gemini', model, prompt, messages }) {
@@ -90,13 +107,31 @@ export function validateAIRequest({ provider = 'gemini', model, prompt, messages
       return `messages inválido (1-${MAX_MESSAGES} mensajes)`;
     }
     let total = 0;
+    let images = 0;
+    let imageChars = 0;
     for (const m of messages) {
-      if (!m || !['system', 'user', 'assistant'].includes(m.role) || typeof m.content !== 'string') {
+      if (!m || !['system', 'user', 'assistant'].includes(m.role)) {
         return 'messages inválido (role/content malformados)';
       }
-      total += m.content.length;
+      if (typeof m.content === 'string') { total += m.content.length; continue; }
+      // Mensaje multimodal: solo del usuario, con partes de texto e imagen.
+      if (m.role !== 'user' || !Array.isArray(m.content) || m.content.length === 0) {
+        return 'messages inválido (role/content malformados)';
+      }
+      for (const part of m.content) {
+        if (part?.type === 'text' && typeof part.text === 'string') { total += part.text.length; continue; }
+        if (part?.type === 'image' && typeof part.image === 'string' && IMAGE_TYPES.has(part.mediaType)
+          && /^[A-Za-z0-9+/=]+$/.test(part.image.slice(0, 200))) {
+          images++; imageChars += part.image.length;
+          if (part.image.length > MAX_IMAGE_CHARS) return 'imagen demasiado grande';
+          continue;
+        }
+        return 'messages inválido (parte no soportada)';
+      }
     }
     if (total > MAX_PROMPT_CHARS) return `conversación demasiado larga (máx ${MAX_PROMPT_CHARS} caracteres)`;
+    if (images > MAX_IMAGES) return `demasiadas imágenes (máx ${MAX_IMAGES})`;
+    if (imageChars > MAX_IMAGE_TOTAL_CHARS) return 'imágenes demasiado pesadas';
   }
   return null;
 }
@@ -231,8 +266,32 @@ export async function listOpenRouterModels() {
 
 /** Pipe del textStream a una respuesta Node (Express o serverless). */
 export async function pipeStream(result, res) {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
-  for await (const chunk of result.textStream) res.write(chunk);
+  // fullStream y no textStream: textStream se traga los errores del proveedor
+  // (p. ej. un 429 de cuota) y acaba vacío con un 200, así que el cliente no
+  // sabría que debe saltar al siguiente proveedor. Si el fallo llega antes del
+  // primer texto, se responde con error HTTP; si llega a mitad, se corta.
+  let started = false;
+  let failure = null;
+  for await (const part of result.fullStream) {
+    if (part.type === 'text-delta') {
+      const chunk = part.text ?? part.textDelta ?? '';
+      if (!chunk) continue;
+      if (!started) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        started = true;
+      }
+      res.write(chunk);
+    } else if (part.type === 'error') {
+      failure = part.error;
+      break;
+    }
+  }
+  if (!started) {
+    const status = failure?.statusCode === 429 ? 429 : 502;
+    const message = failure?.message || 'El modelo no devolvió respuesta';
+    res.status(status).json({ error: status === 429 ? `Cuota del proveedor agotada: ${message}` : message });
+    return;
+  }
   res.end();
 }
