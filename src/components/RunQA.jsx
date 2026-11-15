@@ -656,19 +656,21 @@ const RunQA = ({ activities }) => {
                                     </button>
                                 ) : (
                                     <button type="submit" disabled={!question.trim() && !attachments.length} title="Enviar" aria-label="Enviar"
-                                        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-colors">
+                                        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-accent text-white dark:text-slate-900 hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-white/10 dark:disabled:text-white/30 transition-colors">
                                         <ArrowUpIcon className="w-4 h-4" />
                                     </button>
                                 )}
                             </form>
-                            {usedModel && (
-                                <p className="mt-1 pr-1 text-right text-[10px] text-slate-400/80 dark:text-white/30 truncate" title="Modelo que ha respondido">
-                                    {usedModel}
+                            <div className="mt-1.5 flex items-center justify-between gap-3 px-1">
+                                <p className="hidden sm:block min-w-0 truncate text-[11px] text-slate-400 dark:text-white/35">
+                                    Enter para enviar · Shift+Enter nueva línea · Pega o arrastra capturas para analizarlas
                                 </p>
-                            )}
-                            <p className="hidden sm:block mt-1.5 text-[11px] text-slate-400 dark:text-white/35 text-center">
-                                Enter para enviar · Shift+Enter nueva línea · Pega o arrastra capturas para analizarlas
-                            </p>
+                                {usedModel && (
+                                    <p className="ml-auto shrink-0 text-[10px] text-slate-400/80 dark:text-white/30" title="Modelo que ha respondido">
+                                        {usedModel}
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </section>

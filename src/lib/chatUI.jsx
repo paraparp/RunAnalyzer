@@ -180,7 +180,7 @@ const Chart = defineComponent({
                         data={data}
                         index="label"
                         categories={series.map(s => s.name)}
-                        colors={['blue', 'teal', 'orange', 'violet']}
+                        colors={['teal', 'orange', 'slate', 'sky']}
                         valueFormatter={fmt}
                         showLegend={series.length > 1}
                         showAnimation={false}
@@ -324,7 +324,7 @@ function AddToPlan({ workout }) {
                         ¿Añadir el {formatDay(workout.date)} a «{plan.name}»?
                         {clash && <span className="block text-amber-700 dark:text-amber-300">Ese día ya tienes «{clash.type}»; se añadirá además.</span>}
                     </p>
-                    <button type="button" onClick={add} className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">Confirmar</button>
+                    <button type="button" onClick={add} className="px-2.5 py-1 rounded-md text-xs font-semibold bg-accent text-white dark:text-slate-900 hover:opacity-90 transition-opacity">Confirmar</button>
                     <button type="button" onClick={() => setStage('idle')} className="px-2.5 py-1 rounded-md text-xs font-semibold text-slate-600 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors">Cancelar</button>
                 </>
             )}
