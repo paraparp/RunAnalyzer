@@ -19,7 +19,7 @@
     "@mapbox/polyline": "^1.2.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@openuidev/react-lang": "^1.1.1",
-    "@paraparp/ai-kit": "^0.3.0",
+    "@paraparp/ai-kit": "^0.4.1",
     "@supabase/supabase-js": "^2.108.2",
     "@tremor/react": "^3.18.7",
     "ai": "^6.0.77",
