@@ -1,140 +1,39 @@
-// Lógica de IA compartida por las funciones serverless (api/ai/*) y por server.js.
-// Las API keys viven SOLO aquí (servidor); nunca se exponen en el bundle.
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
+// Configuración de IA de RunAnalyzer sobre @paraparp/ai-kit (proveedores, guardarraíles,
+// streaming y salida estructurada viven en el paquete). Aquí queda solo lo propio de la app:
+// qué modelos se permiten con nuestras keys, los esquemas Zod y los listados de modelos.
+// Las API keys viven SOLO en el servidor; nunca se exponen en el bundle.
 import { z } from 'zod';
 
-const KEYS = {
-  gemini: () => process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY,
-  groq: () => process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY,
-  anthropic: () => process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY,
-  openrouter: () => process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY,
-  zai: () => process.env.ZAI_API_KEY || process.env.VITE_ZAI_API_KEY,
-  // Sin variante VITE_: esta key no debe acabar nunca en el bundle.
-  thesys: () => process.env.THESYS_API_KEY,
+// Se aceptan también las variantes VITE_ heredadas (salvo thesys: nunca en el bundle).
+const env = (name) => [name, `VITE_${name}`];
+
+// ── Guardarraíles ────────────────────────────────────────────────────────────
+// El endpoint gasta la cuota/factura del servidor: solo se aceptan los modelos que la app
+// usa (un cliente manipulado no puede pedir modelos caros con nuestras keys).
+export const PROVIDERS = {
+  gemini: { env: env('GEMINI_API_KEY') },
+  groq: { env: env('GROQ_API_KEY'), allow: (m) => m === 'openai/gpt-oss-120b' },
+  // Solo modelos gratuitos (":free"): coste $0 aunque se pida otro.
+  openrouter: {
+    env: env('OPENROUTER_API_KEY'),
+    headers: {
+      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://runanalyzer.app',
+      'X-Title': 'RunAnalyzer',
+    },
+  },
+  // Z.ai: solo GLM "*-flash" (nivel gratuito). Solo expone /chat/completions.
+  zai: { env: env('ZAI_API_KEY'), baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4' },
+  // OpenUI AI Gateway (Thesys): solo modelos promocionalmente gratuitos ("autor/modelo-free").
+  thesys: {
+    label: 'OpenUI Gateway',
+    kind: 'openai-chat',
+    baseURL: 'https://api.thesys.dev/v1/embed',
+    env: ['THESYS_API_KEY'],
+    allow: (m) => typeof m === 'string' && m.length <= 80 && /^[\w.-]+\/[\w.-]+-free$/.test(m),
+  },
+  // Anthropic/OpenAI: keys aceptadas pero ningún modelo permitido (igual que antes).
+  anthropic: { env: env('ANTHROPIC_API_KEY') },
 };
-
-/** Crea el modelo del SDK para el proveedor pedido, con la key del servidor. */
-export function resolveModel(provider = 'gemini', model) {
-  const key = KEYS[provider]?.();
-  if (!key) throw new Error(`Sin API key configurada en el servidor para "${provider}"`);
-
-  switch (provider) {
-    case 'groq': {
-      const groq = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: key });
-      return groq.chat(model);
-    }
-    case 'openrouter': {
-      // OpenRouter es compatible con el protocolo OpenAI: mismo patrón que Groq.
-      // Los headers de ranking son opcionales pero recomendados por OpenRouter.
-      const openrouter = createOpenAI({
-        baseURL: 'https://openrouter.ai/api/v1',
-        apiKey: key,
-        headers: {
-          'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://runanalyzer.app',
-          'X-Title': 'RunAnalyzer',
-        },
-      });
-      return openrouter(model);
-    }
-    case 'zai': {
-      // Z.ai (GLM) habla el protocolo OpenAI PERO solo expone /chat/completions,
-      // no la Responses API. Por eso usamos .chat(model) explícito: con el modo
-      // por defecto el SDK pega a /responses y Z.ai devuelve 404.
-      const zai = createOpenAI({
-        baseURL: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
-        apiKey: key,
-      });
-      return zai.chat(model);
-    }
-    case 'thesys': {
-      // OpenUI AI Gateway (Thesys): protocolo OpenAI Chat Completions. Valida y
-      // corrige el OpenUI Lang mientras hace stream. Igual que Z.ai, .chat()
-      // fuerza /chat/completions en vez de la Responses API.
-      const thesys = createOpenAI({ baseURL: 'https://api.thesys.dev/v1/embed', apiKey: key });
-      return thesys.chat(model);
-    }
-    case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey: key });
-      return anthropic(model);
-    }
-    case 'gemini':
-    default: {
-      const google = createGoogleGenerativeAI({ apiKey: key });
-      return google(model);
-    }
-  }
-}
-
-// ── Guardarraíles de la API ──────────────────────────────────────────────────
-// El endpoint gasta la cuota/factura del servidor: aunque el usuario esté
-// autenticado, solo se aceptan los proveedores/modelos que la app usa y se
-// acota el tamaño del prompt (un cliente manipulado no puede colar prompts
-// gigantes ni modelos caros con nuestras keys).
-const ALLOWED_MODELS = {
-  gemini: (m) => /^gemini-[\w.-]{1,60}$/.test(m),
-  groq: (m) => m === 'openai/gpt-oss-120b',
-  // Solo modelos gratuitos de OpenRouter (id que termina en ":free"). Esto
-  // garantiza coste $0 con nuestra key aunque un cliente manipulado pida otro,
-  // y hace que cualquier modelo gratis NUEVO funcione sin tocar código.
-  openrouter: (m) => typeof m === 'string' && m.length <= 80 && /^[\w./-]+:free$/.test(m),
-  // Z.ai: solo modelos GLM "*-flash" (el nivel gratuito). Restringir al sufijo
-  // -flash evita que con nuestra key se pidan los GLM de pago (air, 4.6, etc).
-  zai: (m) => typeof m === 'string' && /^glm-[\w.-]*flash$/i.test(m),
-  // Thesys: solo los modelos promocionalmente gratuitos (id "autor/modelo-free").
-  thesys: (m) => typeof m === 'string' && m.length <= 80 && /^[\w.-]+\/[\w.-]+-free$/.test(m),
-};
-const MAX_PROMPT_CHARS = 150_000;
-const MAX_MESSAGES = 50;
-// Imágenes del chat (capturas): base64 sin prefijo data:. El cliente ya las
-// reduce; el tope total queda bajo el límite de 4,5 MB por petición de Vercel.
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_IMAGES = 4;
-const MAX_IMAGE_CHARS = 1_500_000;
-const MAX_IMAGE_TOTAL_CHARS = 3_500_000;
-
-/** Valida provider/model/tamaño. Devuelve un mensaje de error o null si es válido. */
-export function validateAIRequest({ provider = 'gemini', model, prompt, messages }) {
-  const check = ALLOWED_MODELS[provider];
-  if (!check) return `proveedor no permitido: ${provider}`;
-  if (typeof model !== 'string' || !check(model)) return `modelo no permitido para ${provider}: ${model}`;
-  if (prompt != null && (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_CHARS)) {
-    return `prompt inválido o demasiado largo (máx ${MAX_PROMPT_CHARS} caracteres)`;
-  }
-  if (messages != null) {
-    if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
-      return `messages inválido (1-${MAX_MESSAGES} mensajes)`;
-    }
-    let total = 0;
-    let images = 0;
-    let imageChars = 0;
-    for (const m of messages) {
-      if (!m || !['system', 'user', 'assistant'].includes(m.role)) {
-        return 'messages inválido (role/content malformados)';
-      }
-      if (typeof m.content === 'string') { total += m.content.length; continue; }
-      // Mensaje multimodal: solo del usuario, con partes de texto e imagen.
-      if (m.role !== 'user' || !Array.isArray(m.content) || m.content.length === 0) {
-        return 'messages inválido (role/content malformados)';
-      }
-      for (const part of m.content) {
-        if (part?.type === 'text' && typeof part.text === 'string') { total += part.text.length; continue; }
-        if (part?.type === 'image' && typeof part.image === 'string' && IMAGE_TYPES.has(part.mediaType)
-          && /^[A-Za-z0-9+/=]+$/.test(part.image.slice(0, 200))) {
-          images++; imageChars += part.image.length;
-          if (part.image.length > MAX_IMAGE_CHARS) return 'imagen demasiado grande';
-          continue;
-        }
-        return 'messages inválido (parte no soportada)';
-      }
-    }
-    if (total > MAX_PROMPT_CHARS) return `conversación demasiado larga (máx ${MAX_PROMPT_CHARS} caracteres)`;
-    if (images > MAX_IMAGES) return `demasiadas imágenes (máx ${MAX_IMAGES})`;
-    if (imageChars > MAX_IMAGE_TOTAL_CHARS) return 'imágenes demasiado pesadas';
-  }
-  return null;
-}
 
 // Esquemas de salida estructurada (antes vivían en los componentes). El cliente
 // solo manda el nombre del esquema; aquí se reconstruye con Zod.
@@ -221,9 +120,11 @@ export const SCHEMAS = {
   }),
 };
 
+const keyOf = (id) => PROVIDERS[id].env.map((k) => process.env[k]).find(Boolean);
+
 /** Lista de modelos Gemini de chat disponibles para la key del servidor. */
 export async function listGeminiModels() {
-  const key = KEYS.gemini();
+  const key = keyOf('gemini');
   if (!key) return [];
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
   if (!r.ok) return [];
@@ -245,7 +146,7 @@ export async function listGeminiModels() {
  * el modelo no se podría usar, así que no lo ofrecemos).
  */
 export async function listOpenRouterModels() {
-  if (!KEYS.openrouter()) return [];
+  if (!keyOf('openrouter')) return [];
   try {
     const r = await fetch('https://openrouter.ai/api/v1/models');
     if (!r.ok) return [];
@@ -262,36 +163,4 @@ export async function listOpenRouterModels() {
   } catch {
     return [];
   }
-}
-
-/** Pipe del textStream a una respuesta Node (Express o serverless). */
-export async function pipeStream(result, res) {
-  // fullStream y no textStream: textStream se traga los errores del proveedor
-  // (p. ej. un 429 de cuota) y acaba vacío con un 200, así que el cliente no
-  // sabría que debe saltar al siguiente proveedor. Si el fallo llega antes del
-  // primer texto, se responde con error HTTP; si llega a mitad, se corta.
-  let started = false;
-  let failure = null;
-  for await (const part of result.fullStream) {
-    if (part.type === 'text-delta') {
-      const chunk = part.text ?? part.textDelta ?? '';
-      if (!chunk) continue;
-      if (!started) {
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache');
-        started = true;
-      }
-      res.write(chunk);
-    } else if (part.type === 'error') {
-      failure = part.error;
-      break;
-    }
-  }
-  if (!started) {
-    const status = failure?.statusCode === 429 ? 429 : 502;
-    const message = failure?.message || 'El modelo no devolvió respuesta';
-    res.status(status).json({ error: status === 429 ? `Cuota del proveedor agotada: ${message}` : message });
-    return;
-  }
-  res.end();
 }
