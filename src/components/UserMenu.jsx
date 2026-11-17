@@ -11,7 +11,9 @@ import {
   SunIcon,
   MoonIcon,
   ComputerDesktopIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
+import usePWAInstall from '../hooks/usePWAInstall';
 import ModelSelector from './ModelSelector';
 import VersionBadge from './VersionBadge';
 import useAIModel from '../hooks/useAIModel';
@@ -60,6 +62,7 @@ export default function UserMenu({
   onFullSync,
   isSyncing = false,
   placement = 'topbar',
+  stravaConnected = true,
   className = '',
 }) {
   const { t, i18n } = useTranslation();
@@ -68,6 +71,7 @@ export default function UserMenu({
   const menuRef = useRef(null);
   const [selectedModel] = useAIModel();
   const { theme, setTheme } = useTheme();
+  const pwa = usePWAInstall();
   const [isGarminConnected, setIsGarminConnected] = useState(checkGarminConnected);
 
   // Escucha cambios en las credenciales o datos de Garmin
@@ -137,10 +141,12 @@ export default function UserMenu({
               alt={user?.name || 'Usuario'}
               className="w-8 h-8 rounded-full object-cover"
             />
-            <span
-              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-[#07090d]"
-              title="Strava Conectado"
-            />
+            {stravaConnected && (
+              <span
+                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-[#07090d]"
+                title={t('user_menu.strava_connected', 'Strava Conectado')}
+              />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-medium leading-tight text-slate-900 dark:text-white truncate">
@@ -168,8 +174,8 @@ export default function UserMenu({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`relative group rounded-full p-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-teal-300 dark:ring-offset-[#07090d] ${
-            isOpen ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:scale-105'
+          className={`relative group rounded-full p-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:ring-offset-[#07090d] ${
+            isOpen ? 'ring-2 ring-accent ring-offset-2 scale-105' : 'hover:scale-105'
           }`}
           aria-expanded={isOpen}
           aria-label={t('user_menu.title', 'Perfil de usuario y configuración de IA')}
@@ -177,18 +183,21 @@ export default function UserMenu({
           <img
             src={user?.picture}
             alt={user?.name || 'Usuario'}
-            className="w-8 h-8 rounded-full ring-2 ring-blue-100 group-hover:ring-blue-400 object-cover shadow-sm transition-all"
+            className="w-8 h-8 rounded-full ring-2 ring-accent/20 group-hover:ring-accent/60 object-cover shadow-sm transition-all"
           />
-          <span
-            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10"
-            title="Conectado"
-          />
+          {stravaConnected && (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10"
+              title={t('user_menu.strava_connected', 'Strava Conectado')}
+            />
+          )}
         </button>
       )}
 
       {/* Popover desplegable */}
       {isOpen && (
         <div
+          data-esc-owner=""
           className={`absolute z-50 animate-in fade-in zoom-in-95 duration-150 ${
             isSidebar
               ? 'bottom-full left-0 mb-3 w-[285px] sm:w-[320px]'
@@ -203,9 +212,9 @@ export default function UserMenu({
                 <img
                   src={user?.picture}
                   alt={user?.name || 'Usuario'}
-                  className="w-11 h-11 rounded-full ring-2 ring-blue-500/30 object-cover shadow"
+                  className="w-11 h-11 rounded-full ring-2 ring-accent/30 object-cover shadow"
                 />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10" />
+                {stravaConnected && <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-white/10" />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
@@ -216,13 +225,29 @@ export default function UserMenu({
                 {/* Chips de conexiones Strava & Garmin */}
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {/* Chip Strava */}
-                  <span
-                    className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60 shadow-xs"
-                    title="Strava Conectado"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#fc4c02]" />
-                    Strava
-                  </span>
+                  {stravaConnected ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200/80 dark:border-orange-800/60 shadow-xs"
+                      title={t('user_menu.strava_connected', 'Strava Conectado')}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#fc4c02]" />
+                      Strava
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigate('/connections');
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.08] text-slate-500 dark:text-white/45 border border-slate-200/60 dark:border-white/10 transition-colors cursor-pointer"
+                      title={t('user_menu.strava_off', 'Strava no conectado · Haz clic para vincular en Ajustes › Conexiones')}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-white/20" />
+                      Strava
+                      <span className="text-xs text-slate-500 dark:text-white/45 font-normal">off</span>
+                    </button>
+                  )}
 
                   {/* Chip Garmin */}
                   {isGarminConnected ? (
@@ -285,6 +310,25 @@ export default function UserMenu({
                 <ModelSelector mode="menu" onSelect={() => {}} />
               </div>
             </div>
+
+            {!pwa.installed && (pwa.canInstall || pwa.isIOS) && (
+              <div className="pt-2 border-t border-slate-100 dark:border-white/10 space-y-1.5">
+                {pwa.canInstall ? (
+                  <button
+                    type="button"
+                    onClick={() => { pwa.promptInstall(); setIsOpen(false); }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border bg-teal-600 hover:bg-teal-700 text-white border-teal-600 transition-colors"
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    <span>{t('pwa.install', 'Instalar app')}</span>
+                  </button>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-white/55 leading-snug">
+                    {t('pwa.install_ios', 'Para instalarla: Compartir → «Añadir a pantalla de inicio».')}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Sincronización completa: el sync de entrada y el de la barra solo traen
                 lo nuevo, así que lo que cambie hacia atrás (actividades borradas,

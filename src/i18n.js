@@ -4,6 +4,15 @@ import { initReactI18next } from 'react-i18next';
 // English translations
 const en = {
   translation: {
+    pwa: {
+      install: 'Install app',
+      install_ios: 'To install: Share → "Add to Home Screen".',
+      install_banner: 'Install RunAnalyzer: its own window and a shortcut.',
+      offline: 'Offline: showing the last saved data.',
+      update_ready: 'A new version of RunAnalyzer is available.',
+      reload: 'Update',
+      dismiss: 'Later',
+    },
     today_view: {
       weekdays: "M,T,W,T,F,S,S",
       units: { bpm: "bpm" },
@@ -276,10 +285,33 @@ const en = {
     },
     topbar: {
       open_menu: "Open menu",
+      close: "Close",
+      main_nav: "Main",
+      sections_nav: "Sections",
+      search: "Search",
       all_filter: "All",
       syncing: "Syncing...",
       sync: "Sync Data",
+      last_sync: "Last sync {{when}}",
+      enriching: "Completing details {{done}}/{{total}}",
+      enriching_hint: "Downloading splits and streams of older sessions in the background. You can keep using the app.",
       logout: "Log Out"
+    },
+    common: {
+      loading: "Loading…",
+      loading_data: "Loading your data…"
+    },
+    palette: {
+      title: "Search views, sessions and actions",
+      placeholder: "Go to a view, find a session by name or date…",
+      views: "Views",
+      actions: "Actions",
+      sessions: "Sessions",
+      empty: "No results.",
+      action_sync: "Sync now",
+      action_chat: "Ask the AI coach",
+      action_theme: "Switch light / dark theme",
+      action_language: "Cambiar a español"
     },
     user_menu: {
       title: "User profile and AI settings",
@@ -301,7 +333,9 @@ const en = {
     auth: {
       connect_title: "Connect Strava",
       connect_desc: "Link your account to visualize and analyze your performance.",
-      connect_btn: "Connect with Strava"
+      connect_btn: "Connect with Strava",
+      garmin_hint: "Garmin only? Link it in Connections: health and recovery work without Strava.",
+      garmin_btn: "Go to Connections"
     },
     hubs: {
       vdot: "VDOT",
@@ -491,6 +525,17 @@ const en = {
         ctl_up: "Fitness (CTL) {{ctl}}, {{pct}}% of your peak, rising +{{ramp}}/week.",
         ctl_up_fast: "Fitness (CTL) {{ctl}}, rising +{{ramp}}/week: faster than the usual +5 ceiling.",
         ctl_down: "Fitness (CTL) {{ctl}}, {{pct}}% of your peak, falling {{ramp}}/week.",
+      },
+      racing: {
+        title: "Racing in brief",
+        no_race: "No target race set: add one so the plan, predictions and advice have something to aim at.",
+        race_build: "{{name}} in {{days}} days (~{{weeks}} weeks): there is still time to build.",
+        race_taper: "{{name}} in {{days}} days: taper time, the fitness is already built.",
+        race_week: "{{name}} in {{days}} days: race week. Rest, sleep and nothing new.",
+        race_today: "{{name}} is today. Good luck.",
+        goal_pace: "Goal {{goal}}, which means holding {{pace}}/km.",
+        goal: "Goal {{goal}}.",
+        no_goal: "No goal time set for this race.",
       },
       engine: {
         title: "Engine in brief",
@@ -1577,6 +1622,15 @@ const en = {
 // Spanish translations
 const es = {
   translation: {
+    pwa: {
+      install: 'Instalar app',
+      install_ios: 'Para instalarla: Compartir → «Añadir a pantalla de inicio».',
+      install_banner: 'Instala RunAnalyzer: ventana propia y acceso directo.',
+      offline: 'Sin conexión: ves los últimos datos guardados.',
+      update_ready: 'Hay una versión nueva de RunAnalyzer.',
+      reload: 'Actualizar',
+      dismiss: 'Más tarde',
+    },
     today_view: {
       weekdays: "L,M,X,J,V,S,D",
       units: { bpm: "ppm" },
@@ -1849,10 +1903,33 @@ const es = {
     },
     topbar: {
       open_menu: "Abrir el menú",
+      close: "Cerrar",
+      main_nav: "Principal",
+      sections_nav: "Secciones",
+      search: "Buscar",
       all_filter: "Todo",
       syncing: "Sincronizando...",
       sync: "Sincronizar",
+      last_sync: "Último sync {{when}}",
+      enriching: "Completando detalle {{done}}/{{total}}",
+      enriching_hint: "Bajando en segundo plano los parciales y streams de sesiones antiguas. Puedes seguir usando la app.",
       logout: "Cerrar Sesión"
+    },
+    common: {
+      loading: "Cargando…",
+      loading_data: "Cargando tus datos…"
+    },
+    palette: {
+      title: "Buscar vistas, sesiones y acciones",
+      placeholder: "Ir a una vista, buscar una sesión por nombre o fecha…",
+      views: "Vistas",
+      actions: "Acciones",
+      sessions: "Sesiones",
+      empty: "Sin resultados.",
+      action_sync: "Sincronizar ahora",
+      action_chat: "Preguntar al entrenador AI",
+      action_theme: "Cambiar tema claro / oscuro",
+      action_language: "Switch to English"
     },
     user_menu: {
       title: "Perfil de usuario y configuración de IA",
@@ -1874,7 +1951,9 @@ const es = {
     auth: {
       connect_title: "Conecta Strava",
       connect_desc: "Vincula tu cuenta para visualizar y analizar tu rendimiento.",
-      connect_btn: "Conectar con Strava"
+      connect_btn: "Conectar con Strava",
+      garmin_hint: "¿Solo Garmin? Vincúlalo en Conexiones: salud y recuperación funcionan sin Strava.",
+      garmin_btn: "Ir a Conexiones"
     },
     hubs: {
       vdot: "VDOT",
@@ -2064,6 +2143,17 @@ const es = {
         ctl_up: "Forma (CTL) {{ctl}}, un {{pct}}% de tu pico, subiendo +{{ramp}}/semana.",
         ctl_up_fast: "Forma (CTL) {{ctl}}, subiendo +{{ramp}}/semana: más rápido que el techo habitual de +5.",
         ctl_down: "Forma (CTL) {{ctl}}, un {{pct}}% de tu pico, bajando {{ramp}}/semana.",
+      },
+      racing: {
+        title: "Competición, en resumen",
+        no_race: "No tienes carrera objetivo: añade una para que el plan, las predicciones y los consejos apunten a algo.",
+        race_build: "{{name}} en {{days}} días (~{{weeks}} semanas): aún hay margen para construir.",
+        race_taper: "{{name}} en {{days}} días: toca afinar, la forma ya está hecha.",
+        race_week: "{{name}} en {{days}} días: semana de carrera. Descanso, sueño y nada nuevo.",
+        race_today: "{{name}} es hoy. Suerte.",
+        goal_pace: "Objetivo {{goal}}, que supone aguantar {{pace}}/km.",
+        goal: "Objetivo {{goal}}.",
+        no_goal: "Esta carrera no tiene tiempo objetivo.",
       },
       engine: {
         title: "Motor, en resumen",

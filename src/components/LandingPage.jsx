@@ -170,7 +170,7 @@ const LandingPage = () => {
                 initial={{ y: -40, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#07090d]/70 backdrop-blur-xl border-b border-white/10' : 'bg-transparent border-b border-transparent'}`}
+                className={`fixed top-0 inset-x-0 z-50 pt-[env(safe-area-inset-top)] transition-all duration-300 ${scrolled ? 'bg-[#07090d]/70 backdrop-blur-xl border-b border-white/10' : 'bg-transparent border-b border-transparent'}`}
             >
                 <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
                     <div className="flex items-center gap-3">

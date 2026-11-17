@@ -6,6 +6,8 @@ import './index.css';
 import './i18n';
 import './hooks/useTheme'; // aplica el tema y sigue al sistema desde el arranque
 import { buildInfo } from './lib/buildInfo';
+import PWAPrompts from './components/PWAPrompts';
+import './hooks/usePWAInstall'; // captura beforeinstallprompt antes de montar nada
 
 // Útil para soporte: saber qué build está corriendo el usuario desde la consola.
 window.__APP_BUILD__ = buildInfo;
@@ -14,6 +16,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <App />
+      <PWAPrompts />
     </BrowserRouter>
   </StrictMode>,
 );

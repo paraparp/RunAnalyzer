@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo, Suspense, lazy } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo, Suspense, lazy } from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import cloudStorage, { hydrate, reset as resetCloudStorage, flush as flushCloudStorage } from './lib/cloudStorage';
@@ -9,9 +9,10 @@ import OfflineBanner from './components/OfflineBanner';
 import RunQA from './components/RunQA';
 import Logo from './components/Logo';
 import UserMenu from './components/UserMenu';
-import ThemeToggle from './components/ThemeToggle';
 import LandingPage from './components/LandingPage';
 import TodayView from './components/TodayView';
+import CommandPalette from './components/CommandPalette';
+import ViewSkeleton, { AppSplash } from './components/ViewSkeleton';
 import { TimeScopeProvider, TimeScopeSelector } from './components/TimeScope';
 // Vistas secundarias: solo se monta una a la vez (viewMap), así que se cargan
 // bajo demanda. Esto saca del bundle inicial sus dependencias pesadas
@@ -42,11 +43,16 @@ const GeoZones = lazy(() => import('./components/GeoZones'));
 const RouteProgression = lazy(() => import('./components/RouteProgression'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
-// TEMPORAL: comparativa de la portada (H6). Se borra al decidir.
 // La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
 const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
+const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
+const RacingVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.RacingVerdict })));
 import useHrParams from './hooks/useHrParams';
 import useIsAdmin from './hooks/useIsAdmin';
+import useDialogA11y from './hooks/useDialogA11y';
+import useTheme from './hooks/useTheme';
+import useTimeScope from './hooks/useTimeScope';
+import { readSyncHistory } from './lib/syncHistory';
 
 const RUNNING_TYPES = ['Run', 'TrailRun', 'VirtualRun'];
 import { getActivity, getActivityStreams, getStravaAuthUrl } from './services/strava';
@@ -57,72 +63,38 @@ import { slimActivity, persistStravaData, readStravaData } from './lib/stravaSto
 import syncAll from './lib/syncAll';
 import { syncPlanStatuses } from './lib/trainingPlans';
 import {
-  AdjustmentsHorizontalIcon,
   ArrowPathIcon,
   ChevronRightIcon,
   Squares2X2Icon,
-  SparklesIcon,
-  ArrowTrendingUpIcon,
   ChatBubbleLeftRightIcon,
-  ArrowDownTrayIcon,
   Bars3Icon,
   XMarkIcon,
   BoltIcon,
-  ClockIcon,
-  FireIcon,
-  MapPinIcon,
-  ArrowPathRoundedSquareIcon,
   ChartBarIcon,
-  HeartIcon,
   ChartPieIcon,
-  MapIcon,
-  SignalIcon,
-  CalendarDaysIcon,
-  ExclamationTriangleIcon,
   BeakerIcon,
-  StarIcon,
-  RectangleGroupIcon,
   TrophyIcon,
-  FlagIcon,
   Cog6ToothIcon,
-  LinkIcon,
-  ShieldCheckIcon,
+  MagnifyingGlassIcon,
+  SunIcon,
+  GlobeAltIcon,
 } from "@heroicons/react/24/outline";
 
+// Las vistas. El icono lo pone la categoría (NAV_CATEGORIES): los ítems se
+// pintan como texto bajo ella, así que no llevan uno propio.
 const NAV_ITEMS = [
-  { id: 'dashboard',  icon: Squares2X2Icon },
-  { id: 'pmc', icon: ArrowTrendingUpIcon },
-  { id: 'weekly', icon: CalendarDaysIcon },
-  { id: 'injury', icon: ExclamationTriangleIcon },
-  { id: 'hranalysis', icon: HeartIcon },
-  { id: 'technique', icon: FireIcon },
-  { id: 'zones', icon: SignalIcon },
-  { id: 'log', icon: ChartBarIcon },
-  { id: 'heatmap', icon: MapIcon },
-  { id: 'gallery', icon: RectangleGroupIcon },
-  { id: 'geozones', icon: MapPinIcon },
-  { id: 'routes', icon: ArrowPathRoundedSquareIcon },
-  { id: 'consistency', icon: CalendarDaysIcon },
-  { id: 'gear', icon: StarIcon },
-  { id: 'targets', icon: FlagIcon },
-  { id: 'racehistory', icon: ClockIcon },
-  { id: 'criticalspeed', icon: BoltIcon },
-  { id: 'planner', icon: SparklesIcon },
-  { id: 'trainingplans', icon: CalendarDaysIcon },
-  { id: 'predictor', icon: ArrowTrendingUpIcon },
-  { id: 'fitness', icon: BeakerIcon },
-  { id: 'health', icon: HeartIcon },
-  { id: 'calibration', icon: AdjustmentsHorizontalIcon },
-  { id: 'connections', icon: LinkIcon },
-  { id: 'export', icon: ArrowDownTrayIcon },
-];
+  'dashboard', 'pmc', 'weekly', 'injury', 'hranalysis', 'technique', 'zones', 'log',
+  'heatmap', 'gallery', 'geozones', 'routes', 'consistency', 'gear', 'targets',
+  'racehistory', 'criticalspeed', 'planner', 'trainingplans', 'predictor', 'fitness',
+  'health', 'calibration', 'connections', 'export',
+].map(id => ({ id }));
 
 // Vista solo para administradores. Vive fuera de NAV_ITEMS a propósito: se añade
 // en tiempo de ejecución si `is_admin()` dice que sí, de modo que para el resto
 // de usuarios ni existe la entrada ni la ruta responde (currentView la descarta).
 // El gating es cosmético; quien mande la URL a mano verá el dashboard, y
 // /api/admin le devolvería 403 igualmente.
-const ADMIN_NAV_ITEM = { id: 'admin', icon: ShieldCheckIcon };
+const ADMIN_NAV_ITEM = { id: 'admin' };
 
 // Las categorías agrupan por la PREGUNTA que responde cada vista. Cinco, y
 // ninguna con un solo ítem: una categoría que al abrirla da una sola cosa es un
@@ -148,10 +120,41 @@ const NAV_CATEGORIES = [
 // que filtra lo que no filtra.
 const SCOPED_VIEWS = new Set(['pmc', 'weekly', 'criticalspeed', 'fitness', 'zones', 'hranalysis', 'health']);
 
+// Barra inferior del móvil: las cinco áreas de uso diario. Ajustes se queda en el
+// menú lateral, que no es un sitio al que se vaya en cada visita.
+const BOTTOM_NAV_IDS = ['today', 'sessions', 'load', 'engine', 'racing'];
+
+/** "hace 5 min" / "2 hours ago" para una marca de tiempo pasada. */
+const relativeTime = (ms, lang) => {
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+  const minutes = Math.round((ms - Date.now()) / 60000);
+  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
+  return rtf.format(Math.round(hours / 24), 'day');
+};
+
 const Dashboard = ({ user, handleLogout }) => {
   const { t, i18n } = useTranslation();
-  const [stravaData, setStravaData] = useState(null);
+  // Lo guardado entra ya en el primer render: la app arranca con datos, y quien
+  // no tiene Strava no ve parpadear la tarjeta de "conecta" antes de tiempo.
+  const [stravaData, setStravaData] = useState(readStravaData);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const { isDark, setTheme } = useTheme();
+  const [scope] = useTimeScope();
+
+  // Ctrl/⌘+K abre el buscador global desde cualquier vista.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const changeLanguage = () => {
     const newLang = i18n.language.startsWith('en') ? 'es' : 'en';
@@ -247,6 +250,13 @@ const Dashboard = ({ user, handleLogout }) => {
     }
   };
 
+  // Progreso del enriquecido en segundo plano (los dos de abajo suman al mismo
+  // contador): sin él, los datos cambian solos durante medio minuto tras un sync
+  // y no hay forma de saber por qué. Al terminar el último se pone a cero.
+  const [enrich, setEnrich] = useState({ done: 0, total: 0 });
+  const enrichStart = (n) => { if (n > 0) setEnrich(p => ({ done: p.done, total: p.total + n })); };
+  const enrichTick = () => setEnrich(p => (p.done + 1 >= p.total ? { done: 0, total: 0 } : { ...p, done: p.done + 1 }));
+
   // Enriquece en segundo plano los parciales (splits_metric) que falten tras un
   // sync. Se limita a carreras recientes sin detalle, con throttle y tope por sync,
   // para no tocar el rate-limit de Strava. Cada resultado se persiste en Supabase,
@@ -267,6 +277,7 @@ const Dashboard = ({ user, handleLogout }) => {
                 && (since == null || new Date(a.start_date).getTime() >= since))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
+    enrichStart(need.length);
     for (const act of need) {
       try {
         const detail = await getActivity(accessToken, act.id);
@@ -287,6 +298,7 @@ const Dashboard = ({ user, handleLogout }) => {
       } catch (e) {
         console.warn('[sync] enrich parciales falló', act.id, e);
       }
+      enrichTick();
       await new Promise(r => setTimeout(r, 400)); // throttle anti rate-limit
     }
   };
@@ -306,6 +318,7 @@ const Dashboard = ({ user, handleLogout }) => {
         && (needsFlatEfforts(a) || needsStreamGap(a) || needsHrEffort(a)))
       .sort((a, b) => b.start_date.localeCompare(a.start_date))
       .slice(0, cap);
+    enrichStart(need.length);
     for (const act of need) {
       try {
         const streams = await getActivityStreams(accessToken, act.id);
@@ -328,12 +341,24 @@ const Dashboard = ({ user, handleLogout }) => {
       } catch (e) {
         console.warn('[sync] enrich tramos llanos falló', act.id, e);
       }
+      enrichTick();
       await new Promise(r => setTimeout(r, 400)); // throttle anti rate-limit
     }
   };
 
 
+  // Las acciones del buscador llaman a la versión vigente de estas dos funciones
+  // (cambian de identidad en cada render) sin rehacer la lista cada vez.
+  const runSyncRef = useRef(() => {});
+  const changeLanguageRef = useRef(() => {});
+  useEffect(() => {
+    runSyncRef.current = runSync;
+    changeLanguageRef.current = changeLanguage;
+  });
+
   const [isSyncing, setIsSyncing] = useState(false);
+  // Cuándo fue el último sync (lib/syncHistory): se enseña junto al botón.
+  const [lastSyncAt, setLastSyncAt] = useState(() => readSyncHistory()[0]?.startedAt ?? null);
 
   // Todo el sync vive en `lib/syncAll`: Strava, la salud y el sueño de Garmin y
   // las actividades con dinámica, con un solo aviso al final. Aquí solo queda lo
@@ -362,12 +387,13 @@ const Dashboard = ({ user, handleLogout }) => {
       });
     } finally {
       setIsSyncing(false);
+      setLastSyncAt(readSyncHistory()[0]?.startedAt ?? null);
     }
   };
 
   useEffect(() => {
-    // Primero se pinta lo guardado (la app arranca con datos, no en blanco) y
-    // luego se sincroniza. El saneo retroactivo recorta payloads inflados por
+    // Lo guardado ya está pintado (estado inicial); aquí se sanea y luego se
+    // sincroniza. El saneo retroactivo recorta payloads inflados por
     // versiones anteriores (segment_efforts, polylines completas…) y libera cuota.
     const saved = readStravaData();
     if (saved) {
@@ -434,6 +460,46 @@ const Dashboard = ({ user, handleLogout }) => {
     [navigate]
   );
 
+  // Menú móvil y chat son diálogos: foco dentro, Tab atrapado y Escape cierra.
+  const mobileMenuRef = useRef(null);
+  const chatRef = useRef(null);
+  useDialogA11y(mobileMenuRef, mobileMenuOpen, () => setMobileMenuOpen(false));
+  useDialogA11y(chatRef, chatOpen, () => setChatOpen(false));
+
+  const activeCat = navCategories.find(cat => cat.itemIds.includes(navView));
+  const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
+  const hasTabs = subItems.length > 1;
+
+  // En móvil las pestañas hacen scroll horizontal: la activa siempre a la vista.
+  const mobileTabsRef = useRef(null);
+  useEffect(() => {
+    mobileTabsRef.current?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [navView]);
+
+  // Lo que el chat sabe de dónde está el usuario: así "¿qué significa esto?"
+  // funciona desde cualquier vista, no solo desde la ficha de sesión. Va al
+  // prompt de sistema (lib/chatContext), no a la conversación.
+  const viewContext = useMemo(() => {
+    const parts = [`Vista «${t(`nav.${currentView}`)}»${activeCat && activeCat.itemIds.length > 1 ? `, del área «${t(`nav.categories.${activeCat.id}`)}»` : ''}.`];
+    if (SCOPED_VIEWS.has(currentView) && typeof scope === 'string') {
+      parts.push(`Período seleccionado: ${t(`time_scope.options.${scope}`, scope)}.`);
+    }
+    if (currentView === 'activity') {
+      const a = allActivities.find(x => String(x.id) === String(routeId));
+      if (a) parts.push(`Sesión abierta: ${a.name} (${String(a.start_date_local || a.start_date).slice(0, 10)}, ${((a.distance || 0) / 1000).toFixed(1)} km).`);
+    }
+    return parts.join(' ');
+  }, [t, currentView, activeCat, scope, allActivities, routeId]);
+
+  const paletteActions = useMemo(() => [
+    { id: 'sync', label: t('palette.action_sync'), Icon: ArrowPathIcon, run: () => runSyncRef.current({ force: true }) },
+    { id: 'chat', label: t('palette.action_chat'), Icon: ChatBubbleLeftRightIcon, run: () => openChat() },
+    { id: 'theme', label: t('palette.action_theme'), Icon: SunIcon, run: () => setTheme(isDark ? 'light' : 'dark') },
+    { id: 'language', label: t('palette.action_language'), Icon: GlobeAltIcon, run: () => changeLanguageRef.current() },
+  ], [t, openChat, setTheme, isDark]);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+
   // Sidebar component
   const SidebarContent = () => {
     const activeCatId = navCategories.find(cat => cat.itemIds.includes(navView))?.id;
@@ -446,7 +512,7 @@ const Dashboard = ({ user, handleLogout }) => {
         </div>
 
         {/* Navegación: la categoría activa despliega sus secciones */}
-        <nav aria-label="Principal" className="flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto">
+        <nav aria-label={t('topbar.main_nav')} className="flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto">
           {navCategories.map(cat => {
             const Icon = cat.icon;
             const isActive = cat.id === activeCatId;
@@ -515,33 +581,19 @@ const Dashboard = ({ user, handleLogout }) => {
             onFullSync={() => runSync({ full: true })}
             isSyncing={isSyncing}
             placement="sidebar"
+            stravaConnected={Boolean(stravaData?.accessToken)}
           />
         </div>
       </>
     );
   };
 
-  if (!stravaData) {
-    return (
-      <div className="dark shell-glow min-h-screen bg-[#07090d] text-white flex items-center justify-center p-6">
-        <div className="max-w-sm w-full">
-          <div className="rounded-md border border-white/10 bg-white/[0.03] p-8 text-center">
-            <div className="w-14 h-14 bg-orange-400/10 ring-1 ring-orange-300/30 rounded-sm flex items-center justify-center mx-auto mb-5">
-              <BoltIcon className="w-7 h-7 text-orange-300" />
-            </div>
-            <h2 className="text-2xl font-black tracking-tighter text-white mb-2">{t('auth.connect_title', 'Conecta Strava')}</h2>
-            <p className="text-sm text-white/55 mb-6 leading-relaxed">{t('auth.connect_desc', 'Vincula tu cuenta para visualizar y analizar tu rendimiento.')}</p>
-            <button
-              onClick={connectToStrava}
-              className="w-full py-3 px-6 bg-[#fc4c02] hover:bg-[#e34402] text-white text-sm font-bold rounded-sm transition-colors"
-            >
-              {t('auth.connect_btn', 'Conectar con Strava')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Sin Strava ya no hay muro: la app se abre igual (Garmin, ajustes y el menú de
+  // usuario siguen a mano) y la portada ofrece conectarlo. Antes esta pantalla
+  // sustituía a todo el shell, sin forma siquiera de cerrar sesión.
+  const stravaConnected = Boolean(stravaData?.accessToken);
+  const enriching = enrich.total > 0;
+  const lastSyncLabel = lastSyncAt ? t('topbar.last_sync', { when: relativeTime(lastSyncAt, i18n.language) }) : null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
@@ -554,7 +606,14 @@ const Dashboard = ({ user, handleLogout }) => {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="sidebar-overlay fixed inset-0" onClick={() => setMobileMenuOpen(false)} />
-          <aside className="sidebar-enter fixed inset-y-0 left-0 w-[260px] bg-white dark:bg-[#07090d] shadow-2xl flex flex-col z-50">
+          <aside
+            ref={mobileMenuRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('topbar.main_nav')}
+            className="sidebar-enter fixed inset-y-0 left-0 w-[260px] pt-[env(safe-area-inset-top)] bg-white dark:bg-[#07090d] shadow-2xl flex flex-col z-50 focus:outline-none"
+          >
             {SidebarContent()}
           </aside>
         </div>
@@ -564,10 +623,8 @@ const Dashboard = ({ user, handleLogout }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
         {(() => {
-          const activeCat = navCategories.find(cat => cat.itemIds.includes(navView));
-          const subItems = (activeCat?.itemIds ?? []).map(id => navItems.find(i => i.id === id)).filter(Boolean);
           return (
-            <header className="sticky top-0 z-40 flex justify-between items-center px-4 sm:px-8 w-full bg-white dark:bg-[#07090d] border-b border-slate-200 dark:border-white/10 h-16 shrink-0 gap-3 sm:gap-6">
+            <header className="sticky top-0 z-40 flex justify-between items-center px-4 sm:px-8 w-full bg-white dark:bg-[#07090d] border-b border-slate-200 dark:border-white/10 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] shrink-0 gap-3 sm:gap-6">
               {/* Mobile menu */}
               <button
                 type="button"
@@ -583,13 +640,15 @@ const Dashboard = ({ user, handleLogout }) => {
                 <h2 className="text-lg sm:text-xl font-black text-slate-950 dark:text-white tracking-tighter truncate md:shrink-0">{activeCat ? t(`nav.categories.${activeCat.id}`) : pageTitle}</h2>
 
                 {/* Sub-navigation tabs — con un solo ítem no hay nada que elegir */}
-                <nav className="hidden md:flex items-center space-x-6">
-                  {(subItems.length > 1 ? subItems : []).map(item => (
+                <nav aria-label={t('topbar.sections_nav')} className="hidden md:flex items-center space-x-6">
+                  {(hasTabs ? subItems : []).map(item => (
                     <button
                       key={item.id}
+                      type="button"
+                      aria-current={navView === item.id ? 'page' : undefined}
                       onClick={() => setCurrentView(item.id)}
-                      className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${currentView === item.id
-                        ? 'text-slate-950 dark:text-white border-b-2 border-indigo-600 dark:border-teal-300'
+                      className={`text-sm font-medium whitespace-nowrap pb-1 transition-colors ${navView === item.id
+                        ? 'text-slate-950 dark:text-white border-b-2 border-accent'
                         : 'text-slate-500 dark:text-white/55 hover:text-slate-950 dark:hover:text-white border-b-2 border-transparent'
                         }`}
                     >
@@ -599,28 +658,48 @@ const Dashboard = ({ user, handleLogout }) => {
                 </nav>
               </div>
 
-              {/* Right: year filter + sync + avatar */}
+              {/* Derecha: buscador + período + sync + avatar. Tema e idioma viven
+                  en el menú de usuario (y en el buscador): aquí solo competían
+                  por el sitio con lo que se usa a diario. */}
               <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setPaletteOpen(true)}
+                  aria-label={t('palette.title')}
+                  title={`${t('palette.title')} (Ctrl+K)`}
+                  className="inline-flex items-center gap-2 h-8 px-2 xl:pl-2.5 xl:pr-2 rounded-sm border border-transparent xl:border-slate-200 xl:dark:border-white/15 text-slate-500 hover:text-slate-950 hover:bg-slate-900/5 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10 transition-colors"
+                >
+                  <MagnifyingGlassIcon className="w-4 h-4" />
+                  <span className="hidden xl:inline text-xs font-medium">{t('topbar.search')}</span>
+                  <kbd className="hidden xl:inline text-label font-semibold text-slate-400 dark:text-white/40">Ctrl K</kbd>
+                </button>
                 {/* Período global: uno para toda la app, visible donde la vista lo usa. */}
                 {SCOPED_VIEWS.has(currentView) && <TimeScopeSelector className="hidden md:inline-flex" />}
-                <ThemeToggle />
+                {enriching ? (
+                  <span
+                    role="status"
+                    title={t('topbar.enriching_hint')}
+                    className="hidden sm:inline text-xs font-medium text-slate-500 dark:text-white/55 tabular-nums whitespace-nowrap"
+                  >
+                    {t('topbar.enriching', enrich)}
+                  </span>
+                ) : lastSyncLabel && !isSyncing && (
+                  <span className="hidden xl:inline text-xs text-slate-500 dark:text-white/45 whitespace-nowrap">{lastSyncLabel}</span>
+                )}
                 <button
-                  onClick={changeLanguage}
-                  className="px-3 py-1.5 text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-white/20 dark:text-white/80 dark:hover:bg-white/10 rounded-sm uppercase transition-colors"
-                  title={i18n.language.startsWith('en') ? 'Switch to Spanish' : 'Cambiar a Inglés'}
-                >
-                  {i18n.language.startsWith('en') ? 'EN' : 'ES'}
-                </button>
-                <button
+                  type="button"
                   onClick={() => runSync({ force: true })}
                   disabled={isSyncing}
-                  title={isSyncing ? t('topbar.syncing') : t('topbar.sync')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold px-2.5 sm:px-4 py-2 rounded-sm transition-all ${isSyncing ? 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-slate-950 dark:hover:bg-teal-100'
+                  title={isSyncing ? t('topbar.syncing') : [t('topbar.sync'), lastSyncLabel].filter(Boolean).join(' · ')}
+                  className={`inline-flex items-center gap-2 text-xs font-bold px-2.5 sm:px-4 py-2 rounded-sm transition-colors ${isSyncing
+                    ? 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40 cursor-not-allowed'
+                    : 'bg-accent text-white hover:bg-accent/90 dark:text-slate-950'
                     }`}
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{isSyncing ? t('topbar.syncing') : t('topbar.sync')}</span>
                 </button>
+                {/* En escritorio el menú de usuario ya está al pie de la barra lateral. */}
                 <UserMenu
                   user={user}
                   handleLogout={handleLogout}
@@ -628,17 +707,75 @@ const Dashboard = ({ user, handleLogout }) => {
                   onFullSync={() => runSync({ full: true })}
                   isSyncing={isSyncing}
                   placement="topbar"
+                  stravaConnected={stravaConnected}
+                  className="lg:hidden"
                 />
               </div>
+
+              {/* Enriquecido en segundo plano: una línea fina que se ve también en móvil. */}
+              {enriching && (
+                <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-accent/15">
+                  <div className="h-full bg-accent transition-[width] duration-500" style={{ width: `${Math.round((enrich.done / enrich.total) * 100)}%` }} />
+                </div>
+              )}
             </header>
           );
         })()}
+
+        {/* Pestañas del área en móvil: la cabecera no tiene sitio para ellas, y
+            sin esto cambiar de vista hermana obligaba a abrir el menú lateral. */}
+        {hasTabs && (
+          <nav
+            ref={mobileTabsRef}
+            aria-label={t('topbar.sections_nav')}
+            className="md:hidden shrink-0 flex items-center gap-1 px-3 h-11 overflow-x-auto no-scrollbar bg-white dark:bg-[#07090d] border-b border-slate-200 dark:border-white/10"
+          >
+            {subItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                aria-current={navView === item.id ? 'page' : undefined}
+                onClick={() => setCurrentView(item.id)}
+                className={`shrink-0 h-8 px-3 rounded-md text-[13px] whitespace-nowrap transition-colors ${navView === item.id
+                  ? 'font-semibold text-slate-950 dark:text-white bg-slate-900/[0.06] dark:bg-white/[0.08]'
+                  : 'font-medium text-slate-500 dark:text-white/55'
+                  }`}
+              >
+                {t(`nav.${item.id}`)}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {/* Scrollable Content */}
         <main className="flex-1 min-h-0 overflow-y-auto bg-bg text-ink dark:shell-glow">
           <div className={`mx-auto w-full p-4 lg:p-8 space-y-6 ${currentView === 'dashboard' ? 'max-w-[2200px]' : 'max-w-[1400px]'}`}>
 
-            {currentView === 'dashboard' && (
+            {currentView === 'dashboard' && !stravaData && (
+              <section className="card rounded-md max-w-md mx-auto mt-6 sm:mt-12 p-8 text-center">
+                <div className="w-12 h-12 rounded-md bg-accent/10 ring-1 ring-accent/25 flex items-center justify-center mx-auto mb-5">
+                  <BoltIcon className="w-6 h-6 text-accent" />
+                </div>
+                <h2 className="h-display text-2xl mb-2">{t('auth.connect_title')}</h2>
+                <p className="text-sm text-slate-600 dark:text-white/55 mb-6 leading-relaxed">{t('auth.connect_desc')}</p>
+                {/* Naranja de marca de Strava: es su botón, no un acento de la app. */}
+                <button
+                  type="button"
+                  onClick={connectToStrava}
+                  className="w-full py-3 px-6 bg-[#fc4c02] hover:bg-[#e34402] text-white text-sm font-bold rounded-sm transition-colors"
+                >
+                  {t('auth.connect_btn')}
+                </button>
+                <p className="mt-6 pt-5 border-t border-slate-900/10 dark:border-white/10 text-xs text-slate-500 dark:text-white/55 leading-relaxed">
+                  {t('auth.garmin_hint')}{' '}
+                  <button type="button" onClick={() => setCurrentView('connections')} className="font-semibold text-accent hover:underline">
+                    {t('auth.garmin_btn')}
+                  </button>
+                </p>
+              </section>
+            )}
+
+            {currentView === 'dashboard' && stravaData && (
               <TodayView
                 activities={allActivities}
                 runningActivities={runningActivities}
@@ -659,9 +796,13 @@ const Dashboard = ({ user, handleLogout }) => {
             )}
 
             {/* Conclusión del área (§6.3): la misma en todas las vistas del área. */}
-            {(() => {
-              const catId = navCategories.find(cat => cat.itemIds.includes(navView))?.id;
+            {/* Solo en las vistas del área, no en la ficha de sesión (que cuelga de
+                Sesiones a efectos de menú pero es un detalle, no un área). */}
+            {currentView !== 'activity' && (() => {
+              const catId = activeCat?.id;
               if (catId === 'engine') return <Suspense fallback={null}><EngineVerdict runs={runningActivities} hrParams={hrParams} /></Suspense>;
+              if (catId === 'load') return <Suspense fallback={null}><LoadVerdict activities={allActivities} /></Suspense>;
+              if (catId === 'racing') return <Suspense fallback={null}><RacingVerdict /></Suspense>;
               return null;
             })()}
 
@@ -698,21 +839,65 @@ const Dashboard = ({ user, handleLogout }) => {
               if (!view) return null;
               return (
                 <div className="fade-in">
-                  <Suspense fallback={null}>{view}</Suspense>
+                  <Suspense fallback={<ViewSkeleton />}>{view}</Suspense>
                 </div>
               );
             })()}
           </div>
         </main>
+
+        {/* Barra inferior (móvil): las áreas a un toque, como en una app instalada.
+            `data-bottom-nav` hace que los avisos flotantes suban por encima (index.css). */}
+        <nav
+          data-bottom-nav=""
+          aria-label={t('topbar.main_nav')}
+          className="lg:hidden shrink-0 grid grid-cols-5 bg-white dark:bg-[#07090d] border-t border-slate-200 dark:border-white/10 pb-[env(safe-area-inset-bottom)]"
+        >
+          {BOTTOM_NAV_IDS.map(catId => {
+            const cat = navCategories.find(c => c.id === catId);
+            if (!cat) return null;
+            const Icon = cat.icon;
+            const isActive = activeCat?.id === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => { if (!isActive || currentView === 'activity') setCurrentView(cat.itemIds[0]); }}
+                className={`h-14 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${isActive
+                  ? 'text-slate-950 dark:text-white'
+                  : 'text-slate-500 dark:text-white/50'
+                  }`}
+              >
+                <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-accent' : ''}`} />
+                <span className={`max-w-full truncate text-label tracking-normal ${isActive ? 'font-semibold' : 'font-medium'}`}>{t(`nav.categories.${cat.id}`)}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
+      {paletteOpen && (
+        <CommandPalette
+          categories={navCategories}
+          activities={allActivities}
+          actions={paletteActions}
+          onNavigate={setCurrentView}
+          onOpenActivity={openActivity}
+          onClose={closePalette}
+        />
+      )}
+
       {/* ── Chat: lanzador flotante ─────────────────────────────────────────── */}
+      {/* En móvil sube por encima de la barra inferior (--bottom-nav, index.css). */}
       {!chatOpen && (
         <button
+          type="button"
           onClick={() => openChat()}
           title={t('nav.qa')}
           aria-label={t('nav.qa')}
-          className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full bg-[#07090d] ring-1 ring-white/15 hover:ring-teal-300/60 text-teal-300 shadow-lg flex items-center justify-center transition-colors"
+          style={{ bottom: 'calc(1.25rem + var(--bottom-nav, 0px) + env(safe-area-inset-bottom))' }}
+          className="fixed right-5 z-40 h-12 w-12 rounded-full bg-[#07090d] ring-1 ring-white/15 hover:ring-teal-300/60 text-teal-300 shadow-lg flex items-center justify-center transition-colors"
         >
           <ChatBubbleLeftRightIcon className="w-5 h-5" />
         </button>
@@ -725,7 +910,14 @@ const Dashboard = ({ user, handleLogout }) => {
             onClick={() => setChatOpen(false)}
             className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
           />
-          <aside className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-xl lg:max-w-3xl bg-slate-100 dark:bg-[#07090d] border-l border-slate-200 dark:border-white/10 shadow-2xl flex flex-col">
+          <aside
+            ref={chatRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('nav.qa')}
+            className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-xl lg:max-w-3xl pt-[env(safe-area-inset-top)] bg-slate-100 dark:bg-[#07090d] border-l border-slate-200 dark:border-white/10 shadow-2xl flex flex-col focus:outline-none"
+          >
             <div className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 bg-white dark:bg-[#07090d] border-b border-slate-900/10 dark:border-white/10">
               <div className="flex items-center gap-2 min-w-0">
                 <ChatBubbleLeftRightIcon className="w-4 h-4 text-teal-600 dark:text-teal-300 shrink-0" />
@@ -737,15 +929,16 @@ const Dashboard = ({ user, handleLogout }) => {
                 )}
               </div>
               <button
+                type="button"
                 onClick={() => setChatOpen(false)}
-                aria-label={t('topbar.close', 'Cerrar')}
+                aria-label={t('topbar.close')}
                 className="p-1.5 -mr-1 rounded-sm text-slate-500 hover:bg-slate-900/5 hover:text-slate-950 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white transition-colors"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 min-h-0 flex flex-col p-3">
-              <RunQA key={chatSeedKey} activities={runningActivities} />
+              <RunQA key={chatSeedKey} activities={runningActivities} viewContext={viewContext} />
             </div>
           </aside>
         </div>
@@ -755,6 +948,7 @@ const Dashboard = ({ user, handleLogout }) => {
 };
 
 function App() {
+  const { t } = useTranslation();
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   // Qué usuario tiene la caché ya hidratada. Se guarda el ID, no un booleano: así
@@ -791,6 +985,8 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     resetCloudStorage();
+    // Fotos de perfil/actividades cacheadas por el service worker: no dejarlas en un equipo compartido.
+    window.caches?.delete('remote-images').catch(() => {});
     navigate('/');
   };
 
@@ -811,7 +1007,7 @@ function App() {
     picture: meta.avatar_url || meta.picture || '',
   } : null;
 
-  if (!authReady) return null;
+  if (!authReady) return <AppSplash />;
 
   return (
     <>
@@ -824,12 +1020,7 @@ function App() {
           !user ? (
             <LandingPage />
           ) : !storageReady ? (
-            <div className="min-h-screen flex items-center justify-center bg-bg">
-              <div className="flex flex-col items-center gap-3 text-slate-500 dark:text-white/55">
-                <ArrowPathIcon className="w-8 h-8 animate-spin text-teal-600 dark:text-teal-300" />
-                <span className="text-sm font-medium">Cargando tus datos…</span>
-              </div>
-            </div>
+            <AppSplash label={t('common.loading_data')} />
           ) : (
             <TimeScopeProvider>
               <Dashboard user={user} handleLogout={handleLogout} />

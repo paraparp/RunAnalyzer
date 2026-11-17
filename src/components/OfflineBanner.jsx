@@ -22,7 +22,7 @@ export default function OfflineBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed top-0 inset-x-0 z-[9999] flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white shadow-md"
+      className="fixed top-0 inset-x-0 z-[9999] flex items-center justify-center gap-2 bg-amber-500 px-4 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-center text-sm font-medium text-white shadow-md"
     >
       <span aria-hidden="true">⚠️</span>
       <span>{msg}</span>

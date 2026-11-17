@@ -120,7 +120,7 @@ const ThinkingDots = () => (
     </div>
 );
 
-const RunQA = ({ activities }) => {
+const RunQA = ({ activities, viewContext = null }) => {
     const [question, setQuestion] = useState('');
     // Capturas adjuntas pendientes de enviar (ya reducidas, ver lib/chatImages).
     const [attachments, setAttachments] = useState([]);
@@ -199,7 +199,7 @@ const RunQA = ({ activities }) => {
     const buildSystemPrompt = (formatPrompt, lean = false) => {
         let races = [], primary = null, plans = [];
         try { races = getTargetRaces() || []; primary = getPrimaryTargetRace(); plans = getTrainingPlans() || []; } catch { /* datos ilegibles */ }
-        return buildChatSystemPrompt({ activities, garmin, races, primary, plans, seed, formatPrompt, lean });
+        return buildChatSystemPrompt({ activities, garmin, races, primary, plans, seed, viewContext, formatPrompt, lean });
     };
 
     // Core: stream a response for the given history (which must end with a user
@@ -419,7 +419,8 @@ const RunQA = ({ activities }) => {
 
     return (
         <ChatAskContext.Provider value={ask}>
-            <div className={fullscreen
+            {/* data-esc-owner: en pantalla completa Escape es de este componente, no del panel que lo aloja. */}
+            <div data-esc-owner={fullscreen ? '' : undefined} className={fullscreen
                 ? 'fixed inset-0 z-50 bg-[#f4f6fb] dark:bg-[#07090d] p-0 sm:p-4 flex flex-col overflow-hidden'
                 : 'flex flex-col flex-1 min-h-0'}>
                 <section {...dragProps} className="relative flex flex-col flex-1 min-h-[60dvh] lg:min-h-0 overflow-hidden bg-white dark:bg-[#0c0e12] ring-1 ring-slate-200 dark:ring-white/10 sm:rounded-xl shadow-sm">

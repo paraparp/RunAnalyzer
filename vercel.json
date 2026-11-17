@@ -1,5 +1,11 @@
 {
   "buildCommand": "git fetch --unshallow || true && npm run build",
+  "headers": [
+    {
+      "source": "/(sw.js|manifest.webmanifest)",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ],
   "rewrites": [
     {
       "source": "/.well-known/oauth-authorization-server",

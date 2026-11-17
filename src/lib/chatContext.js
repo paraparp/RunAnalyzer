@@ -189,7 +189,7 @@ export function formatHistory(sorted, detailCount) {
 }
 
 /** System prompt completo del chat. `formatPrompt` = instrucciones de OpenUI. */
-export function buildChatSystemPrompt({ activities, garmin, races, primary, plans, seed, formatPrompt, lean = false, now = Date.now() }) {
+export function buildChatSystemPrompt({ activities, garmin, races, primary, plans, seed, viewContext = null, formatPrompt, lean = false, now = Date.now() }) {
     const win = lean ? WINDOWS.lean : WINDOWS.full;
     const sorted = sortActivities(activities);
     const detail = selectDetail(sorted, now, win);
@@ -205,7 +205,7 @@ ${goalsText ? `OBJETIVOS DEL ATLETA (la carrera [PRINCIPAL] es su objetivo: basa
 ${formatActivities(detail)}
 ${garminText ? '\n' + garminText : ''}
 ${historyText ? '\n' + historyText : ''}
-${seed ? `\nANÁLISIS PREVIO DEL PANEL DE IA (el usuario viene de aquí; sus preguntas son SEGUIMIENTO de este diagnóstico — trátalo como contexto principal y mantén coherencia con él):\n${seedToText(seed)}\n` : ''}
+${viewContext ? `\nDÓNDE ESTÁ EL USUARIO EN LA APP (si pregunta por "esto", "esta gráfica" o "este dato", se refiere a esta pantalla; no la menciones si la pregunta no va de ella):\n${viewContext}\n` : ''}${seed ? `\nANÁLISIS PREVIO DEL PANEL DE IA (el usuario viene de aquí; sus preguntas son SEGUIMIENTO de este diagnóstico — trátalo como contexto principal y mantén coherencia con él):\n${seedToText(seed)}\n` : ''}
 ${lean ? `HERRAMIENTAS: arriba solo va lo reciente. Si la pregunta necesita más (sesiones antiguas, vueltas o splits de una actividad, zonas de FC, VFC histórica, récords, predicciones, carga, el plan completo, lesiones o el diario), CONSULTA las herramientas antes de responder: pide rangos de fechas concretos y solo las secciones necesarias. Basa las cifras en lo que devuelvan; no las inventes. Los ids de actividad van entre corchetes [id …] en la lista de arriba; si la actividad no está ahí, búscala primero con list_activities (por fecha). NUNCA inventes un id. No escribas nada antes de tener los datos: la respuesta empieza directamente con el programa.\n\n` : ''}CRITERIOS:
 - Responde de forma clara, directa y útil; concisa pero completa
 - Usa SOLO los datos proporcionados; si un dato no está en ellos, dilo claramente en lugar de estimarlo o inventarlo

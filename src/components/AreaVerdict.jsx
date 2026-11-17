@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getPrimaryTargetRace, daysUntil, formatMinutes, DISTANCE_KM, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { useTranslation } from 'react-i18next';
 import useCalibratedPMC from '../hooks/useCalibratedPMC';
 import useTimeScope from '../hooks/useTimeScope';
@@ -22,7 +23,7 @@ function VerdictList({ title, items }) {
   if (!items.length) return null;
   return (
     <section className="rounded-xl border border-teal-200 dark:border-teal-300/25 bg-teal-50 dark:bg-teal-400/10 px-5 py-3">
-      <h3 className="text-label font-bold uppercase text-blue-700/70 mb-1.5">{title}</h3>
+      <h3 className="text-label font-bold uppercase text-teal-800/80 dark:text-teal-200/70 mb-1.5">{title}</h3>
       <ul className="space-y-1">
         {items.map((it) => (
           <li key={it.id} className="flex items-start gap-2 text-sm text-slate-700 dark:text-white/75">
@@ -41,6 +42,47 @@ export function LoadVerdict({ activities }) {
   const { pmc } = useCalibratedPMC(activities);
   const items = useMemo(() => loadVerdict(pmc?.current), [pmc]);
   return <VerdictList title={t('area_verdict.load.title')} items={items} />;
+}
+
+/**
+ * Competición: la carrera principal, cuánto falta y a qué ritmo hay que correrla.
+ * Es la referencia de todas las vistas del área (plan, predictor, historial).
+ */
+export function RacingVerdict() {
+  const { t } = useTranslation();
+  const [race, setRace] = useState(getPrimaryTargetRace);
+  useEffect(() => {
+    const refresh = () => setRace(getPrimaryTargetRace());
+    window.addEventListener(TARGET_RACES_EVENT, refresh);
+    return () => window.removeEventListener(TARGET_RACES_EVENT, refresh);
+  }, []);
+
+  const items = useMemo(() => {
+    const days = race ? daysUntil(race.date) : null;
+    if (!race || days == null || days < 0) {
+      return [{ id: 'race', tone: 'neutral', key: 'area_verdict.racing.no_race' }];
+    }
+    const phase = days === 0 ? 'today' : days <= 7 ? 'week' : days <= 21 ? 'taper' : 'build';
+    const out = [{
+      id: 'race',
+      tone: days <= 7 ? 'warn' : 'good',
+      key: `area_verdict.racing.race_${phase}`,
+      params: { name: race.name, days, weeks: Math.round(days / 7) },
+    }];
+    const km = DISTANCE_KM[race.distance];
+    if (race.goalTimeMin > 0) {
+      out.push({
+        id: 'goal',
+        tone: 'neutral',
+        key: km ? 'area_verdict.racing.goal_pace' : 'area_verdict.racing.goal',
+        params: { goal: formatMinutes(race.goalTimeMin), pace: km ? formatPaceFromMinPerKm(race.goalTimeMin / km) : null },
+      });
+    } else {
+      out.push({ id: 'goal', tone: 'neutral', key: 'area_verdict.racing.no_goal' });
+    }
+    return out;
+  }, [race]);
+  return <VerdictList title={t('area_verdict.racing.title')} items={items} />;
 }
 
 /** Motor: eficiencia, velocidad crítica, deriva y 80/20 dentro del período compartido. */

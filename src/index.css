@@ -326,6 +326,31 @@ textarea {
   backdrop-filter: blur(4px);
 }
 
+/* Barra inferior del shell (móvil): mientras exista, los avisos flotantes
+   (PWAPrompts, lanzador del chat) se apilan por encima de ella. */
+@media (max-width: 1023.98px) {
+  body:has([data-bottom-nav]) {
+    --bottom-nav: 3.5rem;
+  }
+}
+
+/* El esqueleto de carga espera un instante antes de verse: si el chunk ya está
+   en caché no llega a pintarse y no hay parpadeo. */
+@keyframes skeletonIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.skeleton-delay {
+  animation: skeletonIn 0.2s ease-out 0.15s both, pulse 2s cubic-bezier(0.4, 0, 0.6, 1) 0.35s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-delay {
+    animation: skeletonIn 0.01s linear 0.15s both;
+  }
+}
+
 /* Hide scrollbar for nav tabs */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
