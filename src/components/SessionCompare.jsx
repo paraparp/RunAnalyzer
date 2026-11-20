@@ -4,14 +4,15 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeftIcon, ChatBubbleLeftRightIcon, MagnifyingGlassIcon, ArrowTrendingUpIcon,
   ArrowTrendingDownIcon, EqualsIcon, QuestionMarkCircleIcon, BoltIcon, HeartIcon,
-  ArrowsUpDownIcon, MapIcon, PencilSquareIcon,
+  ArrowsUpDownIcon, MapIcon, PencilSquareIcon, ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  LineChart, ComposedChart, Line, Scatter, ReferenceLine, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 import {
   compareRows, compareVerdict, formChange, sessionMatch, deltaTone, splitSeries, kmWinner, KM_METRICS,
-  compareCandidates, compareToText,
+  compareCandidates, compareToText, formEvolution,
 } from '../lib/sessionCompare';
 import { formatPaceFromSecPerKm } from '../lib/timeFormat';
 import { AXIS_TICK } from '../lib/palette';
@@ -79,6 +80,8 @@ export default function SessionCompare({ aId, activities, hrParams, onBack, onOp
   const b = bId ? byId.get(String(bId)) ?? null : null;
 
   const candidates = useMemo(() => compareCandidates(a, activities).map((c) => c.activity), [a, activities]);
+  const evolution = useMemo(() => formEvolution(a, candidates, { hrrest: hrParams?.hrrest }), [a, candidates, hrParams?.hrrest]);
+  const monthFmt = useMemo(() => new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short' }), [i18n.language]);
   const searchHits = useMemo(() => {
     const tokens = norm(query).split(/\s+/).filter(Boolean);
     if (!tokens.length) return [];
@@ -233,6 +236,29 @@ export default function SessionCompare({ aId, activities, hrParams, onBack, onOp
         {sessionLine(a, 'A', COLOR_A)}
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">{sessionLine(b, 'B', COLOR_B)}</div>
+          {/* Recorrer las equivalentes sin abrir el selector: en el orden de la
+              lista (de la más parecida a la menos). */}
+          {candidates.length > 0 && (() => {
+            const idx = candidates.findIndex((x) => String(x.id) === String(bId));
+            const step = (d) => {
+              const next = idx === -1 ? (d > 0 ? 0 : candidates.length - 1) : idx + d;
+              if (candidates[next]) pick(candidates[next].id);
+            };
+            const btn = 'p-1 rounded-sm text-slate-500 hover:bg-slate-900/5 hover:text-slate-950 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none';
+            return (
+              <div className="shrink-0 flex items-center gap-0.5">
+                <button type="button" onClick={() => step(-1)} disabled={idx === 0} aria-label={t('compare.prev_similar')} title={t('compare.prev_similar')} className={btn}>
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] tabular-nums text-slate-500 dark:text-white/50 min-w-[2.5rem] text-center">
+                  {idx === -1 ? '—' : idx + 1}/{candidates.length}
+                </span>
+                <button type="button" onClick={() => step(1)} disabled={idx === candidates.length - 1} aria-label={t('compare.next_similar')} title={t('compare.next_similar')} className={btn}>
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })()}
           <button type="button" onClick={() => setPicking((p) => !p)} className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-950 dark:text-white/55 dark:hover:text-white">
             <PencilSquareIcon className="w-3.5 h-3.5" /> {t('compare.change')}
           </button>
@@ -420,6 +446,80 @@ export default function SessionCompare({ aId, activities, hrParams, onBack, onOp
           </table>
         </section>
       </div>
+
+      {/* Evolución: la forma de todas las equivalentes frente a A, en el tiempo. */}
+      {evolution.points.length >= 2 && (
+        <section className="card rounded-md p-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className="text-sm font-bold text-slate-950 dark:text-white">{t('compare.evolution.title')}</h3>
+            <p className="flex-1 min-w-[12rem] text-xs text-slate-600 dark:text-white/65">
+              {evolution.trend
+                ? t(
+                  Math.abs(evolution.trend.perMonth) < 0.5 ? 'compare.evolution.trend_flat' : evolution.trend.perMonth > 0 ? 'compare.evolution.trend_up' : 'compare.evolution.trend_down',
+                  { pct: Math.abs(evolution.trend.perMonth), n: evolution.points.length },
+                )
+                : t('compare.evolution.few', { n: evolution.points.length })}
+            </p>
+          </div>
+          <div className="mt-2 h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart margin={{ top: 8, right: 8, bottom: 0, left: -14 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--c-hairline)" vertical={false} />
+                <XAxis
+                  type="number" dataKey="t" domain={['dataMin', 'dataMax']} scale="time"
+                  tick={AXIS_TICK} tickLine={false} axisLine={false}
+                  tickFormatter={(v) => monthFmt.format(new Date(v))}
+                />
+                <YAxis
+                  type="number" dataKey="pct" tick={AXIS_TICK} tickLine={false} axisLine={false} width={44}
+                  tickFormatter={(v) => `${v > 0 ? '+' : ''}${v}%`}
+                />
+                <ReferenceLine y={0} stroke={COLOR_A} strokeDasharray="4 3" />
+                <RechartsTooltip
+                  cursor={{ strokeDasharray: '3 3' }}
+                  contentStyle={{ background: 'var(--c-paper)', border: '1px solid var(--c-hairline)', fontSize: 12 }}
+                  content={({ active, payload }) => {
+                    const p = active && payload?.[0]?.payload;
+                    if (!p || p.id == null) return null;
+                    const x = byId.get(String(p.id));
+                    return (
+                      <div className="rounded-sm border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0c0e12] px-2 py-1.5 text-xs shadow">
+                        <p className="font-semibold text-slate-950 dark:text-white">{x?.name}</p>
+                        <p className="text-slate-500 dark:text-white/55">{when(x)}</p>
+                        <p className="font-bold tabular-nums">{p.isRef ? t('compare.evolution.ref') : `${p.pct > 0 ? '+' : ''}${p.pct}% ${t('compare.form.label')}`}</p>
+                      </div>
+                    );
+                  }}
+                />
+                {evolution.trend && (
+                  <Line
+                    data={[evolution.trend.from, evolution.trend.to]} dataKey="pct"
+                    stroke="var(--c-ink-faint)" strokeWidth={1.5} strokeDasharray="6 4" dot={false} isAnimationActive={false} legendType="none"
+                  />
+                )}
+                <Scatter
+                  data={evolution.points}
+                  isAnimationActive={false}
+                  onClick={(p) => { if (p && !p.isRef) pick(p.id); }}
+                  shape={(props) => {
+                    const { cx, cy, payload } = props;
+                    const isB = String(payload.id) === String(bId);
+                    const color = payload.isRef ? COLOR_A : isB ? COLOR_B : payload.pct >= 0 ? '#10b981' : '#f59e0b';
+                    return (
+                      <circle
+                        cx={cx} cy={cy} r={payload.isRef || isB ? 6 : 4}
+                        fill={color} stroke={payload.isRef || isB ? 'var(--c-paper)' : 'none'} strokeWidth={2}
+                        style={{ cursor: payload.isRef ? 'default' : 'pointer' }}
+                      />
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t('compare.evolution.hint')}</p>
+        </section>
+      )}
 
       {onAskCoach && (
         <button type="button" onClick={ask} className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline">

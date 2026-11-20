@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compareRows, compareVerdict, formChange, sessionMatch, deltaTone, splitSeries, kmWinner, compareCandidates, compareToText } from './sessionCompare';
+import { compareRows, compareVerdict, formChange, formEvolution, sessionMatch, deltaTone, splitSeries, kmWinner, compareCandidates, compareToText } from './sessionCompare';
 
 const act = (id, km, secPerKm, hr, extra = {}) => ({
   id, type: 'Run', name: `S${id}`, start_date: `2026-11-${String(id).padStart(2, '0')}T08:00:00Z`,
@@ -134,6 +134,21 @@ describe('compareCandidates', () => {
     const ref = act(10, 10, 300, 150);
     const old = { ...act(1, 10, 300, 150), start_date: '2026-03-01T08:00:00Z' };
     expect(compareCandidates(ref, [ref, old], { now })).toEqual([]);
+  });
+});
+
+describe('formEvolution', () => {
+  it('la referencia en 0 %, ordenadas por fecha y con tendencia', () => {
+    const ref = act(15, 10, 300, 150);
+    const older = [act(1, 10, 315, 150), act(5, 10, 310, 150), act(10, 10, 305, 150)];
+    const { points, trend } = formEvolution(ref, older);
+    expect(points.map((p) => p.id)).toEqual([1, 5, 10, 15]);
+    expect(points.find((p) => p.isRef).pct).toBe(0);
+    expect(points[0].pct).toBeLessThan(0); // más lenta al mismo pulso: peor forma
+    expect(trend.perMonth).toBeGreaterThan(0); // mejora con el tiempo
+  });
+  it('sin tendencia con menos de 3 puntos', () => {
+    expect(formEvolution(act(2, 10, 300, 150), [act(1, 10, 300, 150)]).trend).toBeNull();
   });
 });
 

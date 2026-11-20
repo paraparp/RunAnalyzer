@@ -250,6 +250,43 @@ export function compareCandidates(ref, all, { months = 6, minMatch = 70, limit =
     .slice(0, limit);
 }
 
+/**
+ * Evolución de la forma en las sesiones equivalentes: cada una con su % frente
+ * a `ref` (la misma fórmula del titular, formChange) y la recta de tendencia por
+ * mínimos cuadrados. `ref` entra con 0 %.
+ *
+ * Devuelve `{ points: [{ id, t, pct, isRef }], trend: { perMonth, from, to } | null }`
+ * con `t` en ms y los puntos ordenados por fecha. Sin tendencia con menos de 3.
+ */
+export function formEvolution(ref, sessions, { hrrest = null } = {}) {
+  if (!ref) return { points: [], trend: null };
+  const points = [{ id: ref.id, t: Date.parse(ref.start_date), pct: 0, isRef: true }];
+  for (const x of sessions || []) {
+    const f = formChange(ref, x, { hrrest });
+    if (f) points.push({ id: x.id, t: Date.parse(x.start_date), pct: f.pct, isRef: false });
+  }
+  points.sort((p, q) => p.t - q.t);
+  if (points.length < 3) return { points, trend: null };
+
+  const n = points.length;
+  const mx = points.reduce((s, p) => s + p.t, 0) / n;
+  const my = points.reduce((s, p) => s + p.pct, 0) / n;
+  const sxx = points.reduce((s, p) => s + (p.t - mx) ** 2, 0);
+  if (sxx === 0) return { points, trend: null };
+  const slope = points.reduce((s, p) => s + (p.t - mx) * (p.pct - my), 0) / sxx; // % por ms
+  const at = (t) => Math.round((my + slope * (t - mx)) * 10) / 10;
+  const t0 = points[0].t;
+  const t1 = points[n - 1].t;
+  return {
+    points,
+    trend: {
+      perMonth: Math.round(slope * 30.44 * 86400000 * 10) / 10,
+      from: { t: t0, pct: at(t0) },
+      to: { t: t1, pct: at(t1) },
+    },
+  };
+}
+
 /** Texto plano de la comparativa, para dárselo al chat como contexto. */
 export function compareToText(a, b, rows, labels) {
   const head = (x) => `${x.name} (${String(x.start_date_local || x.start_date).slice(0, 10)})`;

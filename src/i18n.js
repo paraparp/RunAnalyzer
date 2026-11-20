@@ -304,6 +304,15 @@ const en = {
     },
     compare: {
       title: "Compare sessions",
+      evolution: {
+        title: "Form over time",
+        trend_up: "Across {{n}} equivalent sessions your form is improving by {{pct}}% a month.",
+        trend_down: "Across {{n}} equivalent sessions your form is dropping by {{pct}}% a month.",
+        trend_flat: "Across {{n}} equivalent sessions your form is stable.",
+        few: "Only {{n}} equivalent sessions: not enough for a trend yet.",
+        ref: "This session (reference, 0%)",
+        hint: "Each point is a session ≥70% alike in the last 6 months, compared with A (dashed line = A). Green above, amber below. Click one to compare it."
+      },
       match: {
         title: "How alike the two sessions are in distance, pace and climb",
         chip: "{{pct}}% alike",
@@ -341,6 +350,8 @@ const en = {
       },
       pick: "Which session do you want to compare it with?",
       change: "Change",
+      prev_similar: "More alike session",
+      next_similar: "Next equivalent session",
       search: "Search by name or date…",
       similar_hint: "Runs from the last 6 months that are at least 70% alike, most alike first.",
       no_candidates: "No run in the last 6 months is at least 70% alike. Search for one by name or date.",
@@ -2029,6 +2040,15 @@ const es = {
     },
     compare: {
       title: "Comparar sesiones",
+      evolution: {
+        title: "Evolución de la forma",
+        trend_up: "En {{n}} sesiones equivalentes tu forma mejora un {{pct}}% al mes.",
+        trend_down: "En {{n}} sesiones equivalentes tu forma baja un {{pct}}% al mes.",
+        trend_flat: "En {{n}} sesiones equivalentes tu forma se mantiene estable.",
+        few: "Solo {{n}} sesiones equivalentes: aún no hay tendencia.",
+        ref: "Esta sesión (referencia, 0%)",
+        hint: "Cada punto es una sesión con ≥70% de coincidencia de los últimos 6 meses, frente a A (línea discontinua = A). Verde por encima, ámbar por debajo. Pulsa una para compararla."
+      },
       match: {
         title: "Cuánto se parecen las dos sesiones en distancia, ritmo y desnivel",
         chip: "{{pct}}% de coincidencia",
@@ -2066,6 +2086,8 @@ const es = {
       },
       pick: "¿Con qué sesión quieres compararla?",
       change: "Cambiar",
+      prev_similar: "Sesión más parecida",
+      next_similar: "Siguiente sesión equivalente",
       search: "Buscar por nombre o fecha…",
       similar_hint: "Carreras de los últimos 6 meses con al menos un 70% de coincidencia, de la más parecida a la menos.",
       no_candidates: "Ninguna carrera de los últimos 6 meses llega al 70% de coincidencia. Busca una por nombre o fecha.",
