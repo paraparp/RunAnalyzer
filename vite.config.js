@@ -130,8 +130,10 @@ export default defineConfig({
           // i18n va con React: en un chunk aparte se creaba un ciclo de imports y
           // react-i18next se evaluaba antes que React ("reading 'createContext'").
           if (['i18next', 'react-i18next'].some(pkg)) return 'react';
-          if (pkg('recharts')) return 'recharts';
-          if (pkg('@tremor/react')) return 'tremor';
+          // recharts y tremor NO van a mano: comparten dependencias (d3, lodash,
+          // victory-vendor…) con el resto y, forzados a su propio chunk, se creaba
+          // un ciclo que evaluaba recharts a medias ("Cannot access 'm2' before
+          // initialization"). Rollup los reparte bien solo.
           if (pkg('framer-motion')) return 'motion';
           if (pkg('@supabase')) return 'supabase';
           return undefined;
