@@ -127,7 +127,9 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined;
           const pkg = (name) => id.includes(`/node_modules/${name}/`);
           if (['react', 'react-dom', 'scheduler', 'react-router', 'react-router-dom'].some(pkg)) return 'react';
-          if (['i18next', 'react-i18next'].some(pkg)) return 'i18n';
+          // i18n va con React: en un chunk aparte se creaba un ciclo de imports y
+          // react-i18next se evaluaba antes que React ("reading 'createContext'").
+          if (['i18next', 'react-i18next'].some(pkg)) return 'react';
           if (pkg('recharts')) return 'recharts';
           if (pkg('@tremor/react')) return 'tremor';
           if (pkg('framer-motion')) return 'motion';

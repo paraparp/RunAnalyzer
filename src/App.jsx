@@ -138,6 +138,8 @@ const relativeTime = (ms, lang) => {
   return rtf.format(Math.round(hours / 24), 'day');
 };
 
+const RESUME_SYNC_MS = 15 * 60 * 1000;
+
 const Dashboard = ({ user, handleLogout }) => {
   const { t, i18n } = useTranslation();
   // Lo guardado entra ya en el primer render: la app arranca con datos, y quien
@@ -365,6 +367,19 @@ const Dashboard = ({ user, handleLogout }) => {
     runSyncRef.current = runSync;
     changeLanguageRef.current = changeLanguage;
   });
+
+  // Al volver a la app (cambiar de pestaña, desbloquear el móvil, abrir la PWA que
+  // estaba en segundo plano) se lanza el sync rápido, como mucho uno cada 15 min:
+  // ir y venir entre apps no debe comerse la cuota de Strava (100 peticiones/15 min).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      const last = readSyncHistory()[0]?.startedAt ?? 0;
+      if (Date.now() - last > RESUME_SYNC_MS) runSyncRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const [isSyncing, setIsSyncing] = useState(false);
   // Cuándo fue el último sync (lib/syncHistory): se enseña junto al botón.
