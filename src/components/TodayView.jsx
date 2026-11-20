@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import cloudStorage from '../lib/cloudStorage';
 import {
@@ -27,8 +27,9 @@ import { zoneMix, polarizedGroups, polarizationStatus } from '../lib/zoneMix';
 import { formatPaceFromSpeed, formatPaceFromSecPerKm, formatMinutesHm, formatDuration } from '../lib/timeFormat';
 import { efficiencyMPerBeat } from '../lib/efficiencyFactor';
 import { Ring, Scale, WorkoutProfile, RouteShape, DetailLink, Panel, TrendChart } from './TodayVisuals';
-import RouteMap from './RouteMap';
-import { COLORS } from '../lib/palette';
+// Leaflet pesa ~440 kB y solo pinta la miniatura del último rodaje: bajo demanda,
+// para que no viaje en el bundle inicial.
+const RouteMap = lazy(() => import('./RouteMap'));import { COLORS } from '../lib/palette';
 import { weekStartKey } from '../lib/isoWeek';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1351,7 +1352,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                   className={`sm:col-span-3 cursor-pointer rounded overflow-hidden hover:opacity-90 focus-visible:outline-blue-500 ${PRESS}`}
                   title="Abrir la sesión"
                 >
-                  <RouteMap encoded={lastRun.polyline} interactive={false} className="relative w-full aspect-square max-h-48" />
+                  <Suspense fallback={<div className="w-full aspect-square max-h-48 bg-slate-900/[0.06] dark:bg-white/[0.06]" />}>
+                    <RouteMap encoded={lastRun.polyline} interactive={false} className="relative w-full aspect-square max-h-48" />
+                  </Suspense>
                 </div>
 
                 <div className="sm:col-span-5 flex flex-col gap-3 min-w-0">

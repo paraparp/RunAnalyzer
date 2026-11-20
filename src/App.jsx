@@ -6,10 +6,13 @@ import { useTranslation } from 'react-i18next';
 import './App.css';
 import StravaCallback from './components/StravaCallback';
 import OfflineBanner from './components/OfflineBanner';
-import RunQA from './components/RunQA';
+// El chat solo se monta al abrirlo: con él bajan el renderizador OpenUI, el
+// markdown y el cliente de IA, que no hacen falta para pintar la app.
+const RunQA = lazy(() => import('./components/RunQA'));
 import Logo from './components/Logo';
 import UserMenu from './components/UserMenu';
-import LandingPage from './components/LandingPage';
+// Solo la ve quien no ha iniciado sesión: fuera del bundle de la app.
+const LandingPage = lazy(() => import('./components/LandingPage'));
 import TodayView from './components/TodayView';
 import CommandPalette from './components/CommandPalette';
 import ViewSkeleton, { AppSplash } from './components/ViewSkeleton';
@@ -43,6 +46,7 @@ const GeoZones = lazy(() => import('./components/GeoZones'));
 const RouteProgression = lazy(() => import('./components/RouteProgression'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const SessionView = lazy(() => import('./components/SessionView'));
+const SessionCompare = lazy(() => import('./components/SessionCompare'));
 // La conclusión de cada área arrastra la curva mean-max y el PMC: bajo demanda.
 const EngineVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.EngineVerdict })));
 const LoadVerdict = lazy(() => import('./components/AreaVerdict').then(m => ({ default: m.LoadVerdict })));
@@ -199,10 +203,16 @@ const Dashboard = ({ user, handleLogout }) => {
   ), [isAdmin]);
   // La sesión no está en el menú (es un detalle, no un sitio al que ir), así que se
   // resuelve aparte y cuelga de Sesiones a efectos de navegación.
-  const currentView = viewParam === 'activity' && routeId
-    ? 'activity'
+  // La comparativa (/compare/:id?with=otroId) es igual: un detalle de Sesiones.
+  const isDetailView = (viewParam === 'activity' || viewParam === 'compare') && routeId;
+  const currentView = isDetailView
+    ? viewParam
     : navItems.some(i => i.id === viewParam) ? viewParam : 'dashboard';
-  const navView = currentView === 'activity' ? 'log' : currentView;
+  const isDetail = currentView === 'activity' || currentView === 'compare';
+  const navView = isDetail ? 'log' : currentView;
+  // Como en una app nativa: cada sección empieza arriba, y tocar la pestaña activa sube al inicio.
+  const mainRef = useRef(null);
+  useEffect(() => { mainRef.current?.scrollTo({ top: 0 }); }, [currentView]);
   const setCurrentView = useCallback(
     (v) => navigate(v === 'dashboard' ? '/' : `/${v}`),
     [navigate]
@@ -489,6 +499,7 @@ const Dashboard = ({ user, handleLogout }) => {
       const a = allActivities.find(x => String(x.id) === String(routeId));
       if (a) parts.push(`Sesión abierta: ${a.name} (${String(a.start_date_local || a.start_date).slice(0, 10)}, ${((a.distance || 0) / 1000).toFixed(1)} km).`);
     }
+    if (currentView === 'compare') parts.push('Está comparando dos sesiones lado a lado.');
     return parts.join(' ');
   }, [t, currentView, activeCat, scope, allActivities, routeId]);
 
@@ -596,9 +607,9 @@ const Dashboard = ({ user, handleLogout }) => {
   const lastSyncLabel = lastSyncAt ? t('topbar.last_sync', { when: relativeTime(lastSyncAt, i18n.language) }) : null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg">
+    <div className="flex h-screen h-dvh overflow-hidden bg-bg">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-60 bg-white dark:bg-[#07090d] border-r border-slate-900/10 dark:border-white/10 shrink-0 h-screen z-50">
+      <aside className="hidden lg:flex lg:flex-col w-60 bg-white dark:bg-[#07090d] border-r border-slate-900/10 dark:border-white/10 shrink-0 h-screen h-dvh z-50">
         {SidebarContent()}
       </aside>
 
@@ -748,7 +759,7 @@ const Dashboard = ({ user, handleLogout }) => {
         )}
 
         {/* Scrollable Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto bg-bg text-ink dark:shell-glow">
+        <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-bg text-ink dark:shell-glow">
           <div className={`mx-auto w-full p-4 lg:p-8 space-y-6 ${currentView === 'dashboard' ? 'max-w-[2200px]' : 'max-w-[1400px]'}`}>
 
             {currentView === 'dashboard' && !stravaData && (
@@ -798,7 +809,7 @@ const Dashboard = ({ user, handleLogout }) => {
             {/* Conclusión del área (§6.3): la misma en todas las vistas del área. */}
             {/* Solo en las vistas del área, no en la ficha de sesión (que cuelga de
                 Sesiones a efectos de menú pero es un detalle, no un área). */}
-            {currentView !== 'activity' && (() => {
+            {!isDetail && (() => {
               const catId = activeCat?.id;
               if (catId === 'engine') return <Suspense fallback={null}><EngineVerdict runs={runningActivities} hrParams={hrParams} /></Suspense>;
               if (catId === 'load') return <Suspense fallback={null}><LoadVerdict activities={allActivities} /></Suspense>;
@@ -810,6 +821,7 @@ const Dashboard = ({ user, handleLogout }) => {
               const viewMap = {
                 log:         <ActivityLog activities={allActivities} runningActivities={runningActivities} hrParams={hrParams} onOpenActivity={openActivity} />,
                 activity:    <SessionView key={routeId} activityId={routeId} activities={allActivities} hrParams={hrParams} accessToken={stravaData?.accessToken} shoes={stravaData?.athlete?.shoes} onBack={goBackFromActivity} onOpenActivity={openActivity} onStepActivity={stepActivity} onEnrichActivity={handleFetchDetails} onNavigate={setCurrentView} onAskCoach={askCoachAboutSession} />,
+                compare:     <SessionCompare aId={routeId} activities={runningActivities} hrParams={hrParams} onBack={goBackFromActivity} onOpenActivity={openActivity} onAskCoach={askCoachAboutSession} />,
                 pmc:         <FitnessFatigue activities={allActivities} />,
                 weekly:      <WeeklyProgression activities={allActivities} />,
                 injury:      <InjuryRisk activities={allActivities} />,
@@ -863,7 +875,10 @@ const Dashboard = ({ user, handleLogout }) => {
                 key={cat.id}
                 type="button"
                 aria-current={isActive ? 'page' : undefined}
-                onClick={() => { if (!isActive || currentView === 'activity') setCurrentView(cat.itemIds[0]); }}
+                onClick={() => {
+                  if (!isActive || isDetail) setCurrentView(cat.itemIds[0]);
+                  else mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className={`h-14 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${isActive
                   ? 'text-slate-950 dark:text-white'
                   : 'text-slate-500 dark:text-white/50'
@@ -938,7 +953,9 @@ const Dashboard = ({ user, handleLogout }) => {
               </button>
             </div>
             <div className="flex-1 min-h-0 flex flex-col p-3">
-              <RunQA key={chatSeedKey} activities={runningActivities} viewContext={viewContext} />
+              <Suspense fallback={<ViewSkeleton />}>
+                <RunQA key={chatSeedKey} activities={runningActivities} viewContext={viewContext} />
+              </Suspense>
             </div>
           </aside>
         </div>
@@ -1018,7 +1035,7 @@ function App() {
         } />
         <Route path="/:view?/:raceId?" element={
           !user ? (
-            <LandingPage />
+            <Suspense fallback={<AppSplash />}><LandingPage /></Suspense>
           ) : !storageReady ? (
             <AppSplash label={t('common.loading_data')} />
           ) : (

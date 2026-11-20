@@ -387,3 +387,16 @@ textarea {
     animation: none;
   }
 }
+
+/* Sensación de app nativa en móvil (sobre todo instalada como PWA). */
+html, body {
+  overscroll-behavior-y: none;          /* sin rebote ni pull-to-refresh del navegador */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+button, a, [role="button"], nav, header, aside {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;          /* sin menú contextual al mantener pulsado */
+  touch-action: manipulation;           /* sin retraso de 300 ms ni zoom por doble toque */
+}

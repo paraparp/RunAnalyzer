@@ -12,6 +12,10 @@ import './hooks/usePWAInstall'; // captura beforeinstallprompt antes de montar n
 // Útil para soporte: saber qué build está corriendo el usuario desde la consola.
 window.__APP_BUILD__ = buildInfo;
 
+// La app guarda las actividades en local: pide almacenamiento persistente para que el
+// navegador no lo borre por falta de espacio (Chrome lo concede sin preguntar si está instalada).
+navigator.storage?.persist?.().catch(() => {});
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>

@@ -38,7 +38,7 @@ export const seedToText = (seed) => {
     if (b.cur) lines.push(`**Estado actual**\n${b.cur}`);
     if (b.trend) lines.push(`**Tendencia y patrón**\n${b.trend}`);
     if (b.nextWork) lines.push(`**Sesión recomendada**\n${b.nextWork}`);
-    if (b.lastWork) lines.push(`**Análisis del último entrenamiento**\n${b.lastWork}`);
+    if (b.lastWork) lines.push(`**Análisis del último entrenamiento**\n${b.lastWork}`);    if (b.compare) lines.push(`**Comparativa de dos sesiones**\n${b.compare}`);
     if (s) {
         const parts = [];
         if (s.readiness != null) parts.push(`Readiness ${s.readiness}/100${s.readinessLabel ? ` (${s.readinessLabel})` : ''}`);

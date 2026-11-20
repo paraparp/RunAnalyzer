@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon, ArrowTopRightOnSquareIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon,
   ArrowTrendingUpIcon, ArrowTrendingDownIcon, ScaleIcon, HeartIcon, SunIcon,
   AdjustmentsHorizontalIcon, XMarkIcon, ChatBubbleLeftRightIcon, CalendarDaysIcon, ChartBarIcon, FlagIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 import { activityNeighbors } from '../lib/activityNeighbors';
 import {
@@ -889,6 +890,7 @@ export default function SessionView({
     onNavigate && (race
       ? { key: 'race', Icon: FlagIcon, label: t('session.next_race'), hint: t('session.next_race_hint'), onClick: () => onNavigate('targets') }
       : { key: 'plan', Icon: CalendarDaysIcon, label: t('session.next_plan'), hint: t('session.next_plan_hint'), onClick: () => onNavigate('planner') }),
+    onNavigate && { key: 'compare', Icon: ArrowsRightLeftIcon, label: t('session.next_compare'), hint: t('session.next_compare_hint'), onClick: () => onNavigate(`compare/${activity.id}`) },
     onNavigate && { key: 'load', Icon: ChartBarIcon, label: t('session.next_load'), hint: t('session.next_load_hint'), onClick: () => onNavigate('pmc') },
   ].filter(Boolean);
 

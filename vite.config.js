@@ -119,12 +119,20 @@ export default defineConfig({
       output: {
         // Vendors grandes en chunks propios: el bundle de la app se cachea
         // aparte de las librerías, que cambian mucho menos entre despliegues.
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          recharts: ['recharts'],
-          tremor: ['@tremor/react'],
-          motion: ['framer-motion'],
-          supabase: ['@supabase/supabase-js'],
+        //
+        // Función y no objeto: la forma de objeto solo captura el punto de
+        // entrada del paquete, y `react-dom/client` + `scheduler` se quedaban en
+        // el chunk de la app (~530 kB que se re-descargaban en cada deploy).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          const pkg = (name) => id.includes(`/node_modules/${name}/`);
+          if (['react', 'react-dom', 'scheduler', 'react-router', 'react-router-dom'].some(pkg)) return 'react';
+          if (['i18next', 'react-i18next'].some(pkg)) return 'i18n';
+          if (pkg('recharts')) return 'recharts';
+          if (pkg('@tremor/react')) return 'tremor';
+          if (pkg('framer-motion')) return 'motion';
+          if (pkg('@supabase')) return 'supabase';
+          return undefined;
         },
       },
     },
