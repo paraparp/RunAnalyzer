@@ -163,7 +163,7 @@ const blendScore = (score, today, avg7) =>
 export function computeReadiness({ hrv, rhr, bb, sleep, pmc, resp }) {
   const parts = [];
   // Señales en rojo: una media ponderada las diluye, así que limitan el techo.
-  let redFlags = 0;
+  const red = [];
   if (hrv) {
     const b = hrv.baseline;
     if (b?.balancedLow && b?.balancedUpper) {
@@ -174,44 +174,46 @@ export function computeReadiness({ hrv, rhr, bb, sleep, pmc, resp }) {
         // (−10 % bajo el límite → 35).
         return clamp(55 - (1 - v / b.balancedLow) * 200, 15, 55);
       };
-      parts.push([clamp(blendScore(hrvScore, hrv.latest, hrv.hrv7), 10, 100), 0.30]);
-      if (hrv.latest < b.balancedLow) redFlags++;
+      parts.push(['hrv', clamp(blendScore(hrvScore, hrv.latest, hrv.hrv7), 10, 100), 0.30, `rango propio ${Math.round(b.balancedLow)}–${Math.round(b.balancedUpper)} ms`]);
+      if (hrv.latest < b.balancedLow) red.push('VFC bajo tu rango');
     } else {
       const map = { BALANCED: 82, LOW: 38, UNBALANCED: 45, POOR: 30, GOOD: 88 };
       const s = map[hrv.status] ?? 70;
-      parts.push([s, 0.30]);
-      if (s < 50) redFlags++;
+      parts.push(['hrv', s, 0.30, `estado Garmin ${hrv.status ?? 'n/d'}`]);
+      if (s < 50) red.push('VFC baja');
     }
   }
   if (bb?.high != null) {
-    parts.push([blendScore(v => clamp(v, 5, 100), bb.high, bb.avg7), 0.20]);
-    if (bb.high < 50) redFlags++;
+    parts.push(['bb', blendScore(v => clamp(v, 5, 100), bb.high, bb.avg7), 0.20, bb.avg7 != null ? `media 7 d ${Math.round(bb.avg7)}` : '']);
+    if (bb.high < 50) red.push('Body Battery < 50');
   }
   if (sleep?.score != null) {
-    parts.push([blendScore(v => clamp(v, 20, 100), sleep.score, sleep.avg7), 0.20]);
-    if (sleep.score < 60) redFlags++;
+    parts.push(['sleep', blendScore(v => clamp(v, 20, 100), sleep.score, sleep.avg7), 0.20, sleep.avg7 != null ? `media 7 d ${Math.round(sleep.avg7)}` : '']);
+    if (sleep.score < 60) red.push('sueño < 60');
   }
   // FC reposo: hoy (o, sin dato diario, la media 7d) frente a su media de 28 días.
   const rhrToday = rhr?.latest ?? rhr?.r7;
   if (rhrToday && rhr?.r28) {
     const rhrScore = (v) => clamp(78 - (v - rhr.r28) / rhr.r28 * 100 * 3.5, 15, 100); // >media = peor
-    parts.push([blendScore(rhrScore, rhrToday, rhr.latest ? rhr.r7 : null), 0.15]);
-    if ((rhrToday - rhr.r28) / rhr.r28 >= 0.05) redFlags++;
+    parts.push(['rhr', blendScore(rhrScore, rhrToday, rhr.latest ? rhr.r7 : null), 0.15, `media 28 d ${rhr.r28.toFixed(1)} ppm`]);
+    if ((rhrToday - rhr.r28) / rhr.r28 >= 0.05) red.push('FC reposo +5 %');
   }
   // Respiración nocturna frente a su media de 28 días: sube con fiebre, infección
   // o fatiga. +1 rpm ya es señal; +1,5 rpm cuenta como roja.
   if (resp?.latest != null && resp?.r28) {
     const respScore = (v) => clamp(80 - (v - resp.r28) * 25, 15, 100);
-    parts.push([blendScore(respScore, resp.latest, resp.r7 ?? null), 0.10]);
-    if (resp.latest - resp.r28 >= 1.5) redFlags++;
+    parts.push(['resp', blendScore(respScore, resp.latest, resp.r7 ?? null), 0.10, `media 28 d ${resp.r28.toFixed(1)} rpm`]);
+    if (resp.latest - resp.r28 >= 1.5) red.push('respiración +1,5 rpm');
   }
-  if (pmc?.tsb != null) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
+  if (pmc?.tsb != null) parts.push(['tsb', clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15, `TSB ${pmc.tsb}`]);
   // ACWR: no es fatiga de hoy (ni predictor fiable de lesión, Impellizzeri 2020),
   // así que no pondera; pero una subida brusca (>1,5) impide "Óptimo".
-  if (pmc?.acwr != null && pmc.acwr > 1.5) redFlags++;
+  if (pmc?.acwr != null && pmc.acwr > 1.5) red.push(`ACWR ${pmc.acwr} > 1,5`);
   if (!parts.length) return null;
-  const wsum = parts.reduce((s, [, w]) => s + w, 0);
-  let score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
+  const wsum = parts.reduce((s, [, , w]) => s + w, 0);
+  const raw = Math.round(parts.reduce((s, [, v, w]) => s + v * w, 0) / wsum);
+  let score = raw;
+  const redFlags = red.length;
   // Una señal roja impide "Óptimo"; dos o más impiden "Bueno".
   if (redFlags >= 2) score = Math.min(score, 58);
   else if (redFlags === 1) score = Math.min(score, 75);
@@ -220,7 +222,9 @@ export function computeReadiness({ hrv, rhr, bb, sleep, pmc, resp }) {
   else if (score >= 62) { label = 'Bueno · entreno normal'; band = 'good'; }
   else if (score >= 45) { label = 'Moderado · precaución, baja carga'; band = 'mod'; }
   else { label = 'Bajo · prioriza recuperación'; band = 'low'; }
-  return { score, label, band };
+  // Desglose: puntos de cada señal y su peso efectivo (renormalizado si falta alguna).
+  const breakdown = parts.map(([key, v, w, ref]) => ({ key, points: Math.round(v), weight: w / wsum, ref }));
+  return { score, raw, label, band, breakdown, redFlags: red, capped: score < raw };
 }
 
 /**

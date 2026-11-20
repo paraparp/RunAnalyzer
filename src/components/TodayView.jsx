@@ -97,6 +97,7 @@ const PRESS = 'transition-all duration-200 active:scale-[0.98] focus-visible:out
 const TONE = {
   emerald: { icon: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400', stroke: COLORS.good, text: 'text-emerald-600 dark:text-emerald-400', pill: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
   blue:    { icon: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400',             stroke: COLORS.signal, text: 'text-blue-600 dark:text-blue-400',       pill: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
+  orange:  { icon: 'bg-orange-50 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400',     stroke: '#f97316', text: 'text-orange-600 dark:text-orange-400',   pill: 'bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300' },
   amber:   { icon: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400',         stroke: COLORS.caution, text: 'text-amber-600 dark:text-amber-400',     pill: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
   rose:    { icon: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400',             stroke: COLORS.risk, text: 'text-rose-600 dark:text-rose-400',       pill: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
   slate:   { icon: 'bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-white/55',           stroke: COLORS.inkFaint, text: 'text-slate-500',                         pill: 'bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-white/55' },
@@ -108,6 +109,7 @@ const HERO_TEXT = {
   emerald: 'text-emerald-300',
   blue:    'text-sky-300',
   amber:   'text-amber-300',
+  orange:  'text-orange-300',
   rose:    'text-rose-300',
   slate:   'text-slate-500',
 };
@@ -115,7 +117,7 @@ const HERO_TEXT = {
 // Una señal del readiness en la cabecera: valor, lectura contra su referencia
 // y su tendencia (sparkline real) o su nivel (barra).
 // Con `onClick` la tarjeta es un botón que lleva al gráfico de esa señal.
-function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar, onClick }) {
+function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar, onClick, part, weekLow }) {
   const stroke = (TONE[tone] ?? TONE.slate).stroke;
   const Tag = onClick ? 'button' : 'div';
   return (
@@ -126,11 +128,17 @@ function HeroSignal({ icon, label, value, unit, note, tone = 'slate', spark, bar
       <div className="flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] text-white/50">{icon}</span>
         <span className="text-label font-bold uppercase text-white/50 truncate">{label}</span>
+        {weekLow && <span className="text-[10px] font-bold text-amber-300/90 whitespace-nowrap" title="La media de los últimos 7 días está peor que la del último mes">↓ semana</span>}
         <span className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ background: stroke, boxShadow: `0 0 8px ${stroke}` }} />
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-black text-white tabular-nums leading-none">{value}</span>
         <span className="text-xs text-white/40 font-semibold">{unit}</span>
+        {part && (
+          <span className="ml-auto text-[11px] font-bold text-white/45 tabular-nums" title={`Aporta ${part.points} puntos con un peso del ${Math.round(part.weight * 100)} %${part.ref ? ` · ${part.ref}` : ''}`}>
+            {part.points} pts · {Math.round(part.weight * 100)}%
+          </span>
+        )}
       </div>
       <span className={`text-xs font-bold truncate ${HERO_TEXT[tone] ?? HERO_TEXT.slate}`}>{note}</span>
       {spark ? (
@@ -870,6 +878,67 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
   const readinessColor = TONE[readinessTone].stroke;
   // FC reposo de hoy (o del último día reciente); sin dato diario, la media 7 d.
   const rhrNow = wearables.rhr ? (wearables.rhr.latest ?? wearables.rhr.r7) : null;
+  // Lo que aporta cada señal a la nota (info: `pts · %` en la tarjeta).
+  const partOf = (k) => readiness?.breakdown?.find(b => b.key === k) ?? null;
+  // Color de cada tarjeta: el estado de ESA métrica frente a su propia
+  // referencia. Rojo = exactamente las señales rojas del cálculo; ámbar = peor
+  // que lo habitual sin llegar a rojo. Puede convivir con un global "Bueno".
+  // Cinco niveles frente a la referencia propia de cada métrica:
+  // verde = mejor de lo habitual · azul = normal · ámbar = algo peor ·
+  // naranja = claramente peor · rojo = señal roja del cálculo (frena la nota).
+  const signalTone = (() => {
+    const { hrv, rhr, sleep: sl, bb } = wearables;
+    const T = ['emerald', 'blue', 'amber', 'orange', 'rose'];
+    // Referencias propias: hoy frente al MES (28 d), no frente a la semana —
+    // si la semana entera ha sido mala, compararse con ella la esconde. Y la
+    // semana frente al mes, aparte: una semana floja sube el nivel a ámbar.
+    const keyOf = (n) => toISODate(new Date(nowMs - n * 86400000));
+    const win = (f, from) => {
+      const v = (garmin ?? []).filter(r => r.date >= from && r.date <= todayISO && r[f] != null && r[f] !== 0).map(r => r[f]);
+      return v.length >= 3 ? v.reduce((x, y) => x + y, 0) / v.length : null;
+    };
+    const m = (f) => ({ w: win(f, keyOf(7)), mo: win(f, keyOf(28)) });
+    const slM = m('sleepScore'), bbM = m('bbHigh');
+    const week = {
+      hrv: hrv?.baseline?.balancedLow && hrv.hrv7 != null && hrv.hrv7 < hrv.baseline.balancedLow,
+      rhr: rhr?.r7 != null && rhr?.r28 && (rhr.r7 - rhr.r28) / rhr.r28 >= 0.02,
+      sleep: slM.w != null && slM.mo != null && slM.w < slM.mo - 5,
+      bb: bbM.w != null && bbM.mo != null && bbM.w < bbM.mo - 8,
+    };
+    const dev = hrvDeltaPct;
+    const hrvL = !hrv ? null
+      : hrv.baseline?.balancedLow
+        ? (hrv.latest < hrv.baseline.balancedLow ? 4
+          : hrv.latest >= hrv.baseline.balancedUpper || (dev != null && dev > 5) ? 0
+          : dev == null || dev >= -5 ? 1 : dev >= -10 ? 2 : 3)
+        : ({ GOOD: 0, BALANCED: 1, UNBALANCED: 2, LOW: 3, POOR: 4 }[hrv.status] ?? null);
+    const d = rhr && rhrNow != null ? (rhrNow - rhr.r28) / rhr.r28 : null;
+    const rhrL = d == null ? null : d >= 0.05 ? 4 : d >= 0.035 ? 3 : d >= 0.02 ? 2 : d <= -0.02 ? 0 : 1;
+    const vsMonth = (v, ref, tol, great) => (ref != null && v < ref - 2 * tol ? 3 : ref != null && v < ref - tol ? 2
+      : v >= great || (ref != null && v >= ref + tol) ? 0 : 1);
+    const slL = sl?.score == null ? null : sl.score < 60 ? 4 : sl.score < 70 ? 3 : vsMonth(sl.score, slM.mo, 5, 85);
+    const bbL = bb?.high == null ? null : bb.high < 50 ? 4 : bb.high < 65 ? 3 : vsMonth(bb.high, bbM.mo, 8, 85);
+    // Semana floja: como mínimo ámbar, aunque hoy en concreto esté bien.
+    const lv = { hrv: hrvL, rhr: rhrL, sleep: slL, bb: bbL };
+    const out = {};
+    for (const k of Object.keys(lv)) {
+      const l = lv[k] == null ? null : week[k] ? Math.max(lv[k], 2) : lv[k];
+      out[k] = l == null ? 'slate' : T[l];
+    }
+    return { ...out, week };
+  })();
+  const partTone = (k) => signalTone[k] ?? 'slate';
+  const PART_LABEL = { hrv: 'VFC', bb: 'Body Battery', sleep: 'Sueño', rhr: 'FC reposo', resp: 'Respiración', tsb: 'Forma (TSB)' };
+  const readinessTip = readiness
+    ? [
+        ...readiness.breakdown.map(b => `${PART_LABEL[b.key]}: ${b.points} pts × ${Math.round(b.weight * 100)} %${b.ref ? `  (${b.ref})` : ''}`),
+        `Media ponderada: ${readiness.raw}`,
+        readiness.redFlags.length
+          ? `Señales rojas: ${readiness.redFlags.join(', ')}${readiness.capped ? ` → tope ${readiness.score}` : ''}`
+          : 'Sin señales rojas',
+        currentACWR != null ? `ACWR ${currentACWR} (solo frena si > 1,5)` : null,
+      ].filter(Boolean).join('\n')
+    : 'Sin datos suficientes';
   const [readinessHead, readinessTail] = (readiness?.label ?? 'Sin datos suficientes').split(' · ');
   const sources = [
     wearables.hrv ? 'VFC' : null,
@@ -1027,9 +1096,11 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
         <div className="relative grid grid-cols-1 xl:grid-cols-12 gap-3 p-3 sm:px-4">
           {/* Readiness: el número y lo que significa, con sus acciones */}
           <div className="xl:col-span-4 flex items-center gap-3.5">
+            <div title={readinessTip} className="cursor-help">
             <Ring value={readiness?.score} size={76} stroke={8} color={readinessColor} trackClass="text-white/10">
               <span className="text-[26px] font-black tabular-nums leading-none">{readiness?.score ?? DASH}</span>
             </Ring>
+            </div>
             <div className="min-w-0 flex flex-col gap-1">
               <span
                 className="text-label font-bold uppercase text-white/50 truncate"
@@ -1088,7 +1159,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               value={wearables.hrv?.latest != null ? Math.round(wearables.hrv.latest) : DASH}
               unit="ms"
               note={hrvDeltaPct != null ? `${hrvDeltaPct >= 0 ? '+' : ''}${hrvDeltaPct}% vs 60 d` : (wearables.hrv?.status ?? 'Sin baseline')}
-              tone={hrvDeltaPct == null ? 'slate' : hrvDeltaPct >= -5 ? 'emerald' : hrvDeltaPct >= -12 ? 'amber' : 'rose'}
+              tone={partTone('hrv')}
+              part={partOf('hrv')}
+              weekLow={signalTone.week.hrv}
               spark={wearables.hrvSpark}
             />
             <HeroSignal
@@ -1101,7 +1174,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 ? `${rhrNow - wearables.rhr.r28 >= 0 ? '+' : ''}${fmt1(rhrNow - wearables.rhr.r28)} vs 28 d${wearables.rhr.latest == null ? ' · media 7 d' : wearables.rhrDate !== todayISO ? ` · del ${wearables.rhrDate.slice(8)}` : ''}${wearables.resp ? ` · resp. ${fmt1(wearables.resp.latest)} rpm` : ''}`
                 : 'Sin datos'}
               // Subir la FC de reposo es la mala noticia: el color va al revés que la VFC.
-              tone={!wearables.rhr ? 'slate' : rhrNow - wearables.rhr.r28 <= 1 ? 'emerald' : rhrNow - wearables.rhr.r28 <= 3 ? 'amber' : 'rose'}
+              tone={partTone('rhr')}
+              part={partOf('rhr')}
+              weekLow={signalTone.week.rhr}
             />
             <HeroSignal
               icon="bedtime"
@@ -1112,7 +1187,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               note={wearables.sleep?.durationMin
                 ? `${formatMinutesHm(wearables.sleep.durationMin, DASH)}${wearables.sleep.deepMin ? ` · prof. ${formatMinutesHm(wearables.sleep.deepMin, DASH)}` : ''}${wearables.sleep.nightly ? '' : ' · media sem.'}`
                 : 'Sin registro'}
-              tone={wearables.sleep?.score == null ? 'slate' : wearables.sleep.score >= 75 ? 'emerald' : wearables.sleep.score >= 60 ? 'amber' : 'rose'}
+              tone={partTone('sleep')}
+              part={partOf('sleep')}
+              weekLow={signalTone.week.sleep}
               spark={wearables.sleepSpark}
             />
             <HeroSignal
@@ -1122,7 +1199,9 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               value={wearables.bb?.high ?? DASH}
               unit="/100"
               note={wearables.bb?.high != null && wearables.bb?.low != null ? `+${wearables.bb.high - wearables.bb.low} recargado` : 'Sin recarga'}
-              tone={wearables.bb?.high == null ? 'slate' : wearables.bb.high >= 70 ? 'emerald' : wearables.bb.high >= 45 ? 'amber' : 'rose'}
+              tone={partTone('bb')}
+              part={partOf('bb')}
+              weekLow={signalTone.week.bb}
               bar={wearables.bb?.high}
             />
           </div>
