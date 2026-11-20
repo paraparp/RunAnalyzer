@@ -376,6 +376,7 @@ export function computePMC(activities, opts = {}) {
       ctl: Math.round(ctl * 10) / 10,
       atl: Math.round(atl * 10) / 10,
       tsb: Math.round(tsb * 10) / 10,
+      acwr: chronicE > 0 ? Math.round((acuteE / chronicE) * 100) / 100 : null,
       activities: day?.activities ?? [],
     });
   }

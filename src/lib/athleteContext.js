@@ -92,7 +92,8 @@ function analyzeHRV(garmin, now) {
  * "anoche" y por eso va marcada con `nightly: false`.
  */
 export function pickSleep(garminRows, weeklySleep, nowMs = Date.now()) {
-  const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+  // Fecha local (no UTC): las filas de Garmin van por día local.
+  const day = (ms) => new Date(ms).toLocaleDateString('sv-SE');
   const nights = (garminRows || [])
     .filter(d => d.sleepScore != null)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -126,11 +127,40 @@ export function pickSleep(garminRows, weeklySleep, nowMs = Date.now()) {
   };
 }
 
+/**
+ * Señales de Garmin para el readiness tal como estaban el día `nowMs` (fecha
+ * local): solo lecturas de ese día o los dos anteriores, medias de 7 y 28 días
+ * hasta esa fecha. Lo comparten el landing, su histórico y el coach IA.
+ */
+export function garminSignals(garminRows, nowMs = Date.now()) {
+  const day = (ms) => new Date(ms).toLocaleDateString('sv-SE');
+  const key = day(nowMs);
+  const fresh = day(nowMs - 2 * 86400000);
+  const w7 = day(nowMs - 7 * 86400000);
+  const w28 = day(nowMs - 28 * 86400000);
+  const rows = (garminRows || []).filter(d => d.date <= key).sort((a, b) => b.date.localeCompare(a.date));
+  const win = (f, from) => rows.filter(d => d.date >= from && d[f] != null && d[f] !== 0).map(d => d[f]);
+  const recent = (f) => rows.find(d => d[f] != null && d[f] !== 0 && d.date >= fresh);
+
+  const h = recent('hrv');
+  const b = recent('bbHigh');
+  const r = recent('restingHR');
+  const r7 = mean(win('restingHR', w7)), r28 = mean(win('restingHR', w28));
+  const p = recent('respiration');
+  const p28 = win('respiration', w28);
+  return {
+    hrv: h ? { latest: h.hrv, hrv7: mean(win('hrv', w7)), status: h.hrvStatus ?? null, baseline: h.baseline ?? null, date: h.date } : null,
+    rhr: r7 != null && r28 != null ? { latest: r?.restingHR ?? null, date: r?.date ?? null, r7, r28 } : null,
+    bb: b ? { high: b.bbHigh, low: b.bbLow ?? null, avg7: mean(win('bbHigh', w7)), date: b.date } : null,
+    resp: p && p28.length >= 5 ? { latest: p.respiration, r7: mean(win('respiration', w7)), r28: mean(p28), date: p.date } : null,
+  };
+}
+
 const TODAY_WEIGHT = 0.7;
 const blendScore = (score, today, avg7) =>
   avg7 != null ? TODAY_WEIGHT * score(today) + (1 - TODAY_WEIGHT) * score(avg7) : score(today);
 
-export function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
+export function computeReadiness({ hrv, rhr, bb, sleep, pmc, resp }) {
   const parts = [];
   // Señales en rojo: una media ponderada las diluye, así que limitan el techo.
   let redFlags = 0;
@@ -168,7 +198,17 @@ export function computeReadiness({ hrv, rhr, bb, sleep, pmc }) {
     parts.push([blendScore(rhrScore, rhrToday, rhr.latest ? rhr.r7 : null), 0.15]);
     if ((rhrToday - rhr.r28) / rhr.r28 >= 0.05) redFlags++;
   }
-  if (pmc) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
+  // Respiración nocturna frente a su media de 28 días: sube con fiebre, infección
+  // o fatiga. +1 rpm ya es señal; +1,5 rpm cuenta como roja.
+  if (resp?.latest != null && resp?.r28) {
+    const respScore = (v) => clamp(80 - (v - resp.r28) * 25, 15, 100);
+    parts.push([blendScore(respScore, resp.latest, resp.r7 ?? null), 0.10]);
+    if (resp.latest - resp.r28 >= 1.5) redFlags++;
+  }
+  if (pmc?.tsb != null) parts.push([clamp(62 + pmc.tsb * 1.1, 15, 100), 0.15]);
+  // ACWR: no es fatiga de hoy (ni predictor fiable de lesión, Impellizzeri 2020),
+  // así que no pondera; pero una subida brusca (>1,5) impide "Óptimo".
+  if (pmc?.acwr != null && pmc.acwr > 1.5) redFlags++;
   if (!parts.length) return null;
   const wsum = parts.reduce((s, [, w]) => s + w, 0);
   let score = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / wsum);
@@ -512,7 +552,10 @@ export const buildPrompt = (activities, garminData, sleepData, weeklyTarget, goa
   const sleep = pickSleep(garminData, sleepData, now.getTime());
 
   // ── Composite readiness score (deterministic) ─────────────────────────────
-  const readiness = computeReadiness({ hrv, rhr, bb, sleep, pmc });
+  // Mismas entradas que el landing (lecturas frescas, respiración, ACWR) para
+  // que el coach y la pantalla den la misma nota.
+  const sig = garminSignals(garminData, now.getTime());
+  const readiness = computeReadiness({ ...sig, sleep, pmc });
 
   // ── Data-availability flags (for graceful degradation in the prompt) ──────
   const hasWearable = !!(garminData?.length);

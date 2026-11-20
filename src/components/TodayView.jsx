@@ -19,7 +19,7 @@ import useAIInsights from '../hooks/useAIInsights';
 import { CoachBadge, CoachBanners, CoachDisclosure, CoachMD, CoachSettings, CoachText } from './CoachAI';
 import { CUR_BADGES, TREND_BADGES, deriveStatusKey, deriveTrendKey, formatTs } from '../lib/aiInsights';
 import TodayPlannedSession, { UpcomingSession } from './TodayPlannedSession';
-import { computeReadiness, pickSleep } from '../lib/athleteContext';
+import { computeReadiness, pickSleep, garminSignals } from '../lib/athleteContext';
 import { getPrimaryTargetRace, getTargetRaces, daysUntil, formatMinutes, TARGET_RACES_EVENT } from '../lib/targetRaces';
 import { DISTANCE_KM } from '../lib/raceDistances';
 import { karvonenBounds, classifyHR, POLARIZED_TARGETS } from '../lib/hrZones';
@@ -397,26 +397,14 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
 
   // ── 4. Wearables: VFC, FC reposo, Body Battery y sueño (valores reales) ───
   const wearables = useMemo(() => {
-    const sorted = garmin?.length ? [...garmin].sort((a, b) => b.date.localeCompare(a.date)) : [];
-    const latestHrv = sorted.find(d => d.hrv != null);
-    const latestBB = sorted.find(d => d.bbHigh != null);
-    const lastSleep = pickSleep(sorted, sleep, nowMs);
-    // Medias de 7 días para que el readiness no dependa solo de una noche.
-    const w7 = new Date(nowMs - 7 * 86400000).toISOString().slice(0, 10);
-    const avg7 = (key) => {
-      const vals = sorted.filter(d => d.date >= w7 && d[key] != null).map(d => d[key]);
-      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
-    };
+    // Solo lecturas de hoy, ayer o anteayer (fecha local); medias 7/28 d.
+    const sig = garminSignals(garmin, nowMs);
+    const lastSleep = pickSleep(garmin, sleep, nowMs);
 
     return {
-      hrv: latestHrv
-        ? { latest: latestHrv.hrv, hrv7: avg7('hrv'), status: latestHrv.hrvStatus ?? null, baseline: latestHrv.baseline ?? null }
-        : null,
-      rhr: garminStats?.rhr7avg != null && garminStats?.rhr28avg != null
-        ? { latest: sorted.find(d => d.restingHR)?.restingHR ?? null, r7: garminStats.rhr7avg, r28: garminStats.rhr28avg }
-        : null,
-      bb: latestBB ? { high: latestBB.bbHigh, low: latestBB.bbLow ?? null, avg7: avg7('bbHigh') } : null,
+      ...sig,
       sleep: lastSleep,
+      rhrDate: sig.rhr?.date ?? null,
       // Sparklines de datos reales, no curvas decorativas.
       hrvSpark: sparkPath((garminStats?.recSparkData || []).map(d => d.v)),
       sleepSpark: sparkPath(lastSleep?.series ?? []),
@@ -433,10 +421,37 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
       rhr: wearables.rhr,
       bb: wearables.bb,
       sleep: wearables.sleep,
-      pmc: currentTSB != null ? { tsb: currentTSB } : null,
+      resp: wearables.resp,
+      pmc: currentTSB != null ? { tsb: currentTSB, acwr: currentACWR } : null,
     }),
-    [wearables, currentTSB],
+    [wearables, currentTSB, currentACWR],
   );
+
+  // ── 5b. Histórico de 7 días: el mismo cálculo, con los datos que había cada día ──
+  const readinessHistory = useMemo(() => {
+    const pmcByDay = new Map((pmc?.series ?? []).map(d => [d.date, d]));
+    const out = [];
+    for (let k = 6; k >= 0; k--) {
+      const ref = new Date(nowMs);
+      ref.setDate(ref.getDate() - k);
+      ref.setHours(12, 0, 0, 0);
+      const refMs = ref.getTime();
+      const key = toISODate(ref);
+      const upTo = (garmin ?? []).filter(d => d.date <= key);
+      const p = pmcByDay.get(key);
+      const r = computeReadiness({
+        ...garminSignals(garmin, refMs),
+        sleep: pickSleep(upTo, null, refMs),
+        pmc: p ? { tsb: Math.round(p.tsb), acwr: p.acwr ?? null } : null,
+      });
+      out.push({ date: key, score: r?.score ?? null });
+    }
+    // El día de hoy, idéntico al anillo (incluye el fallback de sueño semanal).
+    out[6].score = readiness?.score ?? null;
+    const vals = out.filter(d => d.score != null);
+    const delta = vals.length >= 2 ? vals[vals.length - 1].score - vals[0].score : null;
+    return { days: out, delta };
+  }, [garmin, pmc, nowMs, readiness]);
 
   // ── 6. Zonas de FC efectivas (misma calibración que Zonas y el PMC) ───────
   const bounds = useMemo(
@@ -853,6 +868,8 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
     : readiness.score >= 45 ? 'amber'
     : 'rose';
   const readinessColor = TONE[readinessTone].stroke;
+  // FC reposo de hoy (o del último día reciente); sin dato diario, la media 7 d.
+  const rhrNow = wearables.rhr ? (wearables.rhr.latest ?? wearables.rhr.r7) : null;
   const [readinessHead, readinessTail] = (readiness?.label ?? 'Sin datos suficientes').split(' · ');
   const sources = [
     wearables.hrv ? 'VFC' : null,
@@ -1036,6 +1053,29 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
                 )}
                 <DetailLink dark onClick={() => onNavigate('health')}>Salud</DetailLink>
               </div>
+              {readinessHistory.days.some(d => d.score != null) && (
+                <div className="flex items-end gap-2 mt-1" aria-label="Readiness de los últimos 7 días">
+                  <div className="flex items-end gap-[3px] h-7">
+                    {readinessHistory.days.map((d, i) => {
+                      const c = d.score == null ? 'rgba(255,255,255,0.15)'
+                        : TONE[d.score >= 80 ? 'emerald' : d.score >= 62 ? 'blue' : d.score >= 45 ? 'amber' : 'rose'].stroke;
+                      return (
+                        <div
+                          key={d.date}
+                          title={`${new Date(d.date + 'T00:00:00').toLocaleDateString(lang, { weekday: 'short', day: 'numeric' })}: ${d.score ?? 'sin datos'}`}
+                          className={`w-2 rounded-sm ${i === 6 ? 'ring-1 ring-white/60' : ''}`}
+                          style={{ height: `${d.score == null ? 15 : Math.max(10, d.score)}%`, background: c }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <span className="text-[11px] font-semibold text-white/60 leading-none tabular-nums">
+                    7 d{readinessHistory.delta != null && (
+                      <> · {readinessHistory.delta > 2 ? '↑' : readinessHistory.delta < -2 ? '↓' : '→'} {readinessHistory.delta > 0 ? '+' : ''}{readinessHistory.delta}</>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1055,11 +1095,13 @@ export default function TodayView({ activities, runningActivities, hrParams, onN
               icon="favorite"
               onClick={() => onNavigate('health/resumen?m=rhr')}
               label="FC reposo"
-              value={wearables.rhr ? Math.round(wearables.rhr.r7) : DASH}
+              value={rhrNow != null ? Math.round(rhrNow) : DASH}
               unit="ppm"
-              note={wearables.rhr ? `${wearables.rhr.r7 - wearables.rhr.r28 >= 0 ? '+' : ''}${fmt1(wearables.rhr.r7 - wearables.rhr.r28)} vs 28 d` : 'Sin datos'}
+              note={wearables.rhr
+                ? `${rhrNow - wearables.rhr.r28 >= 0 ? '+' : ''}${fmt1(rhrNow - wearables.rhr.r28)} vs 28 d${wearables.rhr.latest == null ? ' · media 7 d' : wearables.rhrDate !== todayISO ? ` · del ${wearables.rhrDate.slice(8)}` : ''}${wearables.resp ? ` · resp. ${fmt1(wearables.resp.latest)} rpm` : ''}`
+                : 'Sin datos'}
               // Subir la FC de reposo es la mala noticia: el color va al revés que la VFC.
-              tone={!wearables.rhr ? 'slate' : wearables.rhr.r7 - wearables.rhr.r28 <= 1 ? 'emerald' : wearables.rhr.r7 - wearables.rhr.r28 <= 3 ? 'amber' : 'rose'}
+              tone={!wearables.rhr ? 'slate' : rhrNow - wearables.rhr.r28 <= 1 ? 'emerald' : rhrNow - wearables.rhr.r28 <= 3 ? 'amber' : 'rose'}
             />
             <HeroSignal
               icon="bedtime"
